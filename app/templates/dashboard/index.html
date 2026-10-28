@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import badge_estado %}
 {% block title %}Trabajos{% endblock %}
 
 {% block content %}
@@ -7,9 +8,7 @@
     <h1 class="h3 mb-1">Trabajos</h1>
     <p class="text-secondary mb-0">Catálogos procesados y en curso.</p>
   </div>
-  <button class="btn btn-primary" disabled title="Disponible en la etapa 1">
-    Nuevo trabajo
-  </button>
+  <a class="btn btn-primary" href="{{ url_for('jobs.nuevo') }}">Nuevo trabajo</a>
 </div>
 
 <div class="row g-3 mb-4">
@@ -24,16 +23,8 @@
   <div class="col-6 col-lg-3">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
-        <div class="text-secondary small text-uppercase">En cola</div>
-        <div class="fs-3 fw-semibold">{{ stats.en_cola }}</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body">
         <div class="text-secondary small text-uppercase">En curso</div>
-        <div class="fs-3 fw-semibold">{{ stats.en_curso }}</div>
+        <div class="fs-3 fw-semibold">{{ stats.en_cola + stats.en_curso }}</div>
       </div>
     </div>
   </div>
@@ -42,6 +33,14 @@
       <div class="card-body">
         <div class="text-secondary small text-uppercase">Terminados</div>
         <div class="fs-3 fw-semibold">{{ stats.terminados }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Fallidos</div>
+        <div class="fs-3 fw-semibold">{{ stats.fallidos }}</div>
       </div>
     </div>
   </div>
@@ -56,6 +55,7 @@
           <th>Estado</th>
           <th class="d-none d-md-table-cell">Paso actual</th>
           <th class="text-end">Creado</th>
+          <th class="text-end"></th>
         </tr>
       </thead>
       <tbody>
@@ -68,35 +68,25 @@
               <span class="text-secondary">—</span>
             {% endif %}
           </td>
-          <td>
-            {% if job.status == 'done' %}
-              <span class="badge text-bg-success">Terminado</span>
-            {% elif job.status == 'running' %}
-              <span class="badge text-bg-primary">En curso</span>
-            {% elif job.status == 'queued' %}
-              <span class="badge text-bg-warning">En cola</span>
-            {% elif job.status == 'failed' %}
-              <span class="badge text-bg-danger">Fallido</span>
-            {% elif job.status == 'cancelled' %}
-              <span class="badge text-bg-secondary">Cancelado</span>
-            {% else %}
-              <span class="badge text-bg-light text-dark">Borrador</span>
-            {% endif %}
-          </td>
+          <td>{{ badge_estado(job.status) }}</td>
           <td class="d-none d-md-table-cell text-secondary small">
             {{ job.current_step or '—' }}
           </td>
           <td class="text-end text-secondary small">
             {{ job.created_at.strftime('%Y-%m-%d %H:%M') }}
           </td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary"
+               href="{{ url_for('jobs.detalle', job_id=job.id) }}">Ver</a>
+          </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="4" class="text-center py-5">
+          <td colspan="5" class="text-center py-5">
             <div class="text-secondary mb-2">Todavía no hay trabajos.</div>
-            <div class="small text-secondary">
-              La carga de catálogos estará disponible en la etapa 1.
-            </div>
+            <a class="btn btn-sm btn-primary" href="{{ url_for('jobs.nuevo') }}">
+              Crear el primero
+            </a>
           </td>
         </tr>
         {% endfor %}

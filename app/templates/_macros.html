@@ -1,0 +1,45 @@
+{% macro badge_estado(status) -%}
+  {%- if status == 'done' -%}
+    <span class="badge text-bg-success">Terminado</span>
+  {%- elif status == 'running' -%}
+    <span class="badge text-bg-primary">En curso</span>
+  {%- elif status == 'queued' -%}
+    <span class="badge text-bg-warning">En cola</span>
+  {%- elif status == 'cancelling' -%}
+    <span class="badge text-bg-warning">Cancelando</span>
+  {%- elif status == 'failed' -%}
+    <span class="badge text-bg-danger">Fallido</span>
+  {%- elif status == 'cancelled' -%}
+    <span class="badge text-bg-secondary">Cancelado</span>
+  {%- else -%}
+    <span class="badge text-bg-light text-dark">Borrador</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro badge_paso(status) -%}
+  {%- if status == 'done' -%}
+    <span class="badge text-bg-success">OK</span>
+  {%- elif status == 'running' -%}
+    <span class="badge text-bg-primary">Ejecutando</span>
+  {%- elif status == 'skipped' -%}
+    <span class="badge text-bg-secondary">Omitido</span>
+  {%- elif status == 'failed' -%}
+    <span class="badge text-bg-danger">Error</span>
+  {%- else -%}
+    <span class="badge text-bg-light text-dark">Pendiente</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro duracion(seg) -%}
+  {%- if seg is none -%}
+    —
+  {%- elif seg == 0 -%}
+    &lt;1 s
+  {%- elif seg < 60 -%}
+    {{ seg }} s
+  {%- elif seg < 3600 -%}
+    {{ seg // 60 }} min {{ seg % 60 }} s
+  {%- else -%}
+    {{ seg // 3600 }} h {{ (seg % 3600) // 60 }} min
+  {%- endif -%}
+{%- endmacro %}

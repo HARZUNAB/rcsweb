@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Descargas · Trabajo {{ job.id[:8] }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h1 class="h3 mb-1">Descargas</h1>
+    <p class="text-secondary mb-0">
+      Período {{ job.period_start.strftime('%Y-%m-%d') }} →
+      {{ job.period_end.strftime('%Y-%m-%d') }}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('jobs.detalle', job_id=job.id) }}">
+      Volver al trabajo
+    </a>
+    <a class="btn btn-outline-primary" href="{{ url_for('results.overview', job_id=job.id) }}">
+      Resultados
+    </a>
+  </div>
+</div>
+
+{% for clave, titulo, descripcion in [
+    ('resultado', 'Tablas de resultados', 'CSV listos para abrir en Excel o procesar.'),
+    ('entregable', 'Entregables', 'Listados y archivos generados por el pipeline.'),
+    ('catalogo', 'Catálogos normalizados', 'Salidas intermedias del análisis.')
+] %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-1">{{ titulo }}</h2>
+    <p class="text-secondary small mb-3">{{ descripcion }}</p>
+
+    {% set archivos = grupos[clave] %}
+    {% if archivos %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Archivo</th>
+            <th class="text-end">Tamaño</th>
+            <th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for archivo in archivos %}
+          <tr>
+            <td class="small"><code>{{ archivo.ruta }}</code></td>
+            <td class="text-end text-secondary small">{{ archivo.size|filesizeformat }}</td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{{ url_for('jobs.descargar', job_id=job.id, artifact_id=archivo.id) }}">
+                Descargar
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-secondary small mb-0">No hay archivos en este grupo.</p>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

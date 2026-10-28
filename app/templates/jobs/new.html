@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Nuevo trabajo{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h1 class="h3 mb-1">Nuevo trabajo</h1>
+    <p class="text-secondary mb-0">
+      Subí los catálogos del período y el sistema corre el análisis.
+    </p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('dashboard.index') }}">Cancelar</a>
+</div>
+
+<div class="row">
+  <div class="col-12 col-lg-8">
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {{ form.hidden_tag() }}
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+          <h2 class="h6 text-uppercase text-secondary mb-3">Período</h2>
+          <div class="row g-3">
+            <div class="col-12 col-sm-6">
+              {{ form.period_start.label(class="form-label") }}
+              {{ form.period_start(class="form-control", type="date") }}
+              {% for error in form.period_start.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+              {% endfor %}
+            </div>
+            <div class="col-12 col-sm-6">
+              {{ form.period_end.label(class="form-label") }}
+              {{ form.period_end(class="form-control", type="date") }}
+              {% for error in form.period_end.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+          <h2 class="h6 text-uppercase text-secondary mb-3">Catálogos</h2>
+
+          <div class="mb-3">
+            {{ form.seisan.label(class="form-label") }}
+            {{ form.seisan(class="form-control", accept=".out,.txt,.dat") }}
+            <div class="form-text">
+              Salida de Seisan, normalmente <code>select.out</code>.
+            </div>
+            {% for error in form.seisan.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-3">
+            {{ form.eventquery.label(class="form-label") }}
+            {{ form.eventquery(class="form-control", accept=".csv") }}
+            <div class="form-text">
+              Catálogo público descargado con <code>eventquery2</code>.
+            </div>
+            {% for error in form.eventquery.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-0">
+            {{ form.seiscomp.label(class="form-label") }}
+            {{ form.seiscomp(class="form-control", accept=".csv") }}
+            <div class="form-text">
+              Exportación de la ventana de SeisComp. Si no la subís, el análisis
+              se hace solo contra Seisan.
+            </div>
+            {% for error in form.seiscomp.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-light border small text-secondary">
+        El procesamiento corre en segundo plano y puede tardar varios minutos.
+        Al crear el trabajo vas a ver el progreso paso a paso.
+      </div>
+
+      {{ form.submit(class="btn btn-primary") }}
+    </form>
+  </div>
+
+  <div class="col-12 col-lg-4 mt-4 mt-lg-0">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="h6 text-uppercase text-secondary mb-3">Qué hace</h2>
+        <ol class="small text-secondary ps-3 mb-0">
+          <li class="mb-2">Normaliza el catálogo público y el de Seisan.</li>
+          <li class="mb-2">Compara los parámetros y detecta no publicados y no actualizados.</li>
+          <li class="mb-2">Cruza los no publicados con la otra fuente.</li>
+          <li class="mb-2">Detecta eventos repetidos.</li>
+          <li>Prepara las tablas y los entregables para descargar.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -79,6 +79,30 @@ class Job(db.Model):
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Job {self.id} {self.status}>"
 
+    @property
+    def inicio14(self) -> str:
+        return self.period_start.strftime("%Y%m%d%H%M%S") if self.period_start else ""
+
+    @property
+    def fin14(self) -> str:
+        return self.period_end.strftime("%Y%m%d%H%M%S") if self.period_end else ""
+
+    @property
+    def activo(self) -> bool:
+        return self.status in ("queued", "running", "cancelling")
+
+    @property
+    def duracion_seg(self) -> int | None:
+        if not self.started_at:
+            return None
+        inicio = self.started_at
+        fin = self.finished_at or utcnow()
+        if inicio.tzinfo is None:
+            inicio = inicio.replace(tzinfo=UTC)
+        if fin.tzinfo is None:
+            fin = fin.replace(tzinfo=UTC)
+        return max(0, int((fin - inicio).total_seconds()))
+
 
 class JobFile(db.Model):
     __tablename__ = "job_files"
@@ -109,6 +133,18 @@ class JobStep(db.Model):
     log_path: Mapped[str | None] = mapped_column(String(255))
 
     job = relationship("Job", back_populates="steps")
+
+    @property
+    def duracion_seg(self) -> int | None:
+        if not self.started_at:
+            return None
+        inicio = self.started_at
+        fin = self.finished_at or utcnow()
+        if inicio.tzinfo is None:
+            inicio = inicio.replace(tzinfo=UTC)
+        if fin.tzinfo is None:
+            fin = fin.replace(tzinfo=UTC)
+        return max(0, int((fin - inicio).total_seconds()))
 
 
 class JobArtifact(db.Model):

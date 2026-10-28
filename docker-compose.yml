@@ -42,6 +42,7 @@ services:
     environment:
       FLASK_APP: app
       FLASK_DEBUG: "1"
+      PYTHONPATH: /app
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -70,6 +71,8 @@ services:
     container_name: rcsweb-worker
     restart: unless-stopped
     env_file: .env
+    environment:
+      PYTHONPATH: /app
     volumes:
       - ./app:/app/app
       - ./tasks:/app/tasks

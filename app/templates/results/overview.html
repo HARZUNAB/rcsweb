@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Resultados · Trabajo {{ job.id[:8] }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h1 class="h3 mb-1">Resultados</h1>
+    <p class="text-secondary mb-0">
+      {{ job.period_start.strftime('%Y-%m-%d') }} →
+      {{ job.period_end.strftime('%Y-%m-%d') }}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('jobs.detalle', job_id=job.id) }}">
+      Volver al trabajo
+    </a>
+    <a class="btn btn-outline-primary" href="{{ url_for('jobs.descargas', job_id=job.id) }}">
+      Descargas
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase mb-2">No publicados</div>
+        <div class="fs-3 fw-semibold">
+          {{ indice.no_publicados.get('seiscomp', {}).get('filas', 0)
+             + indice.no_publicados.get('seisan', {}).get('filas', 0) }}
+        </div>
+        <div class="small text-secondary">SeisComp + Seisan</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase mb-2">No actualizados</div>
+        <div class="fs-3 fw-semibold">
+          {{ indice.no_actualizados.get('seiscomp', {}).get('filas', 0)
+             + indice.no_actualizados.get('seisan', {}).get('filas', 0) }}
+        </div>
+        <div class="small text-secondary">SeisComp + Seisan</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase mb-2">Repetidos</div>
+        <div class="fs-3 fw-semibold">
+          {{ indice.repetidos.get('publica_estricto', {}).get('filas', 0) }}
+        </div>
+        <div class="small text-secondary">publicados · estricto</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-3">Tablas</h2>
+
+    <div class="list-group list-group-flush">
+      <div class="list-group-item px-0">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div>
+            <div class="fw-semibold">No publicados</div>
+            <div class="small text-secondary">{{ tablas.no_publicados.descripcion }}</div>
+          </div>
+          <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-primary"
+               href="{{ url_for('results.no_publicados', job_id=job.id, fuente='seiscomp') }}">
+              SeisComp ({{ indice.no_publicados.get('seiscomp', {}).get('filas', 0) }})
+            </a>
+            <a class="btn btn-sm btn-outline-primary"
+               href="{{ url_for('results.no_publicados', job_id=job.id, fuente='seisan') }}">
+              Seisan ({{ indice.no_publicados.get('seisan', {}).get('filas', 0) }})
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="list-group-item px-0">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div>
+            <div class="fw-semibold">No actualizados</div>
+            <div class="small text-secondary">{{ tablas.no_actualizados.descripcion }}</div>
+          </div>
+          <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-primary"
+               href="{{ url_for('results.no_actualizados', job_id=job.id, fuente='seiscomp') }}">
+              SeisComp ({{ indice.no_actualizados.get('seiscomp', {}).get('filas', 0) }})
+            </a>
+            <a class="btn btn-sm btn-outline-primary"
+               href="{{ url_for('results.no_actualizados', job_id=job.id, fuente='seisan') }}">
+              Seisan ({{ indice.no_actualizados.get('seisan', {}).get('filas', 0) }})
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="list-group-item px-0">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div>
+            <div class="fw-semibold">Repetidos</div>
+            <div class="small text-secondary">{{ tablas.repetidos.descripcion }}</div>
+          </div>
+          <a class="btn btn-sm btn-outline-primary"
+             href="{{ url_for('results.repetidos', job_id=job.id, clave='publica_amplio') }}">
+            Abrir informes
+          </a>
+        </div>
+        {% if indice.repetidos %}
+        <div class="mt-2 d-flex flex-wrap gap-2">
+          {% for clave, info in indice.repetidos.items() %}
+            <a class="badge text-bg-light text-dark text-decoration-none"
+               href="{{ url_for('results.repetidos', job_id=job.id, clave=clave) }}">
+              {{ clave|replace('_', ' ') }} · {{ info.filas }}
+            </a>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-3">Catálogos procesados</h2>
+    <div class="row g-3">
+      {% for clave, info in indice.catalogos.items() %}
+      <div class="col-12 col-sm-4">
+        <div class="border rounded p-3">
+          <div class="text-secondary small text-uppercase">{{ clave }}</div>
+          <div class="fs-5 fw-semibold">{{ info.filas }}</div>
+          <div class="small text-secondary">eventos</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="col-12 text-secondary small">Sin catálogos registrados.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

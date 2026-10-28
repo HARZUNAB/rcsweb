@@ -22,10 +22,14 @@ def create_app(config_object: type | None = None) -> Flask:
     from .blueprints.auth import auth_bp
     from .blueprints.dashboard import dashboard_bp
     from .blueprints.health import health_bp
+    from .blueprints.jobs import jobs_bp
+    from .blueprints.results import results_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(health_bp)
+    app.register_blueprint(jobs_bp)
+    app.register_blueprint(results_bp)
 
     from .cli import register_cli
 
@@ -39,5 +43,9 @@ def create_app(config_object: type | None = None) -> Flask:
     def error_interno(error):  # pragma: no cover
         db.session.rollback()
         return render_template("errors/500.html"), 500
+
+    @app.errorhandler(413)
+    def archivo_demasiado_grande(error):
+        return render_template("errors/413.html"), 413
 
     return app

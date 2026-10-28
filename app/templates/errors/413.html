@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Archivo demasiado grande{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <h1 class="display-6 fw-semibold">Archivo demasiado grande</h1>
+  <p class="text-secondary">
+    El total de los archivos supera el límite configurado ({{ config.MAX_CONTENT_LENGTH // 1048576 }} MB).
+  </p>
+  <a class="btn btn-outline-primary" href="{{ url_for('jobs.nuevo') }}">Volver al formulario</a>
+</div>
+{% endblock %}

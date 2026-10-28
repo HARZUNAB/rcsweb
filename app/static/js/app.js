@@ -18,4 +18,13 @@
       }
     }, 6000);
   });
+
+  // Mantener el log del trabajo al final, también tras cada refresco de HTMX.
+  function bajarLog() {
+    document.querySelectorAll(".log-panel").forEach(function (panel) {
+      panel.scrollTop = panel.scrollHeight;
+    });
+  }
+  document.addEventListener("DOMContentLoaded", bajarLog);
+  document.body.addEventListener("htmx:afterSwap", bajarLog);
 })();

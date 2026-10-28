@@ -68,3 +68,6 @@ known-first-party = ["app", "tasks"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "integration: usa el proyecto base montado y corre el pipeline real",
+]

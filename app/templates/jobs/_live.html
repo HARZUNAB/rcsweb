@@ -1,0 +1,96 @@
+{% from "_macros.html" import badge_paso, duracion %}
+<div id="job-live">
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div>
+          <div class="text-secondary small text-uppercase">Progreso</div>
+          <div class="fw-semibold">{{ job.current_step or 'Pendiente' }}</div>
+        </div>
+        <div class="text-end">
+          <div class="fs-4 fw-semibold">{{ job.progress }}%</div>
+          <div class="text-secondary small">
+            Duración: {{ duracion(job.duracion_seg) }}
+          </div>
+        </div>
+      </div>
+
+      <div class="progress" role="progressbar" aria-label="Progreso del trabajo"
+           aria-valuenow="{{ job.progress }}" aria-valuemin="0" aria-valuemax="100"
+           style="height: 10px;">
+        <div class="progress-bar {% if job.status == 'failed' %}bg-danger{% elif job.status == 'done' %}bg-success{% endif %}"
+             style="width: {{ job.progress }}%"></div>
+      </div>
+
+      {% if job.status in ('queued', 'running', 'cancelling') %}
+      <div class="d-flex justify-content-end mt-3">
+        {% if job.status in ('queued', 'running') %}
+        <form method="post" action="{{ url_for('jobs.cancelar', job_id=job.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar trabajo</button>
+        </form>
+        {% else %}
+        <span class="text-secondary small">Cancelando…</span>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if job.error %}
+  <div class="alert alert-danger" role="alert">
+    <div class="fw-semibold mb-1">El trabajo falló</div>
+    <div class="small">{{ job.error }}</div>
+  </div>
+  {% endif %}
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-7">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h2 class="h6 text-uppercase text-secondary mb-3">Pasos</h2>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style="width: 2.5rem;">#</th>
+                  <th>Paso</th>
+                  <th>Estado</th>
+                  <th class="text-end">Duración</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for paso in job.steps|sort(attribute='orden') %}
+                <tr>
+                  <td class="text-secondary">{{ paso.orden }}</td>
+                  <td class="small">{{ paso.script|replace('_', ' ')|capitalize }}</td>
+                  <td>{{ badge_paso(paso.status) }}</td>
+                  <td class="text-end text-secondary small">
+                    {{ duracion(paso.duracion_seg) }}
+                  </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="4" class="text-center text-secondary py-3">
+                    Todavía no hay pasos registrados.
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h2 class="h6 text-uppercase text-secondary mb-3">Log</h2>
+          <pre class="log-panel mb-0">{% if log %}{{ log|join('\n') }}{% else %}Sin salida todavía.{% endif %}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

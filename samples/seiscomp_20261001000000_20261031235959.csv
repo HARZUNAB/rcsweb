@@ -1,0 +1,5 @@
+id_evento,id_origen,ot_utc,magnitud,tipo_magnitud,fases,rms,azgap,latitud,longitud,profundidad_km,agencia,operador,region,estatus,base_datos
+csn_test_0001,Origin/20261003155356.000,2026-10-03 15:53:56,2.8,ML,12,0.30,40,-29.519,-72.594,30.0,SNC,beto,Coquimbo,confirmed,seiscomp
+csn_test_0002,Origin/20261005131057.000,2026-10-05 13:10:57,3.4,ML,10,0.42,55,-21.157,-70.324,55.0,SNC,dani,Iquique,confirmed,seiscomp
+csn_test_0003,Origin/20261013095559.000,2026-10-13 09:55:59,2.8,ML,9,0.38,48,-23.007,-69.027,128.5,SNC,elena,Antofagasta,confirmed,seiscomp
+csn_test_0005,Origin/20261025120000.000,2026-10-25 12:00:00,3.0,ML,14,0.25,35,-30.000,-71.000,25.0,SNC,mdur,Coquimbo,confirmed,seiscomp
