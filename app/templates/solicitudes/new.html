@@ -94,6 +94,21 @@
               Sin configurar: completá <code>SEISCOMP_DB_*</code> para habilitarlo.
             {% endif %}
           </div>
+
+          <div class="mb-3">
+            {{ form.radio_km.label(class="form-label small") }}
+            <div class="input-group input-group-sm" style="max-width: 14rem;">
+              {{ form.radio_km(class="form-control", min="1", step="1") }}
+              <span class="input-group-text">km</span>
+            </div>
+            <div class="form-text">
+              Radio para la lista de estaciones sin arribos de SeisComp.
+              Por defecto, 400 km. Se usa solo si SeisComp está seleccionado.
+            </div>
+            {% for error in form.radio_km.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
           {% for error in form.incluir_seisan.errors %}
             <div class="invalid-feedback d-block">{{ error }}</div>
           {% endfor %}

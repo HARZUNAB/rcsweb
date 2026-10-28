@@ -27,7 +27,7 @@ def _bool(nombre: str, defecto: bool = False) -> bool:
 class Config:
     # Flask
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-cambiar")
-    APP_VERSION = os.environ.get("APP_VERSION", "0.6.0")
+    APP_VERSION = os.environ.get("APP_VERSION", "0.6.1")
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_UPLOAD_MB", "200")) * 1024 * 1024
 
     # Base de datos propia (lectura/escritura)

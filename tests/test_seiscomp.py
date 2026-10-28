@@ -91,6 +91,7 @@ def test_exportar_consulta_todas_las_bases(app, monkeypatch, tmp_path):
         "20261001000000",
         "20261031235959",
         salida,
+        radio_km=250,
         log=log.append,
     )
 
@@ -99,7 +100,7 @@ def test_exportar_consulta_todas_las_bases(app, monkeypatch, tmp_path):
     assert comando[0].endswith("python") or "python" in comando[0]
     assert comando[1].endswith("runner_seiscomp.py")
     assert comando[2].endswith("exporta_ventana_seiscomp.py")
-    assert comando[-2:] == ["--base", "todas"]
+    assert comando[-4:] == ["--base", "todas", "--radio-km", "250"]
     entorno = llamada["kwargs"]["env"]
     assert entorno["RCS_DB_HOST"] == "10.54.217.69"
     assert entorno["RCS_DB_DATABASE"] == "seiscomp2"
@@ -108,6 +109,18 @@ def test_exportar_consulta_todas_las_bases(app, monkeypatch, tmp_path):
     assert entorno["PGPORT"] == "5432"
     assert "PGOPTIONS" not in entorno
     assert any("3 eventos" in linea for linea in log)
+
+
+def test_exportar_radio_invalido(app, monkeypatch, tmp_path):
+    _configurar(monkeypatch)
+
+    with pytest.raises(RuntimeError, match="radio"):
+        exportar_ventana(
+            "20261001000000",
+            "20261031235959",
+            tmp_path / "salida.csv",
+            radio_km=0,
+        )
 
 
 def test_exportar_falla_si_no_deja_marca(app, monkeypatch, tmp_path):

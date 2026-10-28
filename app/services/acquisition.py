@@ -185,6 +185,7 @@ def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
         origin="ssh",
         catalog_request_id=request.id,
         current_step="En cola",
+        station_radius_km=request.station_radius_km,
         created_by_id=request.requested_by_id,
     )
     db.session.add(job)
@@ -248,6 +249,7 @@ def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
             "fin": job.fin14,
             "fuentes": [archivo.kind for archivo in locales],
             "principal": principal,
+            "radio_km": request.station_radius_km,
         },
         user_id=request.requested_by_id,
     )
@@ -349,6 +351,7 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
                     request.inicio14,
                     request.fin14,
                     salida,
+                    radio_km=request.station_radius_km or 400,
                     log=log.escribir,
                     progreso=lambda f: _progreso(request, 65, 25, f),
                 )

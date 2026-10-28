@@ -4,11 +4,12 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 4C completada.** Además de la carga local, la plataforma
-puede solicitar y descargar catálogos por SSH/SCP y exportar SeisComp desde
-PostgreSQL en solo lectura, combinando todas las bases. Las solicitudes tienen
-historial, progreso y reintentos; la contraseña SSH se usa por solicitud y no se
-guarda.
+**Estado actual: etapa 4C completada (v0.6.1).** Además de la carga local, la
+plataforma puede solicitar y descargar catálogos por SSH/SCP y exportar SeisComp
+desde PostgreSQL en solo lectura, combinando todas las bases. El radio de
+estaciones para la lista de sin arribos es editable por solicitud, con 400 km
+por defecto. Las solicitudes tienen historial, progreso y reintentos; la
+contraseña SSH se usa por solicitud y no se guarda.
 
 ## Stack
 
@@ -60,6 +61,8 @@ capacidad, se muestra “no evaluable”.
 - Descarga siempre el CSV de **eventquery** por SSH/SCP.
 - **Seisan** (`select.out`) se descarga si está marcado.
 - **SeisComp** se exporta desde PostgreSQL si está marcado (ver abajo).
+- El **radio de estaciones** es editable por solicitud (400 km por defecto) y
+  define la lista de estaciones sin arribos del export.
 - La contraseña se usa solo durante la descarga (`SSH_ASKPASS`) y no se guarda.
 - Historial en `/solicitudes`, con estado por catálogo, progreso, log y
   reintento de lo fallido.
@@ -93,6 +96,7 @@ SEISCOMP_DB_PORT=5432
 SEISCOMP_DB_NAME=seiscomp2
 SEISCOMP_DB_USER=rcs_ro
 SEISCOMP_DB_PASSWORD=
+SEISCOMP_RADIO_KM=400
 ```
 
 El rol debe crearse una sola vez con permisos de lectura y `CONNECT` en todas
@@ -271,7 +275,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **95 tests**.
+runner de solo lectura. Total actual: **97 tests**.
 
 ## Filtros y exportación
 

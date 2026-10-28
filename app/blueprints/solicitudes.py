@@ -84,6 +84,7 @@ def nueva():
         principal = form.primary_source.data
         if principal not in seleccion:
             principal = "seiscomp" if "seiscomp" in seleccion else seleccion[0]
+        radio_km = form.radio_km.data if "seiscomp" in seleccion else None
 
         solicitud = CatalogRequest(
             id=nuevo_uuid(),
@@ -94,6 +95,7 @@ def nueva():
             progress=0,
             current_step="En cola",
             primary_source=principal,
+            station_radius_km=radio_km,
             requested_by_id=current_user.id,
             server=form.server.data.strip(),
             remote_user=form.remote_user.data.strip(),
@@ -132,6 +134,7 @@ def nueva():
                 "usuario": solicitud.remote_user,
                 "catalogos": ["eventquery"] + seleccion,
                 "principal": principal,
+                "radio_km": radio_km,
             },
         )
         try:

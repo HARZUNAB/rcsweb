@@ -95,6 +95,7 @@ def exportar_ventana(
     fin14: str,
     salida: Path,
     *,
+    radio_km: int = 400,
     log=None,
     progreso=None,
     timeout: int = 3600,
@@ -103,6 +104,8 @@ def exportar_ventana(
     log = log or (lambda _t: None)
     if not configurada():
         raise RuntimeError("Faltan las variables SEISCOMP_DB_* para exportar.")
+    if radio_km <= 0:
+        raise RuntimeError("El radio de estaciones debe ser mayor que cero.")
 
     core = Path(current_app.config["RCS_CORE_PATH"])
     script = core / "exporta_ventana_seiscomp.py"
@@ -124,8 +127,10 @@ def exportar_ventana(
         str(salida),
         "--base",
         "todas",
+        "--radio-km",
+        str(radio_km),
     ]
-    log("$ " + " ".join(comando[:3]) + " … --base todas")
+    log("$ " + " ".join(comando[:3]) + f" … --base todas --radio-km {radio_km}")
     proceso = subprocess.run(
         comando,
         cwd=str(salida.parent.parent),

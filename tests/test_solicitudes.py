@@ -31,7 +31,7 @@ def _radios(html: str) -> list[str]:
     return re.findall(r'<input[^>]*name="primary_source"[^>]*>', html)
 
 
-def _solicitud(app, status="queued", fuentes=("eventquery", "seisan"), principal=None):
+def _solicitud(app, status="queued", fuentes=("eventquery", "seisan"), principal=None, radio=None):
     solicitud = CatalogRequest(
         id=nuevo_uuid(),
         mode="ssh",
@@ -39,6 +39,7 @@ def _solicitud(app, status="queued", fuentes=("eventquery", "seisan"), principal
         period_end=datetime(2026, 10, 31, 23, 59, 59, tzinfo=UTC),
         status=status,
         primary_source=principal,
+        station_radius_km=radio,
         server="10.54.217.9",
         remote_user="sysopr",
         requested_by_id=db.session.execute(
@@ -138,6 +139,7 @@ def test_nueva_solicitud_encola(client, login, monkeypatch):
     assert solicitud.server == "10.54.217.9"
     assert solicitud.remote_user == "sysopr"
     assert solicitud.primary_source == "seisan"
+    assert solicitud.station_radius_km is None
     assert {archivo.kind for archivo in solicitud.files} == {"eventquery", "seisan"}
     assert llamadas == [(solicitud.id, "secreto")]
     assert (
@@ -185,6 +187,7 @@ def test_nueva_por_defecto_sin_seiscomp(client, login, monkeypatch):
 
     assert "checked" in _input(html, "incluir_seisan")
     assert "checked" not in _input(html, "incluir_seiscomp")
+    assert 'value="400"' in _input(html, "radio_km")
     marcado = [radio for radio in _radios(html) if "checked" in radio]
     assert len(marcado) == 1
     assert 'value="seisan"' in marcado[0]
@@ -240,6 +243,7 @@ def test_nueva_solicitud_con_seiscomp(client, login, monkeypatch):
             "remote_user": "sysopr",
             "password": "secreto",
             "incluir_seiscomp": "y",
+            "radio_km": "600",
             "primary_source": "seiscomp",
         },
     )
@@ -247,8 +251,33 @@ def test_nueva_solicitud_con_seiscomp(client, login, monkeypatch):
     assert respuesta.status_code == 302
     solicitud = db.session.execute(db.select(CatalogRequest)).scalar_one()
     assert solicitud.primary_source == "seiscomp"
+    assert solicitud.station_radius_km == 600
     assert {archivo.kind for archivo in solicitud.files} == {"eventquery", "seiscomp"}
     assert llamadas == [(solicitud.id, "secreto")]
+
+
+def test_nueva_solicitud_con_seiscomp_exige_radio(client, login, monkeypatch):
+    login()
+    monkeypatch.setattr("app.services.seiscomp.configurada", lambda: True)
+    monkeypatch.setattr("app.blueprints.solicitudes.encolar_solicitud", lambda *_: None)
+
+    respuesta = client.post(
+        "/solicitudes/nueva",
+        data={
+            "period_start": "2026-10-01",
+            "period_end": "2026-10-31",
+            "server": "10.54.217.9",
+            "remote_user": "sysopr",
+            "password": "secreto",
+            "incluir_seiscomp": "y",
+            "radio_km": "0",
+            "primary_source": "seiscomp",
+        },
+    )
+
+    assert respuesta.status_code == 200
+    assert "El radio debe ser mayor que cero" in respuesta.get_data(as_text=True)
+    assert db.session.execute(db.select(CatalogRequest)).scalar_one_or_none() is None
 
 
 def test_probar_seiscomp_sin_configuracion(client, login, monkeypatch):
@@ -323,7 +352,7 @@ def test_ejecutar_solicitud_invalida_no_crea_job(app, monkeypatch):
 
 
 def _exportar_seiscomp_falso(error=None):
-    def exportar(inicio, fin, salida, log=None, progreso=None):
+    def exportar(inicio, fin, salida, radio_km=400, log=None, progreso=None):
         if error:
             raise RuntimeError(error)
         shutil.copy2(
@@ -342,6 +371,7 @@ def test_ejecutar_solicitud_exporta_seiscomp(app, monkeypatch):
         app,
         fuentes=("eventquery", "seiscomp"),
         principal="seiscomp",
+        radio=250,
     )
     encolados = []
     monkeypatch.setattr(
@@ -354,10 +384,11 @@ def test_ejecutar_solicitud_exporta_seiscomp(app, monkeypatch):
     )
     llamado = {}
 
-    def exportar(inicio, fin, salida, log=None, progreso=None):
+    def exportar(inicio, fin, salida, radio_km=400, log=None, progreso=None):
         llamado["inicio"] = inicio
         llamado["fin"] = fin
-        return _exportar_seiscomp_falso()(inicio, fin, salida, log, progreso)
+        llamado["radio_km"] = radio_km
+        return _exportar_seiscomp_falso()(inicio, fin, salida, radio_km, log, progreso)
 
     monkeypatch.setattr("app.services.seiscomp.exportar_ventana", exportar)
 
@@ -370,8 +401,9 @@ def test_ejecutar_solicitud_exporta_seiscomp(app, monkeypatch):
     assert set(fuentes) == {"eventquery", "seiscomp"}
     assert fuentes["seiscomp"].role == "local_principal"
     assert fuentes["eventquery"].role == "referencia"
+    assert job.station_radius_km == 250
     assert {archivo.kind for archivo in job.files} == {"eventquery", "seiscomp"}
-    assert llamado == {"inicio": INICIO, "fin": FIN}
+    assert llamado == {"inicio": INICIO, "fin": FIN, "radio_km": 250}
     assert encolados == [job.id]
 
 

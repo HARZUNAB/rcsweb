@@ -9,12 +9,13 @@ from flask_wtf.file import FileAllowed, FileField, FileRequired
 from wtforms import (
     BooleanField,
     DateField,
+    IntegerField,
     PasswordField,
     RadioField,
     StringField,
     SubmitField,
 )
-from wtforms.validators import DataRequired, Length, ValidationError
+from wtforms.validators import DataRequired, Length, NumberRange, Optional, ValidationError
 
 from .services.sources import default_primary, fuentes_locales
 
@@ -27,6 +28,13 @@ def _ssh_host() -> str:
 
 def _ssh_user() -> str:
     return os.environ.get("CATALOGOS_SSH_USER", "sysopr")
+
+
+def _radio_default() -> int:
+    try:
+        return max(1, int(os.environ.get("SEISCOMP_RADIO_KM", "400")))
+    except ValueError:
+        return 400
 
 
 class LoginForm(FlaskForm):
@@ -106,6 +114,14 @@ class SolicitudForm(FlaskForm):
 
     incluir_seisan = BooleanField("Incluir Seisan", default=True)
     incluir_seiscomp = BooleanField("Incluir SeisComp", default=False)
+    radio_km = IntegerField(
+        "Radio de estaciones (km)",
+        default=_radio_default,
+        validators=[
+            Optional(),
+            NumberRange(min=1, message="El radio debe ser mayor que cero."),
+        ],
+    )
     primary_source = RadioField(
         "Fuente local principal",
         choices=[("seiscomp", "SeisComp"), ("seisan", "Seisan")],
@@ -127,6 +143,9 @@ class SolicitudForm(FlaskForm):
         if self.incluir_seiscomp.data:
             from .services.seiscomp import configurada
 
+            if self.radio_km.data is None:
+                self.radio_km.errors.append("Indicá el radio de estaciones para SeisComp.")
+                valido = False
             if not configurada():
                 self.incluir_seiscomp.errors.append("SeisComp no está configurado (SEISCOMP_DB_*).")
                 valido = False
