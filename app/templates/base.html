@@ -27,10 +27,13 @@
           <a class="nav-link" href="{{ url_for('dashboard.index') }}">Trabajos</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('jobs.nuevo') }}">Nuevo trabajo</a>
+          <a class="nav-link" href="{{ url_for('solicitudes.nueva') }}">Solicitar catálogos</a>
         </li>
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('solicitudes.lista') }}">Solicitudes</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white-50" href="{{ url_for('jobs.nuevo') }}">Subir catálogos</a>
         </li>
         {% if current_user.role == 'admin' %}
         <li class="nav-item">

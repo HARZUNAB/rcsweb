@@ -8,7 +8,14 @@
     <h1 class="h3 mb-1">Trabajos</h1>
     <p class="text-secondary mb-0">Catálogos procesados y en curso.</p>
   </div>
-  <a class="btn btn-primary" href="{{ url_for('jobs.nuevo') }}">Nuevo trabajo</a>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-primary" href="{{ url_for('solicitudes.nueva') }}">
+      Solicitar catálogos
+    </a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('jobs.nuevo') }}">
+      Subir catálogos
+    </a>
+  </div>
 </div>
 
 <div class="row g-3 mb-4">
@@ -95,9 +102,14 @@
         <tr>
           <td colspan="5" class="text-center py-5">
             <div class="text-secondary mb-2">Todavía no hay trabajos.</div>
-            <a class="btn btn-sm btn-primary" href="{{ url_for('jobs.nuevo') }}">
-              Crear el primero
-            </a>
+            <div class="d-flex justify-content-center gap-2">
+              <a class="btn btn-sm btn-primary" href="{{ url_for('solicitudes.nueva') }}">
+                Solicitar catálogos
+              </a>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('jobs.nuevo') }}">
+                Subir catálogos
+              </a>
+            </div>
           </td>
         </tr>
         {% endfor %}

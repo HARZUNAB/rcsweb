@@ -179,6 +179,15 @@ def test_envolver_locale_sin_ssh_login():
     _envolver_locale_remoto(SinSSH())
 
 
+def test_solicitud_ofrece_subida_secundaria(client, login):
+    login()
+
+    html = client.get("/solicitudes/nueva").get_data(as_text=True)
+
+    assert "Subir catálogos" in html
+    assert 'href="/jobs/new"' in html
+
+
 def test_nueva_por_defecto_sin_seiscomp(client, login, monkeypatch):
     login()
     monkeypatch.setattr("app.blueprints.solicitudes.seiscomp_configurada", lambda: False)

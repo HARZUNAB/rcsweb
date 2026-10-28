@@ -31,6 +31,16 @@ def test_login_incorrecto(client):
     assert "incorrectos" in respuesta.get_data(as_text=True)
 
 
+def test_dashboard_prioriza_solicitud(client, login):
+    login()
+
+    html = client.get("/").get_data(as_text=True)
+
+    assert "Solicitar catálogos" in html
+    assert "Subir catálogos" in html
+    assert html.index("Solicitar catálogos") < html.index("Subir catálogos")
+
+
 def test_logout_cierra_sesion(client):
     client.post("/login", data={"username": "tester", "password": "secret"})
 

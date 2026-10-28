@@ -140,16 +140,19 @@ make clean                # detener y borrar volúmenes
 
 ## Flujo de uso
 
-1. **Nuevo trabajo**: período, eventquery y una o más fuentes locales
+1. **Solicitar catálogos** (flujo principal): período, servidor, contraseña SSH,
+   fuentes y radio de estaciones. Descarga eventquery/Seisan y exporta SeisComp.
+2. **Subir catálogos** (alternativa secundaria): si los archivos ya están en
+   disco, se suben desde `/jobs/new` con eventquery y una o más fuentes locales
    (SeisComp y/o Seisan). Se valida el contenido antes de encolar.
-2. El trabajo se encola en Celery. La página de detalle muestra progreso, pasos y
+3. El trabajo se encola en Celery. La página de detalle muestra progreso, pasos y
    log en vivo (polling HTMX cada 2 s).
-3. Al terminar: tarjetas con conteos, tablas paginables con búsqueda, filtros
+4. Al terminar: tarjetas con conteos, tablas paginables con búsqueda, filtros
    por columna, orden y exportación del resultado filtrado.
-4. Cada fila tiene una **miniatura del perfil** y un detalle con Δ por
+5. Cada fila tiene una **miniatura del perfil** y un detalle con Δ por
    parámetro, clasificación, mapa de planta y perfil, y en repetidos el grupo
    completo de duplicados.
-5. Se puede cancelar un trabajo en cola o en ejecución.
+6. Se puede cancelar un trabajo en cola o en ejecución.
 6. La sección **Auditoría** (solo administradores) registra login, alta,
    cancelación, fin/fallo y descargas.
 7. Un trabajo terminado, fallido o cancelado puede **eliminarse** desde el panel
@@ -275,7 +278,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **97 tests**.
+runner de solo lectura. Total actual: **100 tests**.
 
 ## Filtros y exportación
 
@@ -295,7 +298,7 @@ runner de solo lectura. Total actual: **97 tests**.
 | GET | `/` | Panel de trabajos |
 | GET/POST | `/login` | Ingreso |
 | POST | `/logout` | Cierre de sesión |
-| GET/POST | `/jobs/new` | Alta de trabajo y subida de catálogos |
+| GET/POST | `/jobs/new` | Subida manual de catálogos (alternativa) |
 | GET | `/jobs/<id>` | Detalle con progreso y log |
 | GET | `/jobs/<id>/estado` | Fragmento para el polling HTMX |
 | POST | `/jobs/<id>/cancelar` | Cancelar trabajo |
