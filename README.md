@@ -4,15 +4,17 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 2 completada.** Se pueden cargar los catálogos, ejecutar
+**Estado actual: etapa 3 completada.** Se pueden cargar los catálogos, ejecutar
 el pipeline en segundo plano, seguir el progreso, filtrar y exportar las tablas,
-abrir el detalle de cada evento, ver la clasificación de no actualizados, la
-atribución de analistas y la auditoría de acciones.
+abrir el detalle de cada evento con su mapa de planta y perfil, ver la
+clasificación de no actualizados, la atribución de analistas y la auditoría de
+acciones.
 
 ## Stack
 
 - **Backend:** Flask 3, SQLAlchemy 2, Flask-Login, Flask-WTF
 - **Frontend:** Jinja2 + Bootstrap 5.3 + HTMX 2 + JavaScript vanilla
+- **Mapas:** matplotlib en modo `Agg` + cartopy + Pillow
 - **Base de datos:** PostgreSQL 16
 - **Tareas:** Celery + Redis
 - **Infraestructura:** Docker + Docker Compose
@@ -46,8 +48,9 @@ make clean                # detener y borrar volúmenes
    log en vivo (polling HTMX cada 2 s).
 3. Al terminar: tarjetas con conteos, tablas paginables con búsqueda, filtros
    por columna, orden y exportación del resultado filtrado.
-4. Cada fila tiene un detalle con Δ por parámetro, clasificación y, en
-   repetidos, el grupo completo de duplicados.
+4. Cada fila tiene una **miniatura del perfil** y un detalle con Δ por
+   parámetro, clasificación, mapa de planta y perfil, y en repetidos el grupo
+   completo de duplicados.
 5. Se puede cancelar un trabajo en cola o en ejecución.
 6. La sección **Auditoría** (solo administradores) registra login, alta,
    cancelación, fin/fallo y descargas.
@@ -72,6 +75,18 @@ El worker ejecuta los scripts del proyecto base con `cwd` en
 
 Al final se normalizan las salidas en `workspace/<job>/resultados/` y se
 registran los artefactos descargables.
+
+## Mapas
+
+- **Miniatura**: perfil de subducción de cada fila, generada en proceso con
+  matplotlib puro y cacheada en `workspace/<job>/plots/miniaturas/`.
+- **Mapa completo**: planta + perfil, generado en un subproceso con
+  `plotear.py` del core en modo `Agg` y cacheado en
+  `workspace/<job>/plots/mapas/`.
+- Los mapas usan los datos de cartopy montados en `/data/cartopy:ro`
+  (`CARTOPY_DATA_DIR_HOST` en `.env`).
+- Para no bloquear la interfaz, las miniaturas usan `loading="lazy"` y las
+  imágenes se sirven con caché HTTP.
 
 ## Servicios y puertos
 
@@ -164,6 +179,8 @@ de integración que ejecuta el pipeline real si el proyecto base está montado
 | GET | `/jobs/<id>/resultados/repetidos` | Informes de repetidos |
 | GET | `/jobs/<id>/resultados/<tabla>/exportar` | CSV filtrado |
 | GET | `/jobs/<id>/resultados/<tabla>/<opcion>/<fila>` | Detalle del evento |
+| GET | `/jobs/<id>/resultados/<tabla>/<opcion>/<fila>/miniatura.png` | Miniatura del perfil |
+| GET | `/jobs/<id>/resultados/<tabla>/<opcion>/<fila>/mapa.png` | Planta y perfil |
 | GET | `/jobs/<id>/descargas` | Artefactos descargables |
 | GET | `/admin/auditoria` | Auditoría (solo admin) |
 | GET | `/health` | Estado de base, core, workspace y dump |
@@ -185,9 +202,9 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
 - Descargas validadas contra el workspace del trabajo (sin traversal).
 - No hay consola SQL arbitraria.
 
-## Próximos pasos (etapa 3)
+## Próximos pasos (etapa 4)
 
-- Mapas de planta y perfil por evento y por grupo, con `matplotlib` en modo
-  `Agg` y caché de imágenes.
-- Miniatura del perfil en las tablas y detalle.
-- Luego: SeisComp (etapa 4), agencias (etapa 5) y catálogo histórico (etapa 6a).
+- Módulo SeisComp: consultas de solo lectura, estaciones y arribos,
+  picks manuales/automáticos y análisis rápido.
+- Multi-base con descubrimiento y cobertura.
+- Luego: agencias (etapa 5) y catálogo histórico (etapa 6a).

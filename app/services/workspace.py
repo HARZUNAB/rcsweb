@@ -25,6 +25,7 @@ SUBDIRECTORIOS = (
     "ploteo",
     "descargas",
     "resultados",
+    "plots",
     "logs",
 )
 

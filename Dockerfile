@@ -4,7 +4,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    MPLBACKEND=Agg
 
 # GEOS/PROJ para cartopy/shapely y libpq para psycopg.
 RUN apt-get update && apt-get install -y --no-install-recommends \

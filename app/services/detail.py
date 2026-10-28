@@ -193,6 +193,11 @@ def _grupo_repetidos(filas: list[dict], indice: int, archivo: str) -> list[dict]
     return grupo
 
 
+def grupo_repetidos(filas: list[dict], indice: int, archivo: str) -> list[dict]:
+    """Grupo de duplicados alrededor de una fila (ventana según el informe)."""
+    return _grupo_repetidos(filas, indice, archivo)
+
+
 def construir_detalle(tabla: str, archivo: str, filas: list[dict], indice: int) -> dict:
     fila = filas[indice]
     contexto = {
@@ -206,7 +211,7 @@ def construir_detalle(tabla: str, archivo: str, filas: list[dict], indice: int) 
     if tabla == "no_actualizados":
         contexto["comparaciones"] = _comparaciones(fila)
     elif tabla == "repetidos":
-        contexto["grupo"] = _grupo_repetidos(filas, indice, archivo)
+        contexto["grupo"] = grupo_repetidos(filas, indice, archivo)
         contexto["campos_repetido"] = [
             (clave, titulo) for clave, titulo in CAMPOS_REPETIDO if clave in fila
         ]
@@ -237,6 +242,7 @@ __all__ = [
     "CAMPOS_REPETIDO",
     "construir_detalle",
     "distancia_km",
+    "grupo_repetidos",
     "leer_fila",
     "leer_filas",
 ]

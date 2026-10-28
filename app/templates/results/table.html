@@ -71,6 +71,7 @@
         <table class="table table-sm table-hover align-middle tabla-resultados mb-0">
           <thead class="table-light">
             <tr>
+              <th class="text-nowrap">Perfil</th>
               {% for clave, titulo in columnas %}
               <th class="text-nowrap">
                 <a class="text-decoration-none text-reset"
@@ -84,6 +85,7 @@
               <th class="text-end">Detalle</th>
             </tr>
             <tr class="fila-filtros">
+              <th></th>
               {% for clave, titulo in columnas %}
               <th>
                 <input class="form-control form-control-sm"
@@ -101,6 +103,13 @@
           <tbody>
             {% for fila in tabla.filas %}
             <tr>
+              <td>
+                <img class="miniatura-perfil"
+                     src="{{ url_miniatura(fila.get('_fila')) }}"
+                     alt="Miniatura del perfil"
+                     loading="lazy" decoding="async"
+                     width="120" height="55">
+              </td>
               {% for clave, _titulo in columnas %}
               <td>
                 {% if clave == 'revision' %}

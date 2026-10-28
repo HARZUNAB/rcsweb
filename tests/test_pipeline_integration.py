@@ -15,7 +15,9 @@ import pytest
 
 from app.extensions import db
 from app.models import Job, JobFile, nuevo_uuid
+from app.services.detail import leer_filas
 from app.services.pipeline import ejecutar_pipeline
+from app.services.plots import generar_mapa, generar_miniatura
 from app.services.results import cargar_indice, leer_tabla
 from app.services.workspace import crear_workspace, nombre_entrada
 
@@ -109,3 +111,27 @@ def test_pipeline_completo_con_muestra(app, tmp_path):
         assert "analista_seisan" in repetidos["columnas"]
         assert "analista_seiscomp" in repetidos["columnas"]
         assert any(fila.get("analista_seisan") for fila in repetidos["filas"])
+
+        leido = leer_filas(workspace, "no_publicados_seisan.csv")
+        assert leido is not None
+        _columnas, filas_no_pub = leido
+        miniatura = generar_miniatura(
+            workspace,
+            "no_publicados",
+            "no_publicados_seisan.csv",
+            filas_no_pub,
+            0,
+        )
+        assert miniatura.startswith(b"\x89PNG\r\n\x1a\n")
+        assert len(miniatura) > 1000
+
+        mapa = generar_mapa(
+            workspace,
+            "no_publicados",
+            "seisan",
+            "no_publicados_seisan.csv",
+            filas_no_pub,
+            0,
+        )
+        assert mapa.startswith(b"\x89PNG\r\n\x1a\n")
+        assert len(mapa) > 20000

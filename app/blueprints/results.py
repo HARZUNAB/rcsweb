@@ -18,6 +18,7 @@ from ..extensions import db
 from ..models import Job
 from ..services.audit import registrar
 from ..services.detail import construir_detalle, leer_filas
+from ..services.plots import generar_mapa, generar_miniatura
 from ..services.results import (
     NO_ACT_COLUMNS,
     TABLAS,
@@ -212,6 +213,15 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
             volver=actual,
         )
 
+    def url_miniatura(fila: int) -> str:
+        return url_for(
+            "results.miniatura",
+            job_id=job.id,
+            tabla=tabla,
+            opcion=opcion,
+            fila=fila,
+        )
+
     volver = url_for(endpoint, job_id=job.id, **{parametro: opcion})
     titulo_opcion = dict(opciones)[opcion]
 
@@ -235,6 +245,7 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
         url_pagina=url_pagina,
         url_exportar=url_exportar,
         url_detalle=url_detalle,
+        url_miniatura=url_miniatura,
     )
 
 
@@ -291,6 +302,46 @@ def exportar(job_id: str, tabla: str):
     )
 
 
+@results_bp.get("/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>/miniatura.png")
+@login_required
+def miniatura(job_id: str, tabla: str, opcion: str, fila: int):
+    job = _job(job_id)
+    if tabla not in TABLAS:
+        abort(404)
+    config = TABLAS[tabla]
+    if opcion not in [clave for clave, _titulo in config["opciones"]]:
+        abort(404)
+    archivo = config["archivo"].format(clave=opcion)
+    leido = leer_filas(ruta_workspace(job.id), archivo)
+    if leido is None:
+        abort(404)
+    _columnas, filas = leido
+    if fila < 0 or fila >= len(filas):
+        abort(404)
+    png = generar_miniatura(ruta_workspace(job.id), tabla, archivo, filas, fila)
+    return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
+
+
+@results_bp.get("/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>/mapa.png")
+@login_required
+def mapa(job_id: str, tabla: str, opcion: str, fila: int):
+    job = _job(job_id)
+    if tabla not in TABLAS:
+        abort(404)
+    config = TABLAS[tabla]
+    if opcion not in [clave for clave, _titulo in config["opciones"]]:
+        abort(404)
+    archivo = config["archivo"].format(clave=opcion)
+    leido = leer_filas(ruta_workspace(job.id), archivo)
+    if leido is None:
+        abort(404)
+    _columnas, filas = leido
+    if fila < 0 or fila >= len(filas):
+        abort(404)
+    png = generar_mapa(ruta_workspace(job.id), tabla, opcion, archivo, filas, fila)
+    return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
+
+
 @results_bp.get("/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>")
 @login_required
 def detalle(job_id: str, tabla: str, opcion: str, fila: int):
@@ -315,6 +366,13 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
     volver = request.args.get("volver", "")
     if not volver.startswith("/") or volver.startswith("//"):
         volver = url_for(ENDPOINTS[tabla], job_id=job.id, **{parametro: opcion})
+    url_mapa = url_for(
+        "results.mapa",
+        job_id=job.id,
+        tabla=tabla,
+        opcion=opcion,
+        fila=fila,
+    )
 
     return render_template(
         "results/event.html",
@@ -326,6 +384,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         columnas=columnas,
         volver=volver,
         archivo=archivo,
+        url_mapa=url_mapa,
         titulo_columna=titulo_columna,
         **contexto,
     )

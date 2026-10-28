@@ -43,6 +43,8 @@ services:
       FLASK_APP: app
       FLASK_DEBUG: "1"
       PYTHONPATH: /app
+      MPLBACKEND: Agg
+      CARTOPY_DATA_DIR: /data/cartopy
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -51,6 +53,7 @@ services:
       - ./workspace:/workspace
       - ${RCS_CORE_PATH_HOST}:/opt/rcs-core:ro
       - ${DATOS_PATH_HOST}:/data:ro
+      - ${CARTOPY_DATA_DIR_HOST}:/data/cartopy:ro
     depends_on:
       db:
         condition: service_healthy
@@ -73,12 +76,16 @@ services:
     env_file: .env
     environment:
       PYTHONPATH: /app
+      MPLBACKEND: Agg
+      CARTOPY_DATA_DIR: /data/cartopy
     volumes:
       - ./app:/app/app
       - ./tasks:/app/tasks
       - ./workspace:/workspace
       - ${RCS_CORE_PATH_HOST}:/opt/rcs-core:ro
       - ${DATOS_PATH_HOST}:/data:ro
+      - ${CARTOPY_DATA_DIR_HOST}:/data/cartopy:ro
+      - ${CARTOPY_DATA_DIR_HOST}:/data/cartopy:ro
     depends_on:
       db:
         condition: service_healthy

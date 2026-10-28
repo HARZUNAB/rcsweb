@@ -72,3 +72,12 @@ footer {
   min-width: 110px;
 }
 
+.miniatura-perfil {
+  width: 120px;
+  height: 55px;
+  object-fit: contain;
+  background-color: #f6f7f9;
+  border: 1px solid #e3e6ea;
+  border-radius: 0.35rem;
+}
+
