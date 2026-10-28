@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import badge_revision %}
 {% block title %}{{ tabla_config.titulo }} · Trabajo {{ job.id[:8] }}{% endblock %}
 
 {% block content %}
@@ -8,16 +9,14 @@
     <h1 class="h3 mb-1">{{ tabla_config.titulo }}</h1>
     <p class="text-secondary mb-0">{{ tabla_config.descripcion }}</p>
   </div>
-  <div class="d-flex gap-2">
+  <div class="d-flex flex-wrap gap-2">
     {% if artefacto %}
-      <a class="btn btn-outline-primary"
+      <a class="btn btn-outline-secondary"
          href="{{ url_for('jobs.descargar', job_id=job.id, artifact_id=artefacto.id) }}">
-        Descargar CSV
+        CSV original
       </a>
     {% endif %}
-    <a class="btn btn-outline-secondary" href="{{ url_for('results.overview', job_id=job.id) }}">
-      Volver
-    </a>
+    <a class="btn btn-outline-primary" href="{{ volver }}">Volver</a>
   </div>
 </div>
 
@@ -34,31 +33,40 @@
 
 <div class="card border-0 shadow-sm">
   <div class="card-body">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-      <div class="text-secondary small">
-        <strong>{{ titulo_opcion }}</strong> ·
-        {{ tabla.total }} evento{{ '' if tabla.total == 1 else 's' }}
-      </div>
-
-      <form method="get" action="{{ url_for(endpoint, job_id=job.id) }}" class="d-flex gap-2">
-        <input type="hidden" name="{{ parametro }}" value="{{ opcion }}">
-        <input type="hidden" name="sort" value="{{ tabla.sort }}">
-        <input type="hidden" name="dir" value="{{ tabla.direccion }}">
-        <input class="form-control form-control-sm" type="search" name="q"
-               value="{{ tabla.q }}" placeholder="Buscar…" aria-label="Buscar">
-        <button class="btn btn-sm btn-outline-secondary" type="submit">Buscar</button>
-        {% if tabla.q %}
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_tab(opcion) }}">Limpiar</a>
-        {% endif %}
-      </form>
-    </div>
-
     {% if not tabla.existe %}
       <div class="text-center text-secondary py-5">
         <div class="mb-2">Esta tabla no se generó en el trabajo.</div>
         <div class="small">Puede que no haya eventos de esta fuente en la ventana.</div>
       </div>
-    {% elif tabla.filas %}
+    {% else %}
+    <form id="tabla-filtros" method="get" action="{{ url_for(endpoint, job_id=job.id) }}">
+      <input type="hidden" name="{{ parametro }}" value="{{ opcion }}">
+      <input type="hidden" name="sort" value="{{ tabla.sort }}">
+      <input type="hidden" name="dir" value="{{ tabla.direccion }}">
+
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div class="text-secondary small">
+          <strong>{{ titulo_opcion }}</strong> ·
+          {{ tabla.total }} evento{{ '' if tabla.total == 1 else 's' }}
+          {% if filtros or tabla.q %}
+            <span class="badge text-bg-light text-dark ms-1">
+              {{ filtros|length + (1 if tabla.q else 0) }} filtro(s)
+            </span>
+          {% endif %}
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          <input class="form-control form-control-sm" type="search" name="q"
+                 value="{{ tabla.q }}" placeholder="Buscar en todas las columnas…"
+                 aria-label="Buscar" style="min-width: 240px;">
+          <button class="btn btn-sm btn-outline-secondary" type="submit">Aplicar</button>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_tab(opcion) }}">Limpiar</a>
+          <a class="btn btn-sm btn-primary" href="{{ url_exportar() }}">
+            Exportar filtrado ({{ tabla.total }})
+          </a>
+        </div>
+      </div>
+
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle tabla-resultados mb-0">
           <thead class="table-light">
@@ -73,26 +81,60 @@
                 </a>
               </th>
               {% endfor %}
+              <th class="text-end">Detalle</th>
+            </tr>
+            <tr class="fila-filtros">
+              {% for clave, titulo in columnas %}
+              <th>
+                <input class="form-control form-control-sm"
+                       type="text"
+                       name="f_{{ clave }}"
+                       value="{{ filtros.get(clave, '') }}"
+                       placeholder="Filtrar"
+                       title="Filtrar {{ titulo }}. Numéricos: >=, <=, .. o ="
+                       aria-label="Filtrar {{ titulo }}">
+              </th>
+              {% endfor %}
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {% for fila in tabla.filas %}
             <tr>
               {% for clave, _titulo in columnas %}
-              <td>{{ fila.get(clave, '') }}</td>
+              <td>
+                {% if clave == 'revision' %}
+                  {{ badge_revision(fila.get(clave, '')) }}
+                {% else %}
+                  {{ fila.get(clave, '') }}
+                {% endif %}
+              </td>
               {% endfor %}
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary"
+                   href="{{ url_detalle(fila.get('_fila')) }}">Ver</a>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
 
+      {% if not tabla.filas %}
+        <div class="text-center text-secondary py-5">
+          <div class="mb-1">No hay eventos con estos filtros.</div>
+          <div class="small">Probá quitando algún filtro o la búsqueda global.</div>
+        </div>
+      {% endif %}
+    </form>
+
+    {% if tabla.filas %}
       {% set inicio = (tabla.page - 1) * tabla.per_page + 1 %}
       {% set fin = inicio + tabla.filas|length - 1 %}
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
         <div class="text-secondary small">
           Mostrando {{ inicio }}–{{ fin }} de {{ tabla.total }}
-          {% if tabla.q %} (filtrado){% endif %}
+          {% if tabla.q or filtros %} (filtrado){% endif %}
         </div>
         <div class="btn-group btn-group-sm">
           <a class="btn btn-outline-secondary {% if tabla.page <= 1 %}disabled{% endif %}"
@@ -108,13 +150,7 @@
              href="{{ url_pagina(tabla.pages) }}">Última</a>
         </div>
       </div>
-    {% else %}
-      <div class="text-center text-secondary py-5">
-        <div class="mb-1">No hay eventos en esta categoría.</div>
-        {% if tabla.q %}
-          <div class="small">Probá quitando el filtro de búsqueda.</div>
-        {% endif %}
-      </div>
+    {% endif %}
     {% endif %}
   </div>
 </div>

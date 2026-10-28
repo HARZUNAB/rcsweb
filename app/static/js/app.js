@@ -27,4 +27,15 @@
   }
   document.addEventListener("DOMContentLoaded", bajarLog);
   document.body.addEventListener("htmx:afterSwap", bajarLog);
+
+  // No enviar filtros vacíos: mantiene la URL corta y legible.
+  document.querySelectorAll('form#tabla-filtros').forEach(function (form) {
+    form.addEventListener("submit", function () {
+      form.querySelectorAll('input[name^="f_"]').forEach(function (input) {
+        if (!input.value.trim()) {
+          input.disabled = true;
+        }
+      });
+    });
+  });
 })();

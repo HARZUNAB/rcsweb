@@ -68,3 +68,7 @@ footer {
   text-decoration: underline !important;
 }
 
+.fila-filtros input {
+  min-width: 110px;
+}
+

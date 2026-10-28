@@ -8,8 +8,10 @@ archivos: no depende de los formatos internos del core.
 from __future__ import annotations
 
 import csv
+import io
 import json
 import math
+import re
 import sys
 import unicodedata
 from pathlib import Path
@@ -56,8 +58,14 @@ NO_ACT_COLUMNS = (
     ("dlat", "Δlat (°)"),
     ("dlon", "Δlon (°)"),
     ("dist_km", "Dist. (km)"),
+    ("publicacion_probable", "Publicación probable"),
+    ("revision", "Revisión"),
+    ("revision_orden", "Orden de revisión"),
     ("discrepancias", "Parámetros que difieren"),
 )
+
+# Columnas que se usan para ordenar pero no se muestran.
+COLUMNAS_OCULTAS = {"revision_orden", "_fila"}
 
 TABLAS = {
     "no_publicados": {
@@ -203,17 +211,68 @@ def _no_actualizados_local(filas):
     return resultado
 
 
-def _no_actualizados(filas):
-    """Usa la regla del core si está montado; si no, la copia local."""
+def _preparar_core() -> Path:
+    """Agrega el core al sys.path para reutilizar sus módulos puros."""
     core = Path(current_app.config["RCS_CORE_PATH"])
     if core.is_dir() and str(core) not in sys.path:
         sys.path.insert(0, str(core))
+    return core
+
+
+def _no_actualizados(filas):
+    """Usa la regla del core si está montado; si no, la copia local."""
+    _preparar_core()
     try:
         from comparacion import no_actualizados  # type: ignore
 
         return no_actualizados(filas)
     except Exception:
         return _no_actualizados_local(filas)
+
+
+def _clasificar_no_actualizados(
+    workspace: Path, fuente: str, filas_crudas: list[dict], filtradas: list[dict]
+) -> None:
+    """Agrega publicación probable y prioridad de revisión (cruce_noact)."""
+    _preparar_core()
+    try:
+        import cruce_noact  # type: ignore
+
+        filas_otras, motivo = cruce_noact.cargar_otra(str(workspace), fuente)
+        cruce_noact.anotar(filtradas, filas_crudas, filas_otras, fuente, motivo)
+    except Exception:
+        for fila in filtradas:
+            fila.setdefault("publicacion_probable", "")
+            fila.setdefault("revision", "")
+            fila.setdefault("revision_orden", "")
+
+
+def _agregar_analistas(workspace: Path, filas: list[dict]) -> list[str]:
+    """Agrega analista_seisan / analista_seiscomp a los repetidos publicados."""
+    from .attribution import analistas_para_evento, cargar_atribucion
+
+    indices = {fuente: cargar_atribucion(workspace, fuente) for fuente in ("seisan", "seiscomp")}
+    if not any(indices.values()):
+        return []
+
+    columnas = []
+    for fuente, indice in indices.items():
+        if not indice:
+            continue
+        columna = f"analista_{fuente}"
+        columnas.append(columna)
+        for fila in filas:
+            encontrados = analistas_para_evento(
+                indice,
+                fila.get("fecha_hora", ""),
+                fila.get("latitud"),
+                fila.get("longitud"),
+            )
+            nombres = []
+            for entrada in encontrados or ():
+                nombres.extend(entrada.get("analistas") or [])
+            fila[columna] = ", ".join(nombres)
+    return columnas
 
 
 # --------------------------------------------------------------------------- #
@@ -306,8 +365,9 @@ def construir_resultados(workspace: Path) -> dict:
         if not origen.is_file():
             continue
         destino = resultados / f"no_actualizados_{fuente}.csv"
-        _columnas, filas = leer_csv(origen)
-        filtradas = _no_actualizados(filas)
+        _columnas, filas_crudas = leer_csv(origen)
+        filtradas = _no_actualizados(filas_crudas)
+        _clasificar_no_actualizados(workspace, fuente, filas_crudas, filtradas)
         for fila in filtradas:
             fila["discrepancias"] = ", ".join(_parametros_discrepantes(fila))
         columnas = [clave for clave, _titulo in NO_ACT_COLUMNS]
@@ -325,6 +385,8 @@ def construir_resultados(workspace: Path) -> dict:
         columnas, filas = _leer_repetidos(origen)
         if not columnas:
             continue
+        if clave.startswith("publica"):
+            columnas = columnas + _agregar_analistas(workspace, filas)
         destino = resultados / f"repetidos_{clave}.csv"
         escribir_csv(destino, columnas, filas)
         indice["repetidos"][clave] = {
@@ -398,33 +460,75 @@ def _es_numerica(valores) -> bool:
     return alguno
 
 
-def leer_tabla(
+RE_OPERADOR = re.compile(r"^(>=|<=|>|<|=)\s*(.+)$")
+RE_RANGO = re.compile(r"^\s*(-?\d+(?:[.,]\d+)?)\s*\.\.\s*(-?\d+(?:[.,]\d+)?)\s*$")
+
+
+def _a_numero_filtro(texto: str):
+    return _a_numero(str(texto).replace(",", "."))
+
+
+def _pasa_filtro(valor, patron: str, numerica: bool) -> bool:
+    """Aplica un filtro de columna con sintaxis de texto o numérica."""
+    patron = (patron or "").strip()
+    if not patron:
+        return True
+    texto = "" if valor is None else str(valor).strip()
+
+    if numerica:
+        rango = RE_RANGO.match(patron)
+        if rango:
+            numero = _a_numero(texto)
+            if numero is None:
+                return False
+            minimo = _a_numero_filtro(rango.group(1))
+            maximo = _a_numero_filtro(rango.group(2))
+            return minimo is not None and maximo is not None and minimo <= numero <= maximo
+
+        operador = RE_OPERADOR.match(patron)
+        if operador:
+            numero = _a_numero(texto)
+            objetivo = _a_numero_filtro(operador.group(2))
+            if numero is None or objetivo is None:
+                return False
+            signo = operador.group(1)
+            if signo == ">=":
+                return numero >= objetivo
+            if signo == ">":
+                return numero > objetivo
+            if signo == "<=":
+                return numero <= objetivo
+            if signo == "<":
+                return numero < objetivo
+            return abs(numero - objetivo) < 1e-9
+
+        objetivo = _a_numero_filtro(patron)
+        if objetivo is not None:
+            numero = _a_numero(texto)
+            return numero is not None and abs(numero - objetivo) < 1e-9
+
+    return _normalizar(patron) in _normalizar(texto)
+
+
+def _leer_filtrar_ordenar(
     workspace: Path,
     archivo: str,
     *,
     q: str = "",
+    filtros: dict[str, str] | None = None,
     sort: str = "",
     direccion: str = "asc",
-    page: int = 1,
-    per_page: int = PER_PAGE,
-) -> dict:
+) -> tuple[list[str], list[dict], bool]:
+    """Columnas visibles, filas filtradas/ordenadas y si el archivo existe."""
     raiz = workspace.resolve()
     ruta = (raiz / "resultados" / archivo).resolve()
     if not ruta.is_file() or not ruta.is_relative_to(raiz):
-        return {
-            "columnas": [],
-            "filas": [],
-            "total": 0,
-            "page": 1,
-            "pages": 1,
-            "per_page": per_page,
-            "sort": "",
-            "direccion": "asc",
-            "q": q,
-            "existe": False,
-        }
+        return [], [], False
 
     columnas, filas = leer_csv(ruta)
+    for indice, fila in enumerate(filas):
+        fila["_fila"] = indice
+
     termino = _normalizar(q.strip())
     if termino:
         filas = [
@@ -433,7 +537,31 @@ def leer_tabla(
             if termino in _normalizar(" ".join(str(v) for v in fila.values()))
         ]
 
-    if sort in columnas:
+    filtros = {
+        columna: str(patron).strip()
+        for columna, patron in (filtros or {}).items()
+        if columna in columnas and str(patron).strip()
+    }
+    if filtros:
+        numericas = {
+            columna: _es_numerica(fila.get(columna, "") for fila in filas) for columna in filtros
+        }
+        filas = [
+            fila
+            for fila in filas
+            if all(
+                _pasa_filtro(fila.get(columna, ""), patron, numericas[columna])
+                for columna, patron in filtros.items()
+            )
+        ]
+
+    if sort == "revision":
+        orden = {"Alta": 1, "Media": 2, "Baja": 3, "—": 4}
+        filas.sort(
+            key=lambda f: orden.get(str(f.get("revision", "")).strip(), 9),
+            reverse=(direccion == "desc"),
+        )
+    elif sort in columnas:
         numerica = _es_numerica(fila.get(sort, "") for fila in filas)
         if numerica:
             filas.sort(
@@ -452,6 +580,44 @@ def leer_tabla(
     else:
         sort = ""
 
+    visibles = [columna for columna in columnas if columna not in COLUMNAS_OCULTAS]
+    return visibles, filas, True
+
+
+def leer_tabla(
+    workspace: Path,
+    archivo: str,
+    *,
+    q: str = "",
+    filtros: dict[str, str] | None = None,
+    sort: str = "",
+    direccion: str = "asc",
+    page: int = 1,
+    per_page: int = PER_PAGE,
+) -> dict:
+    columnas, filas, existe = _leer_filtrar_ordenar(
+        workspace,
+        archivo,
+        q=q,
+        filtros=filtros,
+        sort=sort,
+        direccion=direccion,
+    )
+    if not existe:
+        return {
+            "columnas": [],
+            "filas": [],
+            "total": 0,
+            "page": 1,
+            "pages": 1,
+            "per_page": per_page,
+            "sort": "",
+            "direccion": "asc",
+            "q": q,
+            "filtros": {},
+            "existe": False,
+        }
+
     total = len(filas)
     pages = max(1, math.ceil(total / per_page))
     page = max(1, min(page, pages))
@@ -466,5 +632,38 @@ def leer_tabla(
         "sort": sort,
         "direccion": direccion,
         "q": q,
+        "filtros": {
+            clave: valor
+            for clave, valor in (filtros or {}).items()
+            if clave in columnas and str(valor).strip()
+        },
         "existe": True,
     }
+
+
+def exportar_csv(
+    workspace: Path,
+    archivo: str,
+    *,
+    q: str = "",
+    filtros: dict[str, str] | None = None,
+    sort: str = "",
+    direccion: str = "asc",
+) -> tuple[bytes, int]:
+    """CSV filtrado completo (todas las páginas), con BOM para Excel."""
+    columnas, filas, existe = _leer_filtrar_ordenar(
+        workspace,
+        archivo,
+        q=q,
+        filtros=filtros,
+        sort=sort,
+        direccion=direccion,
+    )
+    if not existe:
+        return b"", 0
+
+    buffer = io.StringIO()
+    escritor = csv.DictWriter(buffer, fieldnames=columnas, extrasaction="ignore", restval="")
+    escritor.writeheader()
+    escritor.writerows(filas)
+    return buffer.getvalue().encode("utf-8-sig"), len(filas)

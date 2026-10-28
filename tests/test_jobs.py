@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-import pytest
-
 from app.extensions import db
 from app.models import Job, JobArtifact, JobFile, nuevo_uuid
 from app.services.workspace import crear_workspace
@@ -21,17 +19,6 @@ def _datos_formulario(samples):
             "eventquery.csv",
         ),
     }
-
-
-@pytest.fixture()
-def sin_celery(monkeypatch):
-    llamados = []
-
-    def _encolar(job_id):
-        llamados.append(job_id)
-
-    monkeypatch.setattr("app.blueprints.jobs.encolar_trabajo", _encolar)
-    return llamados
 
 
 def test_nuevo_requiere_login(client):

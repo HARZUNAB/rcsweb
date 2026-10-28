@@ -20,6 +20,7 @@ from flask_login import current_user, login_required
 from ..extensions import db
 from ..forms import JobForm
 from ..models import Job, JobArtifact, JobFile, nuevo_uuid
+from ..services.audit import registrar
 from ..services.queue import encolar_trabajo
 from ..services.results import cargar_indice
 from ..services.workspace import (
@@ -76,6 +77,7 @@ def nuevo():
             created_by_id=current_user.id,
         )
         workspace = crear_workspace(job.id)
+        archivos_meta = []
 
         try:
             for kind, campo in KINDS:
@@ -99,10 +101,27 @@ def nuevo():
                         sha256=sha256,
                     )
                 )
+                archivos_meta.append(
+                    {
+                        "kind": kind,
+                        "nombre": archivo.filename,
+                        "bytes": tamano,
+                        "sha256": sha256,
+                    }
+                )
 
             job.status = "queued"
             db.session.add(job)
             db.session.commit()
+            registrar(
+                "job.create",
+                entity=job.id,
+                meta={
+                    "inicio": job.inicio14,
+                    "fin": job.fin14,
+                    "archivos": archivos_meta,
+                },
+            )
         except Exception as exc:  # noqa: BLE001 - se informa al usuario
             db.session.rollback()
             shutil.rmtree(workspace, ignore_errors=True)
@@ -149,11 +168,13 @@ def cancelar(job_id: str):
         job.current_step = "Cancelado"
         job.finished_at = datetime.now(UTC)
         db.session.commit()
+        registrar("job.cancel", entity=job.id, meta={"estado_previo": "queued"})
         flash("Trabajo cancelado antes de comenzar.", "info")
     elif job.status == "running":
         job.status = "cancelling"
         job.current_step = "Cancelando…"
         db.session.commit()
+        registrar("job.cancel", entity=job.id, meta={"estado_previo": "running"})
         flash("Se solicitó cancelar el trabajo.", "warning")
     else:
         flash("El trabajo ya terminó; no hay nada que cancelar.", "info")
@@ -185,6 +206,11 @@ def descargar(job_id: str, artifact_id: int):
     if not ruta.is_file() or not ruta.is_relative_to(workspace):
         abort(404)
 
+    registrar(
+        "download",
+        entity=artefacto.ruta,
+        meta={"job": job.id, "bytes": artefacto.size},
+    )
     return send_file(
         ruta,
         as_attachment=True,

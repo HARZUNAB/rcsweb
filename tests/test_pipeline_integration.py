@@ -16,7 +16,7 @@ import pytest
 from app.extensions import db
 from app.models import Job, JobFile, nuevo_uuid
 from app.services.pipeline import ejecutar_pipeline
-from app.services.results import cargar_indice
+from app.services.results import cargar_indice, leer_tabla
 from app.services.workspace import crear_workspace, nombre_entrada
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -97,3 +97,15 @@ def test_pipeline_completo_con_muestra(app, tmp_path):
         assert indice["no_actualizados"]["seiscomp"]["filas"] == 1
         assert indice["repetidos"]["publica_estricto"]["filas"] == 2
         assert indice["catalogos"]["seisan"]["filas"] == 3
+
+        no_act = leer_tabla(workspace, "no_actualizados_seisan.csv")
+        assert "revision" in no_act["columnas"]
+        assert "publicacion_probable" in no_act["columnas"]
+        assert no_act["filas"][0]["revision"] in {"Alta", "Media", "Baja"}
+        assert no_act["filas"][0]["publicacion_probable"]
+        assert "_fila" in no_act["filas"][0]
+
+        repetidos = leer_tabla(workspace, "repetidos_publica_estricto.csv")
+        assert "analista_seisan" in repetidos["columnas"]
+        assert "analista_seiscomp" in repetidos["columnas"]
+        assert any(fila.get("analista_seisan") for fila in repetidos["filas"])

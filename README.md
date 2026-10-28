@@ -4,9 +4,10 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 1 completada.** Se pueden cargar los catálogos, ejecutar
-el pipeline en segundo plano, seguir el progreso y consultar/descargar las
-tablas de no publicados, no actualizados y repetidos.
+**Estado actual: etapa 2 completada.** Se pueden cargar los catálogos, ejecutar
+el pipeline en segundo plano, seguir el progreso, filtrar y exportar las tablas,
+abrir el detalle de cada evento, ver la clasificación de no actualizados, la
+atribución de analistas y la auditoría de acciones.
 
 ## Stack
 
@@ -43,9 +44,13 @@ make clean                # detener y borrar volúmenes
    exportación de SeisComp opcional).
 2. El trabajo se encola en Celery. La página de detalle muestra progreso, pasos y
    log en vivo (polling HTMX cada 2 s).
-3. Al terminar: tarjetas con conteos, tablas paginables con búsqueda y orden, y
-   descargas en CSV/TXT.
-4. Se puede cancelar un trabajo en cola o en ejecución.
+3. Al terminar: tarjetas con conteos, tablas paginables con búsqueda, filtros
+   por columna, orden y exportación del resultado filtrado.
+4. Cada fila tiene un detalle con Δ por parámetro, clasificación y, en
+   repetidos, el grupo completo de duplicados.
+5. Se puede cancelar un trabajo en cola o en ejecución.
+6. La sección **Auditoría** (solo administradores) registra login, alta,
+   cancelación, fin/fallo y descargas.
 
 ## Pipeline
 
@@ -127,8 +132,20 @@ make lint     # ruff check
 make fmt      # ruff format
 ```
 
-Incluye un test de integración que ejecuta el pipeline real si el proyecto base
-está montado (`/opt/rcs-core` o `RCS_CORE_PATH`); si no, se salta.
+Incluye tests de filtros, exportación, detalle, atribución, auditoría y un test
+de integración que ejecuta el pipeline real si el proyecto base está montado
+(`/opt/rcs-core` o `RCS_CORE_PATH`); si no, se salta.
+
+## Filtros y exportación
+
+- **Filtro global** (`q`): busca en todas las columnas, sin distinguir
+  mayúsculas ni acentos.
+- **Filtros por columna**: contiene para texto; para columnas numéricas acepta
+  `>=10`, `>10`, `<=10`, `<10`, `=10` y rangos `10..20`.
+- Los filtros se combinan con AND y se conservan al ordenar y paginar.
+- **Exportar filtrado** genera un CSV con todas las filas del filtro (no solo
+  la página) y BOM para Excel.
+- El detalle de cada fila conserva el filtro y el orden al volver.
 
 ## Endpoints
 
@@ -145,7 +162,10 @@ está montado (`/opt/rcs-core` o `RCS_CORE_PATH`); si no, se salta.
 | GET | `/jobs/<id>/resultados/no-publicados` | Tabla de no publicados |
 | GET | `/jobs/<id>/resultados/no-actualizados` | Tabla de no actualizados |
 | GET | `/jobs/<id>/resultados/repetidos` | Informes de repetidos |
+| GET | `/jobs/<id>/resultados/<tabla>/exportar` | CSV filtrado |
+| GET | `/jobs/<id>/resultados/<tabla>/<opcion>/<fila>` | Detalle del evento |
 | GET | `/jobs/<id>/descargas` | Artefactos descargables |
+| GET | `/admin/auditoria` | Auditoría (solo admin) |
 | GET | `/health` | Estado de base, core, workspace y dump |
 
 ## Relación con el proyecto base
@@ -165,10 +185,9 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
 - Descargas validadas contra el workspace del trabajo (sin traversal).
 - No hay consola SQL arbitraria.
 
-## Próximos pasos (etapa 2)
+## Próximos pasos (etapa 3)
 
-- Detalle de evento con Δ por parámetro y agrupación por perfil.
-- Filtros por columna y exportación del resultado filtrado.
-- Atribución de analista en repetidos.
-- Auditoría de acciones por usuario.
-- Luego: mapas (etapa 3), SeisComp (etapa 4) y catálogo histórico (etapa 6a).
+- Mapas de planta y perfil por evento y por grupo, con `matplotlib` en modo
+  `Agg` y caché de imágenes.
+- Miniatura del perfil en las tablas y detalle.
+- Luego: SeisComp (etapa 4), agencias (etapa 5) y catálogo histórico (etapa 6a).

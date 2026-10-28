@@ -26,6 +26,7 @@ from flask import current_app
 
 from ..extensions import db
 from ..models import Job, JobArtifact, JobStep
+from .audit import registrar
 from .results import construir_resultados
 from .workspace import (
     crear_workspace,
@@ -372,6 +373,28 @@ def _terminar(job: Job, estado: str, *, error: str | None = None, paso: str | No
         job.current_step = paso or "Error"
     job.error = error
     db.session.commit()
+
+    if estado == "done":
+        registrar(
+            "job.done",
+            entity=job.id,
+            meta={"pasos": len(job.steps), "progreso": job.progress},
+            user_id=job.created_by_id,
+        )
+    elif estado == "failed":
+        registrar(
+            "job.failed",
+            entity=job.id,
+            meta={"error": error, "paso": paso},
+            user_id=job.created_by_id,
+        )
+    elif estado == "cancelled":
+        registrar(
+            "job.cancelled",
+            entity=job.id,
+            meta={"paso": paso},
+            user_id=job.created_by_id,
+        )
 
 
 def ejecutar_pipeline(job_id: str) -> dict:

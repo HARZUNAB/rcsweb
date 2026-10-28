@@ -43,9 +43,7 @@ def client(app):
 @pytest.fixture()
 def login(client):
     def _login():
-        return client.post(
-            "/login", data={"username": "tester", "password": "secret"}
-        )
+        return client.post("/login", data={"username": "tester", "password": "secret"})
 
     return _login
 
@@ -53,3 +51,14 @@ def login(client):
 @pytest.fixture()
 def samples():
     return SAMPLES
+
+
+@pytest.fixture()
+def sin_celery(monkeypatch):
+    llamados = []
+
+    def _encolar(job_id):
+        llamados.append(job_id)
+
+    monkeypatch.setattr("app.blueprints.jobs.encolar_trabajo", _encolar)
+    return llamados

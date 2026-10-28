@@ -19,6 +19,7 @@ def create_app(config_object: type | None = None) -> Flask:
 
     # Importar los modelos antes de crear tablas (registra los mapeos).
     from . import models  # noqa: F401
+    from .blueprints.admin import admin_bp
     from .blueprints.auth import auth_bp
     from .blueprints.dashboard import dashboard_bp
     from .blueprints.health import health_bp
@@ -30,6 +31,7 @@ def create_app(config_object: type | None = None) -> Flask:
     app.register_blueprint(health_bp)
     app.register_blueprint(jobs_bp)
     app.register_blueprint(results_bp)
+    app.register_blueprint(admin_bp)
 
     from .cli import register_cli
 
@@ -38,6 +40,10 @@ def create_app(config_object: type | None = None) -> Flask:
     @app.errorhandler(404)
     def no_encontrado(error):  # pragma: no cover - plantilla simple
         return render_template("errors/404.html"), 404
+
+    @app.errorhandler(403)
+    def acceso_denegado(error):
+        return render_template("errors/403.html"), 403
 
     @app.errorhandler(500)
     def error_interno(error):  # pragma: no cover

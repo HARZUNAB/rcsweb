@@ -43,3 +43,18 @@
     {{ seg // 3600 }} h {{ (seg % 3600) // 60 }} min
   {%- endif -%}
 {%- endmacro %}
+
+{% macro badge_revision(valor) -%}
+  {%- if valor == 'Alta' -%}
+    <span class="badge text-bg-success">Alta</span>
+  {%- elif valor == 'Media' -%}
+    <span class="badge text-bg-warning">Media</span>
+  {%- elif valor == 'Baja' -%}
+    <span class="badge text-bg-secondary">Baja</span>
+  {%- elif valor and valor != '—' -%}
+    <span class="badge text-bg-light text-dark">{{ valor }}</span>
+  {%- else -%}
+    <span class="text-secondary">—</span>
+  {%- endif -%}
+{%- endmacro %}
+
