@@ -271,7 +271,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **94 tests**.
+runner de solo lectura. Total actual: **95 tests**.
 
 ## Filtros y exportación
 

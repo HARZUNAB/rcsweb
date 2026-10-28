@@ -43,6 +43,22 @@ def test_validar_eventquery(samples):
     assert resultado["errores"] == []
 
 
+def test_validar_eventquery_formato_nuevo(tmp_path):
+    ruta = tmp_path / "eventquery_nuevo.csv"
+    ruta.write_text(
+        "time,latitude,longitude,depth [km],magnitude,magnitude_type,region_name,felt\n"
+        "2026-10-02T12:00:00Z,-22.16,-68.60,105.7,2.7,MLv,Calama,f\n"
+        "2026-10-03T12:00:00Z,-21.06,-68.87,124.5,2.6,MLv,Collahuasi,t\n",
+        encoding="utf-8",
+    )
+
+    resultado = validar_fuente("eventquery", ruta, INICIO, FIN)
+
+    assert resultado["ok"] is True
+    assert resultado["eventos"] == 2
+    assert resultado["errores"] == []
+
+
 def test_validar_seisan(samples):
     resultado = validar_fuente("seisan", samples / "select.out", INICIO, FIN)
 

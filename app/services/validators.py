@@ -17,6 +17,16 @@ RE_EVENTO_SEISAN = re.compile(
 )
 
 COLUMNAS_EVENTQUERY = ("time", "lat", "lon", "depth", "mag", "tipo_mag", "ref", "perc")
+ALIASES_EVENTQUERY = {
+    "time": ("time",),
+    "lat": ("lat", "latitude"),
+    "lon": ("lon", "longitude"),
+    "depth": ("depth", "depth [km]"),
+    "mag": ("mag", "magnitude"),
+    "tipo_mag": ("tipo_mag", "magnitude_type"),
+    "ref": ("ref", "region_name"),
+    "perc": ("perc", "felt"),
+}
 COLUMNAS_SEISCOMP = (
     "ot_utc",
     "latitud",
@@ -115,6 +125,13 @@ def _leer_csv(ruta: Path):
         return [c.strip().lstrip("\ufeff") for c in (lector.fieldnames or [])], list(lector)
 
 
+def _campo_eventquery(fila: dict, nombre: str):
+    for alias in ALIASES_EVENTQUERY[nombre]:
+        if alias in fila:
+            return fila[alias]
+    return None
+
+
 def validar_eventquery(ruta: Path, periodo_inicio=None, periodo_fin=None) -> dict:
     resultado = _resultado("eventquery")
     if not ruta.is_file():
@@ -130,16 +147,20 @@ def validar_eventquery(ruta: Path, periodo_inicio=None, periodo_fin=None) -> dic
         resultado["errores"].append(f"No se pudo leer el CSV: {exc}")
         return resultado
 
-    faltantes = [c for c in COLUMNAS_EVENTQUERY if c not in columnas]
+    faltantes = [
+        canonica
+        for canonica in COLUMNAS_EVENTQUERY
+        if not any(alias in columnas for alias in ALIASES_EVENTQUERY[canonica])
+    ]
     if faltantes:
         resultado["errores"].append("Faltan columnas: " + ", ".join(faltantes))
         return resultado
 
     instantes = []
     for fila in filas:
-        instante = _instante(fila.get("time"))
-        lat = _numero(fila.get("lat"))
-        lon = _numero(fila.get("lon"))
+        instante = _instante(_campo_eventquery(fila, "time"))
+        lat = _numero(_campo_eventquery(fila, "lat"))
+        lon = _numero(_campo_eventquery(fila, "lon"))
         if instante is None or lat is None or lon is None:
             continue
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):
