@@ -9,12 +9,14 @@ from flask import Flask
 from flask.cli import with_appcontext
 
 from .extensions import db
-from .models import User
+from .models import Job, User
+from .services.jobs import JobNoEliminable, eliminar_trabajo
 
 
 def register_cli(app: Flask) -> None:
     app.cli.add_command(init_db)
     app.cli.add_command(create_user)
+    app.cli.add_command(delete_job)
 
 
 @click.command("init-db")
@@ -57,3 +59,18 @@ def create_user(username: str, password: str, role: str) -> None:
     db.session.add(user)
     db.session.commit()
     click.echo(f"Usuario '{username}' creado con rol '{role}'.")
+
+
+@click.command("delete-job")
+@click.argument("job_id")
+@with_appcontext
+def delete_job(job_id: str) -> None:
+    """Elimina un trabajo terminado y su workspace."""
+    job = db.session.get(Job, job_id)
+    if job is None:
+        raise click.ClickException(f"No existe el trabajo '{job_id}'.")
+    try:
+        eliminar_trabajo(job, origen="cli")
+    except JobNoEliminable as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Trabajo '{job_id}' eliminado.")

@@ -76,8 +76,19 @@
             {{ job.created_at.strftime('%Y-%m-%d %H:%M') }}
           </td>
           <td class="text-end">
-            <a class="btn btn-sm btn-outline-primary"
-               href="{{ url_for('jobs.detalle', job_id=job.id) }}">Ver</a>
+            <div class="d-flex justify-content-end gap-1">
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{{ url_for('jobs.detalle', job_id=job.id) }}">Ver</a>
+              {% if job.status in ('done', 'failed', 'cancelled')
+                    and (current_user.role == 'admin' or job.created_by_id == current_user.id) %}
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        data-bs-toggle="modal" data-bs-target="#modalEliminar"
+                        data-job-url="{{ url_for('jobs.eliminar', job_id=job.id) }}"
+                        data-job-period="{% if job.period_start and job.period_end %}{{ job.period_start.strftime('%Y-%m-%d') }} → {{ job.period_end.strftime('%Y-%m-%d') }}{% else %}{{ job.id }}{% endif %}">
+                  Eliminar
+                </button>
+              {% endif %}
+            </div>
           </td>
         </tr>
         {% else %}
@@ -94,4 +105,6 @@
     </table>
   </div>
 </div>
+
+{% include "jobs/_modal_eliminar.html" %}
 {% endblock %}

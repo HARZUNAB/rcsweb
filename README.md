@@ -54,6 +54,8 @@ make clean                # detener y borrar volúmenes
 5. Se puede cancelar un trabajo en cola o en ejecución.
 6. La sección **Auditoría** (solo administradores) registra login, alta,
    cancelación, fin/fallo y descargas.
+7. Un trabajo terminado, fallido o cancelado puede **eliminarse** desde el panel
+   o el detalle (creador o admin); se borran sus resultados y su workspace.
 
 ## Pipeline
 
@@ -173,6 +175,7 @@ de integración que ejecuta el pipeline real si el proyecto base está montado
 | GET | `/jobs/<id>` | Detalle con progreso y log |
 | GET | `/jobs/<id>/estado` | Fragmento para el polling HTMX |
 | POST | `/jobs/<id>/cancelar` | Cancelar trabajo |
+| POST | `/jobs/<id>/eliminar` | Eliminar trabajo terminado |
 | GET | `/jobs/<id>/resultados` | Resumen de resultados |
 | GET | `/jobs/<id>/resultados/no-publicados` | Tabla de no publicados |
 | GET | `/jobs/<id>/resultados/no-actualizados` | Tabla de no actualizados |
@@ -184,6 +187,21 @@ de integración que ejecuta el pipeline real si el proyecto base está montado
 | GET | `/jobs/<id>/descargas` | Artefactos descargables |
 | GET | `/admin/auditoria` | Auditoría (solo admin) |
 | GET | `/health` | Estado de base, core, workspace y dump |
+
+## Eliminación de trabajos
+
+- Botón **Eliminar** en el panel y en el detalle, con confirmación modal.
+- Solo para trabajos en estado `done`, `failed` o `cancelled`.
+- Puede eliminar el **creador** del trabajo o un **administrador**.
+- Borra el registro, sus archivos, pasos y artefactos, y la carpeta del
+  workspace. La auditoría conserva la entrada `job.delete`.
+- Un trabajo en cola o en ejecución no se puede eliminar; primero hay que
+  cancelarlo.
+- Limpieza administrativa por CLI:
+
+```bash
+docker compose exec web flask --app app delete-job <job_id>
+```
 
 ## Relación con el proyecto base
 

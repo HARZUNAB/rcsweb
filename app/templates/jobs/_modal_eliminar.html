@@ -1,0 +1,28 @@
+<div class="modal fade" id="modalEliminar" tabindex="-1" aria-labelledby="modalEliminarLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="modalEliminarLabel">Eliminar trabajo</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">
+          Se eliminará el trabajo <strong id="eliminar-periodo"></strong>.
+        </p>
+        <p class="text-secondary small mb-0">
+          Se borran los resultados, los mapas y los archivos del workspace.
+          La acción no se puede deshacer. La auditoría conserva el registro.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <form method="post" id="form-eliminar" action="#">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-danger">Eliminar definitivamente</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

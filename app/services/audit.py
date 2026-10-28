@@ -14,6 +14,8 @@ def registrar(
     entity: str | None = None,
     meta: dict | None = None,
     user_id: int | None = None,
+    *,
+    commit: bool = True,
 ) -> None:
     """Agrega una entrada de auditoría sin romper la operación principal."""
     try:
@@ -28,6 +30,7 @@ def registrar(
                 meta=meta or {},
             )
         )
-        db.session.commit()
+        if commit:
+            db.session.commit()
     except Exception:  # noqa: BLE001 - la auditoría no debe tumbar la acción
         db.session.rollback()

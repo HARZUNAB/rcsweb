@@ -38,4 +38,22 @@
       });
     });
   });
+
+  // Modal de eliminación: completar período y acción según el botón.
+  document.querySelectorAll("#modalEliminar").forEach(function (modal) {
+    modal.addEventListener("show.bs.modal", function (evento) {
+      const boton = evento.relatedTarget;
+      if (!boton) {
+        return;
+      }
+      const form = modal.querySelector("#form-eliminar");
+      if (form && boton.dataset.jobUrl) {
+        form.action = boton.dataset.jobUrl;
+      }
+      const periodo = modal.querySelector("#eliminar-periodo");
+      if (periodo) {
+        periodo.textContent = boton.dataset.jobPeriod || "";
+      }
+    });
+  });
 })();

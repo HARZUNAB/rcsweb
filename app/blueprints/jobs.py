@@ -21,6 +21,7 @@ from ..extensions import db
 from ..forms import JobForm
 from ..models import Job, JobArtifact, JobFile, nuevo_uuid
 from ..services.audit import registrar
+from ..services.jobs import JobNoEliminable, eliminar_trabajo, puede_eliminar
 from ..services.queue import encolar_trabajo
 from ..services.results import cargar_indice
 from ..services.workspace import (
@@ -179,6 +180,21 @@ def cancelar(job_id: str):
     else:
         flash("El trabajo ya terminó; no hay nada que cancelar.", "info")
     return redirect(url_for("jobs.detalle", job_id=job.id))
+
+
+@jobs_bp.post("/<job_id>/eliminar")
+@login_required
+def eliminar(job_id: str):
+    job = _job(job_id)
+    if not puede_eliminar(job, current_user):
+        abort(403)
+    try:
+        eliminar_trabajo(job, user_id=current_user.id)
+    except JobNoEliminable as exc:
+        flash(str(exc), "warning")
+        return redirect(url_for("jobs.detalle", job_id=job.id))
+    flash("Trabajo eliminado junto con sus resultados y archivos.", "success")
+    return redirect(url_for("dashboard.index"))
 
 
 @jobs_bp.get("/<job_id>/descargas")
