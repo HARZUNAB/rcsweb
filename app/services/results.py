@@ -18,26 +18,37 @@ from pathlib import Path
 
 from flask import current_app
 
-# (clave, título) de cada informe de repetidos que produce repetidos.py.
-REP_FILES = (
+from .sources import FUENTES, etiqueta, nombre_atribucion, nombre_no_publicados
+
+# Informes de repetidos comunes a todas las fuentes locales.
+REP_PUBLICA = (
     ("publica_amplio", "rep_publica_amplio.txt", "Publicados · amplio"),
     ("publica_estricto", "rep_publica_estricto.txt", "Publicados · estricto"),
-    ("seisan_amplio", "rep_seisan_amplio.txt", "Seisan · amplio"),
-    ("seisan_estricto", "rep_seisan_estricto.txt", "Seisan · estricto"),
-    ("seisan_exclu", "rep_seisan_exclu.txt", "Seisan · excluidos"),
-    ("seiscomp_amplio", "rep_seiscomp_amplio.txt", "SeisComp · amplio"),
-    ("seiscomp_estricto", "rep_seiscomp_estricto.txt", "SeisComp · estricto"),
 )
 
-NO_PUBLICADOS = {
-    "seiscomp": "no_pub_desde_2_5_seiscomp_estricto.csv",
-    "seisan": "no_pub_desde_2_5_estricto.csv",
-}
 
-NO_ACTUALIZADOS = {
-    "seiscomp": "atribucion_seiscomp.csv",
-    "seisan": "atribucion_seisan.csv",
-}
+def rep_files(fuentes: list[str]) -> tuple[tuple[str, str, str], ...]:
+    """(clave, archivo, título) de los informes de repetidos por fuente."""
+    opciones = list(REP_PUBLICA)
+    for fuente in fuentes:
+        opciones.append(
+            (
+                f"{fuente}_amplio",
+                f"rep_{fuente}_amplio.txt",
+                f"{etiqueta(fuente)} · amplio",
+            )
+        )
+        opciones.append(
+            (
+                f"{fuente}_estricto",
+                f"rep_{fuente}_estricto.txt",
+                f"{etiqueta(fuente)} · estricto",
+            )
+        )
+        if fuente == "seisan":
+            opciones.append(("seisan_exclu", "rep_seisan_exclu.txt", "Seisan · excluidos"))
+    return tuple(opciones)
+
 
 # Columnas visibles de «No actualizados», en el orden en que se muestran.
 NO_ACT_COLUMNS = (
@@ -92,7 +103,9 @@ TABLAS = {
         "titulo": "Repetidos",
         "descripcion": "Posibles eventos duplicados detectados por fuente.",
         "tipo": "opciones",
-        "opciones": [(clave, titulo) for clave, _archivo, titulo in REP_FILES],
+        "opciones": [
+            (clave, titulo) for clave, _archivo, titulo in rep_files(["seisan", "seiscomp"])
+        ],
         "archivo": "repetidos_{clave}.csv",
     },
 }
@@ -333,8 +346,16 @@ def _contar(ruta: Path) -> int:
     return len(filas)
 
 
-def construir_resultados(workspace: Path) -> dict:
-    """Normaliza las salidas del pipeline en ``resultados/``."""
+def construir_resultados(workspace: Path, fuentes: list[str] | None = None) -> dict:
+    """Normaliza las salidas del pipeline en ``resultados/``.
+
+    ``fuentes`` son los códigos de las fuentes locales seleccionadas. Si no se
+    indica, se asume el comportamiento histórico (Seisan y SeisComp).
+    """
+    if fuentes is None:
+        fuentes = ["seisan", "seiscomp"]
+    fuentes = [fuente for fuente in fuentes if fuente in FUENTES and FUENTES[fuente].es_local]
+
     resultados = workspace / "resultados"
     resultados.mkdir(parents=True, exist_ok=True)
     for viejo in resultados.glob("*.csv"):
@@ -347,8 +368,8 @@ def construir_resultados(workspace: Path) -> dict:
         "catalogos": {},
     }
 
-    for fuente, nombre in NO_PUBLICADOS.items():
-        origen = workspace / "datos" / nombre
+    for fuente in fuentes:
+        origen = workspace / "datos" / nombre_no_publicados(fuente)
         if not origen.is_file():
             continue
         columnas, filas = leer_csv(origen)
@@ -360,8 +381,8 @@ def construir_resultados(workspace: Path) -> dict:
             "columnas": columnas,
         }
 
-    for fuente, nombre in NO_ACTUALIZADOS.items():
-        origen = workspace / "datos" / nombre
+    for fuente in fuentes:
+        origen = workspace / "datos" / nombre_atribucion(fuente)
         if not origen.is_file():
             continue
         destino = resultados / f"no_actualizados_{fuente}.csv"
@@ -378,7 +399,7 @@ def construir_resultados(workspace: Path) -> dict:
             "columnas": columnas,
         }
 
-    for clave, nombre, _titulo in REP_FILES:
+    for clave, nombre, _titulo in rep_files(fuentes):
         origen = workspace / "informes" / nombre
         if not origen.is_file():
             continue
@@ -399,8 +420,9 @@ def construir_resultados(workspace: Path) -> dict:
         "seisan": workspace / "datos" / "salida_collect.csv",
         "seiscomp": workspace / "datos" / "seiscomp_parametros.csv",
     }
-    for clave, ruta in catalogos.items():
-        if ruta.is_file():
+    for clave in fuentes:
+        ruta = catalogos.get(clave)
+        if ruta is not None and ruta.is_file():
             indice["catalogos"][clave] = {
                 "archivo": str(ruta.relative_to(workspace)),
                 "filas": _contar(ruta),

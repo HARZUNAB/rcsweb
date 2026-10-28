@@ -25,7 +25,9 @@ from ..services.results import (
     cargar_indice,
     exportar_csv,
     leer_tabla,
+    rep_files,
 )
+from ..services.sources import FUENTES, default_primary, etiqueta, etiquetas
 from ..services.workspace import ruta_workspace
 
 results_bp = Blueprint("results", __name__)
@@ -76,6 +78,75 @@ def _job(job_id: str) -> Job:
     return job
 
 
+def _fuentes_job(job: Job) -> list[str]:
+    """Fuentes locales del trabajo, principal primero."""
+    pares: list[tuple[str, str]] = []
+    for source in job.sources:
+        if source.kind in FUENTES and FUENTES[source.kind].es_local:
+            pares.append((source.role, source.kind))
+    if not pares:
+        vistos = set()
+        for archivo in job.files:
+            if archivo.kind not in FUENTES or not FUENTES[archivo.kind].es_local:
+                continue
+            if archivo.kind in vistos:
+                continue
+            vistos.add(archivo.kind)
+            rol = "local_principal" if archivo.kind == "seiscomp" else "local_secundaria"
+            pares.append((rol, archivo.kind))
+    if not pares:
+        # Compatibilidad con trabajos viejos sin job_sources: inferir desde los
+        # archivos de resultados ya generados.
+        base = ruta_workspace(job.id) / "resultados"
+        codigos = set()
+        for patron in ("no_publicados_*.csv", "no_actualizados_*.csv"):
+            for ruta in base.glob(patron):
+                codigo = ruta.stem.split("_", 2)[-1]
+                if codigo in FUENTES and FUENTES[codigo].es_local:
+                    codigos.add(codigo)
+        for ruta in base.glob("repetidos_*.csv"):
+            partes = ruta.stem.split("_")
+            if len(partes) > 1 and partes[1] != "publica":
+                codigo = partes[1]
+                if codigo in FUENTES and FUENTES[codigo].es_local:
+                    codigos.add(codigo)
+        predeterminada = default_primary()
+        pares = [
+            (
+                "local_principal" if codigo == predeterminada else "local_secundaria",
+                codigo,
+            )
+            for codigo in codigos
+        ]
+    if not pares:
+        # Último recurso: índice de resultados.
+        indice = cargar_indice(ruta_workspace(job.id))
+        codigos = set(indice.get("no_publicados", {})) | set(indice.get("no_actualizados", {}))
+        for clave in indice.get("repetidos", {}):
+            if clave.startswith("publica"):
+                continue
+            codigo = clave.split("_", 1)[0]
+            if codigo in FUENTES and FUENTES[codigo].es_local:
+                codigos.add(codigo)
+        predeterminada = default_primary()
+        pares = [
+            (
+                "local_principal" if codigo == predeterminada else "local_secundaria",
+                codigo,
+            )
+            for codigo in codigos
+        ]
+    pares.sort(key=lambda item: 0 if item[0] == "local_principal" else 1)
+    return [kind for _rol, kind in pares]
+
+
+def _opciones(tabla: str, job: Job) -> list[tuple[str, str]]:
+    fuentes = _fuentes_job(job)
+    if tabla == "repetidos":
+        return [(clave, titulo) for clave, _archivo, titulo in rep_files(fuentes)]
+    return [(codigo, etiqueta(codigo)) for codigo in fuentes]
+
+
 def _filtros() -> dict[str, str]:
     return {
         clave[2:]: valor.strip()
@@ -84,11 +155,13 @@ def _filtros() -> dict[str, str]:
     }
 
 
-def _opcion_valida(tabla: str) -> tuple[dict, list[tuple[str, str]], str]:
+def _opcion_valida(tabla: str, job: Job) -> tuple[dict, list[tuple[str, str]], str]:
     if tabla not in TABLAS:
         abort(404)
     config = TABLAS[tabla]
-    opciones = list(config["opciones"])
+    opciones = _opciones(tabla, job)
+    if not opciones:
+        abort(404)
     claves = [clave for clave, _titulo in opciones]
     parametro = PARAMETROS[tabla]
     opcion = request.args.get(parametro) or (
@@ -110,12 +183,19 @@ def titulo_columna(clave: str) -> str:
 def overview(job_id: str):
     job = _job(job_id)
     indice = cargar_indice(ruta_workspace(job.id))
-    return render_template("results/overview.html", job=job, indice=indice, tablas=TABLAS)
+    return render_template(
+        "results/overview.html",
+        job=job,
+        indice=indice,
+        tablas=TABLAS,
+        etiquetas=etiquetas(),
+        fuentes=_fuentes_job(job),
+    )
 
 
 def _render_tabla(job_id: str, tabla: str, opcion: str):
     job = _job(job_id)
-    config, opciones, opcion = _opcion_valida(tabla)
+    config, opciones, opcion = _opcion_valida(tabla, job)
     if request.args.get(PARAMETROS[tabla]):
         # La opción explícita ya fue validada en _opcion_valida.
         opcion = request.args.get(PARAMETROS[tabla])
@@ -271,7 +351,7 @@ def repetidos(job_id: str):
 @login_required
 def exportar(job_id: str, tabla: str):
     job = _job(job_id)
-    config, _opciones, opcion = _opcion_valida(tabla)
+    config, _opciones, opcion = _opcion_valida(tabla, job)
     archivo = config["archivo"].format(clave=opcion)
     direccion = request.args.get("dir", "asc")
     if direccion not in ("asc", "desc"):
@@ -309,7 +389,7 @@ def miniatura(job_id: str, tabla: str, opcion: str, fila: int):
     if tabla not in TABLAS:
         abort(404)
     config = TABLAS[tabla]
-    if opcion not in [clave for clave, _titulo in config["opciones"]]:
+    if opcion not in [clave for clave, _titulo in _opciones(tabla, job)]:
         abort(404)
     archivo = config["archivo"].format(clave=opcion)
     leido = leer_filas(ruta_workspace(job.id), archivo)
@@ -329,7 +409,7 @@ def mapa(job_id: str, tabla: str, opcion: str, fila: int):
     if tabla not in TABLAS:
         abort(404)
     config = TABLAS[tabla]
-    if opcion not in [clave for clave, _titulo in config["opciones"]]:
+    if opcion not in [clave for clave, _titulo in _opciones(tabla, job)]:
         abort(404)
     archivo = config["archivo"].format(clave=opcion)
     leido = leer_filas(ruta_workspace(job.id), archivo)
@@ -349,7 +429,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
     if tabla not in TABLAS:
         abort(404)
     config = TABLAS[tabla]
-    claves = [clave for clave, _titulo in config["opciones"]]
+    claves = [clave for clave, _titulo in _opciones(tabla, job)]
     if opcion not in claves:
         abort(404)
 

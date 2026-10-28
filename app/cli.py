@@ -15,23 +15,17 @@ from .services.jobs import JobNoEliminable, eliminar_trabajo
 
 def register_cli(app: Flask) -> None:
     app.cli.add_command(init_db)
+    app.cli.add_command(seed_admin)
     app.cli.add_command(create_user)
     app.cli.add_command(delete_job)
 
 
-@click.command("init-db")
-@with_appcontext
-def init_db() -> None:
-    """Crea las tablas y el usuario administrador inicial."""
-    db.create_all()
-
+def _crear_admin() -> None:
     username = os.environ.get("ADMIN_USERNAME", "admin")
     password = os.environ.get("ADMIN_PASSWORD", "admin")
-
     existente = db.session.execute(
         db.select(User).filter_by(username=username)
     ).scalar_one_or_none()
-
     if existente is None:
         admin = User(username=username, role="admin")
         admin.set_password(password)
@@ -41,7 +35,21 @@ def init_db() -> None:
     else:
         click.echo(f"Usuario '{username}' ya existe.")
 
+
+@click.command("init-db")
+@with_appcontext
+def init_db() -> None:
+    """Crea las tablas y el usuario administrador inicial (desarrollo)."""
+    db.create_all()
+    _crear_admin()
     click.echo("Base de datos inicializada.")
+
+
+@click.command("seed-admin")
+@with_appcontext
+def seed_admin() -> None:
+    """Crea el administrador inicial si no existe."""
+    _crear_admin()
 
 
 @click.command("create-user")

@@ -57,6 +57,7 @@ class Paso:
     args: list[str] = field(default_factory=list)
     condicion: Callable[[Path], bool] | None = None
     verificar: Callable[[Path], None] | None = None
+    post: Callable[[Path], None] | None = None
 
 
 class _Log:
@@ -228,7 +229,38 @@ def _verificar_seisan(workspace: Path) -> None:
         )
 
 
-def _construir_pasos(job: Job, eventquery: str, con_seiscomp: bool) -> list[Paso]:
+def _fuentes_job(job: Job) -> list[str]:
+    """Códigos de fuentes locales seleccionadas, en el orden del trabajo."""
+    if job.sources:
+        return [s.kind for s in job.sources if s.kind != "eventquery"]
+    return sorted({archivo.kind for archivo in job.files if archivo.kind in ("seisan", "seiscomp")})
+
+
+def _renombrar_repetidos(source: str):
+    """Si el único local es SeisComp, repetidos.py etiqueta como 'seisan'."""
+
+    def _renombrar(workspace: Path) -> None:
+        informes = workspace / "informes"
+        for sufijo in ("amplio", "estricto", "exclu"):
+            origen = informes / f"rep_seisan_{sufijo}.txt"
+            if origen.is_file():
+                origen.replace(informes / f"rep_{source}_{sufijo}.txt")
+
+    return _renombrar
+
+
+def _verificar_seiscomp(workspace: Path) -> None:
+    ruta = workspace / "datos" / "seiscomp_parametros.csv"
+    if not ruta.is_file() or ruta.stat().st_size <= 1:
+        raise PipelineError("La exportación de SeisComp no produjo soluciones válidas.")
+
+
+def _construir_pasos(job: Job, eventquery: str, fuentes: list[str]) -> list[Paso]:
+    tiene_seisan = "seisan" in fuentes
+    tiene_seiscomp = "seiscomp" in fuentes
+    if not tiene_seisan and not tiene_seiscomp:
+        raise PipelineError("El trabajo no tiene ninguna fuente local seleccionada.")
+
     new2 = f"datos/new_2_{eventquery}"
     pasos = [
         Paso(
@@ -237,78 +269,102 @@ def _construir_pasos(job: Job, eventquery: str, con_seiscomp: bool) -> list[Paso
             "proc_query_harz_2.py",
             [eventquery, "trabajo/salida.dat"],
             verificar=lambda ws: _verificar_eventquery(ws, eventquery),
-        ),
-        Paso(
-            "normalizar_seisan",
-            "Procesar select.out",
-            "revisaselect.py",
-        ),
-        Paso(
-            "armar_catalogo",
-            "Armar catálogo local",
-            "revisacollect.py",
-            verificar=_verificar_seisan,
-        ),
-        Paso(
-            "comparar_seisan",
-            "Comparar contra Seisan",
-            "compara.py",
-            [new2, "datos/salida_collect.csv"],
-        ),
+        )
     ]
 
-    if con_seiscomp:
+    # Normalización de cada fuente local.
+    if tiene_seiscomp:
+        pasos.append(
+            Paso(
+                "convertir_seiscomp",
+                "Convertir exportación SeisComp",
+                "seiscomp_a_parametros.py",
+                [nombre_canonico("seiscomp", job.inicio14, job.fin14)],
+                verificar=_verificar_seiscomp,
+            )
+        )
+    if tiene_seisan:
         pasos.extend(
             [
+                Paso("normalizar_seisan", "Procesar select.out", "revisaselect.py"),
                 Paso(
-                    "convertir_seiscomp",
-                    "Convertir exportación SeisComp",
-                    "seiscomp_a_parametros.py",
-                    [nombre_canonico("seiscomp", job.inicio14, job.fin14)],
-                ),
-                Paso(
-                    "comparar_seiscomp",
-                    "Comparar contra SeisComp",
-                    "compara.py",
-                    [new2, "datos/seiscomp_parametros.csv", "seiscomp_"],
+                    "armar_catalogo",
+                    "Armar catálogo local",
+                    "revisacollect.py",
+                    verificar=_verificar_seisan,
                 ),
             ]
         )
 
-    pasos.append(
-        Paso(
-            "cruzar_no_publicados",
-            "Cruzar no publicados con la otra fuente",
-            "cruza_nopub.py",
+    # Comparaciones. Seisan conserva los nombres legacy (sin prefijo); SeisComp
+    # usa el prefijo que ya espera cruza_nopub.py.
+    if tiene_seiscomp:
+        pasos.append(
+            Paso(
+                "comparar_seiscomp",
+                "Comparar contra SeisComp",
+                "compara.py",
+                [new2, "datos/seiscomp_parametros.csv", "seiscomp_"],
+            )
         )
-    )
-    pasos.extend(
-        [
+    if tiene_seisan:
+        pasos.append(
             Paso(
-                "revisar_excluidos",
-                "Revisar eventos excluidos",
-                "revisaexcluidos.py",
-                condicion=_hay_excluidos,
-            ),
-            Paso(
-                "repetidos_excluidos",
-                "Detectar repetidos en excluidos",
-                "repetidosexclu.py",
-                ["datos/excluidos.csv", "datos/salida_collect.csv"],
-                condicion=_hay_csv_excluidos,
-            ),
-        ]
-    )
+                "comparar_seisan",
+                "Comparar contra Seisan",
+                "compara.py",
+                [new2, "datos/salida_collect.csv"],
+            )
+        )
 
-    args_repetidos = [new2, "datos/salida_collect.csv"]
-    if con_seiscomp:
-        args_repetidos.append("datos/seiscomp_parametros.csv")
+    if tiene_seisan and tiene_seiscomp:
+        pasos.append(
+            Paso(
+                "cruzar_no_publicados",
+                "Cruzar no publicados entre fuentes",
+                "cruza_nopub.py",
+            )
+        )
+
+    if tiene_seisan:
+        pasos.extend(
+            [
+                Paso(
+                    "revisar_excluidos",
+                    "Revisar eventos excluidos",
+                    "revisaexcluidos.py",
+                    condicion=_hay_excluidos,
+                ),
+                Paso(
+                    "repetidos_excluidos",
+                    "Detectar repetidos en excluidos",
+                    "repetidosexclu.py",
+                    ["datos/excluidos.csv", "datos/salida_collect.csv"],
+                    condicion=_hay_csv_excluidos,
+                ),
+            ]
+        )
+
+    post = None
+    if tiene_seisan and tiene_seiscomp:
+        args_repetidos = [
+            new2,
+            "datos/salida_collect.csv",
+            "datos/seiscomp_parametros.csv",
+        ]
+    elif tiene_seisan:
+        args_repetidos = [new2, "datos/salida_collect.csv"]
+    else:
+        args_repetidos = [new2, "datos/seiscomp_parametros.csv"]
+        post = _renombrar_repetidos("seiscomp")
+
     pasos.append(
         Paso(
             "detectar_repetidos",
             "Detectar eventos repetidos",
             "repetidos.py",
             args_repetidos,
+            post=post,
         )
     )
     return pasos
@@ -421,8 +477,8 @@ def ejecutar_pipeline(job_id: str) -> dict:
         _log(job)
 
         eventquery = nombre_canonico("eventquery", job.inicio14, job.fin14)
-        con_seiscomp = any(f.kind == "seiscomp" for f in job.files)
-        pasos = _construir_pasos(job, eventquery, con_seiscomp)
+        fuentes = _fuentes_job(job)
+        pasos = _construir_pasos(job, eventquery, fuentes)
 
         # Se crean todas las filas de pasos al inicio para que la UI muestre el
         # plan completo desde el primer segundo.
@@ -467,6 +523,8 @@ def ejecutar_pipeline(job_id: str) -> dict:
                 raise PipelineError(f"{paso.titulo} terminó con código {codigo}. Revisa el log.")
             if paso.verificar is not None:
                 paso.verificar(workspace)
+            if paso.post is not None:
+                paso.post(workspace)
             fila.status = "done"
             db.session.commit()
             _actualizar_progreso(job_id, indice + 1, total, 0.0)
@@ -475,7 +533,7 @@ def ejecutar_pipeline(job_id: str) -> dict:
         job.progress = max(job.progress, 95)
         db.session.commit()
 
-        construir_resultados(workspace)
+        construir_resultados(workspace, fuentes)
         _registrar_artefactos(job, workspace)
         log.escribir("")
         log.escribir("Pipeline terminado correctamente.")

@@ -26,10 +26,11 @@
       <div class="card-body">
         <div class="text-secondary small text-uppercase mb-2">No publicados</div>
         <div class="fs-3 fw-semibold">
-          {{ indice.no_publicados.get('seiscomp', {}).get('filas', 0)
-             + indice.no_publicados.get('seisan', {}).get('filas', 0) }}
+          {{ indice.no_publicados.values()|sum(attribute='filas') }}
         </div>
-        <div class="small text-secondary">SeisComp + Seisan</div>
+        <div class="small text-secondary">
+          {{ indice.no_publicados|length }} fuente(s) local(es)
+        </div>
       </div>
     </div>
   </div>
@@ -38,10 +39,11 @@
       <div class="card-body">
         <div class="text-secondary small text-uppercase mb-2">No actualizados</div>
         <div class="fs-3 fw-semibold">
-          {{ indice.no_actualizados.get('seiscomp', {}).get('filas', 0)
-             + indice.no_actualizados.get('seisan', {}).get('filas', 0) }}
+          {{ indice.no_actualizados.values()|sum(attribute='filas') }}
         </div>
-        <div class="small text-secondary">SeisComp + Seisan</div>
+        <div class="small text-secondary">
+          {{ indice.no_actualizados|length }} fuente(s) local(es)
+        </div>
       </div>
     </div>
   </div>
@@ -70,14 +72,17 @@
             <div class="small text-secondary">{{ tablas.no_publicados.descripcion }}</div>
           </div>
           <div class="d-flex gap-2">
+            {% for fuente in fuentes %}
+            {% set info = indice.no_publicados.get(fuente) %}
+            {% if info %}
             <a class="btn btn-sm btn-outline-primary"
-               href="{{ url_for('results.no_publicados', job_id=job.id, fuente='seiscomp') }}">
-              SeisComp ({{ indice.no_publicados.get('seiscomp', {}).get('filas', 0) }})
+               href="{{ url_for('results.no_publicados', job_id=job.id, fuente=fuente) }}">
+              {{ etiquetas.get(fuente, fuente) }} ({{ info.filas }})
             </a>
-            <a class="btn btn-sm btn-outline-primary"
-               href="{{ url_for('results.no_publicados', job_id=job.id, fuente='seisan') }}">
-              Seisan ({{ indice.no_publicados.get('seisan', {}).get('filas', 0) }})
-            </a>
+            {% endif %}
+            {% else %}
+            <span class="text-secondary small">Sin datos de fuentes locales.</span>
+            {% endfor %}
           </div>
         </div>
       </div>
@@ -89,14 +94,17 @@
             <div class="small text-secondary">{{ tablas.no_actualizados.descripcion }}</div>
           </div>
           <div class="d-flex gap-2">
+            {% for fuente in fuentes %}
+            {% set info = indice.no_actualizados.get(fuente) %}
+            {% if info %}
             <a class="btn btn-sm btn-outline-primary"
-               href="{{ url_for('results.no_actualizados', job_id=job.id, fuente='seiscomp') }}">
-              SeisComp ({{ indice.no_actualizados.get('seiscomp', {}).get('filas', 0) }})
+               href="{{ url_for('results.no_actualizados', job_id=job.id, fuente=fuente) }}">
+              {{ etiquetas.get(fuente, fuente) }} ({{ info.filas }})
             </a>
-            <a class="btn btn-sm btn-outline-primary"
-               href="{{ url_for('results.no_actualizados', job_id=job.id, fuente='seisan') }}">
-              Seisan ({{ indice.no_actualizados.get('seisan', {}).get('filas', 0) }})
-            </a>
+            {% endif %}
+            {% else %}
+            <span class="text-secondary small">Sin datos de fuentes locales.</span>
+            {% endfor %}
           </div>
         </div>
       </div>
@@ -134,7 +142,7 @@
       {% for clave, info in indice.catalogos.items() %}
       <div class="col-12 col-sm-4">
         <div class="border rounded p-3">
-          <div class="text-secondary small text-uppercase">{{ clave }}</div>
+          <div class="text-secondary small text-uppercase">{{ etiquetas.get(clave, clave) }}</div>
           <div class="fs-5 fw-semibold">{{ info.filas }}</div>
           <div class="small text-secondary">eventos</div>
         </div>

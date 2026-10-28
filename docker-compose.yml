@@ -50,6 +50,7 @@ services:
     volumes:
       - ./app:/app/app
       - ./tasks:/app/tasks
+      - ./migrations:/app/migrations
       - ./workspace:/workspace
       - ${RCS_CORE_PATH_HOST}:/opt/rcs-core:ro
       - ${DATOS_PATH_HOST}:/data:ro
@@ -66,7 +67,8 @@ services:
       start_period: 20s
       retries: 3
     command: >
-      sh -c "flask --app app init-db &&
+      sh -c "flask --app app db upgrade &&
+             flask --app app seed-admin &&
              flask --app app run --debug --host 0.0.0.0 --port 8000"
 
   worker:
@@ -81,6 +83,7 @@ services:
     volumes:
       - ./app:/app/app
       - ./tasks:/app/tasks
+      - ./migrations:/app/migrations
       - ./workspace:/workspace
       - ${RCS_CORE_PATH_HOST}:/opt/rcs-core:ro
       - ${DATOS_PATH_HOST}:/data:ro

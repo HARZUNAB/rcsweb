@@ -22,6 +22,7 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY app ./app
 COPY tasks ./tasks
+COPY migrations ./migrations
 
 RUN pip install . \
     && useradd --create-home --uid 1000 rcs \

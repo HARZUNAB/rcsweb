@@ -11,7 +11,7 @@ from ..models import Job
 from .audit import registrar
 from .workspace import ruta_workspace
 
-ESTADOS_ELIMINABLES = ("done", "failed", "cancelled")
+ESTADOS_ELIMINABLES = ("draft", "done", "failed", "cancelled")
 
 
 class JobNoEliminable(Exception):

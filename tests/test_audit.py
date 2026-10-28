@@ -42,6 +42,8 @@ def test_alta_de_trabajo_queda_registrada(client, samples, sin_celery):
     datos = {
         "period_start": "2026-10-01",
         "period_end": "2026-10-31",
+        "incluir_seisan": "y",
+        "primary_source": "seisan",
         "seisan": (open(samples / "select.out", "rb"), "select.out"),
         "eventquery": (
             open(samples / "eventquery_20261001000000_20261031235959.csv", "rb"),

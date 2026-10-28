@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from app.extensions import db
-from app.models import Job, JobFile, nuevo_uuid
+from app.models import Job, JobFile, JobSource, nuevo_uuid
 from app.services.detail import leer_filas
 from app.services.pipeline import ejecutar_pipeline
 from app.services.plots import generar_mapa, generar_miniatura
@@ -135,3 +135,61 @@ def test_pipeline_completo_con_muestra(app, tmp_path):
         )
         assert mapa.startswith(b"\x89PNG\r\n\x1a\n")
         assert len(mapa) > 20000
+
+
+def test_pipeline_solo_seiscomp(app, tmp_path):
+    app.config["RCS_CORE_PATH"] = CORE
+
+    with app.app_context():
+        job = Job(
+            id=nuevo_uuid(),
+            period_start=datetime(2026, 10, 1, tzinfo=UTC),
+            period_end=datetime(2026, 10, 31, 23, 59, 59, tzinfo=UTC),
+            status="queued",
+            origin="upload",
+        )
+        db.session.add(job)
+        db.session.commit()
+        workspace = crear_workspace(job.id)
+
+        for kind, nombre in (
+            ("eventquery", "eventquery_20261001000000_20261031235959.csv"),
+            ("seiscomp", "seiscomp_20261001000000_20261031235959.csv"),
+        ):
+            destino = workspace / "inputs" / nombre_entrada(kind, nombre)
+            shutil.copy2(SAMPLES / nombre, destino)
+            db.session.add(
+                JobFile(
+                    job_id=job.id,
+                    kind=kind,
+                    original_name=nombre,
+                    stored_name=f"inputs/{nombre_entrada(kind, nombre)}",
+                    size=destino.stat().st_size,
+                )
+            )
+        db.session.add(JobSource(job_id=job.id, kind="eventquery", role="referencia"))
+        db.session.add(JobSource(job_id=job.id, kind="seiscomp", role="local_principal"))
+        db.session.commit()
+
+        resultado = ejecutar_pipeline(job.id)
+        assert resultado["estado"] == "done"
+
+        db.session.expire_all()
+        job = db.session.get(Job, job.id)
+        assert job.status == "done"
+        assert [paso.script for paso in sorted(job.steps, key=lambda p: p.orden)] == [
+            "normalizar_eventquery",
+            "convertir_seiscomp",
+            "comparar_seiscomp",
+            "detectar_repetidos",
+        ]
+        assert all(paso.status == "done" for paso in job.steps)
+
+        indice = cargar_indice(workspace)
+        assert set(indice["no_publicados"]) == {"seiscomp"}
+        assert set(indice["no_actualizados"]) == {"seiscomp"}
+        assert indice["no_publicados"]["seiscomp"]["filas"] == 2
+        assert indice["no_actualizados"]["seiscomp"]["filas"] == 1
+        assert "seisan" not in indice["catalogos"]
+        assert (workspace / "resultados/repetidos_seiscomp_estricto.csv").is_file()
+        assert not (workspace / "informes/rep_seisan_estricto.txt").exists()

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.extensions import db
-from app.models import Job, JobArtifact, JobFile, nuevo_uuid
+from app.models import Job, JobArtifact, JobFile, JobSource, nuevo_uuid
 from app.services.workspace import crear_workspace
 
 
@@ -13,6 +13,8 @@ def _datos_formulario(samples):
     return {
         "period_start": "2026-10-01",
         "period_end": "2026-10-31",
+        "incluir_seisan": "y",
+        "primary_source": "seisan",
         "seisan": (open(samples / "select.out", "rb"), "select.out"),
         "eventquery": (
             open(samples / "eventquery_20261001000000_20261031235959.csv", "rb"),
@@ -44,8 +46,84 @@ def test_crear_trabajo_encola_y_guarda_archivos(client, login, samples, sin_cele
     for archivo in job.files:
         assert archivo.size > 0
         assert archivo.sha256
+    assert {source.kind for source in job.sources} == {"eventquery", "seisan"}
+    assert {source.role for source in job.sources} == {
+        "referencia",
+        "local_principal",
+    }
     assert sin_celery == [job.id]
     assert respuesta.headers["Location"].endswith(f"/jobs/{job.id}")
+
+
+def test_crear_trabajo_seiscomp_por_defecto(client, login, samples, sin_celery):
+    login()
+    datos = {
+        "period_start": "2026-10-01",
+        "period_end": "2026-10-31",
+        "incluir_seiscomp": "y",
+        "primary_source": "seiscomp",
+        "seiscomp": (
+            open(samples / "seiscomp_20261001000000_20261031235959.csv", "rb"),
+            "seiscomp.csv",
+        ),
+        "eventquery": (
+            open(samples / "eventquery_20261001000000_20261031235959.csv", "rb"),
+            "eventquery.csv",
+        ),
+    }
+
+    client.post("/jobs/new", data=datos, content_type="multipart/form-data")
+
+    job = db.session.execute(db.select(Job)).scalar_one()
+    assert job.status == "queued"
+    roles = {source.kind: source.role for source in job.sources}
+    assert roles == {"eventquery": "referencia", "seiscomp": "local_principal"}
+    assert {archivo.kind for archivo in job.files} == {"eventquery", "seiscomp"}
+
+
+def test_sin_fuente_local_no_crea_trabajo(client, login, samples, sin_celery):
+    login()
+    datos = {
+        "period_start": "2026-10-01",
+        "period_end": "2026-10-31",
+        "eventquery": (
+            open(samples / "eventquery_20261001000000_20261031235959.csv", "rb"),
+            "eventquery.csv",
+        ),
+    }
+
+    respuesta = client.post("/jobs/new", data=datos, content_type="multipart/form-data")
+
+    assert respuesta.status_code == 200
+    assert "al menos una fuente local" in respuesta.get_data(as_text=True)
+    assert db.session.execute(db.select(Job)).scalar_one_or_none() is None
+
+
+def test_validacion_invalida_deja_trabajo_en_borrador(client, login, samples, sin_celery, tmp_path):
+    login()
+    malo = tmp_path / "eventquery_invalido.csv"
+    malo.write_text("a,b\n1,2\n", encoding="utf-8")
+    datos = {
+        "period_start": "2026-10-01",
+        "period_end": "2026-10-31",
+        "incluir_seisan": "y",
+        "primary_source": "seisan",
+        "seisan": (open(samples / "select.out", "rb"), "select.out"),
+        "eventquery": (open(malo, "rb"), "eventquery_invalido.csv"),
+    }
+
+    respuesta = client.post("/jobs/new", data=datos, content_type="multipart/form-data")
+
+    assert respuesta.status_code == 302
+    job = db.session.execute(db.select(Job)).scalar_one()
+    assert job.status == "draft"
+    assert "Validación fallida" in (job.current_step or "")
+    assert sin_celery == []
+    source = db.session.execute(
+        db.select(JobSource).filter_by(job_id=job.id, kind="eventquery")
+    ).scalar_one()
+    assert source.status == "error"
+    assert "columnas" in (source.message or "").lower()
 
 
 def test_periodo_invalido_no_crea_trabajo(client, login, samples, sin_celery):

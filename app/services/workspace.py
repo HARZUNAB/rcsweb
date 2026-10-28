@@ -15,6 +15,7 @@ from flask import current_app
 from werkzeug.utils import secure_filename
 
 from ..models import Job
+from .sources import nombre_archivo
 
 SUBDIRECTORIOS = (
     "inputs",
@@ -41,12 +42,6 @@ INSUMOS = (
     "relieve_chile.tif",
 )
 
-NOMBRES_CANONICOS = {
-    "seisan": "select.out",
-    "eventquery": "eventquery_{inicio}_{fin}.csv",
-    "seiscomp": "seiscomp_{inicio}_{fin}.csv",
-}
-
 
 def ruta_workspace(job_id: str) -> Path:
     raiz = Path(current_app.config["WORKSPACE_ROOT"]).resolve()
@@ -61,7 +56,7 @@ def crear_workspace(job_id: str) -> Path:
 
 
 def nombre_canonico(kind: str, inicio14: str, fin14: str) -> str:
-    return NOMBRES_CANONICOS[kind].format(inicio=inicio14, fin=fin14)
+    return nombre_archivo(kind, inicio14, fin14)
 
 
 def nombre_entrada(kind: str, nombre_original: str) -> str:

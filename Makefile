@@ -13,7 +13,8 @@ help:
 	@echo "  make test        Ejecuta la suite de tests"
 	@echo "  make lint        Ruff check"
 	@echo "  make fmt         Ruff format"
-	@echo "  make init-db     Crea tablas y usuario administrador"
+	@echo "  make init-db     Aplica migraciones y crea el administrador"
+	@echo "  make migrate     Aplica migraciones de Alembic"
 	@echo "  make ping-db     SELECT 1 contra la base rcs"
 	@echo "  make restore-csn Restaura el dump csn_test (etapa 6a)"
 	@echo "  make clean       Baja servicios y borra volúmenes"
@@ -47,7 +48,11 @@ venv:
 	.venv/bin/pip install -e ".[dev]"
 
 init-db:
-	$(COMPOSE) exec web flask --app app init-db
+	$(COMPOSE) exec web flask --app app db upgrade
+	$(COMPOSE) exec web flask --app app seed-admin
+
+migrate:
+	$(COMPOSE) exec web flask --app app db upgrade
 
 ping-db:
 	$(COMPOSE) exec db psql -U $${POSTGRES_USER:-rcs} -d $${POSTGRES_DB:-rcs} -c "SELECT 1;"

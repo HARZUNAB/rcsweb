@@ -6,7 +6,7 @@
   <div>
     <h1 class="h3 mb-1">Nuevo trabajo</h1>
     <p class="text-secondary mb-0">
-      Subí los catálogos del período y el sistema corre el análisis.
+      eventquery es la referencia. Elegí al menos una fuente local para comparar.
     </p>
   </div>
   <a class="btn btn-outline-secondary" href="{{ url_for('dashboard.index') }}">Cancelar</a>
@@ -14,7 +14,7 @@
 
 <div class="row">
   <div class="col-12 col-lg-8">
-    <form method="post" enctype="multipart/form-data" novalidate>
+    <form method="post" enctype="multipart/form-data" novalidate id="form-trabajo">
       {{ form.hidden_tag() }}
 
       <div class="card border-0 shadow-sm mb-3">
@@ -41,47 +41,89 @@
 
       <div class="card border-0 shadow-sm mb-3">
         <div class="card-body">
-          <h2 class="h6 text-uppercase text-secondary mb-3">Catálogos</h2>
+          <h2 class="h6 text-uppercase text-secondary mb-1">Referencia publicada</h2>
+          <p class="text-secondary small mb-3">
+            Catálogo público de eventquery. Es obligatorio y se usa como referencia
+            para todas las comparaciones.
+          </p>
+          {{ form.eventquery.label(class="form-label") }}
+          {{ form.eventquery(class="form-control", accept=".csv") }}
+          {% for error in form.eventquery.errors %}
+            <div class="invalid-feedback d-block">{{ error }}</div>
+          {% endfor %}
+        </div>
+      </div>
 
-          <div class="mb-3">
-            {{ form.seisan.label(class="form-label") }}
-            {{ form.seisan(class="form-control", accept=".out,.txt,.dat") }}
-            <div class="form-text">
-              Salida de Seisan, normalmente <code>select.out</code>.
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+          <h2 class="h6 text-uppercase text-secondary mb-1">Fuentes locales</h2>
+          <p class="text-secondary small mb-3">
+            Cada fuente seleccionada se valida y se procesa. Si una falla,
+            el trabajo queda en borrador con el diagnóstico.
+          </p>
+
+          <div class="border rounded p-3 mb-3">
+            <div class="form-check mb-2">
+              {{ form.incluir_seiscomp(class="form-check-input") }}
+              {{ form.incluir_seiscomp.label(class="form-check-label fw-semibold") }}
             </div>
-            {% for error in form.seisan.errors %}
-              <div class="invalid-feedback d-block">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="mb-3">
-            {{ form.eventquery.label(class="form-label") }}
-            {{ form.eventquery(class="form-control", accept=".csv") }}
-            <div class="form-text">
-              Catálogo público descargado con <code>eventquery2</code>.
-            </div>
-            {% for error in form.eventquery.errors %}
-              <div class="invalid-feedback d-block">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="mb-0">
-            {{ form.seiscomp.label(class="form-label") }}
+            {{ form.seiscomp.label(class="form-label small") }}
             {{ form.seiscomp(class="form-control", accept=".csv") }}
             <div class="form-text">
-              Exportación de la ventana de SeisComp. Si no la subís, el análisis
-              se hace solo contra Seisan.
+              Exportación de la ventana de SeisComp. Es la fuente local principal
+              por defecto.
             </div>
+            {% for error in form.incluir_seiscomp.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
             {% for error in form.seiscomp.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="border rounded p-3">
+            <div class="form-check mb-2">
+              {{ form.incluir_seisan(class="form-check-input") }}
+              {{ form.incluir_seisan.label(class="form-check-label fw-semibold") }}
+            </div>
+            {{ form.seisan.label(class="form-label small") }}
+            {{ form.seisan(class="form-control", accept=".out,.txt,.dat") }}
+            <div class="form-text">
+              Salida de Seisan, normalmente <code>select.out</code>. Se usa como
+              fuente local secundaria.
+            </div>
+            {% for error in form.incluir_seisan.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+            {% for error in form.seisan.errors %}
               <div class="invalid-feedback d-block">{{ error }}</div>
             {% endfor %}
           </div>
         </div>
       </div>
 
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+          <h2 class="h6 text-uppercase text-secondary mb-2">Fuente local principal</h2>
+          <p class="text-secondary small mb-3">
+            Ordena las tablas y define la comparación principal. Por defecto es
+            SeisComp; si solo seleccionás una fuente, se usa esa.
+          </p>
+          {% for subfield in form.primary_source %}
+          <div class="form-check">
+            {{ subfield(class="form-check-input") }}
+            {{ subfield.label(class="form-check-label") }}
+          </div>
+          {% endfor %}
+          {% for error in form.primary_source.errors %}
+            <div class="invalid-feedback d-block">{{ error }}</div>
+          {% endfor %}
+        </div>
+      </div>
+
       <div class="alert alert-light border small text-secondary">
-        El procesamiento corre en segundo plano y puede tardar varios minutos.
-        Al crear el trabajo vas a ver el progreso paso a paso.
+        Al crear el trabajo se validan formato, eventos y cobertura de cada
+        catálogo. Si algo no pasa, queda en borrador y no se ejecuta el pipeline.
       </div>
 
       {{ form.submit(class="btn btn-primary") }}
@@ -93,14 +135,58 @@
       <div class="card-body">
         <h2 class="h6 text-uppercase text-secondary mb-3">Qué hace</h2>
         <ol class="small text-secondary ps-3 mb-0">
-          <li class="mb-2">Normaliza el catálogo público y el de Seisan.</li>
-          <li class="mb-2">Compara los parámetros y detecta no publicados y no actualizados.</li>
-          <li class="mb-2">Cruza los no publicados con la otra fuente.</li>
-          <li class="mb-2">Detecta eventos repetidos.</li>
-          <li>Prepara las tablas y los entregables para descargar.</li>
+          <li class="mb-2">Valida eventquery y las fuentes locales seleccionadas.</li>
+          <li class="mb-2">Normaliza cada fuente a un catálogo común.</li>
+          <li class="mb-2">Compara eventquery contra cada fuente.</li>
+          <li class="mb-2">Cruza no publicados solo si hay más de una fuente.</li>
+          <li>Detecta repetidos y prepara tablas, mapas y descargas.</li>
         </ol>
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+  const pares = [
+    ["incluir_seiscomp", "seiscomp"],
+    ["incluir_seisan", "seisan"],
+  ];
+
+  function sincronizar() {
+    pares.forEach(function (par) {
+      const check = document.getElementById(par[0]);
+      const archivo = document.getElementById(par[1]);
+      if (!check || !archivo) return;
+      archivo.disabled = !check.checked;
+      archivo.required = check.checked;
+    });
+
+    const radios = Array.from(
+      document.querySelectorAll('input[name="primary_source"]')
+    );
+    radios.forEach(function (radio) {
+      const check = document.getElementById("incluir_" + radio.value);
+      radio.disabled = check ? !check.checked : false;
+    });
+    const habilitados = radios.filter(function (radio) {
+      return !radio.disabled;
+    });
+    if (habilitados.length && !habilitados.some(function (radio) {
+      return radio.checked;
+    })) {
+      habilitados[0].checked = true;
+    }
+  }
+
+  pares.forEach(function (par) {
+    const check = document.getElementById(par[0]);
+    if (check) check.addEventListener("change", sincronizar);
+  });
+  sincronizar();
+})();
+</script>
 {% endblock %}

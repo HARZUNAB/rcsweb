@@ -30,7 +30,7 @@
         <a class="btn btn-sm btn-outline-secondary"
            href="{{ url_for('jobs.descargas', job_id=job.id) }}">Descargas</a>
       {% endif %}
-      {% if job.status in ('done', 'failed', 'cancelled')
+      {% if job.status in ('draft', 'done', 'failed', 'cancelled')
             and (current_user.role == 'admin' or job.created_by_id == current_user.id) %}
         <button type="button" class="btn btn-sm btn-outline-danger"
                 data-bs-toggle="modal" data-bs-target="#modalEliminar"
@@ -47,24 +47,47 @@
 
   {% include "jobs/_live.html" %}
 
+  {% if job.status == 'draft' %}
+  <div class="alert alert-warning mt-3" role="alert">
+    <div class="fw-semibold mb-1">El trabajo no se encoló: validación pendiente</div>
+    <ul class="small mb-2">
+      {% for source in job.sources %}
+      <li>
+        <strong>{{ source.kind }}</strong>
+        {% if source.status == 'ok' %}
+          <span class="badge text-bg-success">OK</span>
+        {% else %}
+          <span class="badge text-bg-danger">Error</span>
+        {% endif %}
+        {% if source.message %}
+          <div class="text-secondary">{{ source.message }}</div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('jobs.nuevo') }}">
+      Cargar un trabajo nuevo
+    </a>
+  </div>
+  {% endif %}
+
   {% if job.status == 'done' %}
   <div class="row g-3 mt-1">
     <div class="col-12 col-lg-4">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body">
           <div class="text-secondary small text-uppercase mb-2">No publicados</div>
+          {% for fuente in fuentes %}
+          {% set info = indice.no_publicados.get(fuente, {}) %}
           <div class="d-flex justify-content-between">
-            <a href="{{ url_for('results.no_publicados', job_id=job.id, fuente='seiscomp') }}">
-              SeisComp
+            <a href="{{ url_for('results.no_publicados', job_id=job.id, fuente=fuente) }}">
+              {{ etiquetas.get(fuente, fuente) }}
             </a>
-            <strong>{{ indice.no_publicados.get('seiscomp', {}).get('filas', 0) }}</strong>
+            <strong>{{ info.get('filas', 0) }}</strong>
           </div>
-          <div class="d-flex justify-content-between">
-            <a href="{{ url_for('results.no_publicados', job_id=job.id, fuente='seisan') }}">
-              Seisan
-            </a>
-            <strong>{{ indice.no_publicados.get('seisan', {}).get('filas', 0) }}</strong>
-          </div>
+          {% else %}
+          <div class="text-secondary small">Sin datos.</div>
+          {% endfor %}
         </div>
       </div>
     </div>
@@ -72,18 +95,17 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body">
           <div class="text-secondary small text-uppercase mb-2">No actualizados</div>
+          {% for fuente in fuentes %}
+          {% set info = indice.no_actualizados.get(fuente, {}) %}
           <div class="d-flex justify-content-between">
-            <a href="{{ url_for('results.no_actualizados', job_id=job.id, fuente='seiscomp') }}">
-              SeisComp
+            <a href="{{ url_for('results.no_actualizados', job_id=job.id, fuente=fuente) }}">
+              {{ etiquetas.get(fuente, fuente) }}
             </a>
-            <strong>{{ indice.no_actualizados.get('seiscomp', {}).get('filas', 0) }}</strong>
+            <strong>{{ info.get('filas', 0) }}</strong>
           </div>
-          <div class="d-flex justify-content-between">
-            <a href="{{ url_for('results.no_actualizados', job_id=job.id, fuente='seisan') }}">
-              Seisan
-            </a>
-            <strong>{{ indice.no_actualizados.get('seisan', {}).get('filas', 0) }}</strong>
-          </div>
+          {% else %}
+          <div class="text-secondary small">Sin datos.</div>
+          {% endfor %}
         </div>
       </div>
     </div>

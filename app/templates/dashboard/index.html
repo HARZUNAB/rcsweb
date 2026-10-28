@@ -79,7 +79,7 @@
             <div class="d-flex justify-content-end gap-1">
               <a class="btn btn-sm btn-outline-primary"
                  href="{{ url_for('jobs.detalle', job_id=job.id) }}">Ver</a>
-              {% if job.status in ('done', 'failed', 'cancelled')
+              {% if job.status in ('draft', 'done', 'failed', 'cancelled')
                     and (current_user.role == 'admin' or job.created_by_id == current_user.id) %}
                 <button type="button" class="btn btn-sm btn-outline-danger"
                         data-bs-toggle="modal" data-bs-target="#modalEliminar"

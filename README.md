@@ -4,11 +4,11 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 3 completada.** Se pueden cargar los catálogos, ejecutar
-el pipeline en segundo plano, seguir el progreso, filtrar y exportar las tablas,
-abrir el detalle de cada evento con su mapa de planta y perfil, ver la
-clasificación de no actualizados, la atribución de analistas y la auditoría de
-acciones.
+**Estado actual: etapa 4A completada.** La plataforma permite elegir fuentes
+locales por trabajo, validar los catálogos antes de procesarlos y ejecutar el
+pipeline solo con las fuentes seleccionadas. SeisComp es la fuente local
+principal por defecto; Seisan es opcional. La descarga automática por SSH y la
+exportación de SeisComp desde la base quedan para 4B y 4C.
 
 ## Stack
 
@@ -19,6 +19,17 @@ acciones.
 - **Tareas:** Celery + Redis
 - **Infraestructura:** Docker + Docker Compose
 - **Python:** 3.12 (aislado en el contenedor y en `.venv`)
+
+## Fuentes de catálogo
+
+- **eventquery** es la referencia publicada y siempre es obligatorio.
+- **SeisComp** es la fuente local principal por defecto.
+- **Seisan** es una fuente local secundaria, desmarcada por defecto.
+- Un trabajo necesita **al menos una fuente local** además de eventquery.
+- Cada fuente seleccionada se valida y se procesa; si falla, el trabajo queda en
+  borrador con el diagnóstico.
+- La fuente principal se puede cambiar por trabajo. Mañana se puede sumar otra
+  fuente sin cambiar el modelo.
 
 ## Puesta en marcha
 
@@ -42,8 +53,8 @@ make clean                # detener y borrar volúmenes
 
 ## Flujo de uso
 
-1. **Nuevo trabajo**: período y tres archivos (`select.out`, CSV de eventquery y
-   exportación de SeisComp opcional).
+1. **Nuevo trabajo**: período, eventquery y una o más fuentes locales
+   (SeisComp y/o Seisan). Se valida el contenido antes de encolar.
 2. El trabajo se encola en Celery. La página de detalle muestra progreso, pasos y
    log en vivo (polling HTMX cada 2 s).
 3. Al terminar: tarjetas con conteos, tablas paginables con búsqueda, filtros
@@ -59,24 +70,46 @@ make clean                # detener y borrar volúmenes
 
 ## Pipeline
 
-El worker ejecuta los scripts del proyecto base con `cwd` en
-`workspace/<job>/` y `RV_PROG=1`/`RV_ENTREGABLES=1`:
+El worker arma el plan según las fuentes seleccionadas y ejecuta los scripts del
+proyecto base con `cwd` en `workspace/<job>/` y `RV_PROG=1`/`RV_ENTREGABLES=1`:
 
-| # | Paso | Script |
-|---|---|---|
-| 1 | Normalizar eventquery | `proc_query_harz_2.py` |
-| 2 | Procesar select.out | `revisaselect.py` |
-| 3 | Armar catálogo local | `revisacollect.py` |
-| 4 | Comparar contra Seisan | `compara.py` |
-| 5 | Convertir SeisComp | `seiscomp_a_parametros.py` |
-| 6 | Comparar contra SeisComp | `compara.py` (prefijo `seiscomp_`) |
-| 7 | Cruzar no publicados | `cruza_nopub.py` |
-| 8 | Revisar excluidos | `revisaexcluidos.py` |
-| 9 | Repetidos en excluidos | `repetidosexclu.py` |
-| 10 | Detectar repetidos | `repetidos.py` |
+| Fuente | Pasos |
+|---|---|
+| eventquery (siempre) | `proc_query_harz_2.py` |
+| SeisComp | `seiscomp_a_parametros.py` + `compara.py` (prefijo `seiscomp_`) + repetidos SeisComp |
+| Seisan | `revisaselect.py` + `revisacollect.py` + `compara.py` + excluidos + repetidos Seisan |
+| Dos fuentes locales | `cruza_nopub.py` para el cruce entre fuentes |
+| Resultados | `construir_resultados()` recorre solo las fuentes presentes |
 
-Al final se normalizan las salidas en `workspace/<job>/resultados/` y se
-registran los artefactos descargables.
+Los pasos de Seisan solo existen si Seisan está seleccionado. Lo mismo para
+SeisComp. Al final se normalizan las salidas en `workspace/<job>/resultados/` y
+se registran los artefactos descargables.
+
+## Validación y borradores
+
+Antes de encolar se valida cada catálogo:
+
+- eventquery: cabecera, eventos, coordenadas y fechas;
+- Seisan: `select.out`, codificación y eventos;
+- SeisComp: columnas del export, eventos y cobertura.
+
+Si una fuente seleccionada falla, el trabajo queda en estado **Borrador** con el
+detalle por fuente y no se ejecuta el pipeline. Se puede corregir el archivo y
+crear un trabajo nuevo, o eliminar el borrador. La validación se repite en el
+servidor al crear el trabajo.
+
+## Migraciones
+
+El esquema se administra con **Alembic / Flask-Migrate**:
+
+```bash
+make migrate    # flask db upgrade
+make init-db    # db upgrade + seed-admin
+```
+
+Los trabajos existentes se migraron con `job_sources` inferidas desde
+`job_files`: la fuente local principal es SeisComp si estaba presente; si no,
+Seisan. El trabajo de demostración conserva sus resultados.
 
 ## Mapas
 
@@ -109,10 +142,12 @@ rcsweb/
 │   ├── __init__.py          # create_app()
 │   ├── config.py
 │   ├── extensions.py
-│   ├── models/              # users, jobs, job_files, job_steps, artifacts
+│   ├── models/              # users, jobs, job_sources, requests, artifacts
 │   ├── blueprints/          # auth, dashboard, jobs, results, health
 │   ├── services/
-│   │   ├── pipeline.py      # adaptador y orquestación
+│   │   ├── pipeline.py      # plan dinámico según fuentes
+│   │   ├── sources.py       # registro de fuentes
+│   │   ├── validators.py    # validación de catálogos
 │   │   ├── results.py       # normalización y lectura de tablas
 │   │   ├── workspace.py     # carpetas por trabajo y symlinks
 │   │   └── queue.py         # encolado en Celery
@@ -149,9 +184,10 @@ make lint     # ruff check
 make fmt      # ruff format
 ```
 
-Incluye tests de filtros, exportación, detalle, atribución, auditoría y un test
-de integración que ejecuta el pipeline real si el proyecto base está montado
-(`/opt/rcs-core` o `RCS_CORE_PATH`); si no, se salta.
+Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
+alta con Seisan-only, borradores por validación fallida y un test de integración
+que ejecuta el pipeline real si el proyecto base está montado. Total actual:
+**66 tests**.
 
 ## Filtros y exportación
 
@@ -220,9 +256,10 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
 - Descargas validadas contra el workspace del trabajo (sin traversal).
 - No hay consola SQL arbitraria.
 
-## Próximos pasos (etapa 4)
+## Próximos pasos (etapa 4B y 4C)
 
-- Módulo SeisComp: consultas de solo lectura, estaciones y arribos,
-  picks manuales/automáticos y análisis rápido.
-- Multi-base con descubrimiento y cobertura.
-- Luego: agencias (etapa 5) y catálogo histórico (etapa 6a).
+- **4B**: descarga automática por SSH/SCP de Seisan y eventquery, historial de
+  solicitudes y reintentos.
+- **4C**: exportación automática de SeisComp desde PostgreSQL en solo lectura,
+  consultando todas las bases.
+- Luego: revisión SeisComp (estación 5), agencias y catálogo histórico.
