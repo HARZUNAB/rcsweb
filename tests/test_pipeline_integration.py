@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from app.domain.catalogs.canonical import leer_canonico
 from app.extensions import db
 from app.models import Job, JobFile, JobSource, nuevo_uuid
 from app.services.detail import leer_filas
@@ -99,6 +100,10 @@ def test_pipeline_completo_con_muestra(app, tmp_path):
         assert indice["no_actualizados"]["seiscomp"]["filas"] == 1
         assert indice["repetidos"]["publica_estricto"]["filas"] == 2
         assert indice["catalogos"]["seisan"]["filas"] == 3
+
+        assert len(leer_canonico(workspace, "eventquery")) == 4
+        assert len(leer_canonico(workspace, "seisan")) == 3
+        assert len(leer_canonico(workspace, "seiscomp")) == 4
 
         no_act = leer_tabla(workspace, "no_actualizados_seisan.csv")
         assert "revision" in no_act["columnas"]
@@ -191,5 +196,8 @@ def test_pipeline_solo_seiscomp(app, tmp_path):
         assert indice["no_publicados"]["seiscomp"]["filas"] == 2
         assert indice["no_actualizados"]["seiscomp"]["filas"] == 1
         assert "seisan" not in indice["catalogos"]
+        assert len(leer_canonico(workspace, "eventquery")) == 4
+        assert len(leer_canonico(workspace, "seiscomp")) == 4
+        assert leer_canonico(workspace, "seisan") == []
         assert (workspace / "resultados/repetidos_seiscomp_estricto.csv").is_file()
         assert not (workspace / "informes/rep_seisan_estricto.txt").exists()

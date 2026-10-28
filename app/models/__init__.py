@@ -14,6 +14,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -190,16 +191,134 @@ class JobSource(db.Model):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
-    kind: Mapped[str] = mapped_column(String(32))
+    kind: Mapped[str] = mapped_column(String(64))
+    alias: Mapped[str] = mapped_column(String(80), default="")
+    format: Mapped[str] = mapped_column(String(32), default="")
     role: Mapped[str] = mapped_column(String(24), default="local_secundaria")
+    priority: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(20), default="ok")
     message: Mapped[str | None] = mapped_column(Text)
+    capabilities: Mapped[dict | None] = mapped_column(JSON)
     catalog_file_id: Mapped[int | None] = mapped_column(
         ForeignKey("catalog_request_files.id", ondelete="SET NULL")
     )
 
     job = relationship("Job", back_populates="sources")
     catalog_file = relationship("CatalogRequestFile")
+
+    @property
+    def format_efectivo(self) -> str:
+        return self.format or self.kind
+
+    @property
+    def alias_mostrado(self) -> str:
+        return self.alias or self.kind
+
+    @property
+    def capacidades(self) -> set[str]:
+        return set(self.capabilities or ())
+
+
+class CatalogEvent(db.Model):
+    """Evento del catálogo canónico de una fuente."""
+
+    __tablename__ = "catalog_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "job_id", "source_id", "event_id", name="uq_catalog_events_job_source_event"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
+    source_id: Mapped[str] = mapped_column(String(64), index=True)
+    event_id: Mapped[str] = mapped_column(String(128), index=True)
+    event_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    depth_km: Mapped[float | None] = mapped_column(Float)
+    magnitude: Mapped[float | None] = mapped_column(Float)
+    magnitude_type: Mapped[str] = mapped_column(String(16), default="")
+    agency: Mapped[str] = mapped_column(String(80), default="")
+    analyst: Mapped[str] = mapped_column(String(80), default="")
+    status: Mapped[str] = mapped_column(String(32), default="")
+    is_preferred: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False)
+    raw: Mapped[dict | None] = mapped_column(JSON)
+
+
+class Station(db.Model):
+    """Inventario de estaciones/canales aportado por una fuente."""
+
+    __tablename__ = "stations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
+    source_id: Mapped[str] = mapped_column(String(64), index=True)
+    network: Mapped[str] = mapped_column(String(16), default="")
+    station: Mapped[str] = mapped_column(String(16), default="")
+    location: Mapped[str] = mapped_column(String(16), default="")
+    channel: Mapped[str] = mapped_column(String(16), default="")
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    elevation_m: Mapped[float | None] = mapped_column(Float)
+    depth_m: Mapped[float | None] = mapped_column(Float)
+    start_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    end_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sample_rate: Mapped[float | None] = mapped_column(Float)
+    response: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), default="")
+
+
+class Arrival(db.Model):
+    """Arribo/pick de un origen, con estado manual/automático."""
+
+    __tablename__ = "arrivals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
+    source_id: Mapped[str] = mapped_column(String(64), index=True)
+    event_id: Mapped[str] = mapped_column(String(128), index=True)
+    origin_id: Mapped[str] = mapped_column(String(128), default="")
+    network: Mapped[str] = mapped_column(String(16), default="")
+    station: Mapped[str] = mapped_column(String(16), default="")
+    location: Mapped[str] = mapped_column(String(16), default="")
+    channel: Mapped[str] = mapped_column(String(16), default="")
+    phase: Mapped[str] = mapped_column(String(16), default="")
+    pick_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    pick_status: Mapped[str] = mapped_column(String(16), default="")
+    is_used_in_solution: Mapped[bool | None] = mapped_column(Boolean)
+    weight: Mapped[float | None] = mapped_column(Float)
+    polarity: Mapped[str] = mapped_column(String(16), default="")
+    residual: Mapped[float | None] = mapped_column(Float)
+    distance_km: Mapped[float | None] = mapped_column(Float)
+    azimuth: Mapped[float | None] = mapped_column(Float)
+    snr: Mapped[float | None] = mapped_column(Float)
+    qc: Mapped[str] = mapped_column(String(32), default="")
+    picker_probability: Mapped[float | None] = mapped_column(Float)
+
+
+class WaveformAvailability(db.Model):
+    """Resultado del chequeo de formas de onda por estación/evento."""
+
+    __tablename__ = "waveform_availability"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
+    source_id: Mapped[str] = mapped_column(String(64), index=True)
+    event_id: Mapped[str] = mapped_column(String(128), index=True)
+    network: Mapped[str] = mapped_column(String(16), default="")
+    station: Mapped[str] = mapped_column(String(16), default="")
+    location: Mapped[str] = mapped_column(String(16), default="")
+    channel: Mapped[str] = mapped_column(String(16), default="")
+    window_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    window_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(20), default="not_checked")
+    source: Mapped[str] = mapped_column(String(32), default="")
+    coverage_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    coverage_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
 
 
 class JobStep(db.Model):

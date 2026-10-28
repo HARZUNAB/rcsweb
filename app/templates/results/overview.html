@@ -77,7 +77,7 @@
             {% if info %}
             <a class="btn btn-sm btn-outline-primary"
                href="{{ url_for('results.no_publicados', job_id=job.id, fuente=fuente) }}">
-              {{ etiquetas.get(fuente, fuente) }} ({{ info.filas }})
+              {{ aliases.get(fuente, etiquetas.get(fuente, fuente)) }} ({{ info.filas }})
             </a>
             {% endif %}
             {% else %}
@@ -99,7 +99,7 @@
             {% if info %}
             <a class="btn btn-sm btn-outline-primary"
                href="{{ url_for('results.no_actualizados', job_id=job.id, fuente=fuente) }}">
-              {{ etiquetas.get(fuente, fuente) }} ({{ info.filas }})
+              {{ aliases.get(fuente, etiquetas.get(fuente, fuente)) }} ({{ info.filas }})
             </a>
             {% endif %}
             {% else %}
@@ -142,7 +142,7 @@
       {% for clave, info in indice.catalogos.items() %}
       <div class="col-12 col-sm-4">
         <div class="border rounded p-3">
-          <div class="text-secondary small text-uppercase">{{ etiquetas.get(clave, clave) }}</div>
+          <div class="text-secondary small text-uppercase">{{ aliases.get(clave, etiquetas.get(clave, clave)) }}</div>
           <div class="fs-5 fw-semibold">{{ info.filas }}</div>
           <div class="small text-secondary">eventos</div>
         </div>

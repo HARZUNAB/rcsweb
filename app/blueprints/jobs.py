@@ -25,7 +25,7 @@ from ..services.audit import registrar
 from ..services.jobs import JobNoEliminable, eliminar_trabajo, puede_eliminar
 from ..services.queue import encolar_trabajo
 from ..services.results import cargar_indice
-from ..services.sources import default_primary, etiquetas
+from ..services.sources import default_primary, etiqueta, etiquetas, fuente
 from ..services.validators import validar_fuente
 from ..services.workspace import (
     crear_workspace,
@@ -63,6 +63,7 @@ def _contexto_detalle(job: Job) -> dict:
         "artefactos": job.artifacts,
         "activo": job.activo,
         "etiquetas": etiquetas(),
+        "aliases": {source.kind: source.alias_mostrado for source in job.sources},
         "fuentes": fuentes,
     }
 
@@ -142,13 +143,28 @@ def nuevo():
                 _guardar(codigo, archivo)
 
             db.session.add(job)
-            db.session.add(JobSource(job_id=job.id, kind="eventquery", role="referencia"))
-            for codigo in orden:
+            db.session.add(
+                JobSource(
+                    job_id=job.id,
+                    kind="eventquery",
+                    alias="Eventquery",
+                    format="eventquery",
+                    role="referencia",
+                    priority=0,
+                    capabilities=sorted(fuente("eventquery").capacidades),
+                )
+            )
+            for indice, codigo in enumerate(orden, start=1):
+                alias = (getattr(form, f"alias_{codigo}").data or "").strip()
                 db.session.add(
                     JobSource(
                         job_id=job.id,
                         kind=codigo,
+                        alias=alias or etiqueta(codigo),
+                        format=codigo,
                         role=("local_principal" if codigo == principal else "local_secundaria"),
+                        priority=indice,
+                        capabilities=sorted(fuente(codigo).capacidades),
                     )
                 )
             db.session.commit()

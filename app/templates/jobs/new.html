@@ -67,6 +67,11 @@
               {{ form.incluir_seiscomp(class="form-check-input") }}
               {{ form.incluir_seiscomp.label(class="form-check-label fw-semibold") }}
             </div>
+            <div class="mb-2">
+              {{ form.alias_seiscomp.label(class="form-label small") }}
+              {{ form.alias_seiscomp(class="form-control form-control-sm",
+                                     placeholder="SeisComp") }}
+            </div>
             {{ form.seiscomp.label(class="form-label small") }}
             {{ form.seiscomp(class="form-control", accept=".csv") }}
             <div class="form-text">
@@ -85,6 +90,11 @@
             <div class="form-check mb-2">
               {{ form.incluir_seisan(class="form-check-input") }}
               {{ form.incluir_seisan.label(class="form-check-label fw-semibold") }}
+            </div>
+            <div class="mb-2">
+              {{ form.alias_seisan.label(class="form-label small") }}
+              {{ form.alias_seisan(class="form-control form-control-sm",
+                                   placeholder="Seisan") }}
             </div>
             {{ form.seisan.label(class="form-label small") }}
             {{ form.seisan(class="form-control", accept=".out,.txt,.dat") }}

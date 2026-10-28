@@ -4,11 +4,11 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 4A completada.** La plataforma permite elegir fuentes
-locales por trabajo, validar los catálogos antes de procesarlos y ejecutar el
-pipeline solo con las fuentes seleccionadas. SeisComp es la fuente local
-principal por defecto; Seisan es opcional. La descarga automática por SSH y la
-exportación de SeisComp desde la base quedan para 4B y 4C.
+**Estado actual: etapa 4A.2 completada.** La app trabaja con un **catálogo
+estándar**: eventquery como referencia y fuentes locales identificadas por alias
+y formato. Los adaptadores traducen cada formato sin acoplar el arranque de la
+app. SeisComp es la fuente local principal por defecto; Seisan es opcional.
+Quedan pendientes 4B (SSH) y 4C (exportación SeisComp).
 
 ## Stack
 
@@ -25,11 +25,34 @@ exportación de SeisComp desde la base quedan para 4B y 4C.
 - **eventquery** es la referencia publicada y siempre es obligatorio.
 - **SeisComp** es la fuente local principal por defecto.
 - **Seisan** es una fuente local secundaria, desmarcada por defecto.
+- Cada fuente tiene un **alias** visible y un **formato** interno. La app no
+  depende del nombre: un formato nuevo solo agrega un adaptador.
 - Un trabajo necesita **al menos una fuente local** además de eventquery.
 - Cada fuente seleccionada se valida y se procesa; si falla, el trabajo queda en
   borrador con el diagnóstico.
-- La fuente principal se puede cambiar por trabajo. Mañana se puede sumar otra
-  fuente sin cambiar el modelo.
+- La fuente principal se puede cambiar por trabajo.
+
+## Catálogo estándar y adaptadores
+
+El catálogo estándar vive en `app/domain/catalogs/` y se guarda como JSONL en
+`workspace/<job>/catalogo/<source_id>/eventos.jsonl`.
+
+- **Capa mínima:** fuente, evento, fecha, lat/lon/profundidad, magnitud, agencia,
+  analista, estado, preferido/publicado y `raw`.
+- **Extensiones:** `station`, `arrival`, `waveform_availability`,
+  `station_magnitude` y `tensor` (tablas creadas; se llenan cuando la fuente las
+  aporta).
+- **Capacidades por formato:** eventos, orígenes, magnitudes, arribos,
+  inventario, disponibilidad de ondas y excluidos.
+- **Adaptadores separados del arranque:** `create_app()` no importa adaptadores.
+  Se cargan de forma perezosa al parsear una fuente.
+- SeisComp declara capacidades de estaciones/arribos/disponibilidad. Seisan no.
+  El dump CSN, cuando se integre, tendrá picks pero no inventario ni
+  disponibilidad.
+
+La tarea **“disponible y no picada”** se calcula cruzando inventario activo,
+arribos del origen preferido y disponibilidad de formas de onda. Si falta una
+capacidad, se muestra “no evaluable”.
 
 ## Puesta en marcha
 
@@ -142,11 +165,12 @@ rcsweb/
 │   ├── __init__.py          # create_app()
 │   ├── config.py
 │   ├── extensions.py
-│   ├── models/              # users, jobs, job_sources, requests, artifacts
+│   ├── domain/catalogs/    # esquema canónico, registro y adaptadores
+│   ├── models/              # users, jobs, job_sources, extensiones, artifacts
 │   ├── blueprints/          # auth, dashboard, jobs, results, health
 │   ├── services/
 │   │   ├── pipeline.py      # plan dinámico según fuentes
-│   │   ├── sources.py       # registro de fuentes
+│   │   ├── sources.py       # compatibilidad con el registro de formatos
 │   │   ├── validators.py    # validación de catálogos
 │   │   ├── results.py       # normalización y lectura de tablas
 │   │   ├── workspace.py     # carpetas por trabajo y symlinks
@@ -187,7 +211,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida y un test de integración
 que ejecuta el pipeline real si el proyecto base está montado. Total actual:
-**66 tests**.
+**70 tests**.
 
 ## Filtros y exportación
 

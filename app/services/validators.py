@@ -253,4 +253,15 @@ def validar_seiscomp(ruta: Path, periodo_inicio=None, periodo_fin=None) -> dict:
 def validar_fuente(codigo: str, ruta: Path, periodo_inicio=None, periodo_fin=None) -> dict:
     from .sources import fuente
 
-    return fuente(codigo).validador(ruta, periodo_inicio, periodo_fin)
+    formato = fuente(codigo).codigo
+    validadores = {
+        "eventquery": validar_eventquery,
+        "seisan": validar_seisan,
+        "seiscomp": validar_seiscomp,
+    }
+    validador = validadores.get(formato)
+    if validador is None:
+        resultado = _resultado(codigo)
+        resultado["errores"].append(f"No hay validador para el formato '{formato}'.")
+        return resultado
+    return validador(ruta, periodo_inicio, periodo_fin)

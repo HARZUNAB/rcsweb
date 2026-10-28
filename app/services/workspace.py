@@ -100,11 +100,13 @@ def enlazar_insumos(workspace: Path) -> None:
 def preparar_entradas(job: Job) -> Path:
     """Copia los uploads a los nombres canónicos y enlaza los insumos."""
     workspace = crear_workspace(job.id)
+    formatos = {source.kind: source.format_efectivo for source in job.sources}
     for archivo in job.files:
         destino = workspace / archivo.stored_name
         if not destino.is_file():
             continue
-        canonico = nombre_canonico(archivo.kind, job.inicio14, job.fin14)
+        formato = formatos.get(archivo.kind, archivo.kind)
+        canonico = nombre_canonico(formato, job.inicio14, job.fin14)
         objetivo = workspace / canonico
         if not objetivo.exists():
             shutil.copy2(destino, objetivo)

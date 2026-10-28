@@ -140,11 +140,19 @@ def _fuentes_job(job: Job) -> list[str]:
     return [kind for _rol, kind in pares]
 
 
+def _alias(job: Job, codigo: str) -> str:
+    for source in job.sources:
+        if source.kind == codigo:
+            return source.alias_mostrado
+    return etiqueta(codigo)
+
+
 def _opciones(tabla: str, job: Job) -> list[tuple[str, str]]:
     fuentes = _fuentes_job(job)
     if tabla == "repetidos":
-        return [(clave, titulo) for clave, _archivo, titulo in rep_files(fuentes)]
-    return [(codigo, etiqueta(codigo)) for codigo in fuentes]
+        labels = {codigo: _alias(job, codigo) for codigo in fuentes}
+        return [(clave, titulo) for clave, _archivo, titulo in rep_files(fuentes, labels)]
+    return [(codigo, _alias(job, codigo)) for codigo in fuentes]
 
 
 def _filtros() -> dict[str, str]:
@@ -189,6 +197,7 @@ def overview(job_id: str):
         indice=indice,
         tablas=TABLAS,
         etiquetas=etiquetas(),
+        aliases={source.kind: source.alias_mostrado for source in job.sources},
         fuentes=_fuentes_job(job),
     )
 

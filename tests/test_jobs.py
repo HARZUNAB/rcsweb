@@ -15,6 +15,7 @@ def _datos_formulario(samples):
         "period_end": "2026-10-31",
         "incluir_seisan": "y",
         "primary_source": "seisan",
+        "alias_seisan": "Fuente secundaria",
         "seisan": (open(samples / "select.out", "rb"), "select.out"),
         "eventquery": (
             open(samples / "eventquery_20261001000000_20261031235959.csv", "rb"),
@@ -51,6 +52,8 @@ def test_crear_trabajo_encola_y_guarda_archivos(client, login, samples, sin_cele
         "referencia",
         "local_principal",
     }
+    assert all(source.format for source in job.sources)
+    assert all(source.alias for source in job.sources)
     assert sin_celery == [job.id]
     assert respuesta.headers["Location"].endswith(f"/jobs/{job.id}")
 
@@ -62,6 +65,7 @@ def test_crear_trabajo_seiscomp_por_defecto(client, login, samples, sin_celery):
         "period_end": "2026-10-31",
         "incluir_seiscomp": "y",
         "primary_source": "seiscomp",
+        "alias_seiscomp": "Fuente principal",
         "seiscomp": (
             open(samples / "seiscomp_20261001000000_20261031235959.csv", "rb"),
             "seiscomp.csv",
@@ -78,6 +82,10 @@ def test_crear_trabajo_seiscomp_por_defecto(client, login, samples, sin_celery):
     assert job.status == "queued"
     roles = {source.kind: source.role for source in job.sources}
     assert roles == {"eventquery": "referencia", "seiscomp": "local_principal"}
+    assert {source.alias for source in job.sources} == {
+        "Eventquery",
+        "Fuente principal",
+    }
     assert {archivo.kind for archivo in job.files} == {"eventquery", "seiscomp"}
 
 
@@ -108,6 +116,7 @@ def test_validacion_invalida_deja_trabajo_en_borrador(client, login, samples, si
         "period_end": "2026-10-31",
         "incluir_seisan": "y",
         "primary_source": "seisan",
+        "alias_seisan": "Fuente secundaria",
         "seisan": (open(samples / "select.out", "rb"), "select.out"),
         "eventquery": (open(malo, "rb"), "eventquery_invalido.csv"),
     }

@@ -36,12 +36,14 @@ class JobForm(FlaskForm):
     )
 
     incluir_seiscomp = BooleanField("Incluir SeisComp", default=False)
+    alias_seiscomp = StringField("Nombre de la fuente", validators=[Length(max=80)])
     seiscomp = FileField(
         "Exportación de SeisComp (CSV)",
         validators=[FileAllowed(["csv"], "un CSV de SeisComp")],
     )
 
     incluir_seisan = BooleanField("Incluir Seisan", default=False)
+    alias_seisan = StringField("Nombre de la fuente", validators=[Length(max=80)])
     seisan = FileField(
         "Catálogo Seisan (select.out)",
         validators=[FileAllowed(["out", "txt", "dat"], "select.out")],

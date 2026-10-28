@@ -81,7 +81,7 @@
           {% set info = indice.no_publicados.get(fuente, {}) %}
           <div class="d-flex justify-content-between">
             <a href="{{ url_for('results.no_publicados', job_id=job.id, fuente=fuente) }}">
-              {{ etiquetas.get(fuente, fuente) }}
+              {{ aliases.get(fuente, etiquetas.get(fuente, fuente)) }}
             </a>
             <strong>{{ info.get('filas', 0) }}</strong>
           </div>
@@ -99,7 +99,7 @@
           {% set info = indice.no_actualizados.get(fuente, {}) %}
           <div class="d-flex justify-content-between">
             <a href="{{ url_for('results.no_actualizados', job_id=job.id, fuente=fuente) }}">
-              {{ etiquetas.get(fuente, fuente) }}
+              {{ aliases.get(fuente, etiquetas.get(fuente, fuente)) }}
             </a>
             <strong>{{ info.get('filas', 0) }}</strong>
           </div>

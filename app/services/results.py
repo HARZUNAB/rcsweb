@@ -27,22 +27,26 @@ REP_PUBLICA = (
 )
 
 
-def rep_files(fuentes: list[str]) -> tuple[tuple[str, str, str], ...]:
+def rep_files(
+    fuentes: list[str], labels: dict[str, str] | None = None
+) -> tuple[tuple[str, str, str], ...]:
     """(clave, archivo, título) de los informes de repetidos por fuente."""
+    labels = labels or {}
     opciones = list(REP_PUBLICA)
     for fuente in fuentes:
+        nombre = labels.get(fuente, etiqueta(fuente))
         opciones.append(
             (
                 f"{fuente}_amplio",
                 f"rep_{fuente}_amplio.txt",
-                f"{etiqueta(fuente)} · amplio",
+                f"{nombre} · amplio",
             )
         )
         opciones.append(
             (
                 f"{fuente}_estricto",
                 f"rep_{fuente}_estricto.txt",
-                f"{etiqueta(fuente)} · estricto",
+                f"{nombre} · estricto",
             )
         )
         if fuente == "seisan":

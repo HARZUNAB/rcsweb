@@ -24,6 +24,8 @@ from pathlib import Path
 
 from flask import current_app
 
+from ..domain.catalogs.canonical import escribir_desde_csv
+from ..domain.catalogs.registry import adaptador as obtener_adaptador
 from ..extensions import db
 from ..models import Job, JobArtifact, JobStep
 from .audit import registrar
@@ -229,15 +231,80 @@ def _verificar_seisan(workspace: Path) -> None:
         )
 
 
-def _fuentes_job(job: Job) -> list[str]:
-    """Códigos de fuentes locales seleccionadas, en el orden del trabajo."""
+def _fuentes_job(job: Job) -> list[tuple[str, str, str]]:
+    """(source_id, formato, alias) de las fuentes locales, principal primero."""
     if job.sources:
-        return [s.kind for s in job.sources if s.kind != "eventquery"]
-    return sorted({archivo.kind for archivo in job.files if archivo.kind in ("seisan", "seiscomp")})
+        locales = [
+            (
+                source.kind,
+                source.format_efectivo,
+                source.alias_mostrado,
+                source.priority,
+                source.role,
+            )
+            for source in job.sources
+            if source.kind != "eventquery"
+        ]
+        locales.sort(
+            key=lambda item: (
+                0 if item[4] == "local_principal" else 1,
+                item[3],
+                item[1],
+            )
+        )
+        return [(sid, fmt, alias) for sid, fmt, alias, _prioridad, _rol in locales]
+    return [
+        (archivo.kind, archivo.kind, archivo.kind)
+        for archivo in job.files
+        if archivo.kind in ("seisan", "seiscomp")
+    ]
+
+
+def _normalizar_fuentes(fuentes) -> list[tuple[str, str, str]]:
+    if not fuentes:
+        return []
+    if isinstance(fuentes[0], str):
+        return [(codigo, codigo, codigo) for codigo in fuentes]
+    return list(fuentes)
+
+
+def _planes_a_pasos(adapter, source_id: str, formato: str, job: Job, eventquery: str) -> list[Paso]:
+    planes = adapter.pasos(job, eventquery)
+    pasos = []
+    for indice, plan in enumerate(planes):
+        post = plan.post
+        if indice == len(planes) - 1:
+
+            def _post(
+                workspace,
+                _post=post,
+                _adapter=adapter,
+                _source_id=source_id,
+                _formato=formato,
+            ) -> None:
+                if _post is not None:
+                    _post(workspace)
+                ruta = Path(workspace) / _adapter.catalogo(job, eventquery)
+                escribir_desde_csv(Path(workspace), _source_id, _formato, ruta)
+
+            post = _post
+
+        pasos.append(
+            Paso(
+                plan.clave,
+                plan.titulo,
+                plan.script,
+                plan.args,
+                plan.condicion,
+                plan.verificar,
+                post,
+            )
+        )
+    return pasos
 
 
 def _renombrar_repetidos(source: str):
-    """Si el único local es SeisComp, repetidos.py etiqueta como 'seisan'."""
+    """Si el único local es uno no-Seisan, repetidos.py etiqueta como 'seisan'."""
 
     def _renombrar(workspace: Path) -> None:
         informes = workspace / "informes"
@@ -249,75 +316,38 @@ def _renombrar_repetidos(source: str):
     return _renombrar
 
 
-def _verificar_seiscomp(workspace: Path) -> None:
-    ruta = workspace / "datos" / "seiscomp_parametros.csv"
-    if not ruta.is_file() or ruta.stat().st_size <= 1:
-        raise PipelineError("La exportación de SeisComp no produjo soluciones válidas.")
-
-
-def _construir_pasos(job: Job, eventquery: str, fuentes: list[str]) -> list[Paso]:
-    tiene_seisan = "seisan" in fuentes
-    tiene_seiscomp = "seiscomp" in fuentes
-    if not tiene_seisan and not tiene_seiscomp:
+def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
+    fuentes = _normalizar_fuentes(fuentes)
+    if not fuentes:
         raise PipelineError("El trabajo no tiene ninguna fuente local seleccionada.")
 
+    pasos = _planes_a_pasos(
+        obtener_adaptador("eventquery"), "eventquery", "eventquery", job, eventquery
+    )
+    locales = []
+    for source_id, formato, alias in fuentes:
+        adapter = obtener_adaptador(formato)
+        pasos.extend(_planes_a_pasos(adapter, source_id, formato, job, eventquery))
+        locales.append((source_id, formato, alias, adapter))
+
     new2 = f"datos/new_2_{eventquery}"
-    pasos = [
-        Paso(
-            "normalizar_eventquery",
-            "Normalizar catálogo eventquery",
-            "proc_query_harz_2.py",
-            [eventquery, "trabajo/salida.dat"],
-            verificar=lambda ws: _verificar_eventquery(ws, eventquery),
-        )
-    ]
-
-    # Normalización de cada fuente local.
-    if tiene_seiscomp:
+    for source_id, formato, alias, adapter in locales:
+        prefijo = "" if formato == "seisan" else (adapter.prefijo or f"{source_id}_")
         pasos.append(
             Paso(
-                "convertir_seiscomp",
-                "Convertir exportación SeisComp",
-                "seiscomp_a_parametros.py",
-                [nombre_canonico("seiscomp", job.inicio14, job.fin14)],
-                verificar=_verificar_seiscomp,
-            )
-        )
-    if tiene_seisan:
-        pasos.extend(
-            [
-                Paso("normalizar_seisan", "Procesar select.out", "revisaselect.py"),
-                Paso(
-                    "armar_catalogo",
-                    "Armar catálogo local",
-                    "revisacollect.py",
-                    verificar=_verificar_seisan,
-                ),
-            ]
-        )
-
-    # Comparaciones. Seisan conserva los nombres legacy (sin prefijo); SeisComp
-    # usa el prefijo que ya espera cruza_nopub.py.
-    if tiene_seiscomp:
-        pasos.append(
-            Paso(
-                "comparar_seiscomp",
-                "Comparar contra SeisComp",
+                f"comparar_{source_id}",
+                f"Comparar contra {alias}",
                 "compara.py",
-                [new2, "datos/seiscomp_parametros.csv", "seiscomp_"],
-            )
-        )
-    if tiene_seisan:
-        pasos.append(
-            Paso(
-                "comparar_seisan",
-                "Comparar contra Seisan",
-                "compara.py",
-                [new2, "datos/salida_collect.csv"],
+                [
+                    new2,
+                    adapter.catalogo(job, eventquery),
+                    prefijo,
+                ],
             )
         )
 
-    if tiene_seisan and tiene_seiscomp:
+    formatos = {formato for _sid, formato, _alias, _adapter in locales}
+    if len(locales) == 2 and formatos == {"seisan", "seiscomp"}:
         pasos.append(
             Paso(
                 "cruzar_no_publicados",
@@ -326,7 +356,10 @@ def _construir_pasos(job: Job, eventquery: str, fuentes: list[str]) -> list[Paso
             )
         )
 
-    if tiene_seisan:
+    for _source_id, _formato, _alias, adapter in locales:
+        if "excluidos" not in adapter.capacidades:
+            continue
+        catalogo = adapter.catalogo(job, eventquery)
         pasos.extend(
             [
                 Paso(
@@ -339,24 +372,36 @@ def _construir_pasos(job: Job, eventquery: str, fuentes: list[str]) -> list[Paso
                     "repetidos_excluidos",
                     "Detectar repetidos en excluidos",
                     "repetidosexclu.py",
-                    ["datos/excluidos.csv", "datos/salida_collect.csv"],
+                    ["datos/excluidos.csv", catalogo],
                     condicion=_hay_csv_excluidos,
                 ),
             ]
         )
 
+    por_formato = {formato: item for item in locales for formato in [item[1]]}
+    seisan = por_formato.get("seisan")
+    seiscomp = por_formato.get("seiscomp")
     post = None
-    if tiene_seisan and tiene_seiscomp:
+    if seisan and seiscomp:
         args_repetidos = [
             new2,
-            "datos/salida_collect.csv",
-            "datos/seiscomp_parametros.csv",
+            seisan[3].catalogo(job, eventquery),
+            seiscomp[3].catalogo(job, eventquery),
         ]
-    elif tiene_seisan:
-        args_repetidos = [new2, "datos/salida_collect.csv"]
-    else:
-        args_repetidos = [new2, "datos/seiscomp_parametros.csv"]
+    elif seisan:
+        args_repetidos = [new2, seisan[3].catalogo(job, eventquery)]
+    elif seiscomp:
+        args_repetidos = [new2, seiscomp[3].catalogo(job, eventquery)]
         post = _renombrar_repetidos("seiscomp")
+    elif len(locales) == 1:
+        source_id, _formato, _alias, adapter = locales[0]
+        args_repetidos = [new2, adapter.catalogo(job, eventquery)]
+        post = _renombrar_repetidos(source_id)
+    else:
+        raise PipelineError(
+            "La detección de repetidos para más de dos fuentes locales "
+            "todavía no está implementada."
+        )
 
     pasos.append(
         Paso(
@@ -533,7 +578,7 @@ def ejecutar_pipeline(job_id: str) -> dict:
         job.progress = max(job.progress, 95)
         db.session.commit()
 
-        construir_resultados(workspace, fuentes)
+        construir_resultados(workspace, [fuente[0] for fuente in fuentes])
         _registrar_artefactos(job, workspace)
         log.escribir("")
         log.escribir("Pipeline terminado correctamente.")
