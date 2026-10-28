@@ -148,6 +148,35 @@ def test_nueva_solicitud_encola(client, login, monkeypatch):
     )
 
 
+def test_envolver_locale_remoto():
+    from app.services.acquisition import _envolver_locale_remoto
+
+    class Conexion:
+        def __init__(self):
+            self.comandos = []
+
+        def ssh_login(self, comando):
+            self.comandos.append(comando)
+
+    conexion = Conexion()
+    _envolver_locale_remoto(conexion)
+    conexion.ssh_login("echo OK")
+
+    comando = conexion.comandos[0]
+    assert "locale charmap" in comando
+    assert "export LC_ALL" in comando
+    assert comando.endswith("echo OK")
+
+
+def test_envolver_locale_sin_ssh_login():
+    from app.services.acquisition import _envolver_locale_remoto
+
+    class SinSSH:
+        pass
+
+    _envolver_locale_remoto(SinSSH())
+
+
 def test_nueva_por_defecto_sin_seiscomp(client, login, monkeypatch):
     login()
     monkeypatch.setattr("app.blueprints.solicitudes.seiscomp_configurada", lambda: False)

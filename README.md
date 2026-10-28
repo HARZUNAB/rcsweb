@@ -64,6 +64,8 @@ capacidad, se muestra “no evaluable”.
 - Historial en `/solicitudes`, con estado por catálogo, progreso, log y
   reintento de lo fallido.
 - Al validar, crea el trabajo con `origin=ssh` y lo encola en el pipeline.
+- Los comandos remotos se ejecutan con un locale UTF-8 para que `eventquery2`
+  no falle con nombres acentuados.
 - Requiere `openssh-client` en la imagen y acceso al servidor.
 
 Variables:
@@ -269,7 +271,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **92 tests**.
+runner de solo lectura. Total actual: **94 tests**.
 
 ## Filtros y exportación
 

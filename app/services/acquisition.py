@@ -79,6 +79,37 @@ def _cargar_traer_catalogos():
     return tc
 
 
+PREFIJO_LOCALE_REMOTO = (
+    'RCS_LOCALE=""; '
+    "for loc in C.UTF-8 en_US.UTF-8 es_CL.UTF-8 "
+    '$(locale -a 2>/dev/null | grep -iE "utf-?8"); do '
+    'if [ "$(LC_ALL=$loc locale charmap 2>/dev/null)" = "UTF-8" ]; then '
+    "RCS_LOCALE=$loc; break; fi; done; "
+    'if [ -z "$RCS_LOCALE" ]; then '
+    'echo "[X] No hay locale UTF-8 en el servidor remoto"; exit 1; fi; '
+    "export LC_ALL=$RCS_LOCALE LANG=$RCS_LOCALE; "
+    'echo "[+] Locale remoto: $RCS_LOCALE"; '
+)
+
+
+def _envolver_locale_remoto(conexion) -> None:
+    """Fuerza un locale UTF-8 en cada comando remoto.
+
+    ``eventquery2`` escribe el CSV con la codificación por defecto de Python.
+    Si el shell remoto arranca en ASCII, un nombre con acento rompe la descarga
+    con ``UnicodeEncodeError``. El prefijo elige un locale UTF-8 válido en el
+    servidor antes de ejecutar el comando original.
+    """
+    original = getattr(conexion, "ssh_login", None)
+    if original is None:
+        return
+
+    def ssh_login(comando):
+        return original(PREFIJO_LOCALE_REMOTO + comando)
+
+    conexion.ssh_login = ssh_login
+
+
 def _archivo(request: CatalogRequest, kind: str) -> CatalogRequestFile:
     for archivo in request.files:
         if archivo.kind == kind:
@@ -260,6 +291,7 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
         log.escribir(f"Servidor: {tc.USUARIO_REMOTO}@{tc.IP_REMOTA}")
 
         with tc.Conexion(password, log=log.escribir) as conexion:
+            _envolver_locale_remoto(conexion)
             tc.verificar_conexion(
                 conexion,
                 log=log.escribir,
