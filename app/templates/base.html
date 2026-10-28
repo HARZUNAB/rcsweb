@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}RCS{% endblock %} · RCS Web</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body class="d-flex flex-column min-vh-100">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container">
+    <a class="navbar-brand fw-semibold" href="{{ url_for('dashboard.index') }}">
+      <span class="brand-mark">RCS</span> <span class="text-white-50">Web</span>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+            data-bs-target="#barra" aria-controls="barra" aria-expanded="false"
+            aria-label="Alternar navegación">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="barra">
+      {% if current_user.is_authenticated %}
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('dashboard.index') }}">Trabajos</a>
+        </li>
+      </ul>
+      <div class="d-flex align-items-center gap-3">
+        <span class="navbar-text small">
+          {{ current_user.username }}
+          <span class="badge text-bg-secondary ms-1">{{ current_user.role }}</span>
+        </span>
+        <form method="post" action="{{ url_for('auth.logout') }}" class="m-0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-outline-light btn-sm" type="submit">Salir</button>
+        </form>
+      </div>
+      {% else %}
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('auth.login') }}">Ingresar</a>
+        </li>
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<main class="container py-4 flex-grow-1">
+  {% with mensajes = get_flashed_messages(with_categories=true) %}
+    {% if mensajes %}
+      <div class="mb-3">
+        {% for categoria, mensaje in mensajes %}
+          <div class="alert alert-{{ categoria if categoria != 'message' else 'info' }} alert-dismissible fade show" role="alert">
+            {{ mensaje }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="border-top py-3 mt-auto">
+  <div class="container d-flex justify-content-between small text-secondary">
+    <span>RCS Web · Revisor de Catálogos Sísmicos</span>
+    <span>v{{ config.APP_VERSION }}</span>
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/htmx/htmx.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

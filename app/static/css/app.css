@@ -1,0 +1,48 @@
+:root {
+  --rcs-azul: #0d3b66;
+  --rcs-azul-claro: #1d5c96;
+}
+
+body {
+  background-color: #f6f7f9;
+}
+
+.navbar.bg-dark {
+  background-color: var(--rcs-azul) !important;
+}
+
+.brand-mark {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.card {
+  border-radius: 0.6rem;
+}
+
+.table thead th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6c757d;
+  font-weight: 600;
+}
+
+.btn-primary {
+  background-color: var(--rcs-azul-claro);
+  border-color: var(--rcs-azul-claro);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: var(--rcs-azul);
+  border-color: var(--rcs-azul);
+}
+
+.text-bg-light {
+  border: 1px solid #dee2e6;
+}
+
+footer {
+  background-color: #fff;
+}

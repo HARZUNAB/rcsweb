@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Trabajos{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h1 class="h3 mb-1">Trabajos</h1>
+    <p class="text-secondary mb-0">Catálogos procesados y en curso.</p>
+  </div>
+  <button class="btn btn-primary" disabled title="Disponible en la etapa 1">
+    Nuevo trabajo
+  </button>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Total</div>
+        <div class="fs-3 fw-semibold">{{ stats.total }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">En cola</div>
+        <div class="fs-3 fw-semibold">{{ stats.en_cola }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">En curso</div>
+        <div class="fs-3 fw-semibold">{{ stats.en_curso }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Terminados</div>
+        <div class="fs-3 fw-semibold">{{ stats.terminados }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Período</th>
+          <th>Estado</th>
+          <th class="d-none d-md-table-cell">Paso actual</th>
+          <th class="text-end">Creado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in trabajos %}
+        <tr>
+          <td>
+            {% if job.period_start and job.period_end %}
+              {{ job.period_start.strftime('%Y-%m-%d') }} → {{ job.period_end.strftime('%Y-%m-%d') }}
+            {% else %}
+              <span class="text-secondary">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if job.status == 'done' %}
+              <span class="badge text-bg-success">Terminado</span>
+            {% elif job.status == 'running' %}
+              <span class="badge text-bg-primary">En curso</span>
+            {% elif job.status == 'queued' %}
+              <span class="badge text-bg-warning">En cola</span>
+            {% elif job.status == 'failed' %}
+              <span class="badge text-bg-danger">Fallido</span>
+            {% elif job.status == 'cancelled' %}
+              <span class="badge text-bg-secondary">Cancelado</span>
+            {% else %}
+              <span class="badge text-bg-light text-dark">Borrador</span>
+            {% endif %}
+          </td>
+          <td class="d-none d-md-table-cell text-secondary small">
+            {{ job.current_step or '—' }}
+          </td>
+          <td class="text-end text-secondary small">
+            {{ job.created_at.strftime('%Y-%m-%d %H:%M') }}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" class="text-center py-5">
+            <div class="text-secondary mb-2">Todavía no hay trabajos.</div>
+            <div class="small text-secondary">
+              La carga de catálogos estará disponible en la etapa 1.
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

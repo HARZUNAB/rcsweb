@@ -1,0 +1,90 @@
+name: rcsweb
+
+services:
+  db:
+    image: postgres:16
+    container_name: rcsweb-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rcs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rcs_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-rcs}
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rcs} -d ${POSTGRES_DB:-rcs}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: rcsweb-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build: .
+    container_name: rcsweb-web
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      FLASK_APP: app
+      FLASK_DEBUG: "1"
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./app:/app/app
+      - ./tasks:/app/tasks
+      - ./workspace:/workspace
+      - ${RCS_CORE_PATH_HOST}:/opt/rcs-core:ro
+      - ${DATOS_PATH_HOST}:/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    command: >
+      sh -c "flask --app app init-db &&
+             flask --app app run --debug --host 0.0.0.0 --port 8000"
+
+  worker:
+    build: .
+    container_name: rcsweb-worker
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./app:/app/app
+      - ./tasks:/app/tasks
+      - ./workspace:/workspace
+      - ${RCS_CORE_PATH_HOST}:/opt/rcs-core:ro
+      - ${DATOS_PATH_HOST}:/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    command: ["celery", "-A", "tasks.celery_app:celery", "worker", "--loglevel=INFO", "--concurrency=1"]
+
+volumes:
+  pgdata:
+  redisdata:
