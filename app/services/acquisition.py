@@ -92,6 +92,10 @@ def _archivo(request: CatalogRequest, kind: str) -> CatalogRequestFile:
     return archivo
 
 
+def _tiene(request: CatalogRequest, kind: str) -> bool:
+    return any(archivo.kind == kind for archivo in request.files)
+
+
 def _actualizar(request: CatalogRequest, **campos) -> None:
     for clave, valor in campos.items():
         setattr(request, clave, valor)
@@ -125,6 +129,23 @@ def _guardar_archivo(
 
 
 def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
+    locales = [
+        archivo
+        for archivo in request.files
+        if archivo.kind in ("seisan", "seiscomp") and archivo.status == "ok" and archivo.stored_path
+    ]
+    if not locales:
+        raise RuntimeError("La solicitud no tiene ninguna fuente local válida.")
+
+    principal = request.primary_source
+    if principal not in {archivo.kind for archivo in locales}:
+        principal = (
+            "seiscomp"
+            if any(archivo.kind == "seiscomp" for archivo in locales)
+            else locales[0].kind
+        )
+    locales.sort(key=lambda archivo: (0 if archivo.kind == principal else 1, archivo.kind))
+
     job = Job(
         id=nuevo_uuid(),
         period_start=request.period_start,
@@ -150,17 +171,20 @@ def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
             capabilities=sorted(fuente("eventquery").capacidades),
         )
     )
-    db.session.add(
-        JobSource(
-            job_id=job.id,
-            kind="seisan",
-            alias="Seisan (descarga SSH)",
-            format="seisan",
-            role="local_principal",
-            priority=1,
-            capabilities=sorted(fuente("seisan").capacidades),
+    for indice, archivo in enumerate(locales, start=1):
+        formato = archivo.format or archivo.kind
+        alias = "SeisComp (exportación)" if archivo.kind == "seiscomp" else "Seisan (descarga SSH)"
+        db.session.add(
+            JobSource(
+                job_id=job.id,
+                kind=archivo.kind,
+                alias=alias,
+                format=formato,
+                role=("local_principal" if archivo.kind == principal else "local_secundaria"),
+                priority=indice,
+                capabilities=sorted(fuente(formato).capacidades),
+            )
         )
-    )
 
     for archivo in request.files:
         if archivo.status != "ok" or not archivo.stored_path:
@@ -191,6 +215,8 @@ def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
             "solicitud": request.id,
             "inicio": job.inicio14,
             "fin": job.fin14,
+            "fuentes": [archivo.kind for archivo in locales],
+            "principal": principal,
         },
         user_id=request.requested_by_id,
     )
@@ -222,8 +248,7 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
     request.error = None
     db.session.commit()
 
-    for kind in ("eventquery", "seisan"):
-        archivo = _archivo(request, kind)
+    for archivo in request.files:
         archivo.status = "pending"
     db.session.commit()
 
@@ -241,33 +266,13 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
                 progreso=lambda f: _progreso(request, 5, 5, f),
             )
 
-            archivo = _archivo(request, "seisan")
-            archivo.status = "downloading"
-            db.session.commit()
-            request.current_step = "Descargando Seisan"
-            db.session.commit()
-
-            def progreso_seisan(f):
-                _progreso(request, 10, 35, f)
-
-            ruta_seisan = tc.traer_seisan(
-                request.inicio14,
-                request.fin14,
-                conexion,
-                cwd=str(workspace),
-                log=log.escribir,
-                progreso=progreso_seisan,
-                forzar=True,
-            )
-            _guardar_archivo(request, "seisan", Path(ruta_seisan), workspace)
-
             archivo = _archivo(request, "eventquery")
             archivo.status = "downloading"
             request.current_step = "Descargando eventquery"
             db.session.commit()
 
             def progreso_eventquery(f):
-                _progreso(request, 45, 40, f)
+                _progreso(request, 10, 30, f)
 
             ruta_eventquery = tc.traer_eventquery(
                 request.inicio14,
@@ -280,8 +285,45 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
             )
             _guardar_archivo(request, "eventquery", Path(ruta_eventquery), workspace)
 
+            if _tiene(request, "seisan"):
+                archivo = _archivo(request, "seisan")
+                archivo.status = "downloading"
+                request.current_step = "Descargando Seisan"
+                db.session.commit()
+
+                def progreso_seisan(f):
+                    _progreso(request, 40, 25, f)
+
+                ruta_seisan = tc.traer_seisan(
+                    request.inicio14,
+                    request.fin14,
+                    conexion,
+                    cwd=str(workspace),
+                    log=log.escribir,
+                    progreso=progreso_seisan,
+                    forzar=True,
+                )
+                _guardar_archivo(request, "seisan", Path(ruta_seisan), workspace)
+
+            if _tiene(request, "seiscomp"):
+                from .seiscomp import exportar_ventana
+
+                archivo = _archivo(request, "seiscomp")
+                archivo.status = "downloading"
+                request.current_step = "Exportando SeisComp (todas las bases)"
+                db.session.commit()
+                salida = workspace / "files" / f"seiscomp_{request.inicio14}_{request.fin14}.csv"
+                exportar_ventana(
+                    request.inicio14,
+                    request.fin14,
+                    salida,
+                    log=log.escribir,
+                    progreso=lambda f: _progreso(request, 65, 25, f),
+                )
+                _guardar_archivo(request, "seiscomp", salida, workspace)
+
         request.current_step = "Validando catálogos"
-        request.progress = 90
+        request.progress = 95
         db.session.commit()
 
         validaciones = {}

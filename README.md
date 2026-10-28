@@ -4,10 +4,11 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 4B completada.** Además de la carga local, la plataforma
-puede solicitar y descargar catálogos por SSH/SCP, con historial, progreso y
-reintentos. La contraseña se usa por solicitud y no se guarda. Queda pendiente
-4C: exportación automática de SeisComp desde PostgreSQL read-only.
+**Estado actual: etapa 4C completada.** Además de la carga local, la plataforma
+puede solicitar y descargar catálogos por SSH/SCP y exportar SeisComp desde
+PostgreSQL en solo lectura, combinando todas las bases. Las solicitudes tienen
+historial, progreso y reintentos; la contraseña SSH se usa por solicitud y no se
+guarda.
 
 ## Stack
 
@@ -55,15 +56,15 @@ capacidad, se muestra “no evaluable”.
 
 ## Solicitudes por SSH
 
-- `/solicitudes/nueva`: período, servidor, usuario y contraseña.
-- Descarga `select.out` y el CSV de eventquery por SSH/SCP.
+- `/solicitudes/nueva`: período, servidor, usuario, contraseña y fuentes.
+- Descarga siempre el CSV de **eventquery** por SSH/SCP.
+- **Seisan** (`select.out`) se descarga si está marcado.
+- **SeisComp** se exporta desde PostgreSQL si está marcado (ver abajo).
 - La contraseña se usa solo durante la descarga (`SSH_ASKPASS`) y no se guarda.
 - Historial en `/solicitudes`, con estado por catálogo, progreso, log y
   reintento de lo fallido.
 - Al validar, crea el trabajo con `origin=ssh` y lo encola en el pipeline.
 - Requiere `openssh-client` en la imagen y acceso al servidor.
-- La exportación automática de SeisComp se incorpora en 4C; por ahora se sube
-  desde “Nuevo trabajo”.
 
 Variables:
 
@@ -71,6 +72,45 @@ Variables:
 CATALOGOS_SSH_HOST=10.54.217.9
 CATALOGOS_SSH_USER=sysopr
 ```
+
+## Exportación de SeisComp (solo lectura)
+
+La exportación reutiliza `exporta_ventana_seiscomp.py` del proyecto base con
+`--base todas`: consulta la base histórica y la de tiempo real y combina los
+resultados. El script escribe el CSV, `_fases.csv`, `_no_picadas.csv` y la marca
+`.completo`.
+
+La conexión usa un **rol de solo lectura** (`rcs_ro`). Además, el runner
+`app/services/runner_seiscomp.py` envuelve `psycopg2.connect` y agrega
+`default_transaction_read_only=on` a cada conexión, porque el script del core
+pasa su propio `options` y pisa `PGOPTIONS`.
+
+```dotenv
+SEISCOMP_DB_HOST=10.54.217.69
+SEISCOMP_DB_PORT=5432
+SEISCOMP_DB_NAME=seiscomp2
+SEISCOMP_DB_USER=rcs_ro
+SEISCOMP_DB_PASSWORD=
+```
+
+El rol debe crearse una sola vez con permisos de lectura y `CONNECT` en todas
+las bases que se quieran combinar:
+
+```sql
+CREATE ROLE rcs_ro LOGIN PASSWORD '...';
+ALTER ROLE rcs_ro SET default_transaction_read_only = on;
+GRANT CONNECT ON DATABASE seiscomp2 TO rcs_ro;
+-- repetir CONNECT para cada base histórica o de tiempo real
+\c seiscomp2
+GRANT USAGE ON SCHEMA public TO rcs_ro;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO rcs_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO rcs_ro;
+```
+
+`/solicitudes/nueva` incluye **Probar conexión SeisComp**, que valida las
+credenciales y lista las bases visibles sin escribir nada. Si faltan las
+variables, la app muestra el error y deja la solicitud como borrador en vez de
+fallar.
 
 ## Puesta en marcha
 
@@ -227,9 +267,9 @@ make fmt      # ruff format
 ```
 
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
-alta con Seisan-only, borradores por validación fallida y un test de integración
-que ejecuta el pipeline real si el proyecto base está montado. Total actual:
-**76 tests**.
+alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
+módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
+runner de solo lectura. Total actual: **92 tests**.
 
 ## Filtros y exportación
 
@@ -264,7 +304,8 @@ que ejecuta el pipeline real si el proyecto base está montado. Total actual:
 | GET | `/jobs/<id>/resultados/<tabla>/<opcion>/<fila>/mapa.png` | Planta y perfil |
 | GET | `/jobs/<id>/descargas` | Artefactos descargables |
 | GET | `/solicitudes` | Historial de solicitudes |
-| GET/POST | `/solicitudes/nueva` | Solicitud SSH |
+| GET/POST | `/solicitudes/nueva` | Solicitud SSH y selección de fuentes |
+| POST | `/solicitudes/probar-seiscomp` | Probar conexión SeisComp |
 | GET | `/solicitudes/<id>` | Detalle y progreso |
 | POST | `/solicitudes/<id>/reintentar` | Reintentar descarga |
 | GET | `/admin/auditoria` | Auditoría (solo admin) |
@@ -299,12 +340,13 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   `SESSION_COOKIE_SECURE=1` bajo HTTPS.
 - Subidas limitadas a `MAX_UPLOAD_MB`.
 - El dump y el core se montan en solo lectura.
+- SeisComp se consulta con el rol `rcs_ro` y el runner fuerza
+  `default_transaction_read_only=on` en cada conexión.
 - Descargas validadas contra el workspace del trabajo (sin traversal).
 - No hay consola SQL arbitraria.
 
-## Próximos pasos (etapa 4C)
+## Próximos pasos (etapa 4D y 5)
 
-- Exportación automática de SeisComp desde PostgreSQL en solo lectura,
-  consultando todas las bases.
-- Prueba de conexión y cobertura por base.
-- Luego: revisión SeisComp (etapa 5), agencias y catálogo histórico.
+- **4D**: cierre de la etapa 4, capturas y documentación final.
+- **5**: revisión SeisComp (estaciones, arribos y disponibilidad de ondas).
+- Luego: agencias y catálogo histórico.

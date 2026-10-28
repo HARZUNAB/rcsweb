@@ -103,11 +103,34 @@ class SolicitudForm(FlaskForm):
     server = StringField("Servidor SSH", validators=[DataRequired()], default=_ssh_host)
     remote_user = StringField("Usuario SSH", validators=[DataRequired()], default=_ssh_user)
     password = PasswordField("Contraseña SSH", validators=[DataRequired()])
+
+    incluir_seisan = BooleanField("Incluir Seisan", default=True)
+    incluir_seiscomp = BooleanField("Incluir SeisComp", default=False)
+    primary_source = RadioField(
+        "Fuente local principal",
+        choices=[("seiscomp", "SeisComp"), ("seisan", "Seisan")],
+        default="seiscomp",
+    )
     submit = SubmitField("Solicitar y descargar")
 
     def validate_period_end(self, field):  # noqa: N802 - API de WTForms
         if self.period_start.data and field.data and field.data < self.period_start.data:
             raise ValidationError("La fecha de término debe ser posterior a la de inicio.")
+
+    def validate(self, extra_validators=None):  # noqa: N802 - API de WTForms
+        valido = super().validate(extra_validators)
+        if not self.incluir_seisan.data and not self.incluir_seiscomp.data:
+            self.incluir_seisan.errors.append(
+                "Seleccioná al menos una fuente local para descargar."
+            )
+            valido = False
+        if self.incluir_seiscomp.data:
+            from .services.seiscomp import configurada
+
+            if not configurada():
+                self.incluir_seiscomp.errors.append("SeisComp no está configurado (SEISCOMP_DB_*).")
+                valido = False
+        return valido
 
 
 class ReintentarForm(FlaskForm):

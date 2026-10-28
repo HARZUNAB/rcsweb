@@ -76,6 +76,7 @@ class CatalogRequest(db.Model):
     status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
     progress: Mapped[int] = mapped_column(Integer, default=0)
     current_step: Mapped[str | None] = mapped_column(String(80))
+    primary_source: Mapped[str | None] = mapped_column(String(32))
     requested_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     server: Mapped[str | None] = mapped_column(String(255))
     remote_user: Mapped[str | None] = mapped_column(String(80))

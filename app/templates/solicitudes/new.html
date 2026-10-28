@@ -6,7 +6,7 @@
   <div>
     <h1 class="h3 mb-1">Nueva solicitud</h1>
     <p class="text-secondary mb-0">
-      Descarga eventquery y Seisan directamente del servidor por SSH/SCP.
+      Descarga eventquery por SSH/SCP y exporta SeisComp en solo lectura.
     </p>
   </div>
   <a class="btn btn-outline-secondary" href="{{ url_for('solicitudes.lista') }}">
@@ -73,13 +73,60 @@
         </div>
       </div>
 
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+          <h2 class="h6 text-uppercase text-secondary mb-2">Catálogos</h2>
+          <p class="text-secondary small mb-3">
+            eventquery se descarga siempre como referencia.
+          </p>
+          <div class="form-check mb-2">
+            {{ form.incluir_seisan(class="form-check-input") }}
+            {{ form.incluir_seisan.label(class="form-check-label") }}
+          </div>
+          <div class="form-check mb-1">
+            {{ form.incluir_seiscomp(class="form-check-input") }}
+            {{ form.incluir_seiscomp.label(class="form-check-label") }}
+          </div>
+          <div class="form-text mb-3">
+            {% if seiscomp_ok %}
+              Credenciales de solo lectura configuradas.
+            {% else %}
+              Sin configurar: completá <code>SEISCOMP_DB_*</code> para habilitarlo.
+            {% endif %}
+          </div>
+          {% for error in form.incluir_seisan.errors %}
+            <div class="invalid-feedback d-block">{{ error }}</div>
+          {% endfor %}
+          {% for error in form.incluir_seiscomp.errors %}
+            <div class="invalid-feedback d-block">{{ error }}</div>
+          {% endfor %}
+
+          <div class="mt-3">
+            <div class="form-label small">Fuente local principal</div>
+            {% for subfield in form.primary_source %}
+            <div class="form-check">
+              {{ subfield(class="form-check-input") }}
+              {{ subfield.label(class="form-check-label") }}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
       <div class="alert alert-light border small text-secondary">
-        Se descargan <strong>eventquery</strong> y <strong>Seisan</strong>.
-        La exportación automática de SeisComp se incorpora en la etapa 4C;
-        mientras tanto, podés subirla desde “Nuevo trabajo”.
+        Se descargan <strong>eventquery</strong> y las fuentes locales
+        seleccionadas. SeisComp requiere las variables <code>SEISCOMP_DB_*</code>
+        configuradas para conectarse en solo lectura.
       </div>
 
       {{ form.submit(class="btn btn-primary") }}
+    </form>
+
+    <form method="post" action="{{ url_for('solicitudes.probar_seiscomp') }}" class="mt-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm btn-outline-secondary" type="submit">
+        Probar conexión SeisComp
+      </button>
     </form>
   </div>
 
@@ -89,7 +136,8 @@
         <h2 class="h6 text-uppercase text-secondary mb-3">Qué hace</h2>
         <ol class="small text-secondary ps-3 mb-0">
           <li class="mb-2">Se conecta al servidor por SSH con la contraseña indicada.</li>
-          <li class="mb-2">Descarga <code>select.out</code> y el CSV de eventquery.</li>
+          <li class="mb-2">Descarga el CSV de <code>eventquery</code> y, si se elige, <code>select.out</code> de Seisan.</li>
+          <li class="mb-2">Exporta SeisComp de todas las bases, en solo lectura, si está seleccionado.</li>
           <li class="mb-2">Valida formato, eventos y cobertura.</li>
           <li>Crea el trabajo y lo encola en el pipeline.</li>
         </ol>

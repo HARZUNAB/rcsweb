@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -22,13 +23,22 @@ INICIO = "20261001000000"
 FIN = "20261031235959"
 
 
-def _solicitud(app, status="queued"):
+def _input(html: str, nombre: str) -> str:
+    return re.search(f'<input[^>]*name="{nombre}"[^>]*>', html).group(0)
+
+
+def _radios(html: str) -> list[str]:
+    return re.findall(r'<input[^>]*name="primary_source"[^>]*>', html)
+
+
+def _solicitud(app, status="queued", fuentes=("eventquery", "seisan"), principal=None):
     solicitud = CatalogRequest(
         id=nuevo_uuid(),
         mode="ssh",
         period_start=datetime(2026, 10, 1, tzinfo=UTC),
         period_end=datetime(2026, 10, 31, 23, 59, 59, tzinfo=UTC),
         status=status,
+        primary_source=principal,
         server="10.54.217.9",
         remote_user="sysopr",
         requested_by_id=db.session.execute(
@@ -41,16 +51,11 @@ def _solicitud(app, status="queued"):
         [
             CatalogRequestFile(
                 request_id=solicitud.id,
-                kind="eventquery",
-                format="eventquery",
+                kind=kind,
+                format=kind,
                 status="pending",
-            ),
-            CatalogRequestFile(
-                request_id=solicitud.id,
-                kind="seisan",
-                format="seisan",
-                status="pending",
-            ),
+            )
+            for kind in fuentes
         ]
     )
     db.session.commit()
@@ -122,6 +127,8 @@ def test_nueva_solicitud_encola(client, login, monkeypatch):
             "server": "10.54.217.9",
             "remote_user": "sysopr",
             "password": "secreto",
+            "incluir_seisan": "y",
+            "primary_source": "seisan",
         },
     )
 
@@ -130,6 +137,7 @@ def test_nueva_solicitud_encola(client, login, monkeypatch):
     assert solicitud.status == "queued"
     assert solicitud.server == "10.54.217.9"
     assert solicitud.remote_user == "sysopr"
+    assert solicitud.primary_source == "seisan"
     assert {archivo.kind for archivo in solicitud.files} == {"eventquery", "seisan"}
     assert llamadas == [(solicitud.id, "secreto")]
     assert (
@@ -138,6 +146,97 @@ def test_nueva_solicitud_encola(client, login, monkeypatch):
         .entity
         == solicitud.id
     )
+
+
+def test_nueva_por_defecto_sin_seiscomp(client, login, monkeypatch):
+    login()
+    monkeypatch.setattr("app.blueprints.solicitudes.seiscomp_configurada", lambda: False)
+
+    html = client.get("/solicitudes/nueva").get_data(as_text=True)
+
+    assert "checked" in _input(html, "incluir_seisan")
+    assert "checked" not in _input(html, "incluir_seiscomp")
+    marcado = [radio for radio in _radios(html) if "checked" in radio]
+    assert len(marcado) == 1
+    assert 'value="seisan"' in marcado[0]
+
+
+def test_nueva_por_defecto_elige_seiscomp_si_esta_configurado(client, login, monkeypatch):
+    login()
+    monkeypatch.setattr("app.blueprints.solicitudes.seiscomp_configurada", lambda: True)
+
+    html = client.get("/solicitudes/nueva").get_data(as_text=True)
+
+    assert "checked" in _input(html, "incluir_seiscomp")
+    assert "checked" not in _input(html, "incluir_seisan")
+    marcado = [radio for radio in _radios(html) if "checked" in radio]
+    assert len(marcado) == 1
+    assert 'value="seiscomp"' in marcado[0]
+
+
+def test_nueva_solicitud_exige_fuente_local(client, login):
+    login()
+
+    respuesta = client.post(
+        "/solicitudes/nueva",
+        data={
+            "period_start": "2026-10-01",
+            "period_end": "2026-10-31",
+            "server": "10.54.217.9",
+            "remote_user": "sysopr",
+            "password": "secreto",
+        },
+    )
+
+    assert respuesta.status_code == 200
+    assert "Seleccioná al menos una fuente local" in respuesta.get_data(as_text=True)
+    assert db.session.execute(db.select(CatalogRequest)).scalar_one_or_none() is None
+
+
+def test_nueva_solicitud_con_seiscomp(client, login, monkeypatch):
+    login()
+    monkeypatch.setattr("app.services.seiscomp.configurada", lambda: True)
+    llamadas = []
+    monkeypatch.setattr(
+        "app.blueprints.solicitudes.encolar_solicitud",
+        lambda request_id, password: llamadas.append((request_id, password)),
+    )
+
+    respuesta = client.post(
+        "/solicitudes/nueva",
+        data={
+            "period_start": "2026-10-01",
+            "period_end": "2026-10-31",
+            "server": "10.54.217.9",
+            "remote_user": "sysopr",
+            "password": "secreto",
+            "incluir_seiscomp": "y",
+            "primary_source": "seiscomp",
+        },
+    )
+
+    assert respuesta.status_code == 302
+    solicitud = db.session.execute(db.select(CatalogRequest)).scalar_one()
+    assert solicitud.primary_source == "seiscomp"
+    assert {archivo.kind for archivo in solicitud.files} == {"eventquery", "seiscomp"}
+    assert llamadas == [(solicitud.id, "secreto")]
+
+
+def test_probar_seiscomp_sin_configuracion(client, login, monkeypatch):
+    login()
+    monkeypatch.setattr(
+        "app.blueprints.solicitudes.probar_conexion",
+        lambda: {
+            "ok": False,
+            "error": "Faltan SEISCOMP_DB_HOST/USER/PASSWORD.",
+            "bases": [],
+        },
+    )
+
+    respuesta = client.post("/solicitudes/probar-seiscomp", follow_redirects=True)
+
+    assert respuesta.status_code == 200
+    assert "Faltan SEISCOMP_DB_HOST/USER/PASSWORD" in respuesta.get_data(as_text=True)
 
 
 def test_lista_y_detalle(client, login, app):
@@ -191,6 +290,85 @@ def test_ejecutar_solicitud_invalida_no_crea_job(app, monkeypatch):
     db.session.expire_all()
     solicitud = db.session.get(CatalogRequest, solicitud.id)
     assert solicitud.status == "failed"
+    assert db.session.execute(db.select(Job)).scalar_one_or_none() is None
+
+
+def _exportar_seiscomp_falso(error=None):
+    def exportar(inicio, fin, salida, log=None, progreso=None):
+        if error:
+            raise RuntimeError(error)
+        shutil.copy2(
+            SAMPLES / "seiscomp_20261001000000_20261031235959.csv",
+            salida,
+        )
+        if progreso:
+            progreso(1.0)
+        return salida
+
+    return exportar
+
+
+def test_ejecutar_solicitud_exporta_seiscomp(app, monkeypatch):
+    solicitud = _solicitud(
+        app,
+        fuentes=("eventquery", "seiscomp"),
+        principal="seiscomp",
+    )
+    encolados = []
+    monkeypatch.setattr(
+        "app.services.acquisition._cargar_traer_catalogos",
+        lambda: _traer_catalogos_falso(True),
+    )
+    monkeypatch.setattr(
+        "app.services.acquisition.encolar_trabajo",
+        lambda job_id: encolados.append(job_id),
+    )
+    llamado = {}
+
+    def exportar(inicio, fin, salida, log=None, progreso=None):
+        llamado["inicio"] = inicio
+        llamado["fin"] = fin
+        return _exportar_seiscomp_falso()(inicio, fin, salida, log, progreso)
+
+    monkeypatch.setattr("app.services.seiscomp.exportar_ventana", exportar)
+
+    resultado = ejecutar_solicitud(solicitud.id, "secreto")
+
+    assert resultado["estado"] == "done"
+    db.session.expire_all()
+    job = db.session.execute(db.select(Job)).scalar_one()
+    fuentes = {source.kind: source for source in job.sources}
+    assert set(fuentes) == {"eventquery", "seiscomp"}
+    assert fuentes["seiscomp"].role == "local_principal"
+    assert fuentes["eventquery"].role == "referencia"
+    assert {archivo.kind for archivo in job.files} == {"eventquery", "seiscomp"}
+    assert llamado == {"inicio": INICIO, "fin": FIN}
+    assert encolados == [job.id]
+
+
+def test_ejecutar_solicitud_seiscomp_falla_no_crea_job(app, monkeypatch):
+    solicitud = _solicitud(
+        app,
+        fuentes=("eventquery", "seiscomp"),
+        principal="seiscomp",
+    )
+    monkeypatch.setattr(
+        "app.services.acquisition._cargar_traer_catalogos",
+        lambda: _traer_catalogos_falso(True),
+    )
+    monkeypatch.setattr("app.services.acquisition.encolar_trabajo", lambda _id: None)
+    monkeypatch.setattr(
+        "app.services.seiscomp.exportar_ventana",
+        _exportar_seiscomp_falso("sin conexión a SeisComp"),
+    )
+
+    resultado = ejecutar_solicitud(solicitud.id, "secreto")
+
+    assert resultado["estado"] == "failed"
+    db.session.expire_all()
+    solicitud = db.session.get(CatalogRequest, solicitud.id)
+    assert solicitud.status == "failed"
+    assert "sin conexión a SeisComp" in solicitud.error
     assert db.session.execute(db.select(Job)).scalar_one_or_none() is None
 
 

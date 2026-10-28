@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, time
 
-from flask import Blueprint, abort, flash, redirect, render_template, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from ..extensions import db
@@ -17,6 +17,8 @@ from ..services.acquisition import (
 )
 from ..services.audit import registrar
 from ..services.queue import encolar_solicitud
+from ..services.seiscomp import configurada as seiscomp_configurada
+from ..services.seiscomp import probar_conexion
 from ..services.sources import etiquetas
 
 solicitudes_bp = Blueprint("solicitudes", __name__, url_prefix="/solicitudes")
@@ -62,9 +64,27 @@ def lista():
 @login_required
 def nueva():
     form = SolicitudForm()
+    seiscomp_ok = seiscomp_configurada()
+    if request.method == "GET":
+        form.incluir_seiscomp.data = seiscomp_ok
+        form.incluir_seisan.data = not seiscomp_ok
+        form.primary_source.data = "seiscomp" if seiscomp_ok else "seisan"
+
     if form.validate_on_submit():
         inicio = form.period_start.data
         fin = form.period_end.data
+        seleccion = [
+            codigo
+            for codigo, incluir in (
+                ("seisan", form.incluir_seisan.data),
+                ("seiscomp", form.incluir_seiscomp.data),
+            )
+            if incluir
+        ]
+        principal = form.primary_source.data
+        if principal not in seleccion:
+            principal = "seiscomp" if "seiscomp" in seleccion else seleccion[0]
+
         solicitud = CatalogRequest(
             id=nuevo_uuid(),
             mode="ssh",
@@ -73,28 +93,32 @@ def nueva():
             status="queued",
             progress=0,
             current_step="En cola",
+            primary_source=principal,
             requested_by_id=current_user.id,
             server=form.server.data.strip(),
             remote_user=form.remote_user.data.strip(),
         )
         db.session.add(solicitud)
         db.session.commit()
-        db.session.add_all(
-            [
+
+        archivos = [
+            CatalogRequestFile(
+                request_id=solicitud.id,
+                kind="eventquery",
+                format="eventquery",
+                status="pending",
+            )
+        ]
+        for codigo in seleccion:
+            archivos.append(
                 CatalogRequestFile(
                     request_id=solicitud.id,
-                    kind="eventquery",
-                    format="eventquery",
+                    kind=codigo,
+                    format=codigo,
                     status="pending",
-                ),
-                CatalogRequestFile(
-                    request_id=solicitud.id,
-                    kind="seisan",
-                    format="seisan",
-                    status="pending",
-                ),
-            ]
-        )
+                )
+            )
+        db.session.add_all(archivos)
         db.session.commit()
         preparar_workspace(solicitud.id)
 
@@ -106,7 +130,8 @@ def nueva():
                 "fin": solicitud.fin14,
                 "servidor": solicitud.server,
                 "usuario": solicitud.remote_user,
-                "catalogos": ["eventquery", "seisan"],
+                "catalogos": ["eventquery"] + seleccion,
+                "principal": principal,
             },
         )
         try:
@@ -119,7 +144,19 @@ def nueva():
             db.session.commit()
             flash("La solicitud quedó creada pero no se pudo encolar.", "danger")
         return redirect(url_for("solicitudes.detalle", request_id=solicitud.id))
-    return render_template("solicitudes/new.html", form=form)
+    return render_template("solicitudes/new.html", form=form, seiscomp_ok=seiscomp_ok)
+
+
+@solicitudes_bp.post("/probar-seiscomp")
+@login_required
+def probar_seiscomp():
+    resultado = probar_conexion()
+    if resultado["ok"]:
+        bases = ", ".join(resultado["bases"]) or "ninguna"
+        flash(f"Conexión SeisComp OK. Bases: {bases}", "success")
+    else:
+        flash(f"No se pudo conectar a SeisComp: {resultado['error']}", "danger")
+    return redirect(url_for("solicitudes.nueva"))
 
 
 @solicitudes_bp.get("/<request_id>")
