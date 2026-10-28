@@ -25,12 +25,14 @@ def create_app(config_object: type | None = None) -> Flask:
     from .blueprints.health import health_bp
     from .blueprints.jobs import jobs_bp
     from .blueprints.results import results_bp
+    from .blueprints.solicitudes import solicitudes_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(jobs_bp)
     app.register_blueprint(results_bp)
+    app.register_blueprint(solicitudes_bp)
     app.register_blueprint(admin_bp)
 
     from .cli import register_cli

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Solicitudes{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h1 class="h3 mb-1">Solicitudes de catálogos</h1>
+    <p class="text-secondary mb-0">
+      Descargas por SSH/SCP y su historial.
+    </p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('solicitudes.nueva') }}">
+    Nueva solicitud
+  </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Período</th>
+          <th>Servidor</th>
+          <th>Estado</th>
+          <th class="d-none d-md-table-cell">Paso</th>
+          <th class="text-end">Creada</th>
+          <th class="text-end"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for solicitud in solicitudes %}
+        <tr>
+          <td>
+            {{ solicitud.period_start.strftime('%Y-%m-%d') }} →
+            {{ solicitud.period_end.strftime('%Y-%m-%d') }}
+          </td>
+          <td class="small">
+            {{ solicitud.remote_user }}@{{ solicitud.server }}
+          </td>
+          <td>
+            {% if solicitud.status == 'done' %}
+              <span class="badge text-bg-success">Terminada</span>
+            {% elif solicitud.status == 'running' %}
+              <span class="badge text-bg-primary">Descargando</span>
+            {% elif solicitud.status == 'queued' %}
+              <span class="badge text-bg-warning">En cola</span>
+            {% elif solicitud.status == 'partial' %}
+              <span class="badge text-bg-warning">Parcial</span>
+            {% elif solicitud.status == 'failed' %}
+              <span class="badge text-bg-danger">Fallida</span>
+            {% else %}
+              <span class="badge text-bg-secondary">{{ solicitud.status }}</span>
+            {% endif %}
+          </td>
+          <td class="d-none d-md-table-cell small text-secondary">
+            {{ solicitud.current_step or '—' }}
+          </td>
+          <td class="text-end small text-secondary">
+            {{ solicitud.created_at.strftime('%Y-%m-%d %H:%M') }}
+          </td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary"
+               href="{{ url_for('solicitudes.detalle', request_id=solicitud.id) }}">
+              Ver
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="text-center text-secondary py-5">
+            No hay solicitudes todavía.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

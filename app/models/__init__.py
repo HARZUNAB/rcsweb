@@ -74,6 +74,8 @@ class CatalogRequest(db.Model):
     period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    progress: Mapped[int] = mapped_column(Integer, default=0)
+    current_step: Mapped[str | None] = mapped_column(String(80))
     requested_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     server: Mapped[str | None] = mapped_column(String(255))
     remote_user: Mapped[str | None] = mapped_column(String(80))
@@ -91,6 +93,14 @@ class CatalogRequest(db.Model):
         cascade="all, delete-orphan",
     )
 
+    @property
+    def inicio14(self) -> str:
+        return self.period_start.strftime("%Y%m%d%H%M%S") if self.period_start else ""
+
+    @property
+    def fin14(self) -> str:
+        return self.period_end.strftime("%Y%m%d%H%M%S") if self.period_end else ""
+
     def __repr__(self) -> str:  # pragma: no cover
         return f"<CatalogRequest {self.id} {self.mode} {self.status}>"
 
@@ -103,6 +113,7 @@ class CatalogRequestFile(db.Model):
         ForeignKey("catalog_requests.id", ondelete="CASCADE"), index=True
     )
     kind: Mapped[str] = mapped_column(String(32))
+    format: Mapped[str] = mapped_column(String(32), default="")
     status: Mapped[str] = mapped_column(String(20), default="pending")
     stored_path: Mapped[str | None] = mapped_column(String(255))
     original_name: Mapped[str | None] = mapped_column(String(255))

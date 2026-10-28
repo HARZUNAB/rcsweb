@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileAllowed, FileField, FileRequired
 from wtforms import (
@@ -17,6 +19,14 @@ from wtforms.validators import DataRequired, Length, ValidationError
 from .services.sources import default_primary, fuentes_locales
 
 LOCALES = [(fuente.codigo, fuente.etiqueta) for fuente in fuentes_locales()]
+
+
+def _ssh_host() -> str:
+    return os.environ.get("CATALOGOS_SSH_HOST", "10.54.217.9")
+
+
+def _ssh_user() -> str:
+    return os.environ.get("CATALOGOS_SSH_USER", "sysopr")
 
 
 class LoginForm(FlaskForm):
@@ -85,3 +95,21 @@ class JobForm(FlaskForm):
             valido = False
 
         return valido
+
+
+class SolicitudForm(FlaskForm):
+    period_start = DateField("Desde", validators=[DataRequired()])
+    period_end = DateField("Hasta", validators=[DataRequired()])
+    server = StringField("Servidor SSH", validators=[DataRequired()], default=_ssh_host)
+    remote_user = StringField("Usuario SSH", validators=[DataRequired()], default=_ssh_user)
+    password = PasswordField("Contraseña SSH", validators=[DataRequired()])
+    submit = SubmitField("Solicitar y descargar")
+
+    def validate_period_end(self, field):  # noqa: N802 - API de WTForms
+        if self.period_start.data and field.data and field.data < self.period_start.data:
+            raise ValidationError("La fecha de término debe ser posterior a la de inicio.")
+
+
+class ReintentarForm(FlaskForm):
+    password = PasswordField("Contraseña SSH", validators=[DataRequired()])
+    submit = SubmitField("Reintentar descarga")

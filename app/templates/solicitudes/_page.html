@@ -1,0 +1,136 @@
+<div id="solicitud-page"
+     {% if activa %}
+       hx-get="{{ url_for('solicitudes.estado', request_id=solicitud.id) }}"
+       hx-trigger="every 2s"
+       hx-select="#solicitud-page"
+       hx-swap="outerHTML"
+     {% endif %}>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <div class="text-secondary small text-uppercase mb-1">Solicitud</div>
+      <h1 class="h3 mb-1">
+        {{ solicitud.period_start.strftime('%Y-%m-%d') }} →
+        {{ solicitud.period_end.strftime('%Y-%m-%d') }}
+      </h1>
+      <div class="text-secondary small">
+        {{ solicitud.id }} · {{ solicitud.remote_user }}@{{ solicitud.server }}
+        · creada {{ solicitud.created_at.strftime('%Y-%m-%d %H:%M') }}
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      {% if solicitud.status == 'done' %}
+        <span class="badge text-bg-success">Terminada</span>
+      {% elif solicitud.status == 'running' %}
+        <span class="badge text-bg-primary">Descargando</span>
+      {% elif solicitud.status == 'queued' %}
+        <span class="badge text-bg-warning">En cola</span>
+      {% elif solicitud.status == 'partial' %}
+        <span class="badge text-bg-warning">Parcial</span>
+      {% elif solicitud.status == 'failed' %}
+        <span class="badge text-bg-danger">Fallida</span>
+      {% else %}
+        <span class="badge text-bg-secondary">{{ solicitud.status }}</span>
+      {% endif %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('solicitudes.lista') }}">
+        Volver
+      </a>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div>
+          <div class="text-secondary small text-uppercase">Progreso</div>
+          <div class="fw-semibold">{{ solicitud.current_step or 'Pendiente' }}</div>
+        </div>
+        <div class="fs-5 fw-semibold">{{ solicitud.progress }}%</div>
+      </div>
+      <div class="progress" role="progressbar" aria-valuenow="{{ solicitud.progress }}"
+           aria-valuemin="0" aria-valuemax="100" style="height: 10px;">
+        <div class="progress-bar {% if solicitud.status == 'failed' %}bg-danger{% elif solicitud.status == 'done' %}bg-success{% endif %}"
+             style="width: {{ solicitud.progress }}%"></div>
+      </div>
+      {% if solicitud.error %}
+        <div class="alert alert-danger small mt-3 mb-0">{{ solicitud.error }}</div>
+      {% endif %}
+      {% if job %}
+        <div class="alert alert-success small mt-3 mb-0 d-flex justify-content-between align-items-center">
+          <span>Trabajo creado correctamente.</span>
+          <a class="btn btn-sm btn-outline-success"
+             href="{{ url_for('jobs.detalle', job_id=job.id) }}">Ver trabajo</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <h2 class="h6 text-uppercase text-secondary mb-3">Catálogos</h2>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Catálogo</th>
+              <th>Estado</th>
+              <th>Tamaño</th>
+              <th>Detalle</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for archivo in solicitud.files|sort(attribute='kind') %}
+            <tr>
+              <td>{{ etiquetas.get(archivo.kind, archivo.kind) }}</td>
+              <td>
+                {% if archivo.status == 'ok' %}
+                  <span class="badge text-bg-success">OK</span>
+                {% elif archivo.status == 'downloading' %}
+                  <span class="badge text-bg-primary">Descargando</span>
+                {% elif archivo.status == 'error' %}
+                  <span class="badge text-bg-danger">Error</span>
+                {% else %}
+                  <span class="badge text-bg-light text-dark">Pendiente</span>
+                {% endif %}
+              </td>
+              <td class="small text-secondary">
+                {% if archivo.size %}{{ archivo.size|filesizeformat }}{% else %}—{% endif %}
+              </td>
+              <td class="small text-secondary">{{ archivo.message or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {% if puede_reintentar %}
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <h2 class="h6 text-uppercase text-secondary mb-2">Reintentar</h2>
+      <p class="text-secondary small">
+        Podés volver a descargar los catálogos fallidos. La contraseña no se guarda.
+      </p>
+      <form method="post" action="{{ url_for('solicitudes.reintentar', request_id=solicitud.id) }}"
+            class="row g-2 align-items-end">
+        {{ form_reintento.hidden_tag() }}
+        <div class="col-12 col-sm-8">
+          {{ form_reintento.password.label(class="form-label small") }}
+          {{ form_reintento.password(class="form-control", autocomplete="off") }}
+        </div>
+        <div class="col-12 col-sm-4">
+          {{ form_reintento.submit(class="btn btn-warning w-100") }}
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <h2 class="h6 text-uppercase text-secondary mb-3">Log</h2>
+      <pre class="log-panel mb-0">{% if log %}{{ log|join('\n') }}{% else %}Sin salida todavía.{% endif %}</pre>
+    </div>
+  </div>
+</div>

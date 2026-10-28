@@ -4,11 +4,10 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 4A.2 completada.** La app trabaja con un **catálogo
-estándar**: eventquery como referencia y fuentes locales identificadas por alias
-y formato. Los adaptadores traducen cada formato sin acoplar el arranque de la
-app. SeisComp es la fuente local principal por defecto; Seisan es opcional.
-Quedan pendientes 4B (SSH) y 4C (exportación SeisComp).
+**Estado actual: etapa 4B completada.** Además de la carga local, la plataforma
+puede solicitar y descargar catálogos por SSH/SCP, con historial, progreso y
+reintentos. La contraseña se usa por solicitud y no se guarda. Queda pendiente
+4C: exportación automática de SeisComp desde PostgreSQL read-only.
 
 ## Stack
 
@@ -53,6 +52,25 @@ El catálogo estándar vive en `app/domain/catalogs/` y se guarda como JSONL en
 La tarea **“disponible y no picada”** se calcula cruzando inventario activo,
 arribos del origen preferido y disponibilidad de formas de onda. Si falta una
 capacidad, se muestra “no evaluable”.
+
+## Solicitudes por SSH
+
+- `/solicitudes/nueva`: período, servidor, usuario y contraseña.
+- Descarga `select.out` y el CSV de eventquery por SSH/SCP.
+- La contraseña se usa solo durante la descarga (`SSH_ASKPASS`) y no se guarda.
+- Historial en `/solicitudes`, con estado por catálogo, progreso, log y
+  reintento de lo fallido.
+- Al validar, crea el trabajo con `origin=ssh` y lo encola en el pipeline.
+- Requiere `openssh-client` en la imagen y acceso al servidor.
+- La exportación automática de SeisComp se incorpora en 4C; por ahora se sube
+  desde “Nuevo trabajo”.
+
+Variables:
+
+```dotenv
+CATALOGOS_SSH_HOST=10.54.217.9
+CATALOGOS_SSH_USER=sysopr
+```
 
 ## Puesta en marcha
 
@@ -211,7 +229,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida y un test de integración
 que ejecuta el pipeline real si el proyecto base está montado. Total actual:
-**70 tests**.
+**76 tests**.
 
 ## Filtros y exportación
 
@@ -245,6 +263,10 @@ que ejecuta el pipeline real si el proyecto base está montado. Total actual:
 | GET | `/jobs/<id>/resultados/<tabla>/<opcion>/<fila>/miniatura.png` | Miniatura del perfil |
 | GET | `/jobs/<id>/resultados/<tabla>/<opcion>/<fila>/mapa.png` | Planta y perfil |
 | GET | `/jobs/<id>/descargas` | Artefactos descargables |
+| GET | `/solicitudes` | Historial de solicitudes |
+| GET/POST | `/solicitudes/nueva` | Solicitud SSH |
+| GET | `/solicitudes/<id>` | Detalle y progreso |
+| POST | `/solicitudes/<id>/reintentar` | Reintentar descarga |
 | GET | `/admin/auditoria` | Auditoría (solo admin) |
 | GET | `/health` | Estado de base, core, workspace y dump |
 
@@ -280,10 +302,9 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
 - Descargas validadas contra el workspace del trabajo (sin traversal).
 - No hay consola SQL arbitraria.
 
-## Próximos pasos (etapa 4B y 4C)
+## Próximos pasos (etapa 4C)
 
-- **4B**: descarga automática por SSH/SCP de Seisan y eventquery, historial de
-  solicitudes y reintentos.
-- **4C**: exportación automática de SeisComp desde PostgreSQL en solo lectura,
+- Exportación automática de SeisComp desde PostgreSQL en solo lectura,
   consultando todas las bases.
-- Luego: revisión SeisComp (estación 5), agencias y catálogo histórico.
+- Prueba de conexión y cobertura por base.
+- Luego: revisión SeisComp (etapa 5), agencias y catálogo histórico.

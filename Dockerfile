@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libproj-dev \
         proj-data \
         libpq5 \
+        openssh-client \
         curl \
     && rm -rf /var/lib/apt/lists/*
 

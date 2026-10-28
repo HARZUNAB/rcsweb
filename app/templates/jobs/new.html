@@ -9,7 +9,12 @@
       eventquery es la referencia. Elegí al menos una fuente local para comparar.
     </p>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('dashboard.index') }}">Cancelar</a>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{{ url_for('solicitudes.nueva') }}">
+      Descargar del servidor
+    </a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('dashboard.index') }}">Cancelar</a>
+  </div>
 </div>
 
 <div class="row">
