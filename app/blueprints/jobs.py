@@ -317,7 +317,14 @@ def descargas(job_id: str):
         "entregable": [a for a in job.artifacts if a.tipo == "entregable"],
         "catalogo": [a for a in job.artifacts if a.tipo == "catalogo"],
     }
-    return render_template("jobs/downloads.html", job=job, grupos=grupos)
+    return render_template(
+        "jobs/downloads.html",
+        job=job,
+        grupos=grupos,
+        indice=cargar_indice(ruta_workspace(job.id)),
+        etiquetas=etiquetas(),
+        aliases={source.kind: source.alias_mostrado for source in job.sources},
+    )
 
 
 @jobs_bp.get("/<job_id>/descargar/<int:artifact_id>")

@@ -7,6 +7,7 @@ from io import BytesIO
 from flask import (
     Blueprint,
     abort,
+    redirect,
     render_template,
     request,
     send_file,
@@ -27,7 +28,7 @@ from ..services.results import (
     leer_tabla,
     rep_files,
 )
-from ..services.sources import FUENTES, default_primary, etiqueta, etiquetas
+from ..services.sources import FUENTES, default_primary, etiqueta
 from ..services.workspace import ruta_workspace
 
 results_bp = Blueprint("results", __name__)
@@ -190,16 +191,7 @@ def titulo_columna(clave: str) -> str:
 @login_required
 def overview(job_id: str):
     job = _job(job_id)
-    indice = cargar_indice(ruta_workspace(job.id))
-    return render_template(
-        "results/overview.html",
-        job=job,
-        indice=indice,
-        tablas=TABLAS,
-        etiquetas=etiquetas(),
-        aliases={source.kind: source.alias_mostrado for source in job.sources},
-        fuentes=_fuentes_job(job),
-    )
+    return redirect(url_for("jobs.detalle", job_id=job.id) + "#resultados")
 
 
 def _render_tabla(job_id: str, tabla: str, opcion: str):
@@ -311,8 +303,15 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
             fila=fila,
         )
 
-    volver = url_for(endpoint, job_id=job.id, **{parametro: opcion})
+    volver = url_for("jobs.detalle", job_id=job.id)
     titulo_opcion = dict(opciones)[opcion]
+
+    indice = cargar_indice(ruta_workspace(job.id))
+    catalogos = indice.get("catalogos", {})
+    fuente_catalogo = opcion if opcion in catalogos else opcion.split("_", 1)[0]
+    catalogo_filas = (
+        catalogos.get(fuente_catalogo, {}).get("filas") if fuente_catalogo in catalogos else None
+    )
 
     return render_template(
         "results/table.html",
@@ -329,6 +328,7 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
         parametro=parametro,
         endpoint=endpoint,
         volver=volver,
+        catalogo_filas=catalogo_filas,
         url_tab=url_tab,
         url_orden=url_orden,
         url_pagina=url_pagina,

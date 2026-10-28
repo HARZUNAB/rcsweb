@@ -29,7 +29,11 @@
       {% endif %}
     </div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ volver }}">Volver a la tabla</a>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('jobs.detalle', job_id=job.id) }}">Volver al trabajo</a>
+    <a class="btn btn-outline-primary" href="{{ volver }}">Volver a la tabla</a>
+  </div>
 </div>
 
 {% if tabla == 'no_actualizados' %}

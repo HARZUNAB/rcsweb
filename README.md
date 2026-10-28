@@ -175,6 +175,10 @@ Los pasos de Seisan solo existen si Seisan está seleccionado. Lo mismo para
 SeisComp. Al final se normalizan las salidas en `workspace/<job>/resultados/` y
 se registran los artefactos descargables.
 
+El detalle del trabajo es el punto de entrada a los resultados: muestra los
+conteos por fuente, los catálogos procesados y los accesos a las tablas. La ruta
+`/jobs/<id>/resultados` redirige a ese detalle.
+
 ## Validación y borradores
 
 Antes de encolar se valida cada catálogo:
@@ -278,7 +282,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **100 tests**.
+runner de solo lectura. Total actual: **105 tests**.
 
 ## Filtros y exportación
 
@@ -303,7 +307,7 @@ runner de solo lectura. Total actual: **100 tests**.
 | GET | `/jobs/<id>/estado` | Fragmento para el polling HTMX |
 | POST | `/jobs/<id>/cancelar` | Cancelar trabajo |
 | POST | `/jobs/<id>/eliminar` | Eliminar trabajo terminado |
-| GET | `/jobs/<id>/resultados` | Resumen de resultados |
+| GET | `/jobs/<id>/resultados` | Redirige al detalle del trabajo |
 | GET | `/jobs/<id>/resultados/no-publicados` | Tabla de no publicados |
 | GET | `/jobs/<id>/resultados/no-actualizados` | Tabla de no actualizados |
 | GET | `/jobs/<id>/resultados/repetidos` | Informes de repetidos |

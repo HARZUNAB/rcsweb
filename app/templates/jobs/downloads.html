@@ -14,11 +14,24 @@
     <a class="btn btn-outline-secondary" href="{{ url_for('jobs.detalle', job_id=job.id) }}">
       Volver al trabajo
     </a>
-    <a class="btn btn-outline-primary" href="{{ url_for('results.overview', job_id=job.id) }}">
+    <a class="btn btn-outline-primary"
+       href="{{ url_for('jobs.detalle', job_id=job.id) }}#resultados">
       Resultados
     </a>
   </div>
 </div>
+
+{% if indice.catalogos %}
+<div class="alert alert-light border d-flex flex-wrap align-items-center gap-3 small">
+  <span class="fw-semibold text-uppercase text-secondary">Catálogos procesados</span>
+  {% for clave, info in indice.catalogos.items() %}
+    <span>
+      {{ aliases.get(clave, etiquetas.get(clave, clave)) }}
+      <strong>{{ "{:,}".format(info.get('filas', 0)) }}</strong> eventos
+    </span>
+  {% endfor %}
+</div>
+{% endif %}
 
 {% for clave, titulo, descripcion in [
     ('resultado', 'Tablas de resultados', 'CSV listos para abrir en Excel o procesar.'),

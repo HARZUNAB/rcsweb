@@ -28,8 +28,7 @@
     <div class="d-flex align-items-center gap-2">
       {{ badge_estado(job.status) }}
       {% if job.status == 'done' %}
-        <a class="btn btn-sm btn-outline-primary"
-           href="{{ url_for('results.overview', job_id=job.id) }}">Resultados</a>
+        <a class="btn btn-sm btn-outline-primary" href="#resultados">Resultados</a>
         <a class="btn btn-sm btn-outline-secondary"
            href="{{ url_for('jobs.descargas', job_id=job.id) }}">Descargas</a>
       {% endif %}
@@ -75,7 +74,7 @@
   {% endif %}
 
   {% if job.status == 'done' %}
-  <div class="row g-3 mt-1">
+  <div class="row g-3 mt-1" id="resultados">
     <div class="col-12 col-lg-4">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body">
@@ -129,5 +128,24 @@
       </div>
     </div>
   </div>
+
+  {% if indice.catalogos %}
+  <div class="card border-0 shadow-sm mt-3">
+    <div class="card-body">
+      <div class="text-secondary small text-uppercase mb-2">Catálogos procesados</div>
+      <div class="d-flex flex-wrap gap-4">
+        {% for clave, info in indice.catalogos.items() %}
+        <div>
+          <span class="text-secondary small">
+            {{ aliases.get(clave, etiquetas.get(clave, clave)) }}
+          </span>
+          <span class="fw-semibold ms-1">{{ "{:,}".format(info.get('filas', 0)) }}</span>
+          <span class="text-secondary small">eventos</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
   {% endif %}
 </div>
