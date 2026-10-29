@@ -140,3 +140,74 @@ def test_generar_miniatura_cachea(app, tmp_path, monkeypatch):
 
     assert primero == segundo == PNG
     assert len(llamadas) == 1
+
+
+def test_perfil_mapa_incluye_topo_slab_y_frontera(monkeypatch):
+    eventos = [
+        {
+            "rol": "local",
+            "latitud": -30.0,
+            "longitud": -71.0,
+            "prof": 10.0,
+            "fecha hora": "2026-10-01 00:00:00",
+            "magnitud": "2.5",
+            "tipo": "ML",
+            "analista": "ana",
+        },
+        {
+            "rol": "publicado",
+            "latitud": -30.1,
+            "longitud": -71.1,
+            "prof": 20.0,
+            "fecha hora": "2026-10-01 00:00:00",
+            "magnitud": "2.6",
+            "tipo": "ML",
+            "analista": "",
+        },
+    ]
+
+    monkeypatch.setattr(plots, "_eventos", lambda *args: eventos)
+    monkeypatch.setattr(plots, "_perfiles", lambda: [{"id": "P1"}])
+    monkeypatch.setattr(
+        plots,
+        "_asignar",
+        lambda filas, perfiles: (
+            [
+                {**filas[0], "along_km": 0.0, "perp_km": 0.0},
+                {**filas[1], "along_km": 10.0, "perp_km": 2.0},
+            ],
+            {
+                "id": "P1",
+                "topo_p": [0.0, 10.0],
+                "topo_alt": [0.0, 1000.0],
+                "slab": {"p": [0.0, 10.0], "depth": [20.0, float("nan")]},
+            },
+        ),
+    )
+    monkeypatch.setattr(plots, "texto_frontera_coords", lambda lat, lon: "Argentina — 12.0 km")
+
+    datos = plots.perfil_mapa("no_actualizados", "no_actualizados_seisan.csv", [], 0, "seiscomp")
+
+    assert datos is not None
+    assert datos["topo_p"] == [0.0, 10.0]
+    assert datos["topo_alt"] == [0.0, 1000.0]
+    assert datos["slab_depth"] == [20.0, None]
+    assert len(datos["eventos"]) == 2
+    assert datos["eventos"][0]["fuente"] == "seiscomp"
+    assert datos["eventos"][0]["color"] == plots.COLORES_FUENTE["seiscomp"]
+    assert datos["eventos"][1]["fuente"] == "eventquery"
+    assert datos["eventos"][1]["color"] == plots.COLORES_FUENTE["eventquery"]
+    assert datos["eventos"][0]["dist_km"] == 0.0
+    assert datos["eventos"][0]["frontera"] == "Argentina — 12.0 km"
+
+
+def test_perfil_mapa_sin_perfil_devuelve_none(monkeypatch):
+    monkeypatch.setattr(
+        plots,
+        "_eventos",
+        lambda *args: [{"rol": "local", "latitud": -30, "longitud": -71}],
+    )
+    monkeypatch.setattr(plots, "_perfiles", lambda: [])
+    monkeypatch.setattr(plots, "_asignar", lambda filas, perfiles: (filas, None))
+
+    assert plots.perfil_mapa("no_publicados", "x.csv", [], 0, "seiscomp") is None

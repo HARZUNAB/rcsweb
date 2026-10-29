@@ -18,6 +18,7 @@ from pathlib import Path
 
 from flask import current_app
 
+from . import borders
 from .sources import FUENTES, etiqueta, nombre_atribucion, nombre_no_publicados
 
 # Informes de repetidos comunes a todas las fuentes locales.
@@ -108,7 +109,7 @@ NO_ACT_COLUMNS = (
 )
 
 # Columnas que se usan para ordenar pero no se muestran.
-COLUMNAS_OCULTAS = {"revision_orden", "_fila"}
+COLUMNAS_OCULTAS = {"revision_orden", "_fila", "Frontera_km", "Frontera_pais"}
 
 TABLAS = {
     "no_publicados": {
@@ -564,6 +565,30 @@ def _pasa_filtro(valor, patron: str, numerica: bool) -> bool:
     return _normalizar(patron) in _normalizar(texto)
 
 
+def _claves_frontera(columnas: list[str]):
+    """Columnas de latitud/longitud según el tipo de tabla."""
+    for lat, lon in (
+        ("Latitud", "Longitud"),
+        ("lat_local", "lon_local"),
+        ("latitud", "longitud"),
+    ):
+        if lat in columnas and lon in columnas:
+            return lat, lon
+    return None
+
+
+def _insertar_frontera(columnas: list[str]) -> list[str]:
+    if "Frontera" in columnas:
+        return columnas
+    posicion = len(columnas)
+    for indice, columna in enumerate(columnas):
+        if columna in ("Analista", "analista"):
+            posicion = indice + 1
+            break
+    columnas.insert(posicion, "Frontera")
+    return columnas
+
+
 def _leer_filtrar_ordenar(
     workspace: Path,
     archivo: str,
@@ -582,6 +607,10 @@ def _leer_filtrar_ordenar(
     columnas, filas = leer_csv(ruta)
     for indice, fila in enumerate(filas):
         fila["_fila"] = indice
+    claves = _claves_frontera(columnas)
+    if claves:
+        borders.anotar_filas(filas, *claves)
+        _insertar_frontera(columnas)
 
     termino = _normalizar(q.strip())
     if termino:
@@ -609,7 +638,16 @@ def _leer_filtrar_ordenar(
             )
         ]
 
-    if sort == "revision":
+    if sort == "Frontera":
+        filas.sort(
+            key=lambda f: (
+                f.get("Frontera_km") is None,
+                f.get("Frontera_km") or 0.0,
+                _normalizar(str(f.get("Frontera", ""))),
+            ),
+            reverse=(direccion == "desc"),
+        )
+    elif sort == "revision":
         orden = {"Alta": 1, "Media": 2, "Baja": 3, "—": 4}
         filas.sort(
             key=lambda f: orden.get(str(f.get("revision", "")).strip(), 9),

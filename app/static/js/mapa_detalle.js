@@ -20,6 +20,14 @@
     return;
   }
 
+  const perfilDatosEl = document.getElementById("perfil-datos");
+  let perfilDatos = null;
+  try {
+    perfilDatos = perfilDatosEl ? JSON.parse(perfilDatosEl.textContent || "null") : null;
+  } catch (error) {
+    perfilDatos = null;
+  }
+
   const modo = contenedor.dataset.modo || "offline";
   const aviso = document.getElementById("mapa-aviso");
   const avisoLink = document.getElementById("mapa-aviso-link");
@@ -57,6 +65,7 @@
       ["Tipo mag.", valor(punto.tipo)],
       ["Analista", valor(punto.analista)],
       ["Distancia", valor(punto.dist_km, " km")],
+      ["Frontera", valor(punto.frontera)],
       ["Estado", valor(punto.estado)],
     ];
     let html = '<div class="small"><dl class="row mb-0 g-0">';
@@ -98,7 +107,7 @@
     }
   }
 
-  function dibujarPerfil() {
+  function dibujarPerfilSimple() {
     const conProfundidad = puntos.filter(function (punto) {
       return punto.prof !== null && punto.prof !== undefined;
     });
@@ -116,7 +125,7 @@
           : punto.dist_km;
       }),
       y: conProfundidad.map(function (punto) {
-        return punto.prof;
+        return -punto.prof;
       }),
       text: conProfundidad.map(function (punto) {
         return punto.etiqueta + " · " + punto.fecha;
@@ -134,7 +143,7 @@
     const layout = {
       margin: { l: 55, r: 15, t: 15, b: 45 },
       xaxis: { title: "Distancia (km)", zeroline: false },
-      yaxis: { title: "Profundidad (km)", autorange: "reversed" },
+      yaxis: { title: "Profundidad (km)" },
       showlegend: false,
       paper_bgcolor: "#ffffff",
       plot_bgcolor: "#ffffff",
@@ -150,6 +159,131 @@
         }
       });
     });
+  }
+
+  function dibujarPerfilCompleto(datos) {
+    const eventos = (datos.eventos || []).filter(function (evento) {
+      return evento.along_km !== null && evento.along_km !== undefined &&
+        evento.prof !== null && evento.prof !== undefined;
+    });
+    if (!eventos.length || !window.Plotly) {
+      dibujarPerfilSimple();
+      return;
+    }
+    const trazas = [];
+    if ((datos.topo_p || []).length) {
+      trazas.push({
+        type: "scatter",
+        mode: "lines",
+        x: datos.topo_p,
+        y: (datos.topo_alt || []).map(function (valor) {
+          return valor === null || valor === undefined ? null : valor / 1000.0;
+        }),
+        line: { color: "#b8a37a", width: 1 },
+        fill: "tozeroy",
+        fillcolor: "rgba(232, 220, 194, 0.55)",
+        hoverinfo: "skip",
+        name: "Topografía",
+      });
+    }
+    if ((datos.slab_p || []).length) {
+      trazas.push({
+        type: "scatter",
+        mode: "lines",
+        x: datos.slab_p,
+        y: (datos.slab_depth || []).map(function (valor) {
+          return valor === null || valor === undefined ? null : -valor;
+        }),
+        line: { color: "#1f1f1f", width: 2 },
+        hoverinfo: "skip",
+        name: "Slab",
+      });
+    }
+    trazas.push({
+      type: "scatter",
+      mode: "markers",
+      x: eventos.map(function (evento) {
+        return evento.along_km;
+      }),
+      y: eventos.map(function (evento) {
+        return -evento.prof;
+      }),
+      text: eventos.map(function (evento) {
+        return evento.etiqueta + " · " + evento.fecha;
+      }),
+      customdata: eventos,
+      marker: {
+        size: 11,
+        color: eventos.map(function (evento) {
+          return evento.color;
+        }),
+        line: { color: "#ffffff", width: 1 },
+      },
+      hovertemplate: "%{text}<extra></extra>",
+      name: "Eventos",
+    });
+    const xs = [];
+    const ys = [];
+    (datos.topo_p || []).concat(datos.slab_p || []).concat(
+      eventos.map(function (evento) { return evento.along_km; })
+    ).forEach(function (valor) {
+      if (typeof valor === "number" && Number.isFinite(valor)) xs.push(valor);
+    });
+    (datos.topo_alt || []).forEach(function (valor) {
+      if (typeof valor === "number" && Number.isFinite(valor)) ys.push(valor / 1000.0);
+    });
+    (datos.slab_depth || []).forEach(function (valor) {
+      if (typeof valor === "number" && Number.isFinite(valor)) ys.push(-valor);
+    });
+    eventos.forEach(function (evento) { ys.push(-evento.prof); });
+    const xMin = xs.length ? Math.min.apply(null, xs) : undefined;
+    const xMax = xs.length ? Math.max.apply(null, xs) : undefined;
+    const yMin = ys.length ? Math.min.apply(null, ys) : undefined;
+    const yMax = ys.length ? Math.max.apply(null, ys) : undefined;
+    const layout = {
+      margin: { l: 60, r: 15, t: 15, b: 45 },
+      xaxis: {
+        title: "Distancia a lo largo del perfil (km)",
+        range: xMin !== undefined ? [xMin, xMax] : undefined,
+        zeroline: false,
+      },
+      yaxis: {
+        title: "Elevación / Profundidad (km)",
+        range: yMin !== undefined ? [yMin, yMax] : undefined,
+        zeroline: true,
+      },
+      shapes: [{
+        type: "line",
+        xref: "paper",
+        x0: 0,
+        x1: 1,
+        y0: 0,
+        y1: 0,
+        line: { color: "#adb5bd", width: 1, dash: "dot" },
+      }],
+      showlegend: false,
+      paper_bgcolor: "#ffffff",
+      plot_bgcolor: "#ffffff",
+    };
+    window.Plotly.newPlot(perfil, trazas, layout, {
+      responsive: true,
+      displaylogo: false,
+    }).then(function () {
+      perfil.on("plotly_click", function (evento) {
+        const punto = evento.points[0].customdata;
+        if (punto) {
+          mostrarSeleccion(punto);
+        }
+      });
+    });
+  }
+
+  function dibujarPerfil() {
+    if (perfilDatos) {
+      dibujarPerfilCompleto(perfilDatos);
+    } else {
+      dibujarPerfilSimple();
+    }
   }
 
   function dibujarPlotly() {
@@ -180,10 +314,19 @@
       },
       hovertemplate: "%{text}<extra></extra>",
     };
+    const latitudes = puntos.map(function (punto) { return punto.lat; });
+    const longitudes = puntos.map(function (punto) { return punto.lon; });
+    const latMin = Math.min.apply(null, latitudes);
+    const latMax = Math.max.apply(null, latitudes);
+    const lonMin = Math.min.apply(null, longitudes);
+    const lonMax = Math.max.apply(null, longitudes);
+    const latSpan = Math.max((latMax - latMin) * 1.2, 5.0);
+    const lonSpan = Math.max((lonMax - lonMin) * 1.2, 8.0);
+    const latCentro = (latMin + latMax) / 2;
+    const lonCentro = (lonMin + lonMax) / 2;
     const layout = {
       margin: { l: 0, r: 0, t: 0, b: 0 },
       geo: {
-        fitbounds: "locations",
         showland: true,
         landcolor: "#f1f3f5",
         showcountries: true,
@@ -191,6 +334,8 @@
         showcoastlines: true,
         coastlinecolor: "#adb5bd",
         projection: { type: "mercator" },
+        lonaxis: { range: [lonCentro - lonSpan / 2, lonCentro + lonSpan / 2] },
+        lataxis: { range: [latCentro - latSpan / 2, latCentro + latSpan / 2] },
       },
       showlegend: false,
       paper_bgcolor: "#ffffff",
@@ -199,6 +344,7 @@
       responsive: true,
       displaylogo: false,
       scrollZoom: true,
+      topojsonURL: contenedor.dataset.topojsonUrl || undefined,
     }).then(function () {
       contenedor.on("plotly_click", function (evento) {
         const punto = evento.points[0].customdata;

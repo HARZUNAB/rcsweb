@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import json
+import math
 import os
 import subprocess
 import sys
@@ -24,7 +25,13 @@ import matplotlib.pyplot as plt  # noqa: E402
 from flask import current_app  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
 
-from .detail import grupo_repetidos  # noqa: E402
+from .borders import texto_frontera_coords  # noqa: E402
+from .detail import (  # noqa: E402
+    COLORES_FUENTE,
+    ETIQUETAS_FUENTE,
+    distancia_km,
+    grupo_repetidos,
+)
 
 _LOCK = threading.RLock()
 _PERFILES = None
@@ -248,6 +255,94 @@ def _placeholder(mensaje: str, ancho: int = 1200, alto: int = 520) -> bytes:
     buffer = io.BytesIO()
     imagen.save(buffer, format="PNG")
     return buffer.getvalue()
+
+
+def _serie(valores) -> list:
+    if valores is None:
+        return []
+    resultado = []
+    for valor in valores:
+        try:
+            numero = float(valor)
+        except (TypeError, ValueError):
+            resultado.append(None)
+            continue
+        resultado.append(numero if math.isfinite(numero) else None)
+    return resultado
+
+
+def perfil_mapa(
+    tabla: str, archivo: str, filas: list[dict], indice: int, opcion: str
+) -> dict | None:
+    """Perfil con topografía, slab y eventos para el detalle interactivo."""
+    eventos_crudos = _eventos(tabla, archivo, filas, indice)
+    if not eventos_crudos:
+        return None
+    try:
+        eventos, perfil = _asignar(eventos_crudos, _perfiles())
+    except Exception:
+        return None
+    if perfil is None:
+        return None
+
+    referencia = next(
+        (evento for evento in eventos if evento.get("rol") in ("local", "seleccionado")),
+        eventos[0] if eventos else None,
+    )
+    puntos = []
+    for evento in eventos:
+        along = evento.get("along_km")
+        profundidad = evento.get("prof")
+        if along is None or profundidad is None:
+            continue
+        if tabla == "no_actualizados":
+            fuente = opcion if evento.get("rol") == "local" else "eventquery"
+        elif tabla == "no_publicados":
+            fuente = opcion
+        else:
+            fuente = _fuente(tabla, opcion)
+        codigo = fuente if fuente in COLORES_FUENTE else "publicado"
+        lat = evento.get("latitud")
+        lon = evento.get("longitud")
+        distancia = (
+            distancia_km(
+                referencia.get("latitud"),
+                referencia.get("longitud"),
+                lat,
+                lon,
+            )
+            if referencia
+            else None
+        )
+        puntos.append(
+            {
+                "fuente": codigo,
+                "etiqueta": ETIQUETAS_FUENTE[codigo],
+                "color": COLORES_FUENTE[codigo],
+                "fecha": evento.get("fecha hora", ""),
+                "lat": lat,
+                "lon": lon,
+                "prof": float(profundidad),
+                "along_km": float(along),
+                "perp_km": evento.get("perp_km"),
+                "dist_km": None if distancia is None else round(distancia, 1),
+                "mag": evento.get("magnitud", ""),
+                "tipo": evento.get("tipo", ""),
+                "analista": evento.get("analista", ""),
+                "frontera": texto_frontera_coords(lat, lon),
+                "estado": "",
+            }
+        )
+
+    slab = perfil.get("slab") or {}
+    return {
+        "id": perfil.get("id", ""),
+        "topo_p": _serie(perfil.get("topo_p")),
+        "topo_alt": _serie(perfil.get("topo_alt")),
+        "slab_p": _serie(slab.get("p")),
+        "slab_depth": _serie(slab.get("depth")),
+        "eventos": puntos,
+    }
 
 
 def _dibujar_miniatura(eventos: list[dict], perfil) -> bytes:

@@ -28,6 +28,9 @@
       {% if distancia %}
         <span>Distancia: {{ distancia }} km</span>
       {% endif %}
+      {% if frontera_evento and frontera_evento != '—' %}
+        <span>Frontera: {{ frontera_evento }}</span>
+      {% endif %}
     </div>
   </div>
   <div class="d-flex flex-wrap gap-2">
@@ -230,6 +233,12 @@
         {{ item.etiqueta }}
       </span>
       {% endfor %}
+      {% if perfil_datos %}
+      <span><span class="d-inline-block me-1"
+                   style="width: 12px; height: 8px; background: #e8dcc2; border: 1px solid #b8a37a;"></span>Topografía</span>
+      <span><span class="d-inline-block me-1"
+                   style="width: 12px; height: 3px; background: #1f1f1f;"></span>Slab</span>
+      {% endif %}
     </div>
 
     <div id="mapa-aviso" class="alert alert-warning small d-none">
@@ -241,7 +250,8 @@
          style="height: 430px;"
          data-modo="{{ mapa_modo }}"
          data-offline-url="{{ url_offline }}"
-         data-online-url="{{ url_online }}"></div>
+         data-online-url="{{ url_online }}"
+         data-topojson-url="{{ url_for('static', filename='vendor/plotly/topojson/') }}"></div>
 
     <div id="mapa-seleccion" class="alert alert-light border small d-none mt-3"></div>
 
@@ -250,6 +260,9 @@
   </div>
 </div>
 <script type="application/json" id="mapa-datos">{{ puntos_mapa|tojson }}</script>
+{% if perfil_datos %}
+<script type="application/json" id="perfil-datos">{{ perfil_datos|tojson }}</script>
+{% endif %}
 {% else %}
 <div class="card border-0 shadow-sm">
   <div class="card-body">

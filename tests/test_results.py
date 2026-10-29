@@ -203,6 +203,31 @@ def test_exportar_filtrado_incluye_todas_las_filas(app, tmp_path):
     assert datos.startswith(b"\xef\xbb\xbf")
 
 
+def test_tabla_incluye_frontera_y_ordena_por_distancia(app, tmp_path, monkeypatch):
+    workspace = _workspace_tabla(tmp_path)
+
+    def _anotar(filas, lat, lon):
+        distancias = [30.0, 10.0, None]
+        for fila, km in zip(filas, distancias):
+            fila["Frontera_km"] = km
+            fila["Frontera"] = "—" if km is None else f"Argentina — {km:.1f} km"
+        return filas
+
+    monkeypatch.setattr("app.services.results.borders.anotar_filas", _anotar)
+
+    tabla = leer_tabla(workspace, "demo.csv", sort="Frontera")
+
+    assert "Frontera" in tabla["columnas"]
+    assert [fila["Frontera_km"] for fila in tabla["filas"]] == [10.0, 30.0, None]
+    assert tabla["filas"][0]["Frontera"] == "Argentina — 10.0 km"
+
+    datos, total = exportar_csv(workspace, "demo.csv")
+    texto = datos.decode("utf-8-sig")
+    assert total == 3
+    assert "Frontera" in texto.splitlines()[0]
+    assert "Argentina — 10.0 km" in texto
+
+
 def test_exportar_sin_resultados_devuelve_vacio(app, tmp_path):
     workspace = tmp_path / "vacio"
     (workspace / "resultados").mkdir(parents=True)

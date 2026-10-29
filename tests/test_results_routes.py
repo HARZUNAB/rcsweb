@@ -176,7 +176,51 @@ def test_detalle_muestra_mapa_interactivo(client, login):
     assert 'id="mapa-datos"' in html
     assert "Mapa interactivo" in html
     assert "plotly.min.js" in html
+    assert "data-topojson-url" in html
     assert "Seisan" in html
+
+
+def test_detalle_muestra_frontera_en_la_vineta(client, login, monkeypatch):
+    job = _job_con_tabla(login)
+    monkeypatch.setattr(
+        "app.blueprints.results.texto_frontera_coords",
+        lambda lat, lon: "Argentina — 12.0 km",
+    )
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/no_publicados/seisan/0",
+        query_string={"mapa": "offline"},
+    ).get_data(as_text=True)
+
+    assert "Frontera: Argentina — 12.0 km" in html
+    datos = json.loads(
+        re.search(
+            r'<script type="application/json" id="mapa-datos">(.*?)</script>',
+            html,
+            re.S,
+        ).group(1)
+    )
+    assert datos[0]["frontera"] == "Argentina — 12.0 km"
+
+
+def test_tabla_muestra_columna_frontera(client, login, monkeypatch):
+    job = _job_con_tabla(login)
+
+    def _anotar(filas, lat, lon):
+        for fila in filas:
+            fila["Frontera_km"] = 12.0
+            fila["Frontera"] = "Argentina — 12.0 km"
+        return filas
+
+    monkeypatch.setattr("app.services.results.borders.anotar_filas", _anotar)
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/no-publicados",
+        query_string={"fuente": "seisan"},
+    ).get_data(as_text=True)
+
+    assert "Frontera más cercana" in html
+    assert "Argentina — 12.0 km" in html
 
 
 def test_repetidos_detalle_oculta_ver(client, login):

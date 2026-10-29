@@ -278,6 +278,8 @@ def puntos_mapa(
         referencia = local or (puntos[0] if puntos else None)
     elif tabla == "repetidos":
         fuente = opcion.split("_", 1)[0]
+        if fuente == "publica":
+            fuente = "eventquery"
         for item in grupo or []:
             datos = item.get("fila", {})
             punto = _punto(

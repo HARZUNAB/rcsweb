@@ -4,7 +4,7 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 4C completada (v0.7.0).** Además de la carga local, la
+**Estado actual: etapa 4C completada (v0.7.1).** Además de la carga local, la
 plataforma puede solicitar y descargar catálogos del servidor y obtener SeisComp
 desde PostgreSQL en solo lectura, combinando todas las bases. El radio de
 estaciones es editable por solicitud, con 400 km por defecto. Las fechas se
@@ -213,10 +213,16 @@ Seisan. El trabajo de demostración conserva sus resultados.
 - **Miniatura**: perfil de subducción de cada fila, generado con matplotlib
   puro y cacheado en `workspace/<job>/plots/miniaturas/`.
 - **Detalle interactivo**: planta y perfil con zoom. Online usa Leaflet con
-  OpenStreetMap; offline usa Plotly con mapa incorporado. Los eventos se
-  colorean por fuente, hay leyenda y al hacer clic se muestran sus parámetros.
-  En `No actualizados` se ven la solución local y la publicada; en `Repetidos`
-  se ve el grupo completo.
+  OpenStreetMap; offline usa Plotly con TopoJSON local (`world_110m.json` y
+  `world_50m.json`). Los eventos se colorean por fuente, hay leyenda y al hacer
+  clic se muestran sus parámetros. En `No actualizados` se ven la solución local
+  y la publicada; en `Repetidos` se ve el grupo completo.
+- **Perfil**: topografía, slab, nivel del mar y eventos calculados con
+  `asigna_perfiles` del core, con zoom y clic.
+- **Frontera**: los listados y las viñetas muestran la distancia a la frontera
+  chilena más cercana (Perú, Bolivia o Argentina), reutilizando `fronteras.py`.
+  No se muestra dentro de Chile ni en mar chileno; en el mar solo se muestra
+  para aguas peruanas, según la regla de la interfaz.
 - **Detección**: `MAPS_MODE=auto` consulta conectividad con caché de 5 minutos.
   Se puede forzar `online` u `offline` por configuración o con `?mapa=offline`.
 - **PNG**: el mapa completo de planta y perfil sigue disponible para abrir o
@@ -290,7 +296,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **118 tests**.
+runner de solo lectura. Total actual: **130 tests**.
 
 ## Filtros y exportación
 

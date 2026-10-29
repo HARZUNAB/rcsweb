@@ -18,9 +18,10 @@ from flask_login import login_required
 from ..extensions import db
 from ..models import Job
 from ..services.audit import registrar
+from ..services.borders import texto_frontera_coords
 from ..services.detail import construir_detalle, leer_filas, puntos_mapa
 from ..services.maps import modo_mapa
-from ..services.plots import generar_mapa, generar_miniatura
+from ..services.plots import generar_mapa, generar_miniatura, perfil_mapa
 from ..services.results import (
     NO_ACT_COLUMNS,
     TABLAS,
@@ -60,6 +61,7 @@ TITULOS = {
     "Dt_otra_seg": "Δt otra fuente (s)",
     "Dist_otra_km": "Dist. otra fuente (km)",
     "Analista_otra": "Analista otra fuente",
+    "Frontera": "Frontera más cercana",
     "fecha_hora": "Fecha y hora",
     "latitud": "Latitud",
     "longitud": "Longitud",
@@ -472,6 +474,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         volver = url_for(ENDPOINTS[tabla], job_id=job.id, **{parametro: opcion})
     puntos = puntos_mapa(tabla, contexto["fila"], opcion, contexto.get("grupo"), indice=fila)
     for punto in puntos:
+        punto["frontera"] = texto_frontera_coords(punto["lat"], punto["lon"])
         if punto.get("fila") is not None:
             punto["url"] = url_for(
                 "results.detalle",
@@ -481,6 +484,11 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
                 fila=punto["fila"],
                 volver=volver,
             )
+    frontera_evento = next(
+        (punto["frontera"] for punto in puntos if punto["frontera"] != "—"),
+        "—",
+    )
+    perfil_datos = perfil_mapa(tabla, archivo, filas, fila, opcion)
     leyenda = []
     vistos = set()
     for punto in puntos:
@@ -509,6 +517,8 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         archivo=archivo,
         url_mapa=url_mapa,
         puntos_mapa=puntos,
+        perfil_datos=perfil_datos,
+        frontera_evento=frontera_evento,
         leyenda_mapa=leyenda,
         mapa_modo=mapa_modo,
         titulo_columna=titulo_columna,

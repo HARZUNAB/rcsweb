@@ -35,9 +35,7 @@ def _fila_no_actualizada():
 
 def test_puntos_mapa_no_actualizados():
     fila = _fila_no_actualizada()
-    contexto = construir_detalle(
-        "no_actualizados", "no_actualizados_seisan.csv", [fila], 0
-    )
+    contexto = construir_detalle("no_actualizados", "no_actualizados_seisan.csv", [fila], 0)
     puntos = puntos_mapa("no_actualizados", contexto["fila"], "seisan")
 
     assert len(puntos) == 2
