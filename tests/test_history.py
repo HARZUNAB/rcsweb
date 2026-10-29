@@ -24,37 +24,6 @@ def _fake_plotear(lats, lons, profs, alongs=None, profs_perfil=None):
     )
 
 
-def test_planta_filtra_por_bbox_y_limita(monkeypatch):
-    history._CACHE_PERFIL.clear()
-    monkeypatch.setattr(
-        history,
-        "_plotear",
-        lambda: _fake_plotear(
-            [0, 0, 0, 0, 80],
-            [0, 0, 0, 0, 0],
-            [10, 10, 10, 10, 10],
-        ),
-    )
-    puntos = [{"lat": 0.0, "lon": 0.0}]
-
-    datos = history.planta(puntos)
-
-    assert datos["total"] == 4
-    assert len(datos["lat"]) == 4
-    assert len(datos["lon"]) == 4
-
-
-def test_planta_sin_catalogo(monkeypatch):
-    monkeypatch.setattr(
-        history, "_plotear", lambda: SimpleNamespace(_cargar_sismicidad=lambda: None)
-    )
-    assert history.planta([{"lat": 0.0, "lon": 0.0}]) == {
-        "lat": [],
-        "lon": [],
-        "total": 0,
-    }
-
-
 def test_perfil_proyecta_y_cachea(monkeypatch):
     history._CACHE_PERFIL.clear()
     llamadas = []
@@ -95,7 +64,6 @@ def test_datos_incluye_etiqueta(monkeypatch):
     history._CACHE_PERFIL.clear()
     monkeypatch.setattr(history, "_plotear", lambda: _fake_plotear([0], [0], [0]))
     datos = history.datos(
-        [{"lat": 0.0, "lon": 0.0}],
         {
             "id": "P1",
             "slab_lon": [-70.0, -69.0],
@@ -104,5 +72,5 @@ def test_datos_incluye_etiqueta(monkeypatch):
         },
     )
     assert datos["label"] == "Sismicidad histórica de prueba"
-    assert datos["planta"]["total"] == 1
+    assert "planta" not in datos
     assert datos["perfil"]["total"] == 2

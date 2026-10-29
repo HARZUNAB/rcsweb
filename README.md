@@ -4,7 +4,7 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 4C completada (v0.7.2).** Además de la carga local, la
+**Estado actual: etapa 4C completada (v0.7.3).** Además de la carga local, la
 plataforma puede solicitar y descargar catálogos del servidor y obtener SeisComp
 desde PostgreSQL en solo lectura, combinando todas las bases. El radio de
 estaciones es editable por solicitud, con 400 km por defecto. Las fechas se
@@ -152,7 +152,8 @@ make clean                # detener y borrar volúmenes
    log en vivo (polling HTMX cada 2 s).
 4. Al terminar: tarjetas con conteos, tablas paginables con búsqueda, filtros
    por columna, orden y exportación del resultado filtrado.
-5. Cada fila tiene una **miniatura del perfil** y un detalle con Δ por
+5. Cada fila tiene una **miniatura del perfil** y un **mini mapa de planta**
+   para ubicar el evento en Chile; el detalle muestra Δ por
    parámetro, clasificación, mapa de planta y perfil, y en repetidos el grupo
    completo de duplicados.
 6. Se puede cancelar un trabajo en cola o en ejecución.
@@ -220,9 +221,10 @@ Seisan. El trabajo de demostración conserva sus resultados.
 - **Perfil**: topografía, slab, nivel del mar y eventos calculados con
   `asigna_perfiles` del core, con zoom y clic. El contenedor se limita a
   820 × 420 px en escritorio para que no quede demasiado estirado.
-- **Sismicidad histórica**: casilla opcional en cada detalle (planta y perfil,
-  online y offline). Al activarla se cargan `base_2020_2026.dat` y la
-  proyección al perfil; el estado queda en la URL del detalle.
+- **Sismicidad histórica**: casilla opcional en el bloque **Perfil** del
+  detalle, tanto online como offline. Al activarla se cargan
+  `base_2020_2026.dat` y la proyección al perfil; el estado queda en la URL
+  del detalle. La planta no dibuja la capa histórica.
 - **Sospechosos**: se reutiliza `sismicidad.es_sospechoso` del core. El evento
   conserva el color de su fuente y se marca con borde violeta `#7b1196` y la
   leyenda “Sospechoso (borde violeta)”.
@@ -236,6 +238,11 @@ Seisan. El trabajo de demostración conserva sus resultados.
   descargar, generado con `plotear.py` del core en modo `Agg` y cacheado en
   `workspace/<job>/plots/mapas/`.
 - Los mapas estáticos usan cartopy montado en `/data/cartopy:ro`.
+- **Mini mapa de planta**: cada fila incluye un SVG liviano de Chile y los
+  países vecinos, reutilizado con `<use>` desde un único símbolo. Un punto
+  del color de la fuente marca el evento y un badge indica **Chile**, **Mar**
+  o **Fuera**, calculado con los polígonos de `fronteras.py`. No usa tiles ni
+  peticiones por fila.
 - Las miniaturas usan `loading="lazy"` y las imágenes se sirven con caché HTTP.
 
 ## Servicios y puertos
@@ -303,7 +310,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **139 tests**.
+runner de solo lectura. Total actual: **141 tests**.
 
 ## Filtros y exportación
 

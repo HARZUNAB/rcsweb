@@ -577,6 +577,10 @@ def _claves_frontera(columnas: list[str]):
     return None
 
 
+def claves_frontera(columnas: list[str]):
+    return _claves_frontera(columnas)
+
+
 def _insertar_frontera(columnas: list[str]) -> list[str]:
     if "Frontera" in columnas:
         return columnas

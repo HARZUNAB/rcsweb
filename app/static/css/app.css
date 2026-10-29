@@ -83,7 +83,7 @@ footer {
 
 /* Columnas fijas de las tablas de resultados. */
 .tabla-resultados {
-  --perfil-ancho: 132px;
+  --perfil-ancho: 232px;
 }
 
 .tabla-resultados thead th:nth-child(1),
@@ -118,7 +118,7 @@ footer {
 .tabla-resultados thead th:nth-child(2),
 .tabla-resultados thead th:last-child {
   z-index: 4;
-  background: #f8f9fa;
+  background: #eef4fa;
 }
 
 .tabla-resultados tbody tr:hover td:nth-child(1),
@@ -156,4 +156,31 @@ footer {
   #perfil-detalle {
     height: 340px;
   }
+}
+
+
+.miniaturas-fila {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.minimapa-planta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.minimapa-svg {
+  width: 90px;
+  height: 130px;
+  border: 1px solid #e3e6ea;
+  border-radius: 0.35rem;
+  background: #eef4fa;
+}
+
+.badge-ubicacion {
+  font-size: 0.65rem;
+  line-height: 1.1;
 }

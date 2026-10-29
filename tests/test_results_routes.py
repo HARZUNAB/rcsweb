@@ -244,6 +244,15 @@ def test_historico_se_activa_por_query(client, login):
     assert "checked" in casilla
     assert 'id="historico-datos"' in con
     assert "Sismicidad histórica" in con
+    historico = json.loads(
+        re.search(
+            r'<script type="application/json" id="historico-datos">(.*?)</script>',
+            con,
+            re.S,
+        ).group(1)
+    )
+    assert "planta" not in historico
+    assert "perfil" in historico
 
 
 def test_detalle_marca_evento_sospechoso(client, login, monkeypatch):
@@ -289,6 +298,31 @@ def test_repetidos_detalle_oculta_ver(client, login):
     assert "data-href=" in html
     assert ">Ver</a>" not in html
     assert "Hacé clic en un evento" in html
+
+
+def test_tabla_muestra_minimapa_de_planta(client, login, monkeypatch):
+    job = _job_con_tabla(login)
+    monkeypatch.setattr(
+        "app.blueprints.results.mapa_fila",
+        lambda lat, lon: {
+            "x": 50.0,
+            "y": 70.0,
+            "visible": True,
+            "ubicacion": "Chile",
+        },
+    )
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/no-publicados",
+        query_string={"fuente": "seisan"},
+    ).get_data(as_text=True)
+
+    assert "Perfil / Planta" in html
+    assert "mapa-chile-mini" in html
+    assert "minimapa-planta" in html
+    assert 'cx="50.0"' in html
+    assert "text-bg-success" in html
+    assert "Chile" in html
 
 
 def test_exportar_respeta_filtros(client, login):

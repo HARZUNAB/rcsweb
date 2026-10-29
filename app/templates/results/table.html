@@ -3,6 +3,7 @@
 {% block title %}{{ tabla_config.titulo }} · Trabajo {{ job.id[:8] }}{% endblock %}
 
 {% block content %}
+{% include "results/_mapa_chile.svg" %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
   <div>
     <div class="text-secondary small text-uppercase mb-1">
@@ -97,7 +98,7 @@
         <table class="table table-sm table-hover align-middle tabla-resultados mb-0">
           <thead class="table-light">
             <tr>
-              <th class="text-nowrap">Perfil</th>
+              <th class="text-nowrap">Perfil / Planta</th>
               {% for clave, titulo in columnas %}
               <th class="text-nowrap">
                 <a class="text-decoration-none text-reset"
@@ -129,12 +130,31 @@
           <tbody>
             {% for fila in tabla.filas %}
             <tr>
-              <td>
-                <img class="miniatura-perfil"
-                     src="{{ url_miniatura(fila.get('_fila')) }}"
-                     alt="Miniatura del perfil"
-                     loading="lazy" decoding="async"
-                     width="120" height="55">
+              <td class="celda-miniaturas">
+                {% set mapa = fila.get('_mapa', {}) %}
+                {% set ubicacion = mapa.get('ubicacion', '') %}
+                <div class="miniaturas-fila">
+                  <img class="miniatura-perfil"
+                       src="{{ url_miniatura(fila.get('_fila')) }}"
+                       alt="Miniatura del perfil"
+                       loading="lazy" decoding="async"
+                       width="120" height="55">
+                  <div class="minimapa-planta">
+                    <svg class="minimapa-svg" viewBox="0 0 100 140"
+                         role="img" aria-label="Ubicación del evento en Chile">
+                      <use href="#mapa-chile-mini"></use>
+                      {% if mapa.get('visible') %}
+                      <circle cx="{{ mapa.get('x') }}" cy="{{ mapa.get('y') }}" r="3.1"
+                              fill="{{ fila.get('_mapa_color', '#0d6efd') }}"
+                              stroke="{% if ubicacion == 'Fuera' %}#fd7e14{% elif ubicacion == 'Mar' %}#0dcaf0{% else %}#ffffff{% endif %}"
+                              stroke-width="{% if ubicacion == 'Fuera' %}1.6{% else %}0.8{% endif %}"></circle>
+                      {% endif %}
+                    </svg>
+                    <span class="badge badge-ubicacion {% if ubicacion == 'Chile' %}text-bg-success{% elif ubicacion == 'Fuera' %}text-bg-warning{% elif ubicacion == 'Mar' %}text-bg-info{% else %}text-bg-light text-dark{% endif %}">
+                      {{ ubicacion or '—' }}
+                    </span>
+                  </div>
+                </div>
               </td>
               {% for clave, _titulo in columnas %}
               <td>

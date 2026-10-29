@@ -7,6 +7,13 @@ from pathlib import Path
 
 from flask import current_app
 
+LON_MIN = -82.0
+LON_MAX = -60.0
+LAT_MIN = -56.0
+LAT_MAX = -14.0
+ANCHO_MAPA = 100.0
+ALTO_MAPA = 140.0
+
 
 def _modulo():
     core = Path(current_app.config["RCS_CORE_PATH"])
@@ -60,6 +67,56 @@ def frontera(lat, lon):
         return None
 
 
+def posicion_mapa(lat, lon) -> dict:
+    """Posición del evento en el SVG de planta (viewBox 100x140)."""
+    try:
+        latitud = float(lat)
+        longitud = float(lon)
+    except (TypeError, ValueError):
+        return {"x": None, "y": None, "visible": False}
+    x = (longitud - LON_MIN) / (LON_MAX - LON_MIN) * ANCHO_MAPA
+    y = (LAT_MAX - latitud) / (LAT_MAX - LAT_MIN) * ALTO_MAPA
+    return {
+        "x": round(x, 2),
+        "y": round(y, 2),
+        "visible": 0 <= x <= ANCHO_MAPA and 0 <= y <= ALTO_MAPA,
+    }
+
+
+def ubicacion(lat, lon) -> str:
+    """Chile, Mar o Fuera según los polígonos del core."""
+    try:
+        latitud = float(lat)
+        longitud = float(lon)
+        modulo = _modulo()
+        datos = modulo._cargar_datos()
+    except Exception:
+        return ""
+    if not (-90 <= latitud <= 90 and -180 <= longitud <= 180):
+        return ""
+    if datos is None:
+        return ""
+    try:
+        from shapely.geometry import Point
+
+        _fronteras, paises, prep = datos
+        punto = Point(longitud, latitud)
+        if prep["CHL"].contains(punto):
+            return "Chile"
+        if modulo._es_mar_chileno(longitud, latitud, punto, paises, prep):
+            return "Mar"
+        return "Fuera"
+    except Exception:
+        return ""
+
+
+def mapa_fila(lat, lon) -> dict:
+    """Datos del mini mapa de planta para una fila del listado."""
+    datos = posicion_mapa(lat, lon)
+    datos["ubicacion"] = ubicacion(lat, lon)
+    return datos
+
+
 def texto_frontera_coords(lat, lon) -> str:
     """Texto «País — X km» o «—» si no aplica."""
     try:
@@ -88,4 +145,11 @@ def anotar_filas(filas, clave_lat: str, clave_lon: str) -> list[dict]:
     return filas
 
 
-__all__ = ["anotar_filas", "frontera", "texto_frontera_coords"]
+__all__ = [
+    "anotar_filas",
+    "frontera",
+    "mapa_fila",
+    "posicion_mapa",
+    "texto_frontera_coords",
+    "ubicacion",
+]

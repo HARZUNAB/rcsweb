@@ -18,8 +18,8 @@ from flask_login import login_required
 from ..extensions import db
 from ..models import Job
 from ..services.audit import registrar
-from ..services.borders import texto_frontera_coords
-from ..services.detail import construir_detalle, leer_filas, puntos_mapa
+from ..services.borders import mapa_fila, texto_frontera_coords
+from ..services.detail import COLORES_FUENTE, construir_detalle, leer_filas, puntos_mapa
 from ..services.history import datos as historico_datos
 from ..services.maps import modo_mapa
 from ..services.plots import (
@@ -33,6 +33,7 @@ from ..services.results import (
     NO_ACT_COLUMNS,
     TABLAS,
     cargar_indice,
+    claves_frontera,
     exportar_csv,
     leer_tabla,
     rep_files,
@@ -235,6 +236,22 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
     )
     filtros = tabla_datos["filtros"]
     columnas = [(columna, titulo_columna(columna)) for columna in tabla_datos["columnas"]]
+    claves_mapa = claves_frontera(tabla_datos["columnas"])
+    fuente_mapa = opcion if tabla != "repetidos" else opcion.split("_", 1)[0]
+    if fuente_mapa == "publica":
+        fuente_mapa = "eventquery"
+    color_mapa = COLORES_FUENTE.get(fuente_mapa, "#0d6efd")
+    for fila in tabla_datos["filas"]:
+        if claves_mapa:
+            fila["_mapa"] = mapa_fila(fila.get(claves_mapa[0]), fila.get(claves_mapa[1]))
+        else:
+            fila["_mapa"] = {
+                "x": None,
+                "y": None,
+                "visible": False,
+                "ubicacion": "",
+            }
+        fila["_mapa_color"] = color_mapa
     artefacto = next((a for a in job.artifacts if a.ruta == f"resultados/{archivo}"), None)
     parametro = PARAMETROS[tabla]
     endpoint = request.endpoint
@@ -502,7 +519,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         evento.get("sospechoso") for evento in eventos_clasificados
     )
     historico_activo = request.args.get("historico") == "1"
-    historico = historico_datos(puntos, perfil_datos) if historico_activo else None
+    historico = historico_datos(perfil_datos) if historico_activo else None
     leyenda = []
     vistos = set()
     for punto in puntos:

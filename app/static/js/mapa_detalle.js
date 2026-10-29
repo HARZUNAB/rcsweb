@@ -330,18 +330,6 @@
       return;
     }
     const trazas = [];
-    if (historicoDatos && historicoDatos.planta && (historicoDatos.planta.lat || []).length) {
-      trazas.push({
-        type: "scattergeo",
-        mode: "markers",
-        lat: historicoDatos.planta.lat,
-        lon: historicoDatos.planta.lon,
-        marker: { size: 3, color: "#8c8c8c", opacity: 0.35 },
-        hoverinfo: "skip",
-        showlegend: false,
-        name: "Sismicidad histórica",
-      });
-    }
     const traza = {
       type: "scattergeo",
       mode: "markers",
@@ -435,24 +423,6 @@
         mostrarAvisoOffline();
       }
     });
-    if (historicoDatos && historicoDatos.planta && (historicoDatos.planta.lat || []).length) {
-      const pane = mapa.createPane("historico");
-      pane.style.zIndex = 350;
-      const renderer = window.L.canvas({ pane: "historico" });
-      const historico = historicoDatos.planta;
-      for (let i = 0; i < historico.lat.length; i += 1) {
-        window.L.circleMarker([historico.lat[i], historico.lon[i]], {
-          radius: 2,
-          color: "#8c8c8c",
-          fillColor: "#8c8c8c",
-          fillOpacity: 0.35,
-          weight: 0,
-          interactive: false,
-          pane: "historico",
-          renderer: renderer,
-        }).addTo(mapa);
-      }
-    }
     const coordenadas = [];
     puntos.forEach(function (punto) {
       const sospechoso = !!punto.sospechoso;

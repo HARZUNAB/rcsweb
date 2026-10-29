@@ -14,18 +14,14 @@ def _modulo_basico(resultado):
     return SimpleNamespace(
         frontera_mas_cercana=lambda lat, lon: resultado,
         formatear_frontera=lambda valor: (
-            "—"
-            if not valor
-            else f"{valor[0]} — {float(valor[1]):.1f} km"
+            "—" if not valor else f"{valor[0]} — {float(valor[1]):.1f} km"
         ),
         _cargar_datos=lambda: None,
     )
 
 
 def test_texto_frontera_formatea_y_vacio(monkeypatch):
-    monkeypatch.setattr(
-        borders, "_modulo", lambda: _modulo_basico(("Argentina", 12.34))
-    )
+    monkeypatch.setattr(borders, "_modulo", lambda: _modulo_basico(("Argentina", 12.34)))
     assert borders.texto_frontera_coords(-30, -70) == "Argentina — 12.3 km"
 
     monkeypatch.setattr(borders, "_modulo", lambda: _modulo_basico(None))
@@ -33,9 +29,7 @@ def test_texto_frontera_formatea_y_vacio(monkeypatch):
 
 
 def test_anotar_filas_completa_campos(monkeypatch):
-    monkeypatch.setattr(
-        borders, "_modulo", lambda: _modulo_basico(("Bolivia", 4.25))
-    )
+    monkeypatch.setattr(borders, "_modulo", lambda: _modulo_basico(("Bolivia", 4.25)))
     filas = [{"Latitud": "-22", "Longitud": "-68"}]
 
     borders.anotar_filas(filas, "Latitud", "Longitud")
@@ -101,3 +95,36 @@ def test_modulo_inexistente_devuelve_vacio(monkeypatch):
 
     assert borders.texto_frontera_coords(-30, -70) == "—"
     assert borders.frontera(-30, -70) is None
+
+
+def test_posicion_mapa_dentro_y_fuera():
+    dentro = borders.posicion_mapa(-30.0, -70.0)
+    assert dentro["visible"] is True
+    assert 0 <= dentro["x"] <= 100
+    assert 0 <= dentro["y"] <= 140
+
+    fuera = borders.posicion_mapa(10.0, 5.0)
+    assert fuera["visible"] is False
+
+    invalida = borders.posicion_mapa(None, None)
+    assert invalida["visible"] is False
+
+
+def test_ubicacion_chile_mar_y_fuera(monkeypatch):
+    monkeypatch.setattr(borders, "_modulo", lambda: _modulo_mar(100.0, 1000.0))
+    assert borders.ubicacion(-30.0, -70.0) == "Chile"
+
+    marejado = _modulo_mar(100.0, 1000.0)
+    marejado._es_mar_chileno = lambda lon, lat, punto, paises, prep: True
+    monkeypatch.setattr(borders, "_modulo", lambda: marejado)
+    assert borders.ubicacion(-18.5, -76.0) == "Mar"
+
+    monkeypatch.setattr(borders, "_modulo", lambda: _modulo_mar(100.0, 1000.0))
+    assert borders.ubicacion(-18.5, -76.0) == "Fuera"
+
+
+def test_mapa_fila_combina_posicion_y_ubicacion(monkeypatch):
+    monkeypatch.setattr(borders, "_modulo", lambda: _modulo_mar(100.0, 1000.0))
+    datos = borders.mapa_fila(-30.0, -70.0)
+    assert datos["visible"] is True
+    assert datos["ubicacion"] == "Chile"
