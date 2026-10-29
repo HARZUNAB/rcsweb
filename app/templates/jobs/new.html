@@ -16,7 +16,7 @@
   <div>
     <div class="fw-semibold">La forma habitual es descargar los catálogos del servidor.</div>
     <div class="small text-secondary">
-      Se solicitan por SSH/SCP y SeisComp se exporta automáticamente en solo lectura.
+      Se solicitan desde el servidor y SeisComp se incorpora automáticamente.
     </div>
   </div>
   <a class="btn btn-primary" href="{{ url_for('solicitudes.nueva') }}">
@@ -35,14 +35,14 @@
           <div class="row g-3">
             <div class="col-12 col-sm-6">
               {{ form.period_start.label(class="form-label") }}
-              {{ form.period_start(class="form-control", type="date") }}
+              {{ form.period_start(class="form-control", placeholder="dd/mm/aaaa", autocomplete="off", **{"data-datepicker": "1", "inputmode": "numeric"}) }}
               {% for error in form.period_start.errors %}
                 <div class="invalid-feedback d-block">{{ error }}</div>
               {% endfor %}
             </div>
             <div class="col-12 col-sm-6">
               {{ form.period_end.label(class="form-label") }}
-              {{ form.period_end(class="form-control", type="date") }}
+              {{ form.period_end(class="form-control", placeholder="dd/mm/aaaa", autocomplete="off", **{"data-datepicker": "1", "inputmode": "numeric"}) }}
               {% for error in form.period_end.errors %}
                 <div class="invalid-feedback d-block">{{ error }}</div>
               {% endfor %}
@@ -87,7 +87,7 @@
             {{ form.seiscomp.label(class="form-label small") }}
             {{ form.seiscomp(class="form-control", accept=".csv") }}
             <div class="form-text">
-              Exportación de la ventana de SeisComp. Es la fuente local principal
+              Catálogo de SeisComp. Es la fuente local principal
               por defecto.
             </div>
             {% for error in form.incluir_seiscomp.errors %}
@@ -167,48 +167,4 @@
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-(function () {
-  "use strict";
-  const pares = [
-    ["incluir_seiscomp", "seiscomp"],
-    ["incluir_seisan", "seisan"],
-  ];
-
-  function sincronizar() {
-    pares.forEach(function (par) {
-      const check = document.getElementById(par[0]);
-      const archivo = document.getElementById(par[1]);
-      if (!check || !archivo) return;
-      archivo.disabled = !check.checked;
-      archivo.required = check.checked;
-    });
-
-    const radios = Array.from(
-      document.querySelectorAll('input[name="primary_source"]')
-    );
-    radios.forEach(function (radio) {
-      const check = document.getElementById("incluir_" + radio.value);
-      radio.disabled = check ? !check.checked : false;
-    });
-    const habilitados = radios.filter(function (radio) {
-      return !radio.disabled;
-    });
-    if (habilitados.length && !habilitados.some(function (radio) {
-      return radio.checked;
-    })) {
-      habilitados[0].checked = true;
-    }
-  }
-
-  pares.forEach(function (par) {
-    const check = document.getElementById(par[0]);
-    if (check) check.addEventListener("change", sincronizar);
-  });
-  sincronizar();
-})();
-</script>
 {% endblock %}

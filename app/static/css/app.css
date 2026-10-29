@@ -81,3 +81,64 @@ footer {
   border-radius: 0.35rem;
 }
 
+/* Columnas fijas de las tablas de resultados. */
+.tabla-resultados {
+  --perfil-ancho: 132px;
+}
+
+.tabla-resultados thead th:nth-child(1),
+.tabla-resultados tbody td:nth-child(1) {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  width: var(--perfil-ancho);
+  min-width: var(--perfil-ancho);
+  background: var(--bs-body-bg);
+}
+
+.tabla-resultados thead th:nth-child(2),
+.tabla-resultados tbody td:nth-child(2) {
+  position: sticky;
+  left: var(--perfil-ancho);
+  z-index: 3;
+  background: var(--bs-body-bg);
+  box-shadow: 6px 0 6px -6px rgba(0, 0, 0, 0.18);
+}
+
+.tabla-resultados thead th:last-child,
+.tabla-resultados tbody td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: var(--bs-body-bg);
+  box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.18);
+}
+
+.tabla-resultados thead th:nth-child(1),
+.tabla-resultados thead th:nth-child(2),
+.tabla-resultados thead th:last-child {
+  z-index: 4;
+  background: #f8f9fa;
+}
+
+.tabla-resultados tbody tr:hover td:nth-child(1),
+.tabla-resultados tbody tr:hover td:nth-child(2),
+.tabla-resultados tbody tr:hover td:last-child {
+  background: var(--bs-table-hover-bg);
+}
+
+
+
+.fila-enlazada {
+  cursor: pointer;
+}
+
+.fila-enlazada:focus {
+  outline: 2px solid var(--rcs-azul-claro);
+  outline-offset: -2px;
+}
+
+#mapa-detalle,
+#perfil-detalle {
+  background: #fff;
+}

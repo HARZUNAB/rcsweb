@@ -1,10 +1,19 @@
-"""Solicitudes de catálogos por SSH/SCP."""
+"""Solicitudes de catálogos desde el servidor."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, time
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
 
 from ..extensions import db
@@ -155,8 +164,8 @@ def nueva():
 def probar_seiscomp():
     resultado = probar_conexion()
     if resultado["ok"]:
-        bases = ", ".join(resultado["bases"]) or "ninguna"
-        flash(f"Conexión SeisComp OK. Bases: {bases}", "success")
+        current_app.logger.info("SeisComp: bases visibles %s", resultado["bases"])
+        flash("Conexión SeisComp OK.", "success")
     else:
         flash(f"No se pudo conectar a SeisComp: {resultado['error']}", "danger")
     return redirect(url_for("solicitudes.nueva"))
@@ -195,7 +204,7 @@ def reintentar(request_id: str):
         abort(403)
     form = ReintentarForm()
     if not form.validate_on_submit():
-        flash("Ingresá la contraseña SSH para reintentar.", "warning")
+        flash("Ingresá la contraseña del servidor para reintentar.", "warning")
         return redirect(url_for("solicitudes.detalle", request_id=solicitud.id))
 
     reintentar_solicitud(solicitud.id, form.password.data)

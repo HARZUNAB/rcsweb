@@ -231,7 +231,7 @@ def validar_seisan(ruta: Path, periodo_inicio=None, periodo_fin=None) -> dict:
 def validar_seiscomp(ruta: Path, periodo_inicio=None, periodo_fin=None) -> dict:
     resultado = _resultado("seiscomp")
     if not ruta.is_file():
-        resultado["errores"].append("No se encontró la exportación de SeisComp.")
+        resultado["errores"].append("No se encontró el catálogo de SeisComp.")
         return resultado
     if ruta.stat().st_size == 0:
         resultado["errores"].append("El archivo está vacío.")

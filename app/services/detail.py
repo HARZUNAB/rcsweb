@@ -198,6 +198,133 @@ def grupo_repetidos(filas: list[dict], indice: int, archivo: str) -> list[dict]:
     return _grupo_repetidos(filas, indice, archivo)
 
 
+COLORES_FUENTE = {
+    "seiscomp": "#0d6efd",
+    "seisan": "#fd7e14",
+    "eventquery": "#198754",
+    "publicado": "#6c757d",
+}
+ETIQUETAS_FUENTE = {
+    "seiscomp": "SeisComp",
+    "seisan": "Seisan",
+    "eventquery": "Eventquery",
+    "publicado": "Publicado",
+}
+
+
+def _texto(valor) -> str:
+    return "" if valor is None else str(valor).strip()
+
+
+def _punto(
+    fuente: str,
+    fecha,
+    lat,
+    lon,
+    prof,
+    mag,
+    tipo,
+    analista="",
+    estado="",
+    fila=None,
+) -> dict | None:
+    latitud = _a_numero(lat)
+    longitud = _a_numero(lon)
+    if latitud is None or longitud is None:
+        return None
+    codigo = fuente if fuente in COLORES_FUENTE else "publicado"
+    return {
+        "fuente": codigo,
+        "etiqueta": ETIQUETAS_FUENTE[codigo],
+        "color": COLORES_FUENTE[codigo],
+        "fecha": _texto(fecha),
+        "lat": latitud,
+        "lon": longitud,
+        "prof": _a_numero(prof),
+        "mag": _texto(mag),
+        "tipo": _texto(tipo),
+        "analista": _texto(analista),
+        "estado": _texto(estado),
+        "fila": fila,
+    }
+
+
+def puntos_mapa(
+    tabla: str, fila: dict, opcion: str, grupo=None, indice: int | None = None
+) -> list[dict]:
+    """Puntos del detalle para el mapa interactivo."""
+    puntos = []
+    if tabla == "no_actualizados":
+        local = _punto(
+            opcion,
+            fila.get("fecha_local"),
+            fila.get("lat_local"),
+            fila.get("lon_local"),
+            fila.get("prof_local"),
+            fila.get("mag_local"),
+            fila.get("tipo_mag_local"),
+            fila.get("analista", ""),
+        )
+        publicado = _punto(
+            "eventquery",
+            fila.get("fecha_eventquery"),
+            fila.get("lat_eventquery"),
+            fila.get("lon_eventquery"),
+            fila.get("prof_eventquery"),
+            fila.get("mag_eventquery"),
+            fila.get("tipo_mag_eventquery"),
+        )
+        puntos.extend(p for p in (local, publicado) if p is not None)
+        referencia = local or (puntos[0] if puntos else None)
+    elif tabla == "repetidos":
+        fuente = opcion.split("_", 1)[0]
+        for item in grupo or []:
+            datos = item.get("fila", {})
+            punto = _punto(
+                fuente,
+                datos.get("fecha_hora"),
+                datos.get("latitud"),
+                datos.get("longitud"),
+                datos.get("prof"),
+                datos.get("mag"),
+                datos.get("tipomag"),
+                datos.get("analista", ""),
+                fila=item.get("_fila"),
+            )
+            if punto is not None:
+                puntos.append(punto)
+        referencia = next((p for p in puntos if p.get("fila") == indice), None)
+        if referencia is None and puntos:
+            referencia = puntos[0]
+    else:
+        punto = _punto(
+            opcion,
+            fila.get("Fecha_Hora"),
+            fila.get("Latitud"),
+            fila.get("Longitud"),
+            fila.get("Prof."),
+            fila.get("Mag."),
+            fila.get("Tipo_mag."),
+            fila.get("Analista", ""),
+            fila.get("Estado", ""),
+        )
+        if punto is not None:
+            puntos.append(punto)
+        referencia = punto
+
+    if referencia is not None:
+        for punto in puntos:
+            punto["dist_km"] = distancia_km(
+                referencia.get("lat"),
+                referencia.get("lon"),
+                punto.get("lat"),
+                punto.get("lon"),
+            )
+            if punto["dist_km"] is not None:
+                punto["dist_km"] = round(punto["dist_km"], 1)
+    return puntos
+
+
 def construir_detalle(tabla: str, archivo: str, filas: list[dict], indice: int) -> dict:
     fila = filas[indice]
     contexto = {
@@ -244,5 +371,6 @@ __all__ = [
     "distancia_km",
     "grupo_repetidos",
     "leer_fila",
+    "puntos_mapa",
     "leer_filas",
 ]

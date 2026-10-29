@@ -2,6 +2,94 @@
 (function () {
   "use strict";
 
+  // Fechas dd/mm/aaaa con calendario local (Flatpickr).
+  if (window.flatpickr) {
+    if (window.flatpickr.l10ns && window.flatpickr.l10ns.es) {
+      window.flatpickr.localize(window.flatpickr.l10ns.es);
+    }
+    window.flatpickr("[data-datepicker]", {
+      dateFormat: "d/m/Y",
+      allowInput: true,
+      locale: "es",
+    });
+  }
+
+  // Sincroniza checkboxes de fuentes con archivos y fuente principal.
+  function sincronizarFuentes(form) {
+    const radios = Array.from(
+      form.querySelectorAll('input[name="primary_source"]')
+    );
+    if (!radios.length) {
+      return;
+    }
+    [
+      ["incluir_seiscomp", "seiscomp"],
+      ["incluir_seisan", "seisan"],
+    ].forEach(function (par) {
+      const check = form.querySelector("#" + par[0]);
+      if (!check) {
+        return;
+      }
+      const archivo = form.querySelector("#" + par[1]);
+      if (archivo) {
+        archivo.disabled = !check.checked;
+        archivo.required = check.checked;
+      }
+    });
+    radios.forEach(function (radio) {
+      const check = form.querySelector("#incluir_" + radio.value);
+      radio.disabled = check ? !check.checked : false;
+    });
+    const habilitados = radios.filter(function (radio) {
+      return !radio.disabled;
+    });
+    if (habilitados.length && !habilitados.some(function (radio) {
+      return radio.checked;
+    })) {
+      habilitados[0].checked = true;
+    }
+  }
+
+  function sincronizarTodos() {
+    document.querySelectorAll("form").forEach(function (form) {
+      if (form.querySelector('input[name="primary_source"]')) {
+        sincronizarFuentes(form);
+      }
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", sincronizarTodos);
+  document.body.addEventListener("htmx:afterSwap", sincronizarTodos);
+  document.body.addEventListener("change", function (evento) {
+    const objetivo = evento.target;
+    if (objetivo.matches && objetivo.matches('input[id^="incluir_"]')) {
+      sincronizarFuentes(objetivo.form);
+    }
+  });
+
+  // Filas de tabla que abren un detalle (sin botón redundante).
+  document.body.addEventListener("click", function (evento) {
+    const objetivo = evento.target;
+    if (!objetivo.closest || objetivo.closest("a, button")) {
+      return;
+    }
+    const fila = objetivo.closest("tr[data-href]");
+    if (fila) {
+      window.location = fila.dataset.href;
+    }
+  });
+  document.body.addEventListener("keydown", function (evento) {
+    const objetivo = evento.target;
+    if (!objetivo.closest) {
+      return;
+    }
+    const fila = objetivo.closest("tr[data-href]");
+    if (fila && (evento.key === "Enter" || evento.key === " ")) {
+      evento.preventDefault();
+      window.location = fila.dataset.href;
+    }
+  });
+
   // HTMX: enviar el token CSRF en cada petición no-GET.
   document.body.addEventListener("htmx:configRequest", function (evento) {
     const meta = document.querySelector('meta[name="csrf-token"]');

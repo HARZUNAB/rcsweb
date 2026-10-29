@@ -97,13 +97,15 @@ def exportar_ventana(
     *,
     radio_km: int = 400,
     log=None,
+    log_detalle=None,
     progreso=None,
     timeout: int = 3600,
 ) -> Path:
     """Exporta la ventana combinando todas las bases de SeisComp."""
     log = log or (lambda _t: None)
+    log_detalle = log_detalle or (lambda texto: current_app.logger.info("seiscomp: %s", texto))
     if not configurada():
-        raise RuntimeError("Faltan las variables SEISCOMP_DB_* para exportar.")
+        raise RuntimeError("SeisComp no está configurado.")
     if radio_km <= 0:
         raise RuntimeError("El radio de estaciones debe ser mayor que cero.")
 
@@ -130,7 +132,8 @@ def exportar_ventana(
         "--radio-km",
         str(radio_km),
     ]
-    log("$ " + " ".join(comando[:3]) + f" … --base todas --radio-km {radio_km}")
+    log("Exportando datos de SeisComp…")
+    log_detalle("$ " + " ".join(comando[:3]) + f" … --base todas --radio-km {radio_km}")
     proceso = subprocess.run(
         comando,
         cwd=str(salida.parent.parent),
@@ -141,16 +144,17 @@ def exportar_ventana(
         check=False,
     )
     for linea in (proceso.stdout or "").splitlines():
-        log(linea)
+        log_detalle(linea)
     for linea in (proceso.stderr or "").splitlines():
-        log(linea)
+        log_detalle(linea)
     if proceso.returncode != 0:
         raise RuntimeError(
-            f"La exportación de SeisComp falló (código {proceso.returncode}). Revisá el log."
+            f"No se pudieron obtener los datos de SeisComp (código {proceso.returncode}). Revisá el log."
         )
     marca = Path(str(salida) + ".completo")
     if not salida.is_file() or not marca.is_file():
-        raise RuntimeError("La exportación de SeisComp no dejó el CSV o la marca .completo.")
+        raise RuntimeError("SeisComp no dejó el catálogo o la marca de fin.")
+    log("Datos de SeisComp obtenidos.")
     if progreso:
         progreso(1.0)
     return salida

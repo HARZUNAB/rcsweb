@@ -1,0 +1,263 @@
+// Mapa interactivo del detalle: Leaflet online y Plotly offline/perfil.
+(function () {
+  "use strict";
+
+  const datos = document.getElementById("mapa-datos");
+  const contenedor = document.getElementById("mapa-detalle");
+  const perfil = document.getElementById("perfil-detalle");
+  const panel = document.getElementById("mapa-seleccion");
+  if (!datos || !contenedor || !perfil) {
+    return;
+  }
+
+  let puntos = [];
+  try {
+    puntos = JSON.parse(datos.textContent || "[]");
+  } catch (error) {
+    puntos = [];
+  }
+  if (!puntos.length) {
+    return;
+  }
+
+  const modo = contenedor.dataset.modo || "offline";
+  const aviso = document.getElementById("mapa-aviso");
+  const avisoLink = document.getElementById("mapa-aviso-link");
+
+  function esc(valor) {
+    return String(valor === null || valor === undefined ? "" : valor).replace(
+      /[&<>"']/g,
+      function (caracter) {
+        return {
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        }[caracter];
+      }
+    );
+  }
+
+  function valor(valor, sufijo) {
+    if (valor === null || valor === undefined || valor === "") {
+      return "—";
+    }
+    return esc(valor) + (sufijo || "");
+  }
+
+  function detalleHtml(punto) {
+    const filas = [
+      ["Fecha", valor(punto.fecha)],
+      ["Fuente", valor(punto.etiqueta)],
+      ["Latitud", valor(punto.lat, "°")],
+      ["Longitud", valor(punto.lon, "°")],
+      ["Profundidad", valor(punto.prof, " km")],
+      ["Magnitud", valor(punto.mag)],
+      ["Tipo mag.", valor(punto.tipo)],
+      ["Analista", valor(punto.analista)],
+      ["Distancia", valor(punto.dist_km, " km")],
+      ["Estado", valor(punto.estado)],
+    ];
+    let html = '<div class="small"><dl class="row mb-0 g-0">';
+    filas.forEach(function (fila) {
+      if (fila[1] === "—") {
+        return;
+      }
+      html +=
+        '<dt class="col-5 fw-normal text-secondary">' +
+        fila[0] +
+        '</dt><dd class="col-7 mb-1">' +
+        fila[1] +
+        "</dd>";
+    });
+    html += "</dl>";
+    if (punto.url) {
+      html +=
+        '<a class="btn btn-sm btn-outline-primary mt-2" href="' +
+        esc(punto.url) +
+        '">Abrir detalle</a>';
+    }
+    return html + "</div>";
+  }
+
+  function mostrarSeleccion(punto) {
+    if (!panel) {
+      return;
+    }
+    panel.innerHTML = detalleHtml(punto);
+    panel.classList.remove("d-none");
+  }
+
+  function mostrarAvisoOffline() {
+    if (aviso) {
+      aviso.classList.remove("d-none");
+    }
+    if (avisoLink && contenedor.dataset.offlineUrl) {
+      avisoLink.href = contenedor.dataset.offlineUrl;
+    }
+  }
+
+  function dibujarPerfil() {
+    const conProfundidad = puntos.filter(function (punto) {
+      return punto.prof !== null && punto.prof !== undefined;
+    });
+    if (!conProfundidad.length || !window.Plotly) {
+      perfil.innerHTML =
+        '<div class="text-secondary small p-3">Sin profundidad para graficar el perfil.</div>';
+      return;
+    }
+    const traza = {
+      type: "scatter",
+      mode: "markers",
+      x: conProfundidad.map(function (punto) {
+        return punto.dist_km === null || punto.dist_km === undefined
+          ? 0
+          : punto.dist_km;
+      }),
+      y: conProfundidad.map(function (punto) {
+        return punto.prof;
+      }),
+      text: conProfundidad.map(function (punto) {
+        return punto.etiqueta + " · " + punto.fecha;
+      }),
+      customdata: conProfundidad,
+      marker: {
+        size: 11,
+        color: conProfundidad.map(function (punto) {
+          return punto.color;
+        }),
+        line: { color: "#ffffff", width: 1 },
+      },
+      hovertemplate: "%{text}<extra></extra>",
+    };
+    const layout = {
+      margin: { l: 55, r: 15, t: 15, b: 45 },
+      xaxis: { title: "Distancia (km)", zeroline: false },
+      yaxis: { title: "Profundidad (km)", autorange: "reversed" },
+      showlegend: false,
+      paper_bgcolor: "#ffffff",
+      plot_bgcolor: "#ffffff",
+    };
+    window.Plotly.newPlot(perfil, [traza], layout, {
+      responsive: true,
+      displaylogo: false,
+    }).then(function () {
+      perfil.on("plotly_click", function (evento) {
+        const punto = evento.points[0].customdata;
+        if (punto) {
+          mostrarSeleccion(punto);
+        }
+      });
+    });
+  }
+
+  function dibujarPlotly() {
+    if (!window.Plotly) {
+      contenedor.innerHTML =
+        '<div class="text-secondary small p-3">No se pudo cargar el mapa offline.</div>';
+      return;
+    }
+    const traza = {
+      type: "scattergeo",
+      mode: "markers",
+      lat: puntos.map(function (punto) {
+        return punto.lat;
+      }),
+      lon: puntos.map(function (punto) {
+        return punto.lon;
+      }),
+      text: puntos.map(function (punto) {
+        return punto.etiqueta + " · " + punto.fecha;
+      }),
+      customdata: puntos,
+      marker: {
+        size: 11,
+        color: puntos.map(function (punto) {
+          return punto.color;
+        }),
+        line: { color: "#ffffff", width: 1 },
+      },
+      hovertemplate: "%{text}<extra></extra>",
+    };
+    const layout = {
+      margin: { l: 0, r: 0, t: 0, b: 0 },
+      geo: {
+        fitbounds: "locations",
+        showland: true,
+        landcolor: "#f1f3f5",
+        showcountries: true,
+        countrycolor: "#ced4da",
+        showcoastlines: true,
+        coastlinecolor: "#adb5bd",
+        projection: { type: "mercator" },
+      },
+      showlegend: false,
+      paper_bgcolor: "#ffffff",
+    };
+    window.Plotly.newPlot(contenedor, [traza], layout, {
+      responsive: true,
+      displaylogo: false,
+      scrollZoom: true,
+    }).then(function () {
+      contenedor.on("plotly_click", function (evento) {
+        const punto = evento.points[0].customdata;
+        if (punto) {
+          mostrarSeleccion(punto);
+        }
+      });
+    });
+  }
+
+  function dibujarLeaflet() {
+    if (!window.L) {
+      dibujarPlotly();
+      return;
+    }
+    const mapa = window.L.map(contenedor, {
+      scrollWheelZoom: true,
+    });
+    const capa = window.L.tileLayer(
+      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap",
+      }
+    ).addTo(mapa);
+    let errores = 0;
+    capa.on("tileerror", function () {
+      errores += 1;
+      if (errores >= 2) {
+        mostrarAvisoOffline();
+      }
+    });
+    const coordenadas = [];
+    puntos.forEach(function (punto) {
+      const marcador = window.L.circleMarker([punto.lat, punto.lon], {
+        radius: 8,
+        color: punto.color,
+        fillColor: punto.color,
+        fillOpacity: 0.85,
+        weight: 2,
+      }).addTo(mapa);
+      marcador.bindPopup(detalleHtml(punto));
+      marcador.on("click", function () {
+        mostrarSeleccion(punto);
+      });
+      coordenadas.push([punto.lat, punto.lon]);
+    });
+    if (coordenadas.length === 1) {
+      mapa.setView(coordenadas[0], 9);
+    } else {
+      mapa.fitBounds(coordenadas, { padding: [30, 30] });
+    }
+  }
+
+  if (modo === "online") {
+    dibujarLeaflet();
+  } else {
+    dibujarPlotly();
+  }
+  dibujarPerfil();
+
+})();

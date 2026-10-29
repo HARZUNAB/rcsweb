@@ -58,7 +58,7 @@ def test_probar_conexion_sin_configuracion(monkeypatch):
 def test_exportar_sin_configuracion(app, monkeypatch, tmp_path):
     _limpiar(monkeypatch)
 
-    with pytest.raises(RuntimeError, match="SEISCOMP_DB_"):
+    with pytest.raises(RuntimeError, match="SeisComp no está configurado"):
         exportar_ventana(
             "20261001000000",
             "20261031235959",
@@ -85,6 +85,7 @@ def test_exportar_consulta_todas_las_bases(app, monkeypatch, tmp_path):
 
     monkeypatch.setattr("app.services.seiscomp.subprocess.run", ejecutar)
     log = []
+    log_detalle = []
     salida = tmp_path / "files" / "seiscomp_20261001000000_20261031235959.csv"
 
     resultado = exportar_ventana(
@@ -93,6 +94,7 @@ def test_exportar_consulta_todas_las_bases(app, monkeypatch, tmp_path):
         salida,
         radio_km=250,
         log=log.append,
+        log_detalle=log_detalle.append,
     )
 
     assert resultado == salida
@@ -108,7 +110,9 @@ def test_exportar_consulta_todas_las_bases(app, monkeypatch, tmp_path):
     assert entorno["RCS_DB_PASSWORD"] == "secreto"
     assert entorno["PGPORT"] == "5432"
     assert "PGOPTIONS" not in entorno
-    assert any("3 eventos" in linea for linea in log)
+    assert any("Exportando datos de SeisComp" in linea for linea in log)
+    assert any("Datos de SeisComp obtenidos" in linea for linea in log)
+    assert any("3 eventos" in linea for linea in log_detalle)
 
 
 def test_exportar_radio_invalido(app, monkeypatch, tmp_path):
@@ -134,7 +138,7 @@ def test_exportar_falla_si_no_deja_marca(app, monkeypatch, tmp_path):
         lambda comando, **kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
     )
 
-    with pytest.raises(RuntimeError, match="no dejó el CSV"):
+    with pytest.raises(RuntimeError, match="no dejó el catálogo"):
         exportar_ventana(
             "20261001000000",
             "20261031235959",

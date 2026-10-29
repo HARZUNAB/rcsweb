@@ -4,12 +4,12 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 4C completada (v0.6.1).** Además de la carga local, la
-plataforma puede solicitar y descargar catálogos por SSH/SCP y exportar SeisComp
+**Estado actual: etapa 4C completada (v0.7.0).** Además de la carga local, la
+plataforma puede solicitar y descargar catálogos del servidor y obtener SeisComp
 desde PostgreSQL en solo lectura, combinando todas las bases. El radio de
-estaciones para la lista de sin arribos es editable por solicitud, con 400 km
-por defecto. Las solicitudes tienen historial, progreso y reintentos; la
-contraseña SSH se usa por solicitud y no se guarda.
+estaciones es editable por solicitud, con 400 km por defecto. Las fechas se
+ingresan como `dd/mm/aaaa` y el detalle del evento incluye mapas interactivos
+online/offline con zoom, colores por fuente y viñetas de parámetros.
 
 ## Stack
 
@@ -97,6 +97,9 @@ SEISCOMP_DB_NAME=seiscomp2
 SEISCOMP_DB_USER=rcs_ro
 SEISCOMP_DB_PASSWORD=
 SEISCOMP_RADIO_KM=400
+
+# Mapas: auto | online | offline
+MAPS_MODE=auto
 ```
 
 El rol debe crearse una sola vez con permisos de lectura y `CONNECT` en todas
@@ -207,15 +210,20 @@ Seisan. El trabajo de demostración conserva sus resultados.
 
 ## Mapas
 
-- **Miniatura**: perfil de subducción de cada fila, generada en proceso con
-  matplotlib puro y cacheada en `workspace/<job>/plots/miniaturas/`.
-- **Mapa completo**: planta + perfil, generado en un subproceso con
-  `plotear.py` del core en modo `Agg` y cacheado en
+- **Miniatura**: perfil de subducción de cada fila, generado con matplotlib
+  puro y cacheado en `workspace/<job>/plots/miniaturas/`.
+- **Detalle interactivo**: planta y perfil con zoom. Online usa Leaflet con
+  OpenStreetMap; offline usa Plotly con mapa incorporado. Los eventos se
+  colorean por fuente, hay leyenda y al hacer clic se muestran sus parámetros.
+  En `No actualizados` se ven la solución local y la publicada; en `Repetidos`
+  se ve el grupo completo.
+- **Detección**: `MAPS_MODE=auto` consulta conectividad con caché de 5 minutos.
+  Se puede forzar `online` u `offline` por configuración o con `?mapa=offline`.
+- **PNG**: el mapa completo de planta y perfil sigue disponible para abrir o
+  descargar, generado con `plotear.py` del core en modo `Agg` y cacheado en
   `workspace/<job>/plots/mapas/`.
-- Los mapas usan los datos de cartopy montados en `/data/cartopy:ro`
-  (`CARTOPY_DATA_DIR_HOST` en `.env`).
-- Para no bloquear la interfaz, las miniaturas usan `loading="lazy"` y las
-  imágenes se sirven con caché HTTP.
+- Los mapas estáticos usan cartopy montado en `/data/cartopy:ro`.
+- Las miniaturas usan `loading="lazy"` y las imágenes se sirven con caché HTTP.
 
 ## Servicios y puertos
 
@@ -282,7 +290,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **105 tests**.
+runner de solo lectura. Total actual: **118 tests**.
 
 ## Filtros y exportación
 
@@ -317,7 +325,7 @@ runner de solo lectura. Total actual: **105 tests**.
 | GET | `/jobs/<id>/resultados/<tabla>/<opcion>/<fila>/mapa.png` | Planta y perfil |
 | GET | `/jobs/<id>/descargas` | Artefactos descargables |
 | GET | `/solicitudes` | Historial de solicitudes |
-| GET/POST | `/solicitudes/nueva` | Solicitud SSH y selección de fuentes |
+| GET/POST | `/solicitudes/nueva` | Solicitud de catálogos y selección de fuentes |
 | POST | `/solicitudes/probar-seiscomp` | Probar conexión SeisComp |
 | GET | `/solicitudes/<id>` | Detalle y progreso |
 | POST | `/solicitudes/<id>/reintentar` | Reintentar descarga |

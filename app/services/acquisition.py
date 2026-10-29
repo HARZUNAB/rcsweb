@@ -35,8 +35,12 @@ class _Log:
         self.ruta.write_text("", encoding="utf-8")
 
     def escribir(self, texto: str) -> None:
+        linea = str(texto).rstrip("\n")
+        current_app.logger.info("fetch %s: %s", self.ruta.parent.parent.name, linea)
+        if linea.startswith("$ ssh") or linea.startswith("$ scp") or "Permanently added" in linea:
+            return
         with self.ruta.open("a", encoding="utf-8") as archivo:
-            archivo.write(str(texto).rstrip("\n") + "\n")
+            archivo.write(linea + "\n")
 
 
 def ruta_solicitud(request_id: str) -> Path:
@@ -59,6 +63,13 @@ def log_solicitud(request_id: str, max_lineas: int = 200) -> list[str]:
         lineas = ruta.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return []
+    lineas = [
+        linea
+        for linea in lineas
+        if not linea.startswith("$ ssh")
+        and not linea.startswith("$ scp")
+        and "Permanently added" not in linea
+    ]
     return lineas[-max_lineas:]
 
 
@@ -125,6 +136,14 @@ def _archivo(request: CatalogRequest, kind: str) -> CatalogRequestFile:
 
 def _tiene(request: CatalogRequest, kind: str) -> bool:
     return any(archivo.kind == kind for archivo in request.files)
+
+
+def _mensaje_error(exc: Exception) -> str:
+    texto = str(exc).strip()
+    return texto.replace(
+        "La conexión SSH falló. Revise el registro.",
+        "No se pudo conectar con el servidor. Revisá el registro.",
+    )
 
 
 def _actualizar(request: CatalogRequest, **campos) -> None:
@@ -205,7 +224,7 @@ def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
     )
     for indice, archivo in enumerate(locales, start=1):
         formato = archivo.format or archivo.kind
-        alias = "SeisComp (exportación)" if archivo.kind == "seiscomp" else "Seisan (descarga SSH)"
+        alias = "SeisComp" if archivo.kind == "seiscomp" else "Seisan"
         db.session.add(
             JobSource(
                 job_id=job.id,
@@ -344,7 +363,7 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
 
                 archivo = _archivo(request, "seiscomp")
                 archivo.status = "downloading"
-                request.current_step = "Exportando SeisComp (todas las bases)"
+                request.current_step = "Exportando datos de SeisComp"
                 db.session.commit()
                 salida = workspace / "files" / f"seiscomp_{request.inicio14}_{request.fin14}.csv"
                 exportar_ventana(
@@ -353,6 +372,7 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
                     salida,
                     radio_km=request.station_radius_km or 400,
                     log=log.escribir,
+                    log_detalle=current_app.logger.info,
                     progreso=lambda f: _progreso(request, 65, 25, f),
                 )
                 _guardar_archivo(request, "seiscomp", salida, workspace)
@@ -400,17 +420,18 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
         return {"solicitud": request.id, "estado": "done", "job": job.id}
 
     except Exception as exc:  # noqa: BLE001 - se informa en la solicitud
-        log.escribir(f"ERROR: {exc}")
+        mensaje = _mensaje_error(exc)
+        log.escribir(f"ERROR: {mensaje}")
         request.status = "failed"
         request.current_step = "Error de descarga"
-        request.error = str(exc)
+        request.error = mensaje
         request.finished_at = datetime.now(UTC)
         for archivo in request.files:
             if archivo.status in ("pending", "downloading"):
                 archivo.status = "error"
-                archivo.message = str(exc)
+                archivo.message = mensaje
         db.session.commit()
-        return {"solicitud": request.id, "estado": "failed", "error": str(exc)}
+        return {"solicitud": request.id, "estado": "failed", "error": mensaje}
 
 
 def reintentar_solicitud(request_id: str, password: str) -> dict:

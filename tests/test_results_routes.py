@@ -7,8 +7,8 @@ import re
 from datetime import UTC, datetime
 
 from app.extensions import db
-from app.models import Job, nuevo_uuid
-from app.services.workspace import crear_workspace
+from app.models import Job, JobSource, nuevo_uuid
+from app.services.workspace import crear_workspace, ruta_workspace
 
 
 def _job_con_tabla(login):
@@ -58,6 +58,57 @@ def test_tabla_filtra_y_muestra_total(client, login):
     assert ">ana<" not in html
     assert "Exportar filtrado (1)" in html
     assert "catálogo: 4" in html
+
+
+def _job_repetidos(login):
+    job = _job_con_tabla(login)
+    db.session.add_all(
+        [
+            JobSource(
+                job_id=job.id,
+                kind="seiscomp",
+                alias="SeisComp",
+                format="seiscomp",
+                role="local_principal",
+                priority=1,
+            ),
+            JobSource(
+                job_id=job.id,
+                kind="seisan",
+                alias="Seisan",
+                format="seisan",
+                role="local_secundaria",
+                priority=2,
+            ),
+        ]
+    )
+    db.session.commit()
+    workspace = ruta_workspace(job.id)
+    (workspace / "resultados" / "repetidos_publica_amplio.csv").write_text(
+        "fecha_hora,latitud,longitud,prof,mag,tipomag,referencia,percibido,"
+        "analista_seisan,analista_seiscomp\n"
+        "2026-10-01 00:00:00,-30.000,-71.000,10.0,2.5,ML,Prueba,f,ana,beto\n",
+        encoding="utf-8",
+    )
+    return job
+
+
+def test_repetidos_agrupa_opciones(client, login):
+    job = _job_repetidos(login)
+
+    respuesta = client.get(
+        f"/jobs/{job.id}/resultados/repetidos",
+        query_string={"clave": "publica_amplio"},
+    )
+
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    assert "Publicados: Amplio" in html
+    assert "SeisComp" in html
+    assert "Seisan" in html
+    assert "Excluidos" in html
+    assert "dropdown-menu" in html
+    assert "clave=publica_estricto" in html
 
 
 def test_volver_de_tabla_lleva_al_trabajo(client, login):
@@ -110,6 +161,35 @@ def test_descargas_muestra_catalogos(client, login):
 
     assert "Catálogos procesados" in html
     assert "4</strong> eventos" in html
+
+
+def test_detalle_muestra_mapa_interactivo(client, login):
+    job = _job_con_tabla(login)
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/no_publicados/seisan/0",
+        query_string={"mapa": "offline"},
+    ).get_data(as_text=True)
+
+    assert 'id="mapa-detalle"' in html
+    assert 'data-modo="offline"' in html
+    assert 'id="mapa-datos"' in html
+    assert "Mapa interactivo" in html
+    assert "plotly.min.js" in html
+    assert "Seisan" in html
+
+
+def test_repetidos_detalle_oculta_ver(client, login):
+    job = _job_repetidos(login)
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/repetidos/publica_amplio/0",
+        query_string={"mapa": "offline"},
+    ).get_data(as_text=True)
+
+    assert "data-href=" in html
+    assert ">Ver</a>" not in html
+    assert "Hacé clic en un evento" in html
 
 
 def test_exportar_respeta_filtros(client, login):

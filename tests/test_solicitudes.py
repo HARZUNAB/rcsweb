@@ -123,8 +123,8 @@ def test_nueva_solicitud_encola(client, login, monkeypatch):
     respuesta = client.post(
         "/solicitudes/nueva",
         data={
-            "period_start": "2026-10-01",
-            "period_end": "2026-10-31",
+            "period_start": "01/10/2026",
+            "period_end": "31/10/2026",
             "server": "10.54.217.9",
             "remote_user": "sysopr",
             "password": "secreto",
@@ -148,6 +148,21 @@ def test_nueva_solicitud_encola(client, login, monkeypatch):
         .entity
         == solicitud.id
     )
+
+
+def test_log_de_solicitud_oculta_comandos_de_transporte(app, tmp_path):
+    from app.services.acquisition import _Log
+
+    log = _Log(tmp_path / "fetch.log")
+    log.escribir("$ ssh sysopr@host 'echo OK'")
+    log.escribir("$ scp archivo host:tmp/archivo")
+    log.escribir("Warning: Permanently added 'host' to the list of known hosts.")
+    log.escribir("[+] Conexión establecida con el servidor.")
+
+    texto = (tmp_path / "fetch.log").read_text(encoding="utf-8")
+    assert "ssh" not in texto
+    assert "scp" not in texto
+    assert "Conexión establecida" in texto
 
 
 def test_envolver_locale_remoto():
@@ -197,6 +212,9 @@ def test_nueva_por_defecto_sin_seiscomp(client, login, monkeypatch):
     assert "checked" in _input(html, "incluir_seisan")
     assert "checked" not in _input(html, "incluir_seiscomp")
     assert 'value="400"' in _input(html, "radio_km")
+    assert "data-datepicker" in _input(html, "period_start")
+    assert 'placeholder="dd/mm/aaaa"' in _input(html, "period_start")
+    assert "flatpickr.min.js" in html
     marcado = [radio for radio in _radios(html) if "checked" in radio]
     assert len(marcado) == 1
     assert 'value="seisan"' in marcado[0]
@@ -231,6 +249,50 @@ def test_nueva_solicitud_exige_fuente_local(client, login):
 
     assert respuesta.status_code == 200
     assert "Seleccioná al menos una fuente local" in respuesta.get_data(as_text=True)
+    assert db.session.execute(db.select(CatalogRequest)).scalar_one_or_none() is None
+
+
+def test_nueva_solicitud_principal_debe_estar_incluida(client, login):
+    login()
+
+    respuesta = client.post(
+        "/solicitudes/nueva",
+        data={
+            "period_start": "01/10/2026",
+            "period_end": "31/10/2026",
+            "server": "10.54.217.9",
+            "remote_user": "sysopr",
+            "password": "secreto",
+            "incluir_seisan": "y",
+            "primary_source": "seiscomp",
+        },
+    )
+
+    assert respuesta.status_code == 200
+    assert "La fuente principal debe estar entre las fuentes incluidas." in (
+        respuesta.get_data(as_text=True)
+    )
+    assert db.session.execute(db.select(CatalogRequest)).scalar_one_or_none() is None
+
+
+def test_nueva_solicitud_fecha_invalida(client, login):
+    login()
+
+    respuesta = client.post(
+        "/solicitudes/nueva",
+        data={
+            "period_start": "31/02/2026",
+            "period_end": "01/03/2026",
+            "server": "10.54.217.9",
+            "remote_user": "sysopr",
+            "password": "secreto",
+            "incluir_seisan": "y",
+            "primary_source": "seisan",
+        },
+    )
+
+    assert respuesta.status_code == 200
+    assert "Formato de fecha inválido" in respuesta.get_data(as_text=True)
     assert db.session.execute(db.select(CatalogRequest)).scalar_one_or_none() is None
 
 
@@ -306,6 +368,30 @@ def test_probar_seiscomp_sin_configuracion(client, login, monkeypatch):
     assert "Faltan SEISCOMP_DB_HOST/USER/PASSWORD" in respuesta.get_data(as_text=True)
 
 
+def test_probar_seiscomp_ok_no_muestra_bases(client, login, monkeypatch):
+    login()
+    monkeypatch.setattr(
+        "app.blueprints.solicitudes.probar_conexion",
+        lambda: {"ok": True, "error": None, "bases": ["seiscomp", "seiscomp2"]},
+    )
+
+    respuesta = client.post("/solicitudes/probar-seiscomp", follow_redirects=True)
+    html = respuesta.get_data(as_text=True)
+
+    assert "Conexión SeisComp OK." in html
+    assert "Bases:" not in html
+    assert "seiscomp2" not in html
+
+
+def test_solicitud_no_muestra_jerga_de_transporte(client, login):
+    login()
+
+    html = client.get("/solicitudes/nueva").get_data(as_text=True)
+
+    assert "SSH" not in html
+    assert "SCP" not in html
+
+
 def test_lista_y_detalle(client, login, app):
     login()
     solicitud = _solicitud(app)
@@ -338,7 +424,9 @@ def test_ejecutar_solicitud_crea_job(app, monkeypatch):
     job = db.session.execute(db.select(Job)).scalar_one()
     assert job.origin == "ssh"
     assert job.catalog_request_id == solicitud.id
-    assert {source.kind for source in job.sources} == {"eventquery", "seisan"}
+    fuentes = {source.kind: source for source in job.sources}
+    assert set(fuentes) == {"eventquery", "seisan"}
+    assert fuentes["seisan"].alias == "Seisan"
     assert {archivo.kind for archivo in job.files} == {"eventquery", "seisan"}
     assert encolados == [job.id]
 
@@ -361,7 +449,7 @@ def test_ejecutar_solicitud_invalida_no_crea_job(app, monkeypatch):
 
 
 def _exportar_seiscomp_falso(error=None):
-    def exportar(inicio, fin, salida, radio_km=400, log=None, progreso=None):
+    def exportar(inicio, fin, salida, radio_km=400, log=None, log_detalle=None, progreso=None):
         if error:
             raise RuntimeError(error)
         shutil.copy2(
@@ -393,11 +481,19 @@ def test_ejecutar_solicitud_exporta_seiscomp(app, monkeypatch):
     )
     llamado = {}
 
-    def exportar(inicio, fin, salida, radio_km=400, log=None, progreso=None):
+    def exportar(inicio, fin, salida, radio_km=400, log=None, log_detalle=None, progreso=None):
         llamado["inicio"] = inicio
         llamado["fin"] = fin
         llamado["radio_km"] = radio_km
-        return _exportar_seiscomp_falso()(inicio, fin, salida, radio_km, log, progreso)
+        return _exportar_seiscomp_falso()(
+            inicio,
+            fin,
+            salida,
+            radio_km=radio_km,
+            log=log,
+            log_detalle=log_detalle,
+            progreso=progreso,
+        )
 
     monkeypatch.setattr("app.services.seiscomp.exportar_ventana", exportar)
 
@@ -409,6 +505,7 @@ def test_ejecutar_solicitud_exporta_seiscomp(app, monkeypatch):
     fuentes = {source.kind: source for source in job.sources}
     assert set(fuentes) == {"eventquery", "seiscomp"}
     assert fuentes["seiscomp"].role == "local_principal"
+    assert fuentes["seiscomp"].alias == "SeisComp"
     assert fuentes["eventquery"].role == "referencia"
     assert job.station_radius_km == 250
     assert {archivo.kind for archivo in job.files} == {"eventquery", "seiscomp"}

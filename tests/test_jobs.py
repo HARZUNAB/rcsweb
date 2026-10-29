@@ -41,6 +41,15 @@ def test_pagina_subida_es_secundaria(client, login):
     assert 'href="/solicitudes/nueva"' in html
 
 
+def test_subida_no_muestra_jerga_de_transporte(client, login):
+    login()
+
+    html = client.get("/jobs/new").get_data(as_text=True)
+
+    assert "SSH" not in html
+    assert "SCP" not in html
+
+
 def test_crear_trabajo_encola_y_guarda_archivos(client, login, samples, sin_celery):
     login()
     datos = _datos_formulario(samples)

@@ -23,7 +23,26 @@
   </div>
 </div>
 
-{% if opciones|length > 1 %}
+{% if grupos %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% for grupo in grupos %}
+  <div class="dropdown">
+    <button class="btn btn-sm {% if grupo.activo %}btn-primary{% else %}btn-outline-primary{% endif %} dropdown-toggle"
+            type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      {{ grupo.titulo }}{% if grupo.activo %}: {{ grupo.titulo_activo }}{% endif %}
+    </button>
+    <ul class="dropdown-menu">
+      {% for clave, titulo in grupo.opciones %}
+      <li>
+        <a class="dropdown-item {% if clave == opcion %}active{% endif %}"
+           href="{{ url_tab(clave) }}">{{ titulo }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+{% elif opciones|length > 1 %}
 <ul class="nav nav-pills flex-wrap gap-2 mb-3">
   {% for clave, titulo in opciones %}
   <li class="nav-item">

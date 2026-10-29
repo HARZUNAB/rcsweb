@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import os
 
 from flask_wtf import FlaskForm
@@ -16,10 +17,49 @@ from wtforms import (
     SubmitField,
 )
 from wtforms.validators import DataRequired, Length, NumberRange, Optional, ValidationError
+from wtforms.widgets import TextInput
 
 from .services.sources import default_primary, fuentes_locales
 
 LOCALES = [(fuente.codigo, fuente.etiqueta) for fuente in fuentes_locales()]
+
+
+class FechaField(DateField):
+    """Fecha visible dd/mm/aaaa y compatible con ISO en posts viejos."""
+
+    widget = TextInput()
+
+    def __init__(self, label=None, validators=None, **kwargs):
+        kwargs.setdefault("format", "%d/%m/%Y")
+        super().__init__(label, validators, **kwargs)
+
+    def process_formdata(self, valuelist):
+        self._error_invalido = False
+        if not valuelist:
+            return
+        texto = str(valuelist[0]).strip()
+        if not texto:
+            self.data = None
+            return
+        for formato in ("%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%Y-%m-%d"):
+            try:
+                self.data = datetime.datetime.strptime(texto, formato).date()
+                return
+            except ValueError:
+                continue
+        self.data = None
+        self._error_invalido = True
+
+    def validate(self, form, extra_validators=()):
+        if not self.raw_data or not str(self.raw_data[0]).strip():
+            self.process_errors.append("Este campo es obligatorio.")
+            self.errors = list(self.process_errors)
+            return False
+        if getattr(self, "_error_invalido", False):
+            self.process_errors.append("Formato de fecha inválido. Usá dd/mm/aaaa.")
+            self.errors = list(self.process_errors)
+            return False
+        return super().validate(form, extra_validators)
 
 
 def _ssh_host() -> str:
@@ -37,6 +77,16 @@ def _radio_default() -> int:
         return 400
 
 
+def _principal_incluida(form, seleccion: list[str]) -> bool:
+    principal = form.primary_source.data
+    if principal and principal not in seleccion:
+        form.primary_source.errors.append(
+            "La fuente principal debe estar entre las fuentes incluidas."
+        )
+        return False
+    return True
+
+
 class LoginForm(FlaskForm):
     username = StringField("Usuario", validators=[DataRequired(), Length(min=3, max=80)])
     password = PasswordField("Contraseña", validators=[DataRequired()])
@@ -45,8 +95,8 @@ class LoginForm(FlaskForm):
 
 
 class JobForm(FlaskForm):
-    period_start = DateField("Desde", validators=[DataRequired()])
-    period_end = DateField("Hasta", validators=[DataRequired()])
+    period_start = FechaField("Desde")
+    period_end = FechaField("Hasta")
 
     eventquery = FileField(
         "Catálogo eventquery (CSV)",
@@ -56,7 +106,7 @@ class JobForm(FlaskForm):
     incluir_seiscomp = BooleanField("Incluir SeisComp", default=False)
     alias_seiscomp = StringField("Nombre de la fuente", validators=[Length(max=80)])
     seiscomp = FileField(
-        "Exportación de SeisComp (CSV)",
+        "Catálogo SeisComp (CSV)",
         validators=[FileAllowed(["csv"], "un CSV de SeisComp")],
     )
 
@@ -93,9 +143,11 @@ class JobForm(FlaskForm):
                 "Seleccioná al menos una fuente local para comparar con eventquery."
             )
             valido = False
+        elif not _principal_incluida(self, seleccion):
+            valido = False
 
         if self.incluir_seiscomp.data and not (self.seiscomp.data and self.seiscomp.data.filename):
-            self.seiscomp.errors.append("Subí la exportación de SeisComp o desmarcá la fuente.")
+            self.seiscomp.errors.append("Subí el catálogo de SeisComp o desmarcá la fuente.")
             valido = False
 
         if self.incluir_seisan.data and not (self.seisan.data and self.seisan.data.filename):
@@ -106,11 +158,11 @@ class JobForm(FlaskForm):
 
 
 class SolicitudForm(FlaskForm):
-    period_start = DateField("Desde", validators=[DataRequired()])
-    period_end = DateField("Hasta", validators=[DataRequired()])
-    server = StringField("Servidor SSH", validators=[DataRequired()], default=_ssh_host)
-    remote_user = StringField("Usuario SSH", validators=[DataRequired()], default=_ssh_user)
-    password = PasswordField("Contraseña SSH", validators=[DataRequired()])
+    period_start = FechaField("Desde")
+    period_end = FechaField("Hasta")
+    server = StringField("Servidor", validators=[DataRequired()], default=_ssh_host)
+    remote_user = StringField("Usuario", validators=[DataRequired()], default=_ssh_user)
+    password = PasswordField("Contraseña del servidor", validators=[DataRequired()])
 
     incluir_seisan = BooleanField("Incluir Seisan", default=True)
     incluir_seiscomp = BooleanField("Incluir SeisComp", default=False)
@@ -140,6 +192,17 @@ class SolicitudForm(FlaskForm):
                 "Seleccioná al menos una fuente local para descargar."
             )
             valido = False
+        else:
+            seleccion = [
+                codigo
+                for codigo, incluir in (
+                    ("seisan", self.incluir_seisan.data),
+                    ("seiscomp", self.incluir_seiscomp.data),
+                )
+                if incluir
+            ]
+            if not _principal_incluida(self, seleccion):
+                valido = False
         if self.incluir_seiscomp.data:
             from .services.seiscomp import configurada
 
@@ -147,11 +210,11 @@ class SolicitudForm(FlaskForm):
                 self.radio_km.errors.append("Indicá el radio de estaciones para SeisComp.")
                 valido = False
             if not configurada():
-                self.incluir_seiscomp.errors.append("SeisComp no está configurado (SEISCOMP_DB_*).")
+                self.incluir_seiscomp.errors.append("SeisComp no está configurado.")
                 valido = False
         return valido
 
 
 class ReintentarForm(FlaskForm):
-    password = PasswordField("Contraseña SSH", validators=[DataRequired()])
+    password = PasswordField("Contraseña del servidor", validators=[DataRequired()])
     submit = SubmitField("Reintentar descarga")

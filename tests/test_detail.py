@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from app.extensions import db
 from app.models import Job, nuevo_uuid
-from app.services.detail import construir_detalle, leer_filas
+from app.services.detail import construir_detalle, leer_filas, puntos_mapa
 from app.services.workspace import crear_workspace
 
 
@@ -31,6 +31,41 @@ def _fila_no_actualizada():
         "dist_km": "0.1",
         "discrepancias": "lat, prof, mag",
     }
+
+
+def test_puntos_mapa_no_actualizados():
+    fila = _fila_no_actualizada()
+    contexto = construir_detalle(
+        "no_actualizados", "no_actualizados_seisan.csv", [fila], 0
+    )
+    puntos = puntos_mapa("no_actualizados", contexto["fila"], "seisan")
+
+    assert len(puntos) == 2
+    assert {p["fuente"] for p in puntos} == {"seisan", "eventquery"}
+    assert puntos[0]["dist_km"] == 0.0
+    assert all(p["color"].startswith("#") for p in puntos)
+
+
+def test_puntos_mapa_repetidos_referencia_en_cero():
+    fila = {
+        "fecha_hora": "2026-10-01 00:00:00",
+        "latitud": "-30.0",
+        "longitud": "-71.0",
+        "prof": "10.0",
+        "mag": "2.5",
+        "tipomag": "ML",
+        "analista": "ana",
+    }
+    otro = {**fila, "latitud": "-30.1", "longitud": "-71.1"}
+    grupo = [
+        {"_fila": 0, "fila": fila, "dt_seg": 0, "dlat": 0, "dlon": 0},
+        {"_fila": 1, "fila": otro, "dt_seg": 1, "dlat": 0.1, "dlon": 0.1},
+    ]
+    puntos = puntos_mapa("repetidos", fila, "seiscomp_estricto", grupo, indice=0)
+
+    assert len(puntos) == 2
+    assert puntos[0]["dist_km"] == 0.0
+    assert puntos[0]["fuente"] == "seiscomp"
 
 
 def test_comparaciones_y_deltas():

@@ -18,7 +18,8 @@ from flask_login import login_required
 from ..extensions import db
 from ..models import Job
 from ..services.audit import registrar
-from ..services.detail import construir_detalle, leer_filas
+from ..services.detail import construir_detalle, leer_filas, puntos_mapa
+from ..services.maps import modo_mapa
 from ..services.plots import generar_mapa, generar_miniatura
 from ..services.results import (
     NO_ACT_COLUMNS,
@@ -27,6 +28,7 @@ from ..services.results import (
     exportar_csv,
     leer_tabla,
     rep_files,
+    rep_grupos,
 )
 from ..services.sources import FUENTES, default_primary, etiqueta
 from ..services.workspace import ruta_workspace
@@ -306,6 +308,18 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
     volver = url_for("jobs.detalle", job_id=job.id)
     titulo_opcion = dict(opciones)[opcion]
 
+    grupos = None
+    if tabla == "repetidos":
+        labels = {codigo: _alias(job, codigo) for codigo in _fuentes_job(job)}
+        grupos = [dict(grupo) for grupo in rep_grupos(list(labels), labels)]
+        for grupo in grupos:
+            activo = next(
+                (titulo for clave, titulo in grupo["opciones"] if clave == opcion),
+                None,
+            )
+            grupo["activo"] = activo is not None
+            grupo["titulo_activo"] = activo or ""
+
     indice = cargar_indice(ruta_workspace(job.id))
     catalogos = indice.get("catalogos", {})
     fuente_catalogo = opcion if opcion in catalogos else opcion.split("_", 1)[0]
@@ -321,6 +335,7 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
         opcion=opcion,
         titulo_opcion=titulo_opcion,
         opciones=opciones,
+        grupos=grupos,
         tabla=tabla_datos,
         columnas=columnas,
         filtros=filtros,
@@ -455,6 +470,24 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
     volver = request.args.get("volver", "")
     if not volver.startswith("/") or volver.startswith("//"):
         volver = url_for(ENDPOINTS[tabla], job_id=job.id, **{parametro: opcion})
+    puntos = puntos_mapa(tabla, contexto["fila"], opcion, contexto.get("grupo"), indice=fila)
+    for punto in puntos:
+        if punto.get("fila") is not None:
+            punto["url"] = url_for(
+                "results.detalle",
+                job_id=job.id,
+                tabla=tabla,
+                opcion=opcion,
+                fila=punto["fila"],
+                volver=volver,
+            )
+    leyenda = []
+    vistos = set()
+    for punto in puntos:
+        if punto["fuente"] not in vistos:
+            vistos.add(punto["fuente"])
+            leyenda.append({"etiqueta": punto["etiqueta"], "color": punto["color"]})
+    mapa_modo = modo_mapa(request.args.get("mapa"))
     url_mapa = url_for(
         "results.mapa",
         job_id=job.id,
@@ -470,10 +503,14 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         tabla_config=config,
         opcion=opcion,
         titulo_opcion=dict(config["opciones"])[opcion],
+        indice_fila=fila,
         columnas=columnas,
         volver=volver,
         archivo=archivo,
         url_mapa=url_mapa,
+        puntos_mapa=puntos,
+        leyenda_mapa=leyenda,
+        mapa_modo=mapa_modo,
         titulo_columna=titulo_columna,
         **contexto,
     )

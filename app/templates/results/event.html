@@ -3,6 +3,7 @@
 {% block title %}Detalle · {{ tabla_config.titulo }}{% endblock %}
 
 {% block content %}
+{% set mapa_disponible = puntos_mapa|length > 0 %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
   <div>
     <div class="text-secondary small text-uppercase mb-1">
@@ -148,6 +149,9 @@
     <h2 class="h6 text-uppercase text-secondary mb-1">Grupo de duplicados</h2>
     <p class="text-secondary small mb-3">
       Eventos dentro de la ventana del informe ({{ '6 s / 2°' if 'amplio' in archivo else '3 s / 1°' }}).
+      {% if mapa_disponible %}
+        Hacé clic en un evento del mapa o en una fila para ver sus parámetros.
+      {% endif %}
     </p>
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle mb-0">
@@ -160,12 +164,13 @@
             <th>Δt (s)</th>
             <th>Δlat (°)</th>
             <th>Δlon (°)</th>
-            <th class="text-end"></th>
+            {% if not mapa_disponible %}<th class="text-end"></th>{% endif %}
           </tr>
         </thead>
         <tbody>
           {% for item in grupo %}
-          <tr {% if item.get('_fila') == fila.get('_fila') %}class="table-active"{% endif %}>
+          <tr {% if mapa_disponible %}data-href="{{ url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=item.get('_fila'), volver=volver) }}" tabindex="0"{% endif %}
+              class="{% if item.get('_fila') == indice_fila %}table-active{% endif %}{% if mapa_disponible %} fila-enlazada{% endif %}">
             <td>{{ item.get('_fila') + 1 }}</td>
             <td>{{ item.fila.get('fecha_hora', '') }}</td>
             <td>{{ item.fila.get('latitud', '—') }}</td>
@@ -173,12 +178,14 @@
             <td>{{ item.dt_seg if item.dt_seg is not none else '—' }}</td>
             <td>{{ item.dlat if item.dlat is not none else '—' }}</td>
             <td>{{ item.dlon if item.dlon is not none else '—' }}</td>
+            {% if not mapa_disponible %}
             <td class="text-end">
               <a class="btn btn-sm btn-outline-secondary"
                  href="{{ url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=item.get('_fila'), volver=volver) }}">
                 Ver
               </a>
             </td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>
@@ -188,6 +195,62 @@
 </div>
 {% endif %}
 
+{% if puntos_mapa %}
+{% set url_offline = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, mapa='offline') %}
+{% set url_online = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, mapa='online') %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <div>
+        <h2 class="h6 text-uppercase text-secondary mb-0">Mapa interactivo</h2>
+        <div class="small text-secondary">
+          Planta y perfil. Hacé clic en un evento para ver sus parámetros.
+        </div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        {% if mapa_modo == 'online' %}
+          <span class="badge text-bg-success">Online</span>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_offline }}">Usar offline</a>
+        {% else %}
+          <span class="badge text-bg-secondary">Offline</span>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_online }}">Intentar online</a>
+        {% endif %}
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_mapa }}"
+           target="_blank" rel="noopener">Abrir PNG</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_mapa }}"
+           download="mapa.png">Descargar PNG</a>
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-3 small mb-2" id="leyenda-mapa">
+      {% for item in leyenda_mapa %}
+      <span>
+        <span class="d-inline-block rounded-circle me-1"
+              style="width: 12px; height: 12px; background: {{ item.color }};"></span>
+        {{ item.etiqueta }}
+      </span>
+      {% endfor %}
+    </div>
+
+    <div id="mapa-aviso" class="alert alert-warning small d-none">
+      No se pudieron cargar las tiles del mapa online.
+      <a id="mapa-aviso-link" href="{{ url_offline }}">Cambiar al mapa offline</a>.
+    </div>
+
+    <div id="mapa-detalle" class="rounded border"
+         style="height: 430px;"
+         data-modo="{{ mapa_modo }}"
+         data-offline-url="{{ url_offline }}"
+         data-online-url="{{ url_online }}"></div>
+
+    <div id="mapa-seleccion" class="alert alert-light border small d-none mt-3"></div>
+
+    <h3 class="h6 text-uppercase text-secondary mt-3 mb-2">Perfil</h3>
+    <div id="perfil-detalle" class="rounded border" style="height: 280px;"></div>
+  </div>
+</div>
+<script type="application/json" id="mapa-datos">{{ puntos_mapa|tojson }}</script>
+{% else %}
 <div class="card border-0 shadow-sm">
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -208,4 +271,15 @@
          alt="Planta y perfil del evento" loading="lazy">
   </div>
 </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if mapa_modo == 'online' and puntos_mapa %}
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+{% endif %}
+{% if puntos_mapa %}
+<script src="{{ url_for('static', filename='vendor/plotly/plotly.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/mapa_detalle.js') }}"></script>
+{% endif %}
 {% endblock %}

@@ -54,6 +54,34 @@ def rep_files(
     return tuple(opciones)
 
 
+def rep_grupos(fuentes: list[str], labels: dict[str, str] | None = None) -> tuple[dict, ...]:
+    """Agrupa los informes de repetidos para el menú de la interfaz."""
+    labels = labels or {}
+    grupos = [
+        {
+            "titulo": "Publicados",
+            "opciones": [
+                ("publica_amplio", "Amplio"),
+                ("publica_estricto", "Estricto"),
+            ],
+        }
+    ]
+    for fuente in fuentes:
+        opciones = [
+            (f"{fuente}_amplio", "Amplio"),
+            (f"{fuente}_estricto", "Estricto"),
+        ]
+        if fuente == "seisan":
+            opciones.append(("seisan_exclu", "Excluidos"))
+        grupos.append(
+            {
+                "titulo": labels.get(fuente, etiqueta(fuente)),
+                "opciones": opciones,
+            }
+        )
+    return tuple(grupos)
+
+
 # Columnas visibles de «No actualizados», en el orden en que se muestran.
 NO_ACT_COLUMNS = (
     ("fecha_local", "Fecha y hora (fuente)"),
