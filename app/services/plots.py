@@ -271,23 +271,77 @@ def _serie(valores) -> list:
     return resultado
 
 
-def perfil_mapa(
-    tabla: str, archivo: str, filas: list[dict], indice: int, opcion: str
-) -> dict | None:
-    """Perfil con topografía, slab y eventos para el detalle interactivo."""
-    eventos_crudos = _eventos(tabla, archivo, filas, indice)
-    if not eventos_crudos:
+def _residuo_slab(evento: dict, perfil) -> float | None:
+    if perfil is None or evento.get("along_km") is None or evento.get("prof") is None:
         return None
     try:
-        eventos, perfil = _asignar(eventos_crudos, _perfiles())
+        _preparar_core()
+        import asigna_perfiles as ap  # type: ignore
+
+        slab = ap.profundidad_slab_en(perfil, float(evento["along_km"]))
+        slab = float(slab)
+        if not math.isfinite(slab):
+            return None
+        return abs(float(evento["prof"]) - slab)
     except Exception:
         return None
-    if perfil is None:
-        return None
 
+
+def _es_sospechoso(evento: dict) -> bool:
+    try:
+        _preparar_core()
+        import sismicidad  # type: ignore
+
+        return bool(sismicidad.es_sospechoso(evento))
+    except Exception:
+        return False
+
+
+def clasificar_eventos(
+    tabla: str, archivo: str, filas: list[dict], indice: int
+) -> tuple[list[dict], dict | None]:
+    """Eventos con perfil, residuo al slab y clasificación de sospechoso."""
+    eventos = _eventos(tabla, archivo, filas, indice)
+    if not eventos:
+        return [], None
+    try:
+        eventos, perfil = _asignar(eventos, _perfiles())
+    except Exception:
+        perfil = None
+    for evento in eventos:
+        evento["residuo_km"] = _residuo_slab(evento, perfil)
+        evento["sospechoso"] = _es_sospechoso(evento)
+    return eventos, perfil
+
+
+def marcar_sospechosos(puntos: list[dict], eventos: list[dict]) -> list[dict]:
+    """Propaga la clasificación de los eventos a los puntos del mapa."""
+    indice = {}
+    for evento in eventos:
+        try:
+            clave = (
+                round(float(evento["latitud"]), 6),
+                round(float(evento["longitud"]), 6),
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+        indice[clave] = indice.get(clave, False) or bool(evento.get("sospechoso"))
+    for punto in puntos:
+        try:
+            clave = (round(float(punto["lat"]), 6), round(float(punto["lon"]), 6))
+        except (KeyError, TypeError, ValueError):
+            punto["sospechoso"] = False
+            continue
+        punto["sospechoso"] = indice.get(clave, False)
+    return puntos
+
+
+def perfil_desde_eventos(eventos: list[dict], perfil, opcion: str, tabla: str):
+    if perfil is None or not eventos:
+        return None
     referencia = next(
         (evento for evento in eventos if evento.get("rol") in ("local", "seleccionado")),
-        eventos[0] if eventos else None,
+        eventos[0],
     )
     puntos = []
     for evento in eventos:
@@ -304,15 +358,11 @@ def perfil_mapa(
         codigo = fuente if fuente in COLORES_FUENTE else "publicado"
         lat = evento.get("latitud")
         lon = evento.get("longitud")
-        distancia = (
-            distancia_km(
-                referencia.get("latitud"),
-                referencia.get("longitud"),
-                lat,
-                lon,
-            )
-            if referencia
-            else None
+        distancia = distancia_km(
+            referencia.get("latitud"),
+            referencia.get("longitud"),
+            lat,
+            lon,
         )
         puntos.append(
             {
@@ -330,19 +380,30 @@ def perfil_mapa(
                 "tipo": evento.get("tipo", ""),
                 "analista": evento.get("analista", ""),
                 "frontera": texto_frontera_coords(lat, lon),
+                "sospechoso": bool(evento.get("sospechoso")),
+                "residuo_km": evento.get("residuo_km"),
                 "estado": "",
             }
         )
-
     slab = perfil.get("slab") or {}
     return {
         "id": perfil.get("id", ""),
         "topo_p": _serie(perfil.get("topo_p")),
         "topo_alt": _serie(perfil.get("topo_alt")),
+        "slab_lon": _serie(slab.get("lon")),
+        "slab_lat": _serie(slab.get("lat")),
         "slab_p": _serie(slab.get("p")),
         "slab_depth": _serie(slab.get("depth")),
         "eventos": puntos,
     }
+
+
+def perfil_mapa(
+    tabla: str, archivo: str, filas: list[dict], indice: int, opcion: str
+) -> dict | None:
+    """Perfil con topografía, slab y eventos para el detalle interactivo."""
+    eventos, perfil = clasificar_eventos(tabla, archivo, filas, indice)
+    return perfil_desde_eventos(eventos, perfil, opcion, tabla)
 
 
 def _dibujar_miniatura(eventos: list[dict], perfil) -> bytes:

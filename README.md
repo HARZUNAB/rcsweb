@@ -4,7 +4,7 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 4C completada (v0.7.1).** Además de la carga local, la
+**Estado actual: etapa 4C completada (v0.7.2).** Además de la carga local, la
 plataforma puede solicitar y descargar catálogos del servidor y obtener SeisComp
 desde PostgreSQL en solo lectura, combinando todas las bases. El radio de
 estaciones es editable por solicitud, con 400 km por defecto. Las fechas se
@@ -218,7 +218,14 @@ Seisan. El trabajo de demostración conserva sus resultados.
   clic se muestran sus parámetros. En `No actualizados` se ven la solución local
   y la publicada; en `Repetidos` se ve el grupo completo.
 - **Perfil**: topografía, slab, nivel del mar y eventos calculados con
-  `asigna_perfiles` del core, con zoom y clic.
+  `asigna_perfiles` del core, con zoom y clic. El contenedor se limita a
+  820 × 420 px en escritorio para que no quede demasiado estirado.
+- **Sismicidad histórica**: casilla opcional en cada detalle (planta y perfil,
+  online y offline). Al activarla se cargan `base_2020_2026.dat` y la
+  proyección al perfil; el estado queda en la URL del detalle.
+- **Sospechosos**: se reutiliza `sismicidad.es_sospechoso` del core. El evento
+  conserva el color de su fuente y se marca con borde violeta `#7b1196` y la
+  leyenda “Sospechoso (borde violeta)”.
 - **Frontera**: los listados y las viñetas muestran la distancia a la frontera
   chilena más cercana (Perú, Bolivia o Argentina), reutilizando `fronteras.py`.
   No se muestra dentro de Chile ni en mar chileno; en el mar solo se muestra
@@ -296,7 +303,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **130 tests**.
+runner de solo lectura. Total actual: **139 tests**.
 
 ## Filtros y exportación
 

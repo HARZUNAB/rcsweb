@@ -142,6 +142,68 @@ def test_generar_miniatura_cachea(app, tmp_path, monkeypatch):
     assert len(llamadas) == 1
 
 
+def test_clasificar_eventos_marca_sospechosos_y_residuo(monkeypatch):
+    eventos = [
+        {
+            "rol": "local",
+            "latitud": -30.0,
+            "longitud": -71.0,
+            "prof": 40.0,
+            "along_km": 10.0,
+            "perp_km": 2.0,
+        },
+        {
+            "rol": "publicado",
+            "latitud": -30.1,
+            "longitud": -71.1,
+            "prof": 20.0,
+            "along_km": 20.0,
+            "perp_km": 3.0,
+        },
+    ]
+    monkeypatch.setattr(plots, "_eventos", lambda *args: eventos)
+    monkeypatch.setattr(plots, "_perfiles", lambda: [{"id": "P1"}])
+    monkeypatch.setattr(
+        plots,
+        "_asignar",
+        lambda filas, perfiles: (filas, {"id": "P1"}),
+    )
+    monkeypatch.setattr(
+        plots,
+        "_residuo_slab",
+        lambda evento, perfil: 42.0 if evento["rol"] == "local" else 5.0,
+    )
+    monkeypatch.setattr(
+        plots,
+        "_es_sospechoso",
+        lambda evento: evento["rol"] == "local",
+    )
+
+    clasificados, perfil = plots.clasificar_eventos("no_actualizados", "x.csv", [], 0)
+
+    assert perfil == {"id": "P1"}
+    assert clasificados[0]["residuo_km"] == 42.0
+    assert clasificados[0]["sospechoso"] is True
+    assert clasificados[1]["residuo_km"] == 5.0
+    assert clasificados[1]["sospechoso"] is False
+
+
+def test_marcar_sospechosos_propaga_por_coordenadas():
+    puntos = [
+        {"lat": -30.0, "lon": -71.0},
+        {"lat": -30.1, "lon": -71.1},
+        {"lat": -40.0, "lon": -73.0},
+    ]
+    eventos = [
+        {"latitud": -30.0, "longitud": -71.0, "sospechoso": True},
+        {"latitud": -30.1, "longitud": -71.1, "sospechoso": False},
+    ]
+
+    plots.marcar_sospechosos(puntos, eventos)
+
+    assert [punto["sospechoso"] for punto in puntos] == [True, False, False]
+
+
 def test_perfil_mapa_incluye_topo_slab_y_frontera(monkeypatch):
     eventos = [
         {

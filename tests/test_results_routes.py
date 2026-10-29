@@ -177,6 +177,8 @@ def test_detalle_muestra_mapa_interactivo(client, login):
     assert "Mapa interactivo" in html
     assert "plotly.min.js" in html
     assert "data-topojson-url" in html
+    assert "perfil-contenedor" in html
+    assert 'id="mostrar-historico"' in html
     assert "Seisan" in html
 
 
@@ -221,6 +223,59 @@ def test_tabla_muestra_columna_frontera(client, login, monkeypatch):
 
     assert "Frontera más cercana" in html
     assert "Argentina — 12.0 km" in html
+
+
+def test_historico_se_activa_por_query(client, login):
+    job = _job_con_tabla(login)
+
+    sin = client.get(
+        f"/jobs/{job.id}/resultados/no_publicados/seisan/0",
+        query_string={"mapa": "offline"},
+    ).get_data(as_text=True)
+    assert 'id="mostrar-historico"' in sin
+    assert "checked" not in re.search(r'<input[^>]*id="mostrar-historico"[^>]*>', sin).group(0)
+    assert 'id="historico-datos"' not in sin
+
+    con = client.get(
+        f"/jobs/{job.id}/resultados/no_publicados/seisan/0",
+        query_string={"mapa": "offline", "historico": "1"},
+    ).get_data(as_text=True)
+    casilla = re.search(r'<input[^>]*id="mostrar-historico"[^>]*>', con).group(0)
+    assert "checked" in casilla
+    assert 'id="historico-datos"' in con
+    assert "Sismicidad histórica" in con
+
+
+def test_detalle_marca_evento_sospechoso(client, login, monkeypatch):
+    job = _job_con_tabla(login)
+    monkeypatch.setattr(
+        "app.blueprints.results.clasificar_eventos",
+        lambda *args: (
+            [
+                {
+                    "latitud": -30.0,
+                    "longitud": -71.0,
+                    "sospechoso": True,
+                }
+            ],
+            None,
+        ),
+    )
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/no_publicados/seisan/0",
+        query_string={"mapa": "offline"},
+    ).get_data(as_text=True)
+
+    assert "Sospechoso (borde violeta)" in html
+    datos = json.loads(
+        re.search(
+            r'<script type="application/json" id="mapa-datos">(.*?)</script>',
+            html,
+            re.S,
+        ).group(1)
+    )
+    assert datos[0]["sospechoso"] is True
 
 
 def test_repetidos_detalle_oculta_ver(client, login):

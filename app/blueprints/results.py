@@ -20,8 +20,15 @@ from ..models import Job
 from ..services.audit import registrar
 from ..services.borders import texto_frontera_coords
 from ..services.detail import construir_detalle, leer_filas, puntos_mapa
+from ..services.history import datos as historico_datos
 from ..services.maps import modo_mapa
-from ..services.plots import generar_mapa, generar_miniatura, perfil_mapa
+from ..services.plots import (
+    clasificar_eventos,
+    generar_mapa,
+    generar_miniatura,
+    marcar_sospechosos,
+    perfil_desde_eventos,
+)
 from ..services.results import (
     NO_ACT_COLUMNS,
     TABLAS,
@@ -488,7 +495,14 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         (punto["frontera"] for punto in puntos if punto["frontera"] != "—"),
         "—",
     )
-    perfil_datos = perfil_mapa(tabla, archivo, filas, fila, opcion)
+    eventos_clasificados, perfil_obj = clasificar_eventos(tabla, archivo, filas, fila)
+    marcar_sospechosos(puntos, eventos_clasificados)
+    perfil_datos = perfil_desde_eventos(eventos_clasificados, perfil_obj, opcion, tabla)
+    hay_sospechosos = any(punto.get("sospechoso") for punto in puntos) or any(
+        evento.get("sospechoso") for evento in eventos_clasificados
+    )
+    historico_activo = request.args.get("historico") == "1"
+    historico = historico_datos(puntos, perfil_datos) if historico_activo else None
     leyenda = []
     vistos = set()
     for punto in puntos:
@@ -518,6 +532,9 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         url_mapa=url_mapa,
         puntos_mapa=puntos,
         perfil_datos=perfil_datos,
+        hay_sospechosos=hay_sospechosos,
+        historico_activo=historico_activo,
+        historico=historico,
         frontera_evento=frontera_evento,
         leyenda_mapa=leyenda,
         mapa_modo=mapa_modo,

@@ -142,3 +142,18 @@ footer {
 #perfil-detalle {
   background: #fff;
 }
+
+.perfil-contenedor {
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+#perfil-detalle {
+  height: 420px;
+}
+
+@media (max-width: 767.98px) {
+  #perfil-detalle {
+    height: 340px;
+  }
+}

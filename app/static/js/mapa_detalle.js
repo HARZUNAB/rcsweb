@@ -28,6 +28,14 @@
     perfilDatos = null;
   }
 
+  const historicoEl = document.getElementById("historico-datos");
+  let historicoDatos = null;
+  try {
+    historicoDatos = historicoEl ? JSON.parse(historicoEl.textContent || "null") : null;
+  } catch (error) {
+    historicoDatos = null;
+  }
+
   const modo = contenedor.dataset.modo || "offline";
   const aviso = document.getElementById("mapa-aviso");
   const avisoLink = document.getElementById("mapa-aviso-link");
@@ -66,6 +74,7 @@
       ["Analista", valor(punto.analista)],
       ["Distancia", valor(punto.dist_km, " km")],
       ["Frontera", valor(punto.frontera)],
+      ["Sospechoso", punto.sospechoso ? "Sí" : ""],
       ["Estado", valor(punto.estado)],
     ];
     let html = '<div class="small"><dl class="row mb-0 g-0">';
@@ -171,6 +180,19 @@
       return;
     }
     const trazas = [];
+    const historicoPerfil = historicoDatos && historicoDatos.perfil;
+    if (historicoPerfil && (historicoPerfil.along || []).length) {
+      trazas.push({
+        type: "scatter",
+        mode: "markers",
+        x: historicoPerfil.along,
+        y: historicoPerfil.prof,
+        marker: { size: 3, color: "#8c8c8c", opacity: 0.35 },
+        hoverinfo: "skip",
+        showlegend: false,
+        name: "Sismicidad histórica",
+      });
+    }
     if ((datos.topo_p || []).length) {
       trazas.push({
         type: "scatter",
@@ -217,7 +239,14 @@
         color: eventos.map(function (evento) {
           return evento.color;
         }),
-        line: { color: "#ffffff", width: 1 },
+        line: {
+          color: eventos.map(function (evento) {
+            return evento.sospechoso ? "#7b1196" : "#ffffff";
+          }),
+          width: eventos.map(function (evento) {
+            return evento.sospechoso ? 3 : 1;
+          }),
+        },
       },
       hovertemplate: "%{text}<extra></extra>",
       name: "Eventos",
@@ -236,6 +265,14 @@
       if (typeof valor === "number" && Number.isFinite(valor)) ys.push(-valor);
     });
     eventos.forEach(function (evento) { ys.push(-evento.prof); });
+    if (historicoPerfil) {
+      (historicoPerfil.along || []).forEach(function (valor) {
+        if (typeof valor === "number" && Number.isFinite(valor)) xs.push(valor);
+      });
+      (historicoPerfil.prof || []).forEach(function (valor) {
+        if (typeof valor === "number" && Number.isFinite(valor)) ys.push(valor);
+      });
+    }
     const xMin = xs.length ? Math.min.apply(null, xs) : undefined;
     const xMax = xs.length ? Math.max.apply(null, xs) : undefined;
     const yMin = ys.length ? Math.min.apply(null, ys) : undefined;
@@ -292,6 +329,19 @@
         '<div class="text-secondary small p-3">No se pudo cargar el mapa offline.</div>';
       return;
     }
+    const trazas = [];
+    if (historicoDatos && historicoDatos.planta && (historicoDatos.planta.lat || []).length) {
+      trazas.push({
+        type: "scattergeo",
+        mode: "markers",
+        lat: historicoDatos.planta.lat,
+        lon: historicoDatos.planta.lon,
+        marker: { size: 3, color: "#8c8c8c", opacity: 0.35 },
+        hoverinfo: "skip",
+        showlegend: false,
+        name: "Sismicidad histórica",
+      });
+    }
     const traza = {
       type: "scattergeo",
       mode: "markers",
@@ -310,10 +360,18 @@
         color: puntos.map(function (punto) {
           return punto.color;
         }),
-        line: { color: "#ffffff", width: 1 },
+        line: {
+          color: puntos.map(function (punto) {
+            return punto.sospechoso ? "#7b1196" : "#ffffff";
+          }),
+          width: puntos.map(function (punto) {
+            return punto.sospechoso ? 3 : 1;
+          }),
+        },
       },
       hovertemplate: "%{text}<extra></extra>",
     };
+    trazas.push(traza);
     const latitudes = puntos.map(function (punto) { return punto.lat; });
     const longitudes = puntos.map(function (punto) { return punto.lon; });
     const latMin = Math.min.apply(null, latitudes);
@@ -340,7 +398,7 @@
       showlegend: false,
       paper_bgcolor: "#ffffff",
     };
-    window.Plotly.newPlot(contenedor, [traza], layout, {
+    window.Plotly.newPlot(contenedor, trazas, layout, {
       responsive: true,
       displaylogo: false,
       scrollZoom: true,
@@ -377,14 +435,33 @@
         mostrarAvisoOffline();
       }
     });
+    if (historicoDatos && historicoDatos.planta && (historicoDatos.planta.lat || []).length) {
+      const pane = mapa.createPane("historico");
+      pane.style.zIndex = 350;
+      const renderer = window.L.canvas({ pane: "historico" });
+      const historico = historicoDatos.planta;
+      for (let i = 0; i < historico.lat.length; i += 1) {
+        window.L.circleMarker([historico.lat[i], historico.lon[i]], {
+          radius: 2,
+          color: "#8c8c8c",
+          fillColor: "#8c8c8c",
+          fillOpacity: 0.35,
+          weight: 0,
+          interactive: false,
+          pane: "historico",
+          renderer: renderer,
+        }).addTo(mapa);
+      }
+    }
     const coordenadas = [];
     puntos.forEach(function (punto) {
+      const sospechoso = !!punto.sospechoso;
       const marcador = window.L.circleMarker([punto.lat, punto.lon], {
         radius: 8,
-        color: punto.color,
+        color: sospechoso ? "#7b1196" : punto.color,
         fillColor: punto.color,
         fillOpacity: 0.85,
-        weight: 2,
+        weight: sospechoso ? 3 : 2,
       }).addTo(mapa);
       marcador.bindPopup(detalleHtml(punto));
       marcador.on("click", function () {

@@ -213,10 +213,10 @@
       <div class="d-flex flex-wrap align-items-center gap-2">
         {% if mapa_modo == 'online' %}
           <span class="badge text-bg-success">Online</span>
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_offline }}">Usar offline</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_offline }}{% if historico_activo %}&historico=1{% endif %}">Usar offline</a>
         {% else %}
           <span class="badge text-bg-secondary">Offline</span>
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_online }}">Intentar online</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_online }}{% if historico_activo %}&historico=1{% endif %}">Intentar online</a>
         {% endif %}
         <a class="btn btn-sm btn-outline-primary" href="{{ url_mapa }}"
            target="_blank" rel="noopener">Abrir PNG</a>
@@ -224,6 +224,20 @@
            download="mapa.png">Descargar PNG</a>
       </div>
     </div>
+
+    <form method="get" class="d-flex align-items-center gap-2 mb-2">
+      <input type="hidden" name="volver" value="{{ volver }}">
+      <input type="hidden" name="mapa" value="{{ mapa_modo }}">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" role="switch"
+               id="mostrar-historico" name="historico" value="1"
+               {% if historico_activo %}checked{% endif %}
+               onchange="this.form.submit()">
+        <label class="form-check-label small" for="mostrar-historico">
+          Sismicidad histórica
+        </label>
+      </div>
+    </form>
 
     <div class="d-flex flex-wrap gap-3 small mb-2" id="leyenda-mapa">
       {% for item in leyenda_mapa %}
@@ -238,6 +252,14 @@
                    style="width: 12px; height: 8px; background: #e8dcc2; border: 1px solid #b8a37a;"></span>Topografía</span>
       <span><span class="d-inline-block me-1"
                    style="width: 12px; height: 3px; background: #1f1f1f;"></span>Slab</span>
+      {% endif %}
+      {% if hay_sospechosos %}
+      <span><span class="d-inline-block rounded-circle me-1"
+                   style="width: 12px; height: 12px; background: transparent; border: 3px solid #7b1196;"></span>Sospechoso (borde violeta)</span>
+      {% endif %}
+      {% if historico_activo %}
+      <span><span class="d-inline-block rounded-circle me-1"
+                   style="width: 8px; height: 8px; background: #8c8c8c; opacity: 0.45;"></span>{{ historico.label }}</span>
       {% endif %}
     </div>
 
@@ -256,12 +278,17 @@
     <div id="mapa-seleccion" class="alert alert-light border small d-none mt-3"></div>
 
     <h3 class="h6 text-uppercase text-secondary mt-3 mb-2">Perfil</h3>
-    <div id="perfil-detalle" class="rounded border" style="height: 280px;"></div>
+    <div class="perfil-contenedor">
+      <div id="perfil-detalle" class="rounded border"></div>
+    </div>
   </div>
 </div>
 <script type="application/json" id="mapa-datos">{{ puntos_mapa|tojson }}</script>
 {% if perfil_datos %}
 <script type="application/json" id="perfil-datos">{{ perfil_datos|tojson }}</script>
+{% endif %}
+{% if historico_activo %}
+<script type="application/json" id="historico-datos">{{ historico|tojson }}</script>
 {% endif %}
 {% else %}
 <div class="card border-0 shadow-sm">
