@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Mi perfil{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <h1 class="h4 mb-1">Mi perfil</h1>
+        <p class="text-secondary small mb-4">
+          Cuenta local de RCS Web. La sesión actual sigue abierta.
+        </p>
+
+        <dl class="row small mb-4">
+          <dt class="col-sm-4 text-secondary">Usuario</dt>
+          <dd class="col-sm-8">{{ current_user.username }}</dd>
+          <dt class="col-sm-4 text-secondary">Rol</dt>
+          <dd class="col-sm-8">{{ current_user.role }}</dd>
+          {% if current_user.created_at %}
+          <dt class="col-sm-4 text-secondary">Creada</dt>
+          <dd class="col-sm-8">{{ current_user.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+          {% endif %}
+        </dl>
+
+        <h2 class="h6 text-uppercase text-secondary mb-3">Cambiar contraseña</h2>
+        <form method="post" novalidate id="cambiar-contrasena">
+          {{ form.hidden_tag() }}
+
+          <div class="mb-3">
+            {{ form.current_password.label(class="form-label") }}
+            <div class="input-group">
+              {{ form.current_password(class="form-control", autocomplete="current-password") }}
+              <button class="btn btn-outline-secondary" type="button"
+                      data-toggle-password="current_password"
+                      aria-label="Mostrar u ocultar la contraseña actual"
+                      aria-pressed="false">Ver</button>
+            </div>
+            {% for error in form.current_password.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-3">
+            {{ form.new_password.label(class="form-label") }}
+            <div class="input-group">
+              {{ form.new_password(class="form-control", autocomplete="new-password") }}
+              <button class="btn btn-outline-secondary" type="button"
+                      data-toggle-password="new_password"
+                      aria-label="Mostrar u ocultar la nueva contraseña"
+                      aria-pressed="false">Ver</button>
+            </div>
+            <div class="form-text">Al menos 8 caracteres.</div>
+            {% for error in form.new_password.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-3">
+            {{ form.confirm_password.label(class="form-label") }}
+            <div class="input-group">
+              {{ form.confirm_password(class="form-control", autocomplete="new-password") }}
+              <button class="btn btn-outline-secondary" type="button"
+                      data-toggle-password="confirm_password"
+                      aria-label="Mostrar u ocultar la confirmación"
+                      aria-pressed="false">Ver</button>
+            </div>
+            {% for error in form.confirm_password.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="d-flex gap-2">
+            {{ form.submit(class="btn btn-primary") }}
+            <a class="btn btn-outline-secondary" href="{{ url_for('dashboard.index') }}">
+              Volver
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

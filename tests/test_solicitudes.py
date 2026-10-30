@@ -248,7 +248,7 @@ def test_nueva_solicitud_exige_fuente_local(client, login):
     )
 
     assert respuesta.status_code == 200
-    assert "Seleccioná al menos una fuente local" in respuesta.get_data(as_text=True)
+    assert "Seleccione al menos una fuente local" in respuesta.get_data(as_text=True)
     assert db.session.execute(db.select(CatalogRequest)).scalar_one_or_none() is None
 
 

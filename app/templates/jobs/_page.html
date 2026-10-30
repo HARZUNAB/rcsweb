@@ -29,6 +29,31 @@
       {{ badge_estado(job.status) }}
       {% if job.status == 'done' %}
         <a class="btn btn-sm btn-outline-primary" href="#resultados">Resultados</a>
+        {% if paneles %}
+        <a class="btn btn-sm btn-outline-primary"
+           href="{{ url_for('panels.index', job_id=job.id, dataset=paneles[0].clave) }}">
+          Paneles
+        </a>
+        {% endif %}
+        {% if indice.catalogos %}
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-primary dropdown-toggle"
+                  type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Catálogos
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            {% for clave, info in indice.catalogos.items() %}
+            <li>
+              <a class="dropdown-item"
+                 href="{{ url_for('results.catalogos', job_id=job.id, catalogo=clave) }}">
+                {{ etiquetas.get(clave, clave) }}
+                <span class="text-secondary small">({{ info.filas }})</span>
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
         <a class="btn btn-sm btn-outline-secondary"
            href="{{ url_for('jobs.descargas', job_id=job.id) }}">Descargas</a>
       {% endif %}

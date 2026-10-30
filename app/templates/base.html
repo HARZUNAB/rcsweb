@@ -44,14 +44,29 @@
         {% endif %}
       </ul>
       <div class="d-flex align-items-center gap-3">
-        <span class="navbar-text small">
-          {{ current_user.username }}
-          <span class="badge text-bg-secondary ms-1">{{ current_user.role }}</span>
-        </span>
-        <form method="post" action="{{ url_for('auth.logout') }}" class="m-0">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-outline-light btn-sm" type="submit">Salir</button>
-        </form>
+        <div class="dropdown">
+          <button class="btn btn-outline-light btn-sm dropdown-toggle"
+                  type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            {{ current_user.username }}
+            <span class="badge text-bg-secondary ms-1">{{ current_user.role }}</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <a class="dropdown-item" href="{{ url_for('auth.perfil') }}">Mi perfil</a>
+            </li>
+            <li>
+              <a class="dropdown-item"
+                 href="{{ url_for('auth.perfil') }}#cambiar-contrasena">Cambiar contraseña</a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form method="post" action="{{ url_for('auth.logout') }}" class="m-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="dropdown-item" type="submit">Salir</button>
+              </form>
+            </li>
+          </ul>
+        </div>
       </div>
       {% else %}
       <ul class="navbar-nav ms-auto">
@@ -93,6 +108,7 @@
 <script src="{{ url_for('static', filename='vendor/flatpickr/flatpickr.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/flatpickr/es.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scroll_tablas.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

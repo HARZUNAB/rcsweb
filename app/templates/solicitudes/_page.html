@@ -113,14 +113,20 @@
     <div class="card-body">
       <h2 class="h6 text-uppercase text-secondary mb-2">Reintentar</h2>
       <p class="text-secondary small">
-        Podés volver a descargar los catálogos fallidos. La contraseña no se guarda.
+        Puede volver a descargar los catálogos fallidos. La contraseña no se guarda.
       </p>
       <form method="post" action="{{ url_for('solicitudes.reintentar', request_id=solicitud.id) }}"
             class="row g-2 align-items-end">
         {{ form_reintento.hidden_tag() }}
         <div class="col-12 col-sm-8">
           {{ form_reintento.password.label(class="form-label small") }}
-          {{ form_reintento.password(class="form-control", autocomplete="off") }}
+          <div class="input-group">
+            {{ form_reintento.password(class="form-control", autocomplete="off") }}
+            <button class="btn btn-outline-secondary" type="button"
+                    data-toggle-password="password"
+                    aria-label="Mostrar u ocultar la contraseña"
+                    aria-pressed="false">Ver</button>
+          </div>
         </div>
         <div class="col-12 col-sm-4">
           {{ form_reintento.submit(class="btn btn-warning w-100") }}

@@ -14,6 +14,8 @@
         {{ fila.get('fecha_local', '') }}
       {% elif tabla == 'no_publicados' %}
         {{ fila.get('Fecha_Hora', '') }}
+      {% elif tabla == 'catalogos' %}
+        {{ fila.get('Fecha_Hora', '') }}
       {% else %}
         {{ fila.get('fecha_hora', '') }}
       {% endif %}
@@ -134,6 +136,19 @@
   </div>
 </div>
 
+{% elif tabla == 'catalogos' %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-3">Evento</h2>
+    <dl class="row mb-0 small">
+      {% for clave, titulo in campos_local %}
+      <dt class="col-5 col-md-3 text-secondary fw-normal">{{ titulo }}</dt>
+      <dd class="col-7 col-md-9">{{ fila.get(clave, '—') or '—' }}</dd>
+      {% endfor %}
+    </dl>
+  </div>
+</div>
+
 {% elif tabla == 'repetidos' %}
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body">
@@ -153,7 +168,7 @@
     <p class="text-secondary small mb-3">
       Eventos dentro de la ventana del informe ({{ '6 s / 2°' if 'amplio' in archivo else '3 s / 1°' }}).
       {% if mapa_disponible %}
-        Hacé clic en un evento del mapa o en una fila para ver sus parámetros.
+        Haga clic en un evento del mapa o en una fila para ver sus parámetros.
       {% endif %}
     </p>
     <div class="table-responsive">
@@ -207,7 +222,8 @@
       <div>
         <h2 class="h6 text-uppercase text-secondary mb-0">Mapa interactivo</h2>
         <div class="small text-secondary">
-          Planta y perfil. Hacé clic en un evento para ver sus parámetros.
+          Planta y perfil. Haga clic en un evento de cualquiera de las dos
+          vistas: se resalta en ambas y se muestran sus parámetros.
         </div>
       </div>
       <div class="d-flex flex-wrap align-items-center gap-2">
@@ -229,7 +245,7 @@
       {% for item in leyenda_mapa %}
       <span>
         <span class="d-inline-block rounded-circle me-1"
-              style="width: 12px; height: 12px; background: {{ item.color }};"></span>
+              style="width: 12px; height: 12px; background: {{ item.relleno }}; border: {{ item.borde_ancho }}px solid {{ item.borde }};"></span>
         {{ item.etiqueta }}
       </span>
       {% endfor %}
@@ -238,10 +254,6 @@
                    style="width: 12px; height: 8px; background: #e8dcc2; border: 1px solid #b8a37a;"></span>Topografía</span>
       <span><span class="d-inline-block me-1"
                    style="width: 12px; height: 3px; background: #1f1f1f;"></span>Slab</span>
-      {% endif %}
-      {% if hay_sospechosos %}
-      <span><span class="d-inline-block rounded-circle me-1"
-                   style="width: 12px; height: 12px; background: transparent; border: 3px solid #7b1196;"></span>Sospechoso (borde violeta)</span>
       {% endif %}
     </div>
 
@@ -257,10 +269,9 @@
          data-online-url="{{ url_online }}"
          data-topojson-url="{{ url_for('static', filename='vendor/plotly/topojson/') }}"></div>
 
-    <div id="mapa-seleccion" class="alert alert-light border small d-none mt-3"></div>
-
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3 mb-2">
       <h3 class="h6 text-uppercase text-secondary mb-0">Perfil</h3>
+      {% if perfil_datos %}
       <form method="get" class="d-flex align-items-center gap-2">
         <input type="hidden" name="volver" value="{{ volver }}">
         <input type="hidden" name="mapa" value="{{ mapa_modo }}">
@@ -274,8 +285,11 @@
           </label>
         </div>
       </form>
+      {% else %}
+      <span class="badge text-bg-light text-dark">Sin perfil asignado</span>
+      {% endif %}
     </div>
-    {% if historico_activo %}
+    {% if perfil_datos and historico_activo %}
     <div class="small text-secondary mb-2">
       <span class="d-inline-block rounded-circle me-1"
             style="width: 8px; height: 8px; background: #8c8c8c; opacity: 0.45;"></span>
@@ -283,7 +297,18 @@
     </div>
     {% endif %}
     <div class="perfil-contenedor">
-      <div id="perfil-detalle" class="rounded border"></div>
+      <div id="perfil-detalle" class="rounded border">
+        {% if not perfil_datos %}
+        <div class="perfil-vacio">
+          <div>
+            <div class="fw-semibold">Perfil no disponible</div>
+            <div class="small text-secondary">
+              El evento no tiene perfil de subducción asignado.
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
@@ -324,6 +349,7 @@
 {% endif %}
 {% if puntos_mapa %}
 <script src="{{ url_for('static', filename='vendor/plotly/plotly.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vineta.js') }}"></script>
 <script src="{{ url_for('static', filename='js/mapa_detalle.js') }}"></script>
 {% endif %}
 {% endblock %}

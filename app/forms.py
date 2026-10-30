@@ -16,7 +16,14 @@ from wtforms import (
     StringField,
     SubmitField,
 )
-from wtforms.validators import DataRequired, Length, NumberRange, Optional, ValidationError
+from wtforms.validators import (
+    DataRequired,
+    EqualTo,
+    Length,
+    NumberRange,
+    Optional,
+    ValidationError,
+)
 from wtforms.widgets import TextInput
 
 from .services.sources import default_primary, fuentes_locales
@@ -56,7 +63,7 @@ class FechaField(DateField):
             self.errors = list(self.process_errors)
             return False
         if getattr(self, "_error_invalido", False):
-            self.process_errors.append("Formato de fecha inválido. Usá dd/mm/aaaa.")
+            self.process_errors.append("Formato de fecha inválido. Use dd/mm/aaaa.")
             self.errors = list(self.process_errors)
             return False
         return super().validate(form, extra_validators)
@@ -92,6 +99,26 @@ class LoginForm(FlaskForm):
     password = PasswordField("Contraseña", validators=[DataRequired()])
     remember = BooleanField("Recordarme")
     submit = SubmitField("Entrar")
+
+
+class PasswordChangeForm(FlaskForm):
+    """Cambio de la contraseña del usuario conectado."""
+
+    current_password = PasswordField(
+        "Contraseña actual", validators=[DataRequired()]
+    )
+    new_password = PasswordField(
+        "Nueva contraseña",
+        validators=[DataRequired(), Length(min=8, max=128)],
+    )
+    confirm_password = PasswordField(
+        "Repetir la nueva contraseña",
+        validators=[
+            DataRequired(),
+            EqualTo("new_password", message="Las contraseñas nuevas no coinciden."),
+        ],
+    )
+    submit = SubmitField("Cambiar contraseña")
 
 
 class JobForm(FlaskForm):
@@ -140,18 +167,18 @@ class JobForm(FlaskForm):
 
         if not seleccion:
             self.incluir_seiscomp.errors.append(
-                "Seleccioná al menos una fuente local para comparar con eventquery."
+                "Seleccione al menos una fuente local para comparar con eventquery."
             )
             valido = False
         elif not _principal_incluida(self, seleccion):
             valido = False
 
         if self.incluir_seiscomp.data and not (self.seiscomp.data and self.seiscomp.data.filename):
-            self.seiscomp.errors.append("Subí el catálogo de SeisComp o desmarcá la fuente.")
+            self.seiscomp.errors.append("Suba el catálogo de SeisComp o desmarque la fuente.")
             valido = False
 
         if self.incluir_seisan.data and not (self.seisan.data and self.seisan.data.filename):
-            self.seisan.errors.append("Subí select.out o desmarcá la fuente.")
+            self.seisan.errors.append("Suba select.out o desmarque la fuente.")
             valido = False
 
         return valido
@@ -189,7 +216,7 @@ class SolicitudForm(FlaskForm):
         valido = super().validate(extra_validators)
         if not self.incluir_seisan.data and not self.incluir_seiscomp.data:
             self.incluir_seisan.errors.append(
-                "Seleccioná al menos una fuente local para descargar."
+                "Seleccione al menos una fuente local para descargar."
             )
             valido = False
         else:

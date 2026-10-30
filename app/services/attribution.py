@@ -129,3 +129,56 @@ def analistas_para_evento(
         por_fuente.values(),
         key=lambda entrada: 0 if entrada["fuente"] == "seiscomp" else 1,
     )
+
+
+ETIQUETAS_FUENTE = {
+    "seiscomp": "SeisComp",
+    "seisan": "Seisan",
+}
+
+
+def indices_atribucion(workspace: Path) -> dict[str, dict[str, list[dict]]]:
+    """Índices de atribución de SeisComp y Seisan, para cargarlos una vez."""
+    return {
+        fuente: cargar_atribucion(workspace, fuente)
+        for fuente in ("seiscomp", "seisan")
+    }
+
+
+def texto_analista_probable(
+    indices: dict[str, dict[str, list[dict]] | None],
+    fecha_hora,
+    latitud,
+    longitud,
+) -> str:
+    """``SeisComp: nombre; Seisan: nombre`` para un evento publicado."""
+    partes = []
+    for fuente in ("seiscomp", "seisan"):
+        indice = indices.get(fuente)
+        if not indice:
+            continue
+        encontrados = analistas_para_evento(indice, fecha_hora, latitud, longitud)
+        for entrada in encontrados or ():
+            nombres = ", ".join(entrada.get("analistas") or [])
+            if nombres:
+                partes.append(f"{ETIQUETAS_FUENTE[fuente]}: {nombres}")
+    return "; ".join(partes)
+
+
+def enriquecer_eventquery(
+    workspace: Path,
+    columnas: list[str],
+    filas: list[dict],
+) -> tuple[list[str], list[dict]]:
+    """Agrega la columna «Analista probable» al catálogo de Eventquery."""
+    indices = indices_atribucion(workspace)
+    if "Analista probable" not in columnas:
+        columnas = list(columnas) + ["Analista probable"]
+    for fila in filas:
+        fila["Analista probable"] = texto_analista_probable(
+            indices,
+            fila.get("Fecha_Hora") or fila.get("fecha_hora"),
+            fila.get("Latitud") or fila.get("latitud"),
+            fila.get("Longitud") or fila.get("longitud"),
+        )
+    return columnas, filas

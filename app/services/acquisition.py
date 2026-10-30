@@ -142,7 +142,7 @@ def _mensaje_error(exc: Exception) -> str:
     texto = str(exc).strip()
     return texto.replace(
         "La conexión SSH falló. Revise el registro.",
-        "No se pudo conectar con el servidor. Revisá el registro.",
+        "No se pudo conectar con el servidor. Revise el registro.",
     )
 
 

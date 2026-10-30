@@ -6,7 +6,12 @@ from datetime import UTC, datetime
 
 from app.extensions import db
 from app.models import Job, nuevo_uuid
-from app.services.detail import construir_detalle, leer_filas, puntos_mapa
+from app.services.detail import (
+    clave_evento,
+    construir_detalle,
+    leer_filas,
+    puntos_mapa,
+)
 from app.services.workspace import crear_workspace
 
 
@@ -161,3 +166,24 @@ def test_ruta_detalle_renderiza(app, client, login, tmp_path):
     assert "Alta" in html
 
     assert client.get(f"/jobs/{job.id}/resultados/no_actualizados/seisan/99").status_code == 404
+
+
+def test_clave_evento_empareja_mapa_y_perfil():
+    punto_mapa = {
+        "fuente": "seiscomp",
+        "lat": -33.1234567,
+        "lon": -70.1234567,
+        "prof": 30.04,
+    }
+    punto_perfil = {
+        "fuente": "seiscomp",
+        "lat": -33.1234568,
+        "lon": -70.1234566,
+        "prof": 30.0,
+    }
+
+    assert clave_evento(punto_mapa) == clave_evento(punto_perfil)
+    assert clave_evento(punto_mapa) != clave_evento(
+        {**punto_mapa, "fuente": "eventquery"}
+    )
+    assert clave_evento({}) == "|||"

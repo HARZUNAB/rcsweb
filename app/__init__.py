@@ -24,6 +24,7 @@ def create_app(config_object: type | None = None) -> Flask:
     from .blueprints.dashboard import dashboard_bp
     from .blueprints.health import health_bp
     from .blueprints.jobs import jobs_bp
+    from .blueprints.panels import panels_bp
     from .blueprints.results import results_bp
     from .blueprints.solicitudes import solicitudes_bp
 
@@ -31,6 +32,7 @@ def create_app(config_object: type | None = None) -> Flask:
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(jobs_bp)
+    app.register_blueprint(panels_bp)
     app.register_blueprint(results_bp)
     app.register_blueprint(solicitudes_bp)
     app.register_blueprint(admin_bp)
@@ -38,6 +40,10 @@ def create_app(config_object: type | None = None) -> Flask:
     from .cli import register_cli
 
     register_cli(app)
+
+    from .services.links import url_catalogo_dia
+
+    app.jinja_env.globals["url_catalogo_dia"] = url_catalogo_dia
 
     @app.errorhandler(404)
     def no_encontrado(error):  # pragma: no cover - plantilla simple

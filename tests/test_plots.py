@@ -256,9 +256,10 @@ def test_perfil_mapa_incluye_topo_slab_y_frontera(monkeypatch):
     assert datos["slab_depth"] == [20.0, None]
     assert len(datos["eventos"]) == 2
     assert datos["eventos"][0]["fuente"] == "seiscomp"
-    assert datos["eventos"][0]["color"] == plots.COLORES_FUENTE["seiscomp"]
+    assert datos["eventos"][0]["color"] == "#ffff00"
     assert datos["eventos"][1]["fuente"] == "eventquery"
-    assert datos["eventos"][1]["color"] == plots.COLORES_FUENTE["eventquery"]
+    assert datos["eventos"][1]["color"] == "#ffffff"
+    assert datos["eventos"][1]["rol"] == "publicado"
     assert datos["eventos"][0]["dist_km"] == 0.0
     assert datos["eventos"][0]["frontera"] == "Argentina — 12.0 km"
 

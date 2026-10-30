@@ -61,7 +61,13 @@
             </div>
             <div class="col-12">
               {{ form.password.label(class="form-label") }}
-              {{ form.password(class="form-control", autocomplete="off") }}
+              <div class="input-group">
+                {{ form.password(class="form-control", autocomplete="off") }}
+                <button class="btn btn-outline-secondary" type="button"
+                        data-toggle-password="password"
+                        aria-label="Mostrar u ocultar la contraseña"
+                        aria-pressed="false">Ver</button>
+              </div>
               <div class="form-text">
                 La contraseña se usa solo durante la descarga y no se guarda.
               </div>
@@ -91,7 +97,7 @@
             {% if seiscomp_ok %}
               Credenciales de solo lectura configuradas.
             {% else %}
-              Sin configurar: avisá al administrador.
+              Sin configurar: avise al administrador.
             {% endif %}
           </div>
 
@@ -159,7 +165,7 @@
           <li>Crea el trabajo y lo encola en el pipeline.</li>
         </ol>
         <hr>
-        <div class="small text-secondary mb-2">¿Ya tenés los archivos?</div>
+        <div class="small text-secondary mb-2">¿Ya tiene los archivos?</div>
         <a class="btn btn-sm btn-outline-secondary w-100" href="{{ url_for('jobs.nuevo') }}">
           Subir catálogos
         </a>

@@ -5,8 +5,7 @@
   const datos = document.getElementById("mapa-datos");
   const contenedor = document.getElementById("mapa-detalle");
   const perfil = document.getElementById("perfil-detalle");
-  const panel = document.getElementById("mapa-seleccion");
-  if (!datos || !contenedor || !perfil) {
+  if (!datos || !contenedor) {
     return;
   }
 
@@ -99,12 +98,292 @@
     return html + "</div>";
   }
 
-  function mostrarSeleccion(punto) {
-    if (!panel) {
+  function mostrarSeleccion(punto, ancla) {
+    if (!window.RCSVineta) {
       return;
     }
-    panel.innerHTML = detalleHtml(punto);
-    panel.classList.remove("d-none");
+    window.RCSVineta.mostrar(detalleHtml(punto), {
+      ancla: ancla,
+      evitar: [contenedor, perfil].filter(Boolean),
+    });
+  }
+
+  let plantaTipo = "plotly";
+  let marcadoresLeaflet = [];
+  let perfilEventos = [];
+  let perfilTrazaIdx = null;
+
+  function claveDe(punto) {
+    if (punto && punto.clave) {
+      return punto.clave;
+    }
+    function numero(valor, decimales) {
+      if (valor === null || valor === undefined || valor === "") {
+        return "";
+      }
+      const convertido = Number(valor);
+      return Number.isFinite(convertido) ? convertido.toFixed(decimales) : "";
+    }
+    return [
+      punto && punto.fuente ? punto.fuente : "",
+      numero(punto && punto.lat, 5),
+      numero(punto && punto.lon, 5),
+      numero(punto && punto.prof, 1),
+    ].join("|");
+  }
+
+  function buscarIndice(lista, punto) {
+    const clave = claveDe(punto);
+    for (let i = 0; i < lista.length; i += 1) {
+      if (claveDe(lista[i]) === clave) {
+        return i;
+      }
+    }
+    if (punto && punto.url) {
+      for (let i = 0; i < lista.length; i += 1) {
+        if (lista[i].url && lista[i].url === punto.url) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }
+
+  // Paleta del proyecto base: amarillo local/no percibido, rojo Eventquery
+  // percibido, blanco/negro para publicado, violeta para sospechoso.
+  function colorPunto(punto) {
+    if (punto.color) {
+      return punto.color;
+    }
+    if (punto.rol === "publicado") {
+      return "#ffffff";
+    }
+    if (
+      punto.fuente === "eventquery" &&
+      String(punto.percibido || "").toUpperCase() === "S"
+    ) {
+      return "#c00000";
+    }
+    return "#ffff00";
+  }
+
+  function bordePunto(punto) {
+    if (punto.rol === "publicado") {
+      return { color: "#000000", width: 2 };
+    }
+    if (punto.sospechoso) {
+      return { color: "#7b1196", width: 3 };
+    }
+    return { color: "#000000", width: 1.2 };
+  }
+
+  // Superposición: misma ubicación redondeada y fuentes distintas. Se dibuja
+  // como un aro magenta independiente de los marcadores de eventos.
+  function claveSuperpuesto(punto, enPerfil) {
+    if (enPerfil) {
+      if (
+        punto.along_km === null ||
+        punto.along_km === undefined ||
+        punto.prof === null ||
+        punto.prof === undefined
+      ) {
+        return null;
+      }
+      return (
+        Number(punto.along_km).toFixed(1) +
+        "|" +
+        Number(punto.prof).toFixed(1)
+      );
+    }
+    return (
+      Number(punto.lat).toFixed(3) + "|" + Number(punto.lon).toFixed(3)
+    );
+  }
+
+  function trazaSuperpuestos(lista, enPerfil) {
+    const grupos = new Map();
+    lista.forEach(function (punto) {
+      const clave = claveSuperpuesto(punto, enPerfil);
+      if (clave === null) {
+        return;
+      }
+      if (!grupos.has(clave)) {
+        grupos.set(clave, new Set());
+      }
+      grupos.get(clave).add(punto.fuente || "");
+    });
+    const marcados = lista.filter(function (punto) {
+      const clave = claveSuperpuesto(punto, enPerfil);
+      const fuentes = clave === null ? null : grupos.get(clave);
+      return fuentes && fuentes.size > 1;
+    });
+    if (!marcados.length) {
+      return null;
+    }
+    const traza = {
+      type: enPerfil ? "scatter" : "scattergeo",
+      mode: "markers",
+      marker: {
+        size: 18,
+        color: "rgba(0,0,0,0)",
+        line: { color: "#ff00ff", width: 2 },
+      },
+      hoverinfo: "skip",
+      showlegend: false,
+      name: "Soluciones superpuestas",
+    };
+    if (enPerfil) {
+      traza.x = marcados.map(function (punto) {
+        return punto.along_km;
+      });
+      traza.y = marcados.map(function (punto) {
+        return -punto.prof;
+      });
+    } else {
+      traza.lon = marcados.map(function (punto) {
+        return punto.lon;
+      });
+      traza.lat = marcados.map(function (punto) {
+        return punto.lat;
+      });
+    }
+    return traza;
+  }
+
+  // Hover sincronizado: al pasar por un punto se dispara el hover del mismo
+  // evento en el otro gráfico; el flag evita el bucle entre ambos.
+  let sincronizandoHover = false;
+
+  function hoverEn(plot, traza, indice, subplot) {
+    if (
+      !plot ||
+      !window.Plotly ||
+      !window.Plotly.Fx ||
+      !plot.data ||
+      traza === null ||
+      indice < 0
+    ) {
+      return;
+    }
+    sincronizandoHover = true;
+    window.Plotly.Fx.hover(
+      plot,
+      [{ curveNumber: traza, pointNumber: indice }],
+      subplot || "xy"
+    );
+    window.setTimeout(function () {
+      sincronizandoHover = false;
+    }, 0);
+  }
+
+  function quitarHover(plot) {
+    if (
+      !plot ||
+      !window.Plotly ||
+      !window.Plotly.Fx ||
+      !plot.data ||
+      sincronizandoHover
+    ) {
+      return;
+    }
+    sincronizandoHover = true;
+    window.Plotly.Fx.unhover(plot);
+    window.setTimeout(function () {
+      sincronizandoHover = false;
+    }, 0);
+  }
+
+  function resaltarPlanta(indice) {
+    if (plantaTipo === "leaflet") {
+      marcadoresLeaflet.forEach(function (marcador, i) {
+        const punto = puntos[i] || {};
+        const elegido = i === indice;
+        const borde = bordePunto(punto);
+        marcador.setStyle({
+          radius: elegido ? 12 : 8,
+          weight: elegido ? 2.5 : borde.width,
+          color: elegido ? "#000080" : borde.color,
+        });
+      });
+      return;
+    }
+    if (!window.Plotly || !contenedor || !contenedor.data) {
+      return;
+    }
+    const tamanios = puntos.map(function (_punto, i) {
+      return i === indice ? 15 : 11;
+    });
+    const anchos = puntos.map(function (punto, i) {
+      return i === indice ? 2.5 : bordePunto(punto).width;
+    });
+    const colores = puntos.map(function (punto, i) {
+      return i === indice ? "#000080" : bordePunto(punto).color;
+    });
+    window.Plotly.restyle(
+      contenedor,
+      {
+        "marker.size": [tamanios],
+        "marker.line.width": [anchos],
+        "marker.line.color": [colores],
+      },
+      [0]
+    );
+  }
+
+  function resaltarPerfil(indice) {
+    if (!perfilEventos.length || perfilTrazaIdx === null ||
+        !window.Plotly || !perfil || !perfil.data) {
+      return;
+    }
+    const tamanios = perfilEventos.map(function (_punto, i) {
+      return i === indice ? 15 : 11;
+    });
+    const anchos = perfilEventos.map(function (punto, i) {
+      return i === indice ? 2.5 : bordePunto(punto).width;
+    });
+    const colores = perfilEventos.map(function (punto, i) {
+      return i === indice ? "#000080" : bordePunto(punto).color;
+    });
+    window.Plotly.restyle(
+      perfil,
+      {
+        "marker.size": [tamanios],
+        "marker.line.width": [anchos],
+        "marker.line.color": [colores],
+      },
+      [perfilTrazaIdx]
+    );
+  }
+
+  function seleccionar(punto, ancla) {
+    if (!punto) {
+      return;
+    }
+    mostrarSeleccion(punto, ancla);
+    resaltarPlanta(buscarIndice(puntos, punto));
+    resaltarPerfil(buscarIndice(perfilEventos, punto));
+  }
+
+  function limpiarSeleccion() {
+    resaltarPlanta(-1);
+    resaltarPerfil(-1);
+    if (window.RCSVineta) {
+      window.RCSVineta.ocultar();
+    }
+  }
+
+  document.addEventListener("rcs:vineta-cerrada", limpiarSeleccion);
+
+  function anclaDeEvento(evento, nodo) {
+    if (evento && evento.event &&
+        Number.isFinite(evento.event.clientX) &&
+        Number.isFinite(evento.event.clientY)) {
+      return { x: evento.event.clientX, y: evento.event.clientY };
+    }
+    if (window.RCSVineta) {
+      return window.RCSVineta.anclaDeNodo(nodo || contenedor);
+    }
+    return null;
   }
 
   function mostrarAvisoOffline() {
@@ -116,67 +395,12 @@
     }
   }
 
-  function dibujarPerfilSimple() {
-    const conProfundidad = puntos.filter(function (punto) {
-      return punto.prof !== null && punto.prof !== undefined;
-    });
-    if (!conProfundidad.length || !window.Plotly) {
-      perfil.innerHTML =
-        '<div class="text-secondary small p-3">Sin profundidad para graficar el perfil.</div>';
-      return;
-    }
-    const traza = {
-      type: "scatter",
-      mode: "markers",
-      x: conProfundidad.map(function (punto) {
-        return punto.dist_km === null || punto.dist_km === undefined
-          ? 0
-          : punto.dist_km;
-      }),
-      y: conProfundidad.map(function (punto) {
-        return -punto.prof;
-      }),
-      text: conProfundidad.map(function (punto) {
-        return punto.etiqueta + " · " + punto.fecha;
-      }),
-      customdata: conProfundidad,
-      marker: {
-        size: 11,
-        color: conProfundidad.map(function (punto) {
-          return punto.color;
-        }),
-        line: { color: "#ffffff", width: 1 },
-      },
-      hovertemplate: "%{text}<extra></extra>",
-    };
-    const layout = {
-      margin: { l: 55, r: 15, t: 15, b: 45 },
-      xaxis: { title: "Distancia (km)", zeroline: false },
-      yaxis: { title: "Profundidad (km)" },
-      showlegend: false,
-      paper_bgcolor: "#ffffff",
-      plot_bgcolor: "#ffffff",
-    };
-    window.Plotly.newPlot(perfil, [traza], layout, {
-      responsive: true,
-      displaylogo: false,
-    }).then(function () {
-      perfil.on("plotly_click", function (evento) {
-        const punto = evento.points[0].customdata;
-        if (punto) {
-          mostrarSeleccion(punto);
-        }
-      });
-    });
-  }
-
   function dibujarPerfilCompleto(datos) {
     const eventos = (datos.eventos || []).filter(function (evento) {
       return evento.along_km !== null && evento.along_km !== undefined &&
         evento.prof !== null && evento.prof !== undefined;
     });
-    if (!eventos.length || !window.Plotly) {
-      dibujarPerfilSimple();
+    if (!window.Plotly || !perfil) {
       return;
     }
     const trazas = [];
@@ -221,6 +445,8 @@
         name: "Slab",
       });
     }
+    perfilEventos = eventos;
+    perfilTrazaIdx = trazas.length;
     trazas.push({
       type: "scatter",
       mode: "markers",
@@ -236,21 +462,23 @@
       customdata: eventos,
       marker: {
         size: 11,
-        color: eventos.map(function (evento) {
-          return evento.color;
-        }),
+        color: eventos.map(colorPunto),
         line: {
           color: eventos.map(function (evento) {
-            return evento.sospechoso ? "#7b1196" : "#ffffff";
+            return bordePunto(evento).color;
           }),
           width: eventos.map(function (evento) {
-            return evento.sospechoso ? 3 : 1;
+            return bordePunto(evento).width;
           }),
         },
       },
       hovertemplate: "%{text}<extra></extra>",
       name: "Eventos",
     });
+    const superpuestosPerfil = trazaSuperpuestos(eventos, true);
+    if (superpuestosPerfil) {
+      trazas.push(superpuestosPerfil);
+    }
     const xs = [];
     const ys = [];
     (datos.topo_p || []).concat(datos.slab_p || []).concat(
@@ -307,23 +535,54 @@
       displaylogo: false,
     }).then(function () {
       perfil.on("plotly_click", function (evento) {
-        const punto = evento.points[0].customdata;
+        const seleccion = evento.points[0];
+        if (!seleccion || seleccion.curveNumber !== perfilTrazaIdx) {
+          return;
+        }
+        const punto = seleccion.customdata;
         if (punto) {
-          mostrarSeleccion(punto);
+          seleccionar(punto, anclaDeEvento(evento, perfil));
+        }
+      });
+      perfil.on("plotly_hover", function (evento) {
+        if (sincronizandoHover) {
+          return;
+        }
+        const seleccion = evento.points[0];
+        if (!seleccion || seleccion.curveNumber !== perfilTrazaIdx) {
+          return;
+        }
+        const punto = seleccion.customdata;
+        if (!punto) {
+          return;
+        }
+        const indice = buscarIndice(puntos, punto);
+        if (plantaTipo === "leaflet") {
+          abrirTooltipMapa(indice);
+        } else {
+          hoverEn(contenedor, 0, indice, "geo");
+        }
+      });
+      perfil.on("plotly_unhover", function () {
+        if (plantaTipo === "leaflet") {
+          cerrarTooltipsMapa();
+        } else {
+          quitarHover(contenedor);
         }
       });
     });
   }
 
   function dibujarPerfil() {
-    if (perfilDatos) {
-      dibujarPerfilCompleto(perfilDatos);
-    } else {
-      dibujarPerfilSimple();
+    if (!perfil || !perfilDatos) {
+      // Sin perfil asignado: el template muestra "Perfil no disponible".
+      return;
     }
+    dibujarPerfilCompleto(perfilDatos);
   }
 
   function dibujarPlotly() {
+    plantaTipo = "plotly";
     if (!window.Plotly) {
       contenedor.innerHTML =
         '<div class="text-secondary small p-3">No se pudo cargar el mapa offline.</div>';
@@ -345,21 +604,23 @@
       customdata: puntos,
       marker: {
         size: 11,
-        color: puntos.map(function (punto) {
-          return punto.color;
-        }),
+        color: puntos.map(colorPunto),
         line: {
           color: puntos.map(function (punto) {
-            return punto.sospechoso ? "#7b1196" : "#ffffff";
+            return bordePunto(punto).color;
           }),
           width: puntos.map(function (punto) {
-            return punto.sospechoso ? 3 : 1;
+            return bordePunto(punto).width;
           }),
         },
       },
       hovertemplate: "%{text}<extra></extra>",
     };
     trazas.push(traza);
+    const superpuestosMapa = trazaSuperpuestos(puntos, false);
+    if (superpuestosMapa) {
+      trazas.push(superpuestosMapa);
+    }
     const latitudes = puntos.map(function (punto) { return punto.lat; });
     const longitudes = puntos.map(function (punto) { return punto.lon; });
     const latMin = Math.min.apply(null, latitudes);
@@ -393,15 +654,55 @@
       topojsonURL: contenedor.dataset.topojsonUrl || undefined,
     }).then(function () {
       contenedor.on("plotly_click", function (evento) {
-        const punto = evento.points[0].customdata;
-        if (punto) {
-          mostrarSeleccion(punto);
+        const seleccion = evento.points[0];
+        if (!seleccion || seleccion.curveNumber !== 0) {
+          return;
         }
+        const punto = seleccion.customdata;
+        if (punto) {
+          seleccionar(punto, anclaDeEvento(evento, contenedor));
+        }
+      });
+      contenedor.on("plotly_hover", function (evento) {
+        if (sincronizandoHover) {
+          return;
+        }
+        const seleccion = evento.points[0];
+        if (!seleccion || seleccion.curveNumber !== 0) {
+          return;
+        }
+        const punto = seleccion.customdata;
+        if (!punto) {
+          return;
+        }
+        const indice = buscarIndice(perfilEventos, punto);
+        hoverEn(perfil, perfilTrazaIdx, indice, "xy");
+      });
+      contenedor.on("plotly_unhover", function () {
+        quitarHover(perfil);
       });
     });
   }
 
+  function abrirTooltipMapa(indice) {
+    marcadoresLeaflet.forEach(function (marcador, i) {
+      if (i === indice && marcador.openTooltip) {
+        marcador.openTooltip();
+      }
+    });
+  }
+
+  function cerrarTooltipsMapa() {
+    marcadoresLeaflet.forEach(function (marcador) {
+      if (marcador.closeTooltip) {
+        marcador.closeTooltip();
+      }
+    });
+  }
+
   function dibujarLeaflet() {
+    plantaTipo = "leaflet";
+    marcadoresLeaflet = [];
     if (!window.L) {
       dibujarPlotly();
       return;
@@ -425,18 +726,41 @@
     });
     const coordenadas = [];
     puntos.forEach(function (punto) {
-      const sospechoso = !!punto.sospechoso;
+      const borde = bordePunto(punto);
       const marcador = window.L.circleMarker([punto.lat, punto.lon], {
         radius: 8,
-        color: sospechoso ? "#7b1196" : punto.color,
-        fillColor: punto.color,
+        color: borde.color,
+        fillColor: colorPunto(punto),
         fillOpacity: 0.85,
-        weight: sospechoso ? 3 : 2,
+        weight: borde.width,
       }).addTo(mapa);
-      marcador.bindPopup(detalleHtml(punto));
-      marcador.on("click", function () {
-        mostrarSeleccion(punto);
+      // En Leaflet el hover muestra la identificación y sincroniza el perfil.
+      marcador.bindTooltip(punto.etiqueta + " · " + punto.fecha, {
+        sticky: true,
+        direction: "top",
       });
+      marcador.on("mouseover", function () {
+        if (sincronizandoHover) {
+          return;
+        }
+        const indice = buscarIndice(perfilEventos, punto);
+        hoverEn(perfil, perfilTrazaIdx, indice, "xy");
+      });
+      marcador.on("mouseout", function () {
+        quitarHover(perfil);
+      });
+      marcador.on("click", function (evento) {
+        const original = evento.originalEvent;
+        let ancla = null;
+        if (original && Number.isFinite(original.clientX) &&
+            Number.isFinite(original.clientY)) {
+          ancla = { x: original.clientX, y: original.clientY };
+        } else if (window.RCSVineta) {
+          ancla = window.RCSVineta.anclaDeNodo(contenedor);
+        }
+        seleccionar(punto, ancla);
+      });
+      marcadoresLeaflet.push(marcador);
       coordenadas.push([punto.lat, punto.lon]);
     });
     if (coordenadas.length === 1) {

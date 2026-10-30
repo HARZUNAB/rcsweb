@@ -144,4 +144,77 @@
       }
     });
   });
+
+  // Mostrar/ocultar contraseñas: el botón declara el id del campo.
+  document.addEventListener("click", function (evento) {
+    const boton = evento.target.closest("[data-toggle-password]");
+    if (!boton) {
+      return;
+    }
+    const campo = document.getElementById(boton.dataset.togglePassword);
+    if (!campo) {
+      return;
+    }
+    const mostrar = campo.type === "password";
+    campo.type = mostrar ? "text" : "password";
+    boton.textContent = mostrar ? "Ocultar" : "Ver";
+    boton.setAttribute("aria-pressed", String(mostrar));
+  });
+
+  // Miniaturas de los listados: apagadas por defecto, se piden al mostrarlas.
+  function cargarMiniaturas(contenedor) {
+    contenedor.querySelectorAll("img[data-src]").forEach(function (img) {
+      if (!img.getAttribute("src")) {
+        img.src = img.dataset.src;
+      }
+    });
+  }
+
+  function aplicarMiniaturas(tabla, activo) {
+    tabla.classList.toggle("con-miniaturas", activo);
+    if (activo) {
+      cargarMiniaturas(tabla);
+    }
+    document.querySelectorAll("[data-toggle-miniaturas]").forEach(function (caja) {
+      caja.checked = activo;
+    });
+  }
+
+  const tablaMiniaturas = document.querySelector(".tabla-resultados");
+  const interruptorMiniaturas = document.querySelector("[data-toggle-miniaturas]");
+  if (tablaMiniaturas && interruptorMiniaturas) {
+    let activo = false;
+    try {
+      activo = window.localStorage.getItem("rcs.miniaturas") === "1";
+    } catch (error) {
+      activo = false;
+    }
+    aplicarMiniaturas(tablaMiniaturas, activo);
+    interruptorMiniaturas.addEventListener("change", function () {
+      activo = interruptorMiniaturas.checked;
+      try {
+        window.localStorage.setItem("rcs.miniaturas", activo ? "1" : "0");
+      } catch (error) {
+        // Sin localStorage se mantiene solo durante esta página.
+      }
+      aplicarMiniaturas(tablaMiniaturas, activo);
+    });
+  }
+
+  document.querySelectorAll("[data-toggle-miniaturas-fila]").forEach(function (boton) {
+    boton.addEventListener("click", function () {
+      const celda = boton.closest("td");
+      const caja = celda && celda.querySelector("[data-miniaturas-fila]");
+      if (!caja) {
+        return;
+      }
+      const abrir = !caja.classList.contains("abierta");
+      caja.classList.toggle("abierta", abrir);
+      boton.textContent = abrir ? "Ocultar miniaturas" : "Ver miniaturas";
+      boton.setAttribute("aria-expanded", String(abrir));
+      if (abrir) {
+        cargarMiniaturas(caja);
+      }
+    });
+  });
 })();

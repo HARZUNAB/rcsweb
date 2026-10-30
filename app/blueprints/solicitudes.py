@@ -204,7 +204,7 @@ def reintentar(request_id: str):
         abort(403)
     form = ReintentarForm()
     if not form.validate_on_submit():
-        flash("Ingresá la contraseña del servidor para reintentar.", "warning")
+        flash("Ingrese la contraseña del servidor para reintentar.", "warning")
         return redirect(url_for("solicitudes.detalle", request_id=solicitud.id))
 
     reintentar_solicitud(solicitud.id, form.password.data)

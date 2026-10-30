@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from flask import current_app  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
 
+from . import colores
 from .borders import texto_frontera_coords  # noqa: E402
 from .detail import (  # noqa: E402
     COLORES_FUENTE,
@@ -80,9 +81,15 @@ def _numero(valor):
         return None
 
 
-def _evento_con_claves(fila: dict, claves: dict, rol: str | None = None) -> dict:
+def _evento_con_claves(
+    fila: dict,
+    claves: dict,
+    rol: str | None = None,
+    percibido: str = "",
+) -> dict:
     return {
         "rol": rol,
+        "percibido": percibido,
         "fecha hora": fila.get(claves["fecha"], ""),
         "latitud": _numero(fila.get(claves["lat"])),
         "longitud": _numero(fila.get(claves["lon"])),
@@ -128,7 +135,7 @@ def _eventos(tabla: str, archivo: str, filas: list[dict], indice: int) -> list[d
         ]
         return [evento for evento in eventos if evento["latitud"] is not None]
 
-    if tabla == "no_publicados":
+    if tabla in ("no_publicados", "catalogos"):
         evento = _evento_con_claves(
             fila,
             {
@@ -141,6 +148,7 @@ def _eventos(tabla: str, archivo: str, filas: list[dict], indice: int) -> list[d
                 "analista": "Analista",
             },
             rol="local",
+            percibido=fila.get("Percep.", ""),
         )
         return [evento] if evento["latitud"] is not None else []
 
@@ -162,6 +170,7 @@ def _eventos(tabla: str, archivo: str, filas: list[dict], indice: int) -> list[d
                 "analista": "analista",
             },
             rol="seleccionado" if item.get("_fila") == indice else None,
+            percibido=item["fila"].get("percibido", ""),
         )
         if evento["latitud"] is None:
             continue
@@ -221,7 +230,7 @@ def _asignar(eventos: list[dict], perfiles):
 
 
 def _fuente(tabla: str, opcion: str) -> str:
-    if tabla in ("no_publicados", "no_actualizados"):
+    if tabla in ("no_publicados", "no_actualizados", "catalogos"):
         return opcion
     if opcion.startswith("publica"):
         return "eventquery"
@@ -355,7 +364,9 @@ def perfil_desde_eventos(eventos: list[dict], perfil, opcion: str, tabla: str):
             fuente = opcion
         else:
             fuente = _fuente(tabla, opcion)
+        # Mismos colores que el detalle: rol local/publicado y percepción.
         codigo = fuente if fuente in COLORES_FUENTE else "publicado"
+        estilo = colores.estilo_punto(codigo, evento)
         lat = evento.get("latitud")
         lon = evento.get("longitud")
         distancia = distancia_km(
@@ -368,7 +379,11 @@ def perfil_desde_eventos(eventos: list[dict], perfil, opcion: str, tabla: str):
             {
                 "fuente": codigo,
                 "etiqueta": ETIQUETAS_FUENTE[codigo],
-                "color": COLORES_FUENTE[codigo],
+                "color": estilo["color"],
+                "borde": estilo["borde"],
+                "borde_ancho": estilo["borde_ancho"],
+                "rol": evento.get("rol"),
+                "percibido": evento.get("percibido", ""),
                 "fecha": evento.get("fecha hora", ""),
                 "lat": lat,
                 "lon": lon,

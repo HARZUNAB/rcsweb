@@ -152,10 +152,12 @@ make clean                # detener y borrar volúmenes
    log en vivo (polling HTMX cada 2 s).
 4. Al terminar: tarjetas con conteos, tablas paginables con búsqueda, filtros
    por columna, orden y exportación del resultado filtrado.
-5. Cada fila tiene una **miniatura del perfil** y un **mini mapa de planta**
-   para ubicar el evento en Chile; el detalle muestra Δ por
-   parámetro, clasificación, mapa de planta y perfil, y en repetidos el grupo
-   completo de duplicados.
+5. Cada fila muestra una **ficha de ubicación** compacta (Chile
+   continental/insular/costa, país, mar chileno o alta mar); las **miniaturas**
+   del perfil y el mini mapa se activan con el interruptor «Miniaturas» o con
+   «Ver miniaturas» de cada fila. El detalle muestra Δ por parámetro,
+   clasificación, mapa de planta y perfil, y en repetidos el grupo completo de
+   duplicados.
 6. Se puede cancelar un trabajo en cola o en ejecución.
 6. La sección **Auditoría** (solo administradores) registra login, alta,
    cancelación, fin/fallo y descargas.
@@ -211,13 +213,27 @@ Seisan. El trabajo de demostración conserva sus resultados.
 
 ## Mapas
 
-- **Miniatura**: perfil de subducción de cada fila, generado con matplotlib
-  puro y cacheado en `workspace/<job>/plots/miniaturas/`.
+- **Miniaturas a pedido**: el perfil de subducción de cada fila se genera con
+  matplotlib puro y se cachea en `workspace/<job>/plots/miniaturas/`. No se
+  piden hasta activar el interruptor «Miniaturas» o el botón «Ver miniaturas»
+  de la fila; así el listado carga liviano.
 - **Detalle interactivo**: planta y perfil con zoom. Online usa Leaflet con
   OpenStreetMap; offline usa Plotly con TopoJSON local (`world_110m.json` y
   `world_50m.json`). Los eventos se colorean por fuente, hay leyenda y al hacer
-  clic se muestran sus parámetros. En `No actualizados` se ven la solución local
-  y la publicada; en `Repetidos` se ve el grupo completo.
+  clic se muestran sus parámetros en una viñeta flotante. **La selección es
+  compartida**: al elegir un evento en la planta o en el perfil se abre la misma
+  viñeta y el evento se resalta en ambas vistas; no se dibuja una línea vertical.
+  La viñeta busca una zona libre y no se superpone con la planta ni el perfil;
+  en pantallas angostas se muestra como hoja inferior. En
+  `No actualizados` se ven la solución local y la publicada; en `Repetidos` se
+  ve el grupo completo.
+- **Colores y leyendas**: se usa la paleta del proyecto base: amarillo para
+  sismos registrados o no percibidos, rojo para Eventquery percibido, anillo
+  blanco/negro para la solución publicada, borde violeta para sospechosos, aro
+  azul marino para el seleccionado y aro magenta para soluciones superpuestas.
+- **Hover sincronizado**: al pasar el mouse por un evento de la planta se
+  muestra el mismo evento en el perfil, y viceversa, con fecha, hora y fuente.
+  También funciona entre Leaflet y el perfil.
 - **Perfil**: topografía, slab, nivel del mar y eventos calculados con
   `asigna_perfiles` del core, con zoom y clic. El contenedor se limita a
   820 × 420 px en escritorio para que no quede demasiado estirado.
@@ -310,17 +326,29 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **141 tests**.
+runner de solo lectura. Total actual: **197 tests**.
 
 ## Filtros y exportación
 
 - **Filtro global** (`q`): busca en todas las columnas, sin distinguir
   mayúsculas ni acentos.
-- **Filtros por columna**: contiene para texto; para columnas numéricas acepta
-  `>=10`, `>10`, `<=10`, `<10`, `=10` y rangos `10..20`.
+- **Filtros por columna**: las columnas de texto filtran por contenido. Las
+  columnas numéricas usan un único campo compacto que acepta rangos inclusivos
+  como `3..5`, además de `>=3`, `>3`, `<=5`, `<5` y `=3`. El campo es único para
+  no restar columnas visibles ni obligar a desplazarse horizontalmente.
 - Los filtros se combinan con AND y se conservan al ordenar y paginar.
-- **Exportar filtrado** genera un CSV con todas las filas del filtro (no solo
-  la página) y BOM para Excel.
+- **Scroll horizontal**: todas las tablas que desbordan tienen una barra
+  superior sincronizada con la inferior, para moverse sin bajar hasta el final
+  del listado.
+- **Descargar todo** genera un CSV con todas las filas del archivo, sin filtros.
+- **Descargar filtrado** genera un CSV con todas las filas del filtro (no solo
+  la página).
+- **Descargar seleccionados** genera un CSV con las filas marcadas, aunque estén
+  ocultas por el filtro actual. La selección se conserva en el navegador por
+  trabajo, tabla y opción.
+- Todos los CSV llevan BOM para Excel.
+- El listado de eventos de los paneles también permite seleccionar y descargar
+  todo, lo filtrado o lo seleccionado.
 - El detalle de cada fila conserva el filtro y el orden al volver.
 
 ## Endpoints
@@ -385,6 +413,45 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   `default_transaction_read_only=on` en cada conexión.
 - Descargas validadas contra el workspace del trabajo (sin traversal).
 - No hay consola SQL arbitraria.
+
+## Paneles y catálogos
+
+- **Paneles**: cada trabajo tiene una vista de contexto sismotectónico. Los
+  catálogos de entrada y el conjunto **Observaciones** (No publicados +
+  No actualizados + Repetidos) se agrupan por perfil de subducción usando
+  `asigna_perfiles` del core. Los eventos sin perfil se clasifican con la
+  geografía precisa de `ubicacion.py`: **Nacional** (Chile continental, costa y
+  mar chileno), **Insular** (islas oceánicas chilenas), **Antártico** (caja del
+  reclamo) y **Otros** (otros países y alta mar). La vista muestra el resumen por
+  perfil y, al seleccionar un grupo, la planta de sus eventos y el perfil
+  topografía/slab **lado a lado**. Si el grupo no tiene perfil, el área del perfil
+  muestra **«Perfil no disponible»**. Al hacer clic en un evento de cualquiera de
+  las dos vistas se resalta en ambas, se muestra su viñeta flotante —ubicada
+  sobre la columna de grupos para no tapar los mapas— y se puede abrir el detalle
+  completo (planta y perfil interactivos) en una pestaña nueva.
+- **Observaciones**: los informes de repetidos se deduplican por evento (fuente
+  + fecha + coordenadas + profundidad), de modo que un evento que aparece en
+  `amplio`, `estricto` y `excluidos` se cuenta una sola vez. Los filtros se
+  presentan como una tabla con la **fuente** arriba (Todas, SeisComp, Seisan,
+  Eventquery) y el **tipo** debajo (Todos, No publicados, No actualizados,
+  Repetidos), con conteos cruzados y una línea «Filtro: …». Se aplican a los
+  grupos, la planta, el perfil y el listado. La planta y el perfil muestran el
+  mismo conteo de eventos del grupo seleccionado. Al elegir un filtro, la vista
+  se desplaza hasta el **listado de eventos**; también hay enlaces «Ir al
+  listado» y «Volver a los paneles». Los paneles de catálogo no muestran estas
+  pestañas porque ya corresponden a una sola fuente. En la lista de grupos, las
+  flechas **↑/↓** recorren perfiles y territorios y actualizan automáticamente
+  la planta y el perfil, sin necesidad de hacer clic en cada fila.
+- **Catálogos**: el detalle del trabajo tiene un menú con los catálogos de
+  entrada disponibles (Eventquery, Seisan, SeisComp). Cada uno abre un listado
+  con las mismas prestaciones que las tablas de resultados: búsqueda, filtros,
+  orden, paginación, exportación, ficha de ubicación, miniaturas a pedido y
+  enlace al catálogo diario de sismologia.cl. El catálogo **Eventquery** agrega
+  la columna **«Analista probable»**, deducida cruzando cada evento publicado con
+  las soluciones locales de SeisComp y Seisan; se muestran ambas fuentes cuando
+  aportan (`SeisComp: …; Seisan: …`).
+- El primer acceso a un panel calcula la asignación de perfiles y la deja en
+  `workspace/<job>/paneles/`; las visitas siguientes usan esa caché.
 
 ## Próximos pasos (etapa 4D y 5)
 

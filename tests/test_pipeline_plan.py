@@ -78,3 +78,51 @@ def test_renombrar_repetidos_de_seiscomp(tmp_path):
     assert (informes / "rep_seiscomp_amplio.txt").is_file()
     assert (informes / "rep_seiscomp_estricto.txt").is_file()
     assert not (informes / "rep_seisan_amplio.txt").exists()
+
+
+def test_progreso_re_captura_detalle():
+    linea = "@@PROGRESO@@ 0.6600 Fases de seiscomp · 10.000 llegadas"
+
+    coincidencia = pipeline.PROGRESO_RE.search(linea)
+
+    assert coincidencia is not None
+    assert coincidencia.group(1) == "0.6600"
+    assert coincidencia.group(2) == "Fases de seiscomp · 10.000 llegadas"
+
+
+def test_actualizar_progreso_muestra_detalle_sin_perder_porcentaje(app):
+    from app.extensions import db
+    from app.models import Job
+
+    job = Job(id="job-progreso", status="running", progress=0,
+              current_step="Exportando SeisComp (3/10)")
+    db.session.add(job)
+    db.session.commit()
+
+    pipeline._actualizar_progreso(
+        job.id, 2, 10, 0.5,
+        detalle="Fases · 10.000 llegadas", titulo="Exportando SeisComp",
+    )
+    db.session.expire_all()
+    job = db.session.get(Job, job.id)
+
+    assert job.progress == 25
+    assert job.current_step == "Exportando SeisComp · Fases · 10.000 llegadas"
+
+    # El porcentaje puede redondear al mismo entero; el detalle igual cambia.
+    pipeline._actualizar_progreso(
+        job.id, 2, 10, 0.5001,
+        detalle="Fases · 20.000 llegadas", titulo="Exportando SeisComp",
+    )
+    db.session.expire_all()
+    job = db.session.get(Job, job.id)
+
+    assert job.progress == 25
+    assert job.current_step == "Exportando SeisComp · Fases · 20.000 llegadas"
+
+    # Un cierre de paso sin título no pisa el detalle visible.
+    pipeline._actualizar_progreso(job.id, 3, 10, 0.0)
+    db.session.expire_all()
+    job = db.session.get(Job, job.id)
+
+    assert job.current_step == "Exportando SeisComp · Fases · 20.000 llegadas"

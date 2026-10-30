@@ -6,6 +6,7 @@ import datetime
 import math
 from pathlib import Path
 
+from . import colores
 from .results import _a_numero, leer_csv
 
 CAMPOS_NO_PUBLICADO_LOCAL = (
@@ -44,7 +45,9 @@ CAMPOS_REPETIDO = (
 def leer_filas(workspace: Path, archivo: str):
     """(columnas, filas) del CSV de resultados, o None si no es accesible."""
     raiz = workspace.resolve()
-    ruta = (raiz / "resultados" / archivo).resolve()
+    ruta = (raiz / archivo).resolve() if "/" in archivo else (
+        raiz / "resultados" / archivo
+    ).resolve()
     if not ruta.is_file() or not ruta.is_relative_to(raiz):
         return None
     return leer_csv(ruta)
@@ -227,16 +230,27 @@ def _punto(
     analista="",
     estado="",
     fila=None,
+    rol=None,
+    percibido="",
 ) -> dict | None:
     latitud = _a_numero(lat)
     longitud = _a_numero(lon)
     if latitud is None or longitud is None:
         return None
+    # El color ya no identifica a la fuente: sigue la paleta del proyecto base.
+    # ``rol`` distingue local/publicado y ``percibido`` el rojo de Eventquery.
     codigo = fuente if fuente in COLORES_FUENTE else "publicado"
+    estilo = colores.estilo_punto(
+        codigo, {"rol": rol, "percibido": percibido, "sospechoso": False}
+    )
     return {
         "fuente": codigo,
         "etiqueta": ETIQUETAS_FUENTE[codigo],
-        "color": COLORES_FUENTE[codigo],
+        "color": estilo["color"],
+        "borde": estilo["borde"],
+        "borde_ancho": estilo["borde_ancho"],
+        "rol": rol,
+        "percibido": _texto(percibido),
         "fecha": _texto(fecha),
         "lat": latitud,
         "lon": longitud,
@@ -264,6 +278,7 @@ def puntos_mapa(
             fila.get("mag_local"),
             fila.get("tipo_mag_local"),
             fila.get("analista", ""),
+            rol="local",
         )
         publicado = _punto(
             "eventquery",
@@ -273,6 +288,7 @@ def puntos_mapa(
             fila.get("prof_eventquery"),
             fila.get("mag_eventquery"),
             fila.get("tipo_mag_eventquery"),
+            rol="publicado",
         )
         puntos.extend(p for p in (local, publicado) if p is not None)
         referencia = local or (puntos[0] if puntos else None)
@@ -292,6 +308,7 @@ def puntos_mapa(
                 datos.get("tipomag"),
                 datos.get("analista", ""),
                 fila=item.get("_fila"),
+                percibido=datos.get("percibido", ""),
             )
             if punto is not None:
                 puntos.append(punto)
@@ -309,6 +326,7 @@ def puntos_mapa(
             fila.get("Tipo_mag."),
             fila.get("Analista", ""),
             fila.get("Estado", ""),
+            percibido=fila.get("Percep.", ""),
         )
         if punto is not None:
             puntos.append(punto)
@@ -327,6 +345,147 @@ def puntos_mapa(
     return puntos
 
 
+def superpuestos(puntos: list[dict], perfil: bool = False) -> bool:
+    """True si hay soluciones de fuentes distintas en la misma ubicación.
+
+    En planta se redondea a 3 decimales y en perfil a 1 decimal en ``along`` y
+    ``prof``, igual que ``plotear.py``. Se usa para el aro magenta y la leyenda.
+    """
+    vistos: dict[tuple, set] = {}
+    for punto in puntos:
+        if perfil:
+            along = punto.get("along_km")
+            prof = punto.get("prof")
+            if along is None or prof is None:
+                continue
+            clave = (round(float(along), 1), round(float(prof), 1))
+        else:
+            lat = punto.get("lat")
+            lon = punto.get("lon")
+            if lat is None or lon is None:
+                continue
+            clave = (round(float(lat), 3), round(float(lon), 3))
+        vistos.setdefault(clave, set()).add(punto.get("fuente"))
+    return any(len(fuentes) > 1 for fuentes in vistos.values())
+
+
+def leyenda_detalle(
+    tabla: str,
+    opcion: str,
+    puntos: list[dict],
+    hay_sospechosos: bool,
+    hay_superpuestos: bool,
+) -> list[dict]:
+    """Ítems de leyenda con los colores del proyecto base.
+
+    Se arma con los roles presentes: local, publicado, Eventquery percibido o
+    no percibido. El aro de selección y el de superposición se agregan aparte.
+    """
+    items: list[dict] = []
+    roles = {punto.get("rol") for punto in puntos if punto.get("rol")}
+    if "publicado" in roles or "local" in roles:
+        etiqueta = ETIQUETAS_FUENTE.get(opcion, opcion)
+        items.append(
+            {
+                "etiqueta": f"Evento {etiqueta}",
+                "relleno": colores.COLOR_NO_PERCIBIDO,
+                "borde": "#000000",
+                "borde_ancho": 1.2,
+            }
+        )
+        if "publicado" in roles:
+            items.append(
+                {
+                    "etiqueta": "Publicado",
+                    "relleno": "#ffffff",
+                    "borde": colores.COLOR_PUBLICADO,
+                    "borde_ancho": 2.0,
+                }
+            )
+    else:
+        fuente = next(
+            (punto.get("fuente") for punto in puntos if punto.get("fuente")),
+            opcion,
+        )
+        if fuente == "eventquery" or opcion == "eventquery":
+            items.extend(
+                [
+                    {
+                        "etiqueta": "Sismo no percibido",
+                        "relleno": colores.COLOR_NO_PERCIBIDO,
+                        "borde": "#000000",
+                        "borde_ancho": 1.2,
+                    },
+                    {
+                        "etiqueta": "Sismo percibido",
+                        "relleno": colores.COLOR_PERCIBIDO,
+                        "borde": "#000000",
+                        "borde_ancho": 1.2,
+                    },
+                ]
+            )
+        else:
+            items.append(
+                {
+                    "etiqueta": "Sismo registrado",
+                    "relleno": colores.COLOR_NO_PERCIBIDO,
+                    "borde": "#000000",
+                    "borde_ancho": 1.2,
+                }
+            )
+    if hay_sospechosos:
+        items.append(
+            {
+                "etiqueta": "Sospechoso (borde violeta)",
+                "relleno": colores.COLOR_NEUTRO,
+                "borde": colores.COLOR_BORDE_SOSPECHOSO,
+                "borde_ancho": colores.GROSOR_BORDE_SOSPECHOSO,
+            }
+        )
+    items.append(
+        {
+            "etiqueta": "Evento seleccionado",
+            "relleno": "transparent",
+            "borde": colores.COLOR_RESALTADO,
+            "borde_ancho": 2.0,
+        }
+    )
+    if hay_superpuestos:
+        items.append(
+            {
+                "etiqueta": "Soluciones superpuestas",
+                "relleno": "transparent",
+                "borde": colores.COLOR_SUPERPUESTO,
+                "borde_ancho": 2.0,
+            }
+        )
+    return items
+
+
+def clave_evento(punto: dict) -> str:
+    """Clave estable para emparejar un punto del mapa con uno del perfil.
+
+    Usa fuente + coordenadas redondeadas + profundidad. El mapa de planta y el
+    perfil arman sus puntos por separado, así que necesitan una clave común
+    para resaltar el mismo evento en las dos vistas.
+    """
+
+    def numero(valor, decimales):
+        try:
+            return f"{float(valor):.{decimales}f}"
+        except (TypeError, ValueError):
+            return ""
+
+    return "|".join(
+        (
+            str(punto.get("fuente") or ""),
+            numero(punto.get("lat"), 5),
+            numero(punto.get("lon"), 5),
+            numero(punto.get("prof"), 1),
+        )
+    )
+
+
 def construir_detalle(tabla: str, archivo: str, filas: list[dict], indice: int) -> dict:
     fila = filas[indice]
     contexto = {
@@ -339,6 +498,26 @@ def construir_detalle(tabla: str, archivo: str, filas: list[dict], indice: int) 
 
     if tabla == "no_actualizados":
         contexto["comparaciones"] = _comparaciones(fila)
+    elif tabla == "catalogos":
+        campos = [
+            ("Fecha_Hora", "Fecha y hora"),
+            ("Latitud", "Latitud"),
+            ("Longitud", "Longitud"),
+            ("Prof.", "Profundidad (km)"),
+            ("Mag.", "Magnitud"),
+            ("Tipo_mag.", "Tipo de magnitud"),
+        ]
+        if "Analista probable" in fila:
+            campos.append(("Analista probable", "Analista probable"))
+        elif "Analista" in fila:
+            campos.append(("Analista", "Analista"))
+        campos.extend(
+            [
+                ("Referencia", "Referencia"),
+                ("Percep.", "Percibido"),
+            ]
+        )
+        contexto["campos_local"] = campos
     elif tabla == "repetidos":
         contexto["grupo"] = grupo_repetidos(filas, indice, archivo)
         contexto["campos_repetido"] = [
@@ -369,6 +548,7 @@ __all__ = [
     "CAMPOS_NO_PUBLICADO_LOCAL",
     "CAMPOS_NO_PUBLICADO_OTRA",
     "CAMPOS_REPETIDO",
+    "clave_evento",
     "construir_detalle",
     "distancia_km",
     "grupo_repetidos",

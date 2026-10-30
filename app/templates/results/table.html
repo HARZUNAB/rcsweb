@@ -67,7 +67,7 @@
       <input type="hidden" name="sort" value="{{ tabla.sort }}">
       <input type="hidden" name="dir" value="{{ tabla.direccion }}">
 
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <div class="text-secondary small">
           <strong>{{ titulo_opcion }}</strong> ·
           {{ tabla.total }} evento{{ '' if tabla.total == 1 else 's' }}
@@ -88,17 +88,51 @@
                  aria-label="Buscar" style="min-width: 240px;">
           <button class="btn btn-sm btn-outline-secondary" type="submit">Aplicar</button>
           <a class="btn btn-sm btn-outline-secondary" href="{{ url_tab(opcion) }}">Limpiar</a>
-          <a class="btn btn-sm btn-primary" href="{{ url_exportar() }}">
-            Exportar filtrado ({{ tabla.total }})
+          <div class="form-check form-switch d-flex align-items-center mb-0"
+               title="Mostrar u ocultar las miniaturas del perfil y el mini mapa">
+            <input class="form-check-input mt-0" type="checkbox" role="switch"
+                   id="toggle-miniaturas" data-toggle-miniaturas>
+            <label class="form-check-label small ms-2" for="toggle-miniaturas">
+              Miniaturas
+            </label>
+          </div>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_exportar_todo() }}">
+            Descargar todo
           </a>
+          <a class="btn btn-sm btn-primary" href="{{ url_exportar() }}">
+            Descargar filtrado ({{ tabla.total }})
+          </a>
+          <button class="btn btn-sm btn-outline-secondary" type="button"
+                  data-descargar-seleccionados disabled>
+            Descargar seleccionados
+          </button>
+          <button class="btn btn-sm btn-link text-secondary" type="button"
+                  data-limpiar-seleccion>
+            Limpiar selección
+          </button>
         </div>
       </div>
 
+      {# Los campos numéricos usan un único input con rango para no ensanchar la tabla. #}
+      <div class="small text-secondary mb-2">
+        En columnas numéricas puede escribir un rango como
+        <code>3..5</code>, o usar <code>&gt;=3</code>, <code>&lt;=5</code> o
+        <code>=3</code>.
+      </div>
+
       <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle tabla-resultados mb-0">
+        {# La selección se guarda por trabajo/tabla/opción en el navegador. #}
+        <table class="table table-sm table-hover align-middle tabla-resultados mb-0"
+               data-seleccion-clave="{{ job.id }}:{{ tabla }}:{{ opcion }}"
+               data-url-seleccionados="{{ url_exportar_seleccionados() }}">
           <thead class="table-light">
             <tr>
-              <th class="text-nowrap">Perfil / Planta</th>
+              <th class="text-nowrap">
+                <input class="form-check-input me-1" type="checkbox"
+                       data-seleccionar-todos
+                       aria-label="Seleccionar todos los eventos de esta página">
+                Ubicación
+              </th>
               {% for clave, titulo in columnas %}
               <th class="text-nowrap">
                 <a class="text-decoration-none text-reset"
@@ -119,8 +153,8 @@
                        type="text"
                        name="f_{{ clave }}"
                        value="{{ filtros.get(clave, '') }}"
-                       placeholder="Filtrar"
-                       title="Filtrar {{ titulo }}. Numéricos: >=, <=, .. o ="
+                       placeholder="{{ 'Mín..Máx' if tabla.numericas.get(clave) else 'Filtrar' }}"
+                       title="{{ 'Rango numérico: mínimo..máximo (ej. 3..5), >=, <=, =' if tabla.numericas.get(clave) else 'Filtrar ' ~ titulo }}"
                        aria-label="Filtrar {{ titulo }}">
               </th>
               {% endfor %}
@@ -130,12 +164,53 @@
           <tbody>
             {% for fila in tabla.filas %}
             <tr>
-              <td class="celda-miniaturas">
+              {% if clave == 'no_publicados' %}
+                {% set fecha_evento = fila.get('Fecha_Hora', '') %}
+              {% elif clave == 'catalogos' %}
+                {% set fecha_evento = fila.get('Fecha_Hora', '') %}
+              {% elif clave == 'no_actualizados' %}
+                {% set fecha_evento = fila.get('fecha_local') or fila.get('fecha_eventquery', '') %}
+              {% else %}
+                {% set fecha_evento = fila.get('fecha_hora', '') %}
+              {% endif %}
+              {% set url_web = url_catalogo_dia(fecha_evento) %}
+              <td class="celda-ubicacion">
+                <div class="d-flex align-items-start gap-2">
+                  <input class="form-check-input seleccion-evento mt-1"
+                         type="checkbox"
+                         value="{{ fila.get('_fila') }}"
+                         aria-label="Seleccionar evento">
+                  <div class="flex-grow-1">
                 {% set mapa = fila.get('_mapa', {}) %}
+                {% set ubic = fila.get('_ubicacion') %}
                 {% set ubicacion = mapa.get('ubicacion', '') %}
-                <div class="miniaturas-fila">
+                {% if ubic %}
+                  {% if ubic.ambito in ('chile_continental', 'chile_insular', 'chile_costa') %}
+                    {% set clase_badge = 'text-bg-success' %}
+                  {% elif ubic.ambito in ('mar_chileno', 'costa_afuera') %}
+                    {% set clase_badge = 'text-bg-info' %}
+                  {% elif ubic.ambito == 'pais' %}
+                    {% set clase_badge = 'text-bg-warning' %}
+                  {% elif ubic.ambito == 'alta_mar' %}
+                    {% set clase_badge = 'text-bg-secondary' %}
+                  {% else %}
+                    {% set clase_badge = 'text-bg-light text-dark' %}
+                  {% endif %}
+                  <div class="ficha-ubicacion">
+                    <span class="badge badge-ubicacion {{ clase_badge }}">{{ ubic.texto }}</span>
+                    {% if ubic.detalle %}
+                    <span class="detalle-ubicacion">{{ ubic.detalle }}</span>
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <span class="badge badge-ubicacion {% if ubicacion == 'Chile' %}text-bg-success{% elif ubicacion == 'Fuera' %}text-bg-warning{% elif ubicacion == 'Mar' %}text-bg-info{% else %}text-bg-light text-dark{% endif %}">
+                    {{ ubicacion or '—' }}
+                  </span>
+                {% endif %}
+
+                <div class="miniaturas-fila" data-miniaturas-fila>
                   <img class="miniatura-perfil"
-                       src="{{ url_miniatura(fila.get('_fila')) }}"
+                       data-src="{{ url_miniatura(fila.get('_fila')) }}"
                        alt="Miniatura del perfil"
                        loading="lazy" decoding="async"
                        width="120" height="55">
@@ -150,9 +225,13 @@
                               stroke-width="{% if ubicacion == 'Fuera' %}1.6{% else %}0.8{% endif %}"></circle>
                       {% endif %}
                     </svg>
-                    <span class="badge badge-ubicacion {% if ubicacion == 'Chile' %}text-bg-success{% elif ubicacion == 'Fuera' %}text-bg-warning{% elif ubicacion == 'Mar' %}text-bg-info{% else %}text-bg-light text-dark{% endif %}">
-                      {{ ubicacion or '—' }}
-                    </span>
+                  </div>
+                </div>
+                <button type="button"
+                        class="btn btn-sm btn-link btn-miniaturas px-0"
+                        data-toggle-miniaturas-fila aria-expanded="false">
+                  Ver miniaturas
+                </button>
                   </div>
                 </div>
               </td>
@@ -165,7 +244,12 @@
                 {% endif %}
               </td>
               {% endfor %}
-              <td class="text-end">
+              <td class="text-end text-nowrap">
+                {% if url_web %}
+                <a class="btn btn-sm btn-outline-secondary"
+                   href="{{ url_web }}" target="_blank" rel="noopener"
+                   title="Abrir el catálogo diario de sismologia.cl">Web</a>
+                {% endif %}
                 <a class="btn btn-sm btn-outline-primary"
                    href="{{ url_detalle(fila.get('_fila')) }}">Ver</a>
               </td>
@@ -178,7 +262,7 @@
       {% if not tabla.filas %}
         <div class="text-center text-secondary py-5">
           <div class="mb-1">No hay eventos con estos filtros.</div>
-          <div class="small">Probá quitando algún filtro o la búsqueda global.</div>
+          <div class="small">Pruebe quitando algún filtro o la búsqueda global.</div>
         </div>
       {% endif %}
     </form>
@@ -209,4 +293,8 @@
     {% endif %}
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/tabla_seleccion.js') }}"></script>
 {% endblock %}

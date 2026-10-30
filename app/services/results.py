@@ -8,6 +8,7 @@ archivos: no depende de los formatos internos del core.
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import math
@@ -112,6 +113,13 @@ NO_ACT_COLUMNS = (
 COLUMNAS_OCULTAS = {"revision_orden", "_fila", "Frontera_km", "Frontera_pais"}
 
 TABLAS = {
+    "catalogos": {
+        "titulo": "Catálogos",
+        "descripcion": "Catálogos de entrada procesados en este trabajo.",
+        "tipo": "catalogo",
+        "opciones": [],
+        "archivo": "",
+    },
     "no_publicados": {
         "titulo": "No publicados",
         "descripcion": (
@@ -379,6 +387,22 @@ def _contar(ruta: Path) -> int:
     return len(filas)
 
 
+def _firma_eventquery(workspace: Path, ruta: Path) -> str:
+    """Huella del catálogo Eventquery y de las atribuciones que lo enriquecen."""
+    partes = []
+    for origen in (
+        ruta,
+        workspace / "datos" / "atribucion_seiscomp.csv",
+        workspace / "datos" / "atribucion_seisan.csv",
+    ):
+        try:
+            estado = origen.stat()
+            partes.append(f"{origen.name}:{estado.st_size}:{estado.st_mtime_ns}")
+        except OSError:
+            partes.append(f"{origen.name}:falta")
+    return hashlib.sha1("|".join(partes).encode("utf-8")).hexdigest()
+
+
 def construir_resultados(workspace: Path, fuentes: list[str] | None = None) -> dict:
     """Normaliza las salidas del pipeline en ``resultados/``.
 
@@ -462,14 +486,71 @@ def construir_resultados(workspace: Path, fuentes: list[str] | None = None) -> d
             }
     eventquery = sorted((workspace / "datos").glob("new_2_*.csv"))
     if eventquery:
+        origen = eventquery[0]
+        from .attribution import enriquecer_eventquery
+
+        columnas, filas = leer_csv(origen)
+        columnas, filas = enriquecer_eventquery(workspace, columnas, filas)
+        destino = resultados / "catalogo_eventquery.csv"
+        escribir_csv(destino, columnas, filas)
         indice["catalogos"]["eventquery"] = {
-            "archivo": str(eventquery[0].relative_to(workspace)),
-            "filas": _contar(eventquery[0]),
+            "archivo": "resultados/catalogo_eventquery.csv",
+            "origen": str(origen.relative_to(workspace)),
+            "filas": len(filas),
+            "firma": _firma_eventquery(workspace, origen),
         }
 
     (resultados / "indice.json").write_text(
         json.dumps(indice, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    return indice
+
+
+def _escribir_indice(workspace: Path, indice: dict) -> None:
+    ruta = workspace / "resultados" / "indice.json"
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    temporal = ruta.with_name("indice.tmp.json")
+    temporal.write_text(
+        json.dumps(indice, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    temporal.replace(ruta)
+
+
+def _asegurar_catalogo_eventquery(workspace: Path, indice: dict) -> dict:
+    """Genera el catálogo Eventquery enriquecido para trabajos existentes."""
+    info = (indice.get("catalogos") or {}).get("eventquery")
+    if not info:
+        return indice
+    archivo_rel = info.get("archivo") or ""
+    origen_rel = info.get("origen") or (
+        archivo_rel if not archivo_rel.startswith("resultados/") else ""
+    )
+    if not origen_rel:
+        return indice
+    origen = workspace / origen_rel
+    if not origen.is_file():
+        return indice
+    firma = _firma_eventquery(workspace, origen)
+    destino = workspace / "resultados" / "catalogo_eventquery.csv"
+    if (
+        archivo_rel.startswith("resultados/")
+        and destino.is_file()
+        and info.get("firma") == firma
+    ):
+        return indice
+
+    from .attribution import enriquecer_eventquery
+
+    columnas, filas = leer_csv(origen)
+    columnas, filas = enriquecer_eventquery(workspace, columnas, filas)
+    temporal = destino.with_name("catalogo_eventquery.tmp.csv")
+    escribir_csv(temporal, columnas, filas)
+    temporal.replace(destino)
+    info["archivo"] = "resultados/catalogo_eventquery.csv"
+    info["origen"] = origen_rel
+    info["filas"] = len(filas)
+    info["firma"] = firma
+    _escribir_indice(workspace, indice)
     return indice
 
 
@@ -483,7 +564,7 @@ def cargar_indice(workspace: Path) -> dict:
             "catalogos": {},
         }
     try:
-        return json.loads(ruta.read_text(encoding="utf-8"))
+        indice = json.loads(ruta.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {
             "no_publicados": {},
@@ -491,6 +572,7 @@ def cargar_indice(workspace: Path) -> dict:
             "repetidos": {},
             "catalogos": {},
         }
+    return _asegurar_catalogo_eventquery(workspace, indice)
 
 
 # --------------------------------------------------------------------------- #
@@ -604,11 +686,20 @@ def _leer_filtrar_ordenar(
 ) -> tuple[list[str], list[dict], bool]:
     """Columnas visibles, filas filtradas/ordenadas y si el archivo existe."""
     raiz = workspace.resolve()
-    ruta = (raiz / "resultados" / archivo).resolve()
+    ruta = (raiz / archivo).resolve() if "/" in archivo else (
+        raiz / "resultados" / archivo
+    ).resolve()
     if not ruta.is_file() or not ruta.is_relative_to(raiz):
-        return [], [], False
+        return [], [], False, {}, 0
 
     columnas, filas = leer_csv(ruta)
+    total_archivo = len(filas)
+    # La detección se hace antes de filtrar para que los campos numéricos no
+    # pierdan su rango cuando una búsqueda deja pocas filas.
+    numericas = {
+        columna: _es_numerica(fila.get(columna, "") for fila in filas)
+        for columna in columnas
+    }
     for indice, fila in enumerate(filas):
         fila["_fila"] = indice
     claves = _claves_frontera(columnas)
@@ -630,14 +721,15 @@ def _leer_filtrar_ordenar(
         if columna in columnas and str(patron).strip()
     }
     if filtros:
-        numericas = {
-            columna: _es_numerica(fila.get(columna, "") for fila in filas) for columna in filtros
-        }
         filas = [
             fila
             for fila in filas
             if all(
-                _pasa_filtro(fila.get(columna, ""), patron, numericas[columna])
+                _pasa_filtro(
+                    fila.get(columna, ""),
+                    patron,
+                    numericas.get(columna, False),
+                )
                 for columna, patron in filtros.items()
             )
         ]
@@ -677,7 +769,7 @@ def _leer_filtrar_ordenar(
         sort = ""
 
     visibles = [columna for columna in columnas if columna not in COLUMNAS_OCULTAS]
-    return visibles, filas, True
+    return visibles, filas, True, numericas, total_archivo
 
 
 def leer_tabla(
@@ -691,7 +783,7 @@ def leer_tabla(
     page: int = 1,
     per_page: int = PER_PAGE,
 ) -> dict:
-    columnas, filas, existe = _leer_filtrar_ordenar(
+    columnas, filas, existe, numericas, total_archivo = _leer_filtrar_ordenar(
         workspace,
         archivo,
         q=q,
@@ -704,6 +796,7 @@ def leer_tabla(
             "columnas": [],
             "filas": [],
             "total": 0,
+            "total_archivo": 0,
             "page": 1,
             "pages": 1,
             "per_page": per_page,
@@ -711,6 +804,7 @@ def leer_tabla(
             "direccion": "asc",
             "q": q,
             "filtros": {},
+            "numericas": {},
             "existe": False,
         }
 
@@ -722,6 +816,7 @@ def leer_tabla(
         "columnas": columnas,
         "filas": filas[inicio : inicio + per_page],
         "total": total,
+        "total_archivo": total_archivo,
         "page": page,
         "pages": pages,
         "per_page": per_page,
@@ -733,8 +828,20 @@ def leer_tabla(
             for clave, valor in (filtros or {}).items()
             if clave in columnas and str(valor).strip()
         },
+        "numericas": numericas,
         "existe": True,
     }
+
+
+def exportar_filas(columnas: list[str], filas: list[dict]) -> bytes:
+    """CSV con BOM para Excel a partir de columnas y filas ya resueltas."""
+    buffer = io.StringIO()
+    escritor = csv.DictWriter(
+        buffer, fieldnames=columnas, extrasaction="ignore", restval=""
+    )
+    escritor.writeheader()
+    escritor.writerows(filas)
+    return buffer.getvalue().encode("utf-8-sig")
 
 
 def exportar_csv(
@@ -747,7 +854,7 @@ def exportar_csv(
     direccion: str = "asc",
 ) -> tuple[bytes, int]:
     """CSV filtrado completo (todas las páginas), con BOM para Excel."""
-    columnas, filas, existe = _leer_filtrar_ordenar(
+    columnas, filas, existe, _numericas, _total = _leer_filtrar_ordenar(
         workspace,
         archivo,
         q=q,
@@ -757,9 +864,29 @@ def exportar_csv(
     )
     if not existe:
         return b"", 0
+    return exportar_filas(columnas, filas), len(filas)
 
-    buffer = io.StringIO()
-    escritor = csv.DictWriter(buffer, fieldnames=columnas, extrasaction="ignore", restval="")
-    escritor.writeheader()
-    escritor.writerows(filas)
-    return buffer.getvalue().encode("utf-8-sig"), len(filas)
+
+def exportar_seleccionados(
+    workspace: Path,
+    archivo: str,
+    filas_ids: list[int],
+) -> tuple[bytes, int]:
+    """CSV de las filas marcadas, sin aplicar filtros.
+
+    ``filas_ids`` son los ``_fila`` originales del archivo, de modo que la
+    selección se mantiene al cambiar de página o de filtro.
+    """
+    columnas, filas, existe, _numericas, _total = _leer_filtrar_ordenar(
+        workspace,
+        archivo,
+        q="",
+        filtros={},
+        sort="",
+        direccion="asc",
+    )
+    if not existe:
+        return b"", 0
+    buscados = set(filas_ids)
+    elegidas = [fila for fila in filas if fila.get("_fila") in buscados]
+    return exportar_filas(columnas, elegidas), len(elegidas)

@@ -39,7 +39,7 @@ from .workspace import (
     ruta_workspace,
 )
 
-PROGRESO_RE = re.compile(r"@@PROGRESO@@\s+([0-9]*\.?[0-9]+)")
+PROGRESO_RE = re.compile(r"@@PROGRESO@@\s+([0-9]*\.?[0-9]+)(?:\s+(.*))?")
 TIMEOUT_PASO = int(os.environ.get("PIPELINE_STEP_TIMEOUT", "1800"))
 
 
@@ -107,15 +107,44 @@ def _matar(proceso: subprocess.Popen) -> None:
         proceso.wait()
 
 
-def _actualizar_progreso(job_id: str, indice: int, total: int, fraccion: float) -> None:
+def _actualizar_progreso(
+    job_id: str,
+    indice: int,
+    total: int,
+    fraccion: float,
+    *,
+    detalle: str | None = None,
+    titulo: str | None = None,
+) -> None:
+    """Actualiza el porcentaje global y el detalle visible de la etapa.
+
+    El porcentaje se reparte por pasos; dentro de un paso se usa la fracción
+    que informa el script. Como el porcentaje global puede quedar varios
+    segundos en el mismo entero, el detalle de la etapa y su propio porcentaje
+    se actualizan igual: es lo que demuestra que el proceso sigue avanzando.
+    """
     fraccion = max(0.0, min(1.0, fraccion))
     porcentaje = int(100 * (indice + fraccion) / max(1, total))
     db.session.expire_all()
     job = db.session.get(Job, job_id)
     if job is None:
         return
+
+    texto = None
+    if titulo is not None:
+        detalle = (detalle or "").strip()
+        if not detalle:
+            detalle = f"{int(fraccion * 100)} % del paso"
+        texto = f"{titulo} · {detalle}"[:80]
+
+    cambio = False
     if porcentaje > (job.progress or 0):
         job.progress = min(99, porcentaje)
+        cambio = True
+    if texto and job.current_step != texto:
+        job.current_step = texto
+        cambio = True
+    if cambio:
         db.session.commit()
 
 
@@ -196,7 +225,14 @@ def _ejecutar_paso(
                 fraccion = float(coincidencia.group(1))
             except ValueError:
                 continue
-            _actualizar_progreso(job_id, indice, total, fraccion)
+            _actualizar_progreso(
+                job_id,
+                indice,
+                total,
+                fraccion,
+                detalle=coincidencia.group(2),
+                titulo=paso.titulo,
+            )
             continue
 
         log.escribir(linea.rstrip("\n"))
@@ -227,7 +263,7 @@ def _verificar_seisan(workspace: Path) -> None:
     ruta = workspace / "datos" / "salida_collect.csv"
     if not ruta.is_file():
         raise PipelineError(
-            "El select.out no produjo eventos analizables. Revisa el formato del archivo."
+            "El select.out no produjo eventos analizables. Revise el formato del archivo."
         )
 
 
@@ -549,7 +585,7 @@ def ejecutar_pipeline(job_id: str) -> dict:
             ).scalar_one()
             fila.status = "running"
             fila.started_at = _ahora()
-            job.current_step = paso.titulo
+            job.current_step = f"{paso.titulo} ({indice + 1}/{total})"[:80]
             job.progress = max(job.progress, int(100 * indice / total))
             db.session.commit()
 
@@ -565,7 +601,7 @@ def ejecutar_pipeline(job_id: str) -> dict:
             fila.exit_code = codigo
             fila.finished_at = _ahora()
             if codigo != 0:
-                raise PipelineError(f"{paso.titulo} terminó con código {codigo}. Revisa el log.")
+                raise PipelineError(f"{paso.titulo} terminó con código {codigo}. Revise el registro.")
             if paso.verificar is not None:
                 paso.verificar(workspace)
             if paso.post is not None:

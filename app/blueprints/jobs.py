@@ -23,6 +23,7 @@ from ..forms import JobForm
 from ..models import Job, JobArtifact, JobFile, JobSource, nuevo_uuid
 from ..services.audit import registrar
 from ..services.jobs import JobNoEliminable, eliminar_trabajo, puede_eliminar
+from ..services.panels import datasets_disponibles
 from ..services.queue import encolar_trabajo
 from ..services.results import cargar_indice
 from ..services.sources import default_primary, etiqueta, etiquetas, fuente
@@ -65,6 +66,7 @@ def _contexto_detalle(job: Job) -> dict:
         "etiquetas": etiquetas(),
         "aliases": {source.kind: source.alias_mostrado for source in job.sources},
         "fuentes": fuentes,
+        "paneles": datasets_disponibles(workspace),
     }
 
 
@@ -198,7 +200,7 @@ def nuevo():
             job.error = f"No se pudo validar los catálogos: {exc}"
             job.current_step = "Error de validación"
             db.session.commit()
-            flash("No se pudo validar los catálogos. Revisá el detalle.", "danger")
+            flash("No se pudo validar los catálogos. Revise el detalle.", "danger")
             return redirect(url_for("jobs.detalle", job_id=job.id))
 
         todo_ok = all(resultado["ok"] for resultado in validaciones.values())
@@ -223,13 +225,13 @@ def nuevo():
             job.current_step = "Validación fallida"
             job.error = (
                 "Alguno de los catálogos no pasó la validación. "
-                "Revisá el detalle, corregí el archivo y creá un trabajo nuevo."
+                "Revise el detalle, corrija el archivo y cree un trabajo nuevo."
             )
             db.session.commit()
             registrar("job.create", entity=job.id, meta=meta)
             flash(
                 "El trabajo quedó en borrador: hay catálogos inválidos. "
-                "Revisá el detalle antes de volver a intentar.",
+                "Revise el detalle antes de volver a intentar.",
                 "danger",
             )
             return redirect(url_for("jobs.detalle", job_id=job.id))
@@ -250,7 +252,7 @@ def nuevo():
             db.session.commit()
             flash(
                 "El trabajo quedó creado pero no se pudo encolar. "
-                "Revisa que Redis y el worker estén activos.",
+                "Revise que Redis y el worker estén activos.",
                 "danger",
             )
 

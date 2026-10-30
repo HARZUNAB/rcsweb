@@ -149,7 +149,7 @@ def exportar_ventana(
         log_detalle(linea)
     if proceso.returncode != 0:
         raise RuntimeError(
-            f"No se pudieron obtener los datos de SeisComp (código {proceso.returncode}). Revisá el log."
+            f"No se pudieron obtener los datos de SeisComp (código {proceso.returncode}). Revise el log."
         )
     marca = Path(str(salida) + ".completo")
     if not salida.is_file() or not marca.is_file():

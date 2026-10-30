@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+{% block title %}Paneles · Trabajo {{ job.id[:8] }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="text-secondary small text-uppercase mb-1">
+      <a class="text-reset text-decoration-none"
+         href="{{ url_for('jobs.detalle', job_id=job.id) }}">Trabajo {{ job.id[:8] }}</a>
+      · Paneles
+    </div>
+    <h1 class="h3 mb-1">Contexto sismotectónico</h1>
+    <p class="text-secondary mb-0">
+      Eventos agrupados por perfil de subducción. Los que no tienen perfil se
+      agrupan por territorio.
+    </p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('jobs.detalle', job_id=job.id) }}">
+    Volver al trabajo
+  </a>
+</div>
+
+{% if opciones|length > 1 %}
+<ul class="nav nav-pills flex-wrap gap-2 mb-3">
+  {% for opcion in opciones %}
+  <li class="nav-item">
+    <a class="nav-link {% if opcion.clave == dataset %}active{% endif %}"
+       href="{{ url_for('panels.index', job_id=job.id, dataset=opcion.clave) }}">
+      {{ opcion.titulo }}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Eventos</div>
+        <div class="fs-3 fw-semibold">{{ datos.total }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Con perfil</div>
+        <div class="fs-3 fw-semibold">{{ datos.con_perfil }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Sin perfil</div>
+        <div class="fs-3 fw-semibold">{{ datos.sin_perfil }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Sospechosos</div>
+        <div class="fs-3 fw-semibold">{{ datos.sospechosos }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if mostrar_filtros or datos.total %}
+<div class="card border-0 shadow-sm mb-3" id="panel-filtros">
+  <div class="card-body py-3">
+    {% if mostrar_filtros %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0 panel-filtros-tabla">
+        <tbody>
+          <tr>
+            <th scope="row" class="text-secondary fw-normal">Fuente</th>
+            <td>
+              <div class="d-flex flex-wrap gap-2">
+                {% for tab in fuentes_tabs %}
+                {% if tab.disponible %}
+                <a class="btn btn-sm {% if tab.activo %}btn-secondary{% else %}btn-outline-secondary{% endif %}"
+                   href="{{ tab.url }}">
+                  {{ tab.titulo }}
+                  <span class="badge text-bg-light text-dark">{{ tab.total }}</span>
+                </a>
+                {% else %}
+                <span class="btn btn-sm btn-outline-secondary disabled"
+                      aria-disabled="true">
+                  {{ tab.titulo }}
+                  <span class="badge text-bg-light text-dark">{{ tab.total }}</span>
+                </span>
+                {% endif %}
+                {% endfor %}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row" class="text-secondary fw-normal">Tipo</th>
+            <td>
+              <div class="d-flex flex-wrap gap-2">
+                {% for tab in tipos_tabs %}
+                {% if tab.disponible %}
+                <a class="btn btn-sm {% if tab.activo %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                   href="{{ tab.url }}">
+                  {{ tab.titulo }}
+                  <span class="badge text-bg-light text-dark">{{ tab.total }}</span>
+                </a>
+                {% else %}
+                <span class="btn btn-sm btn-outline-secondary disabled"
+                      aria-disabled="true">
+                  {{ tab.titulo }}
+                  <span class="badge text-bg-light text-dark">{{ tab.total }}</span>
+                </span>
+                {% endif %}
+                {% endfor %}
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 {% if mostrar_filtros %}mt-2{% endif %}">
+      {% if mostrar_filtros %}
+      <div class="small text-secondary">
+        Filtro: <strong>{{ tipo_titulo }}</strong> ·
+        <strong>{{ fuente_titulo }}</strong>
+        ({{ datos.total }} evento{{ '' if datos.total == 1 else 's' }})
+      </div>
+      {% endif %}
+      <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 id="panel-sospechosos">
+          <label class="form-check-label small" for="panel-sospechosos">
+            Solo sospechosos
+          </label>
+        </div>
+        <a class="btn btn-sm btn-outline-primary" href="#panel-listado"
+           data-ir-listado>Ir al listado</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if datos.total == 0 %}
+<div class="alert alert-light border small mb-3">
+  No hay eventos para el filtro seleccionado. Pruebe con otro tipo o fuente.
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-12 col-xl-5" id="panel-grupos">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h6 text-uppercase text-secondary mb-3">Grupos</h2>
+
+        {% if datos.perfiles %}
+        <h3 class="h6 text-secondary mb-2">Con perfil</h3>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Perfil</th>
+                <th class="text-end text-nowrap">Ev.</th>
+                {% if dataset == 'observaciones' %}
+                <th class="text-end text-nowrap">No pub.</th>
+                <th class="text-end text-nowrap">No act.</th>
+                <th class="text-end text-nowrap">Rep.</th>
+                {% endif %}
+                <th class="text-end text-nowrap">Sosp.</th>
+                {% if dataset == 'observaciones' %}
+                <th class="text-end text-nowrap">Alta</th>
+                {% endif %}
+                <th class="text-nowrap">Along</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for perfil in datos.perfiles %}
+              <tr class="fila-panel" data-grupo="perfil" data-id="{{ perfil.id }}"
+                  tabindex="0">
+                <td class="fw-semibold">{{ perfil.id }}</td>
+                <td class="text-end">{{ perfil.eventos }}</td>
+                {% if dataset == 'observaciones' %}
+                <td class="text-end">{{ perfil.no_publicados }}</td>
+                <td class="text-end">{{ perfil.no_actualizados }}</td>
+                <td class="text-end">{{ perfil.repetidos }}</td>
+                {% endif %}
+                <td class="text-end">{{ perfil.sospechosos }}</td>
+                {% if dataset == 'observaciones' %}
+                <td class="text-end">{{ perfil.altas }}</td>
+                {% endif %}
+                <td class="text-secondary small text-nowrap">
+                  {% if perfil.along_min is not none %}
+                    {{ '%.0f'|format(perfil.along_min) }}–{{ '%.0f'|format(perfil.along_max) }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-secondary small py-3">
+          No hay eventos con perfil asignado en este conjunto.
+        </div>
+        {% endif %}
+
+        {% if datos.territorios %}
+        <h3 class="h6 text-secondary mt-4 mb-2">Sin perfil · territorios</h3>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Territorio</th>
+                <th class="text-end text-nowrap">Ev.</th>
+                {% if dataset == 'observaciones' %}
+                <th class="text-end text-nowrap">No pub.</th>
+                <th class="text-end text-nowrap">No act.</th>
+                <th class="text-end text-nowrap">Rep.</th>
+                {% endif %}
+                <th class="text-end text-nowrap">Sosp.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for territorio in datos.territorios %}
+              <tr class="fila-panel" data-grupo="territorio"
+                  data-id="{{ territorio.nombre }}" tabindex="0">
+                <td class="fw-semibold">{{ territorio.nombre }}</td>
+                <td class="text-end">{{ territorio.eventos }}</td>
+                {% if dataset == 'observaciones' %}
+                <td class="text-end">{{ territorio.no_publicados }}</td>
+                <td class="text-end">{{ territorio.no_actualizados }}</td>
+                <td class="text-end">{{ territorio.repetidos }}</td>
+                {% endif %}
+                <td class="text-end">{{ territorio.sospechosos }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-7">
+    <div class="row g-3">
+      <div class="col-12 col-lg-6" id="panel-mapa-col">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+              <h2 class="h6 text-uppercase text-secondary mb-0" id="panel-mapa-titulo">
+                Planta del grupo
+              </h2>
+              <div class="small text-secondary" id="panel-mapa-detalle"></div>
+            </div>
+            <div id="panel-mapa" class="rounded border" style="height: 430px;"></div>
+            <div class="small text-secondary mt-2">
+              Marcadores grandes para distinguir eventos fuera del contexto del
+              perfil. Haga clic en un evento para verlo en detalle.
+            </div>
+            {# Leyenda del proyecto base: rol y percepción, no tipo de observación. #}
+            <div class="d-flex flex-wrap gap-3 small text-secondary mt-2">
+              <span>
+                <span class="d-inline-block rounded-circle me-1"
+                      style="width: 10px; height: 10px; background: #ffff00; border: 1px solid #000;"></span>
+                Sismo no percibido / registrado
+              </span>
+              <span>
+                <span class="d-inline-block rounded-circle me-1"
+                      style="width: 10px; height: 10px; background: #c00000; border: 1px solid #000;"></span>
+                Sismo percibido
+              </span>
+              <span>
+                <span class="d-inline-block rounded-circle me-1"
+                      style="width: 10px; height: 10px; background: #bfbfbf; border: 3px solid #7b1196;"></span>
+                Sospechoso (borde violeta)
+              </span>
+              <span>
+                <span class="d-inline-block rounded-circle me-1"
+                      style="width: 10px; height: 10px; background: transparent; border: 2px solid #000080;"></span>
+                Evento seleccionado
+              </span>
+              <span>
+                <span class="d-inline-block rounded-circle me-1"
+                      style="width: 10px; height: 10px; background: transparent; border: 2px solid #ff00ff;"></span>
+                Soluciones superpuestas
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-6" id="panel-perfil-col">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+              <h2 class="h6 text-uppercase text-secondary mb-0" id="panel-perfil-titulo">
+                Perfil
+              </h2>
+              <div class="small text-secondary">
+                <span id="panel-perfil-detalle"></span>
+                <span class="panel-perfil-subtitulo">Topografía, slab y eventos</span>
+              </div>
+            </div>
+            <div class="position-relative">
+              <div id="panel-perfil" class="rounded border" style="height: 430px;"></div>
+              <div id="panel-perfil-vacio" class="perfil-vacio d-none">
+                <div>
+                  <div class="fw-semibold">Perfil no disponible</div>
+                  <div class="small text-secondary">
+                    Este grupo no tiene perfil de subducción asignado.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="small text-secondary mt-2">
+              Haga clic en un evento del perfil o de la planta para ver su viñeta.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mt-3" id="panel-listado"
+     data-scroll="{{ '1' if scroll_listado else '0' }}"
+     data-job-id="{{ job.id }}" tabindex="-1">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <div>
+        <h2 class="h6 text-uppercase text-secondary mb-0" id="panel-grupo-titulo">
+          Listado de eventos
+        </h2>
+        <div class="small text-secondary" id="panel-grupo-detalle"></div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="badge text-bg-light text-dark" id="panel-grupo-total"></span>
+        <span class="badge text-bg-light text-dark" id="panel-seleccionados-count">
+          0 seleccionados
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                id="panel-descargar-todo" disabled>Descargar todo</button>
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                id="panel-descargar-filtrado" disabled>Descargar filtrado</button>
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                id="panel-descargar-seleccionados" disabled>
+          Descargar seleccionados
+        </button>
+        <a class="btn btn-sm btn-outline-secondary" href="#panel-filtros"
+           data-volver-paneles>Volver a los paneles</a>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="text-center col-seleccion">
+              <input class="form-check-input" type="checkbox"
+                     id="panel-seleccionar-todos"
+                     aria-label="Seleccionar todos los eventos de la página">
+            </th>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Fuente</th>
+            <th class="text-end">Mag.</th>
+            <th class="text-end">Prof. (km)</th>
+            <th>Revisión</th>
+            <th class="text-end">Sospechoso</th>
+            <th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody id="panel-eventos">
+          <tr>
+            <td colspan="9" class="text-center text-secondary py-3">
+              Seleccione un perfil o territorio.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="small text-secondary mt-2 d-none" id="panel-eventos-aviso"></div>
+  </div>
+</div>
+
+<script type="application/json" id="panel-datos">{{ datos|tojson }}</script>
+<script type="application/json" id="panel-perfiles-grafico">{{ perfiles_grafico|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/plotly/plotly.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vineta.js') }}"></script>
+<script src="{{ url_for('static', filename='js/paneles.js') }}"></script>
+{% endblock %}

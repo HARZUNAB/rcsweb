@@ -83,7 +83,11 @@ footer {
 
 /* Columnas fijas de las tablas de resultados. */
 .tabla-resultados {
-  --perfil-ancho: 232px;
+  --perfil-ancho: 150px;
+}
+
+.tabla-resultados.con-miniaturas {
+  --perfil-ancho: 245px;
 }
 
 .tabla-resultados thead th:nth-child(1),
@@ -133,6 +137,16 @@ footer {
   cursor: pointer;
 }
 
+.fila-panel {
+  cursor: pointer;
+}
+
+/* Foco visible para recorrer los grupos con las flechas del teclado. */
+.fila-panel:focus {
+  outline: 2px solid var(--rcs-azul-claro, #0d6efd);
+  outline-offset: -2px;
+}
+
 .fila-enlazada:focus {
   outline: 2px solid var(--rcs-azul-claro);
   outline-offset: -2px;
@@ -141,6 +155,133 @@ footer {
 #mapa-detalle,
 #perfil-detalle {
   background: #fff;
+}
+
+#perfil-detalle {
+  position: relative;
+}
+
+.vineta-flotante {
+  position: absolute;
+  z-index: 1080;
+  width: clamp(280px, 22vw, 350px);
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  animation: aparecer-vineta 0.16s ease;
+}
+
+.vineta-flotante.vineta-hoja {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  top: auto;
+  width: auto;
+  max-height: 55vh;
+}
+
+@keyframes aparecer-vineta {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.perfil-vacio {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: var(--bs-border-radius);
+}
+
+#panel-listado,
+#panel-filtros {
+  scroll-margin-top: 16px;
+}
+
+#panel-filtros {
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+}
+
+@media (max-width: 991.98px) {
+  #panel-filtros {
+    position: static;
+  }
+}
+
+.panel-filtros-tabla {
+  width: 100%;
+}
+
+.panel-filtros-tabla th {
+  width: 80px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.panel-filtros-tabla td {
+  vertical-align: middle;
+}
+
+.panel-filtros-tabla tr:first-child th,
+.panel-filtros-tabla tr:first-child td,
+.panel-filtros-tabla tbody tr + tr th,
+.panel-filtros-tabla tbody tr + tr td {
+  border-top: 0;
+}
+
+.panel-filtros-tabla .btn.disabled {
+  opacity: 0.45;
+}
+
+.panel-perfil-subtitulo {
+  margin-left: 0.25rem;
+}
+
+.tabla-resultados .seleccion-evento {
+  flex: 0 0 auto;
+}
+
+.col-seleccion {
+  width: 36px;
+  text-align: center;
+}
+
+/* Barra horizontal superior de las tablas; se sincroniza con su contenedor. */
+.tabla-scroll-superior {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 16px;
+  margin-bottom: 4px;
+}
+
+.tabla-scroll-superior-espacio {
+  height: 1px;
+}
+
+
+#panel-listado.listado-resaltado {
+  animation: resaltar-listado 1.5s ease;
+}
+
+@keyframes resaltar-listado {
+  0% {
+    box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgba(13, 110, 253, 0);
+  }
 }
 
 .perfil-contenedor {
@@ -160,9 +301,38 @@ footer {
 
 
 .miniaturas-fila {
-  display: flex;
+  display: none;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 8px;
+  margin-top: 6px;
+}
+
+.miniaturas-fila.abierta,
+.tabla-resultados.con-miniaturas .miniaturas-fila {
+  display: flex;
+}
+
+.ficha-ubicacion {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detalle-ubicacion {
+  font-size: 0.7rem;
+  line-height: 1.15;
+  color: var(--bs-secondary-color);
+}
+
+.btn-miniaturas {
+  font-size: 0.7rem;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.tabla-resultados.con-miniaturas .btn-miniaturas {
+  display: none;
 }
 
 .minimapa-planta {
