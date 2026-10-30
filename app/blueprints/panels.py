@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, abort, render_template, request, url_for
+from flask import Blueprint, abort, jsonify, render_template, request, url_for
 from flask_login import login_required
 
 from ..extensions import db
 from ..models import Job
 from ..services import panels
+from ..services.history import datos as historico_datos
 from ..services.workspace import ruta_workspace
 
 panels_bp = Blueprint("panels", __name__)
@@ -197,3 +198,16 @@ def index(job_id: str):
         scroll_listado=bool(tipo or fuente),
         volver=volver,
     )
+
+
+@panels_bp.get("/jobs/<job_id>/paneles/historico/<perfil_id>")
+@login_required
+def historico(job_id: str, perfil_id: str):
+    """Sismicidad histórica proyectada al perfil, para los mini perfiles."""
+    job = db.session.get(Job, job_id)
+    if job is None:
+        abort(404)
+    perfil = panels.perfil_historico(perfil_id)
+    if perfil is None:
+        abort(404)
+    return jsonify(historico_datos(perfil))

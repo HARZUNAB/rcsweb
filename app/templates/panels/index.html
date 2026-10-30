@@ -311,7 +311,9 @@
               </div>
             </div>
             <div class="position-relative">
-              <div id="panel-perfil" class="rounded border" style="height: 430px;"></div>
+              <div id="panel-perfil" class="rounded border"
+                   style="height: 430px;"
+                   data-url-historico="{{ url_for('panels.historico', job_id=job.id, perfil_id='__PERFIL__') }}"></div>
               <div id="panel-perfil-vacio" class="perfil-vacio d-none">
                 <div>
                   <div class="fw-semibold">Perfil no disponible</div>
@@ -321,8 +323,23 @@
                 </div>
               </div>
             </div>
-            <div class="small text-secondary mt-2">
-              Haga clic en un evento del perfil o de la planta para ver su viñeta.
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+              <div class="small text-secondary">
+                Haga clic en un evento del perfil o de la planta para ver su viñeta.
+              </div>
+              {# La serie histórica se carga bajo demanda para el perfil actual. #}
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch"
+                       id="panel-historico" disabled>
+                <label class="form-check-label small" for="panel-historico">
+                  Sismicidad histórica (perfil)
+                </label>
+              </div>
+            </div>
+            <div class="small text-secondary mt-1 d-none" id="panel-historico-estado">
+              <span class="d-inline-block rounded-circle me-1"
+                    style="width: 8px; height: 8px; background: #8c8c8c; opacity: 0.45;"></span>
+              <span id="panel-historico-texto"></span>
             </div>
           </div>
         </div>

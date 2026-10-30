@@ -624,6 +624,28 @@ def perfiles_grafico(ids: list[str]) -> dict:
     return datos
 
 
+def perfil_historico(perfil_id: str) -> dict | None:
+    """Datos mínimos de un perfil para proyectar la sismicidad histórica.
+
+    ``history.perfil`` necesita el id y las series del slab; se arman desde el
+    mismo catálogo de perfiles que usa el resto de los paneles.
+    """
+    for perfil in plots._perfiles():
+        if perfil.get("id") != perfil_id:
+            continue
+        slab = perfil.get("slab") or {}
+        return {
+            "id": perfil_id,
+            "slab_p": _serie(slab.get("p")),
+            "slab_depth": _serie(slab.get("depth")),
+            "slab_lon": _serie(slab.get("lon")),
+            "slab_lat": _serie(slab.get("lat")),
+            "topo_p": _serie(perfil.get("topo_p")),
+            "topo_alt": _serie(perfil.get("topo_alt")),
+        }
+    return None
+
+
 def datasets_disponibles(workspace: Path) -> list[dict]:
     """Datasets que tienen datos en el trabajo, para el selector."""
     indice = cargar_indice(workspace)
@@ -657,6 +679,7 @@ __all__ = [
     "conteos",
     "datasets_disponibles",
     "filtrar",
+    "perfil_historico",
     "perfiles_grafico",
     "TERRITORIOS",
     "TIPOS",

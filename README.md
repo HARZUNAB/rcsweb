@@ -234,6 +234,10 @@ Seisan. El trabajo de demostración conserva sus resultados.
 - **Hover sincronizado**: al pasar el mouse por un evento de la planta se
   muestra el mismo evento en el perfil, y viceversa, con fecha, hora y fuente.
   También funciona entre Leaflet y el perfil.
+- **Sismicidad histórica en paneles**: la casilla «Sismicidad histórica
+  (perfil)» carga la serie del perfil seleccionado bajo demanda, la cachea y la
+  dibuja detrás de topografía, slab y eventos. Se mantiene al cambiar de perfil
+  y queda deshabilitada en territorios sin perfil.
 - **Perfil**: topografía, slab, nivel del mar y eventos calculados con
   `asigna_perfiles` del core, con zoom y clic. El contenedor se limita a
   820 × 420 px en escritorio para que no quede demasiado estirado.
@@ -326,7 +330,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **197 tests**.
+runner de solo lectura. Total actual: **200 tests**.
 
 ## Filtros y exportación
 

@@ -27,6 +27,12 @@
   const perfilTitulo = document.getElementById("panel-perfil-titulo");
   const perfilVacio = document.getElementById("panel-perfil-vacio");
   const perfilDetalle = document.getElementById("panel-perfil-detalle");
+  const historicoCheckbox = document.getElementById("panel-historico");
+  const historicoEstado = document.getElementById("panel-historico-estado");
+  const historicoTexto = document.getElementById("panel-historico-texto");
+  const urlHistorico = perfilEl
+    ? perfilEl.dataset.urlHistorico || ""
+    : "";
   const gruposEl = document.getElementById("panel-grupos");
   const tbody = document.getElementById("panel-eventos");
   const titulo = document.getElementById("panel-grupo-titulo");
@@ -46,6 +52,20 @@
   const jobId = listadoEl ? listadoEl.dataset.jobId || "" : "";
   const LIMITE = 200;
   const seleccionados = new Set();
+  const historicos = {};
+  let mostrarHistorico = false;
+  let cargandoHistorico = false;
+  const CLAVE_HISTORICO = "rcs-paneles-historico";
+
+  try {
+    mostrarHistorico =
+      window.localStorage.getItem(CLAVE_HISTORICO) === "1";
+  } catch (error) {
+    mostrarHistorico = false;
+  }
+  if (historicoCheckbox) {
+    historicoCheckbox.checked = mostrarHistorico;
+  }
 
   const estado = {
     grupo: null,
@@ -782,12 +802,62 @@
     }
   }
 
+  function actualizarEstadoHistorico(texto, visible) {
+    if (!historicoEstado || !historicoTexto) {
+      return;
+    }
+    historicoTexto.textContent = texto || "";
+    historicoEstado.classList.toggle("d-none", !visible);
+  }
+
+  // La serie histórica se pide solo al activar la casilla y se cachea por
+  // perfil; así el panel inicial no carga miles de puntos innecesarios.
+  function cargarHistorico(perfilId) {
+    if (!urlHistorico || historicos[perfilId] !== undefined || cargandoHistorico) {
+      return;
+    }
+    cargandoHistorico = true;
+    actualizarEstadoHistorico("Cargando sismicidad histórica…", true);
+    const url = urlHistorico.replace(
+      "__PERFIL__",
+      encodeURIComponent(perfilId)
+    );
+    fetch(url, { headers: { Accept: "application/json" } })
+      .then(function (respuesta) {
+        if (!respuesta.ok) {
+          throw new Error("No se pudo cargar la sismicidad histórica.");
+        }
+        return respuesta.json();
+      })
+      .then(function (datos) {
+        historicos[perfilId] = datos;
+      })
+      .catch(function () {
+        historicos[perfilId] = null;
+      })
+      .finally(function () {
+        cargandoHistorico = false;
+        // Al terminar, se vuelve a renderizar el perfil actual. Si el usuario
+        // cambió de grupo mientras cargaba, esto inicia la consulta del nuevo.
+        renderPerfil();
+      });
+  }
+
   function renderPerfil() {
     if (!perfilEl) {
       return;
     }
     if (estado.grupo) {
       actualizarConteos(eventosVisibles());
+    }
+    const esPerfil = !!(
+      estado.grupo && estado.grupo.tipo === "perfil"
+    );
+    if (historicoCheckbox) {
+      historicoCheckbox.disabled = !esPerfil;
+    }
+    if (!esPerfil) {
+      actualizarEstadoHistorico("", false);
     }
     if (!estado.grupo || estado.grupo.tipo !== "perfil" || !window.Plotly) {
       if (perfilTitulo) {
@@ -807,8 +877,55 @@
       return;
     }
     mostrarPerfilVacio(false);
+    const cacheHistorico = mostrarHistorico
+      ? historicos[estado.grupo.id]
+      : undefined;
+    if (mostrarHistorico) {
+      if (cacheHistorico === undefined) {
+        actualizarEstadoHistorico(
+          "Cargando sismicidad histórica…",
+          true
+        );
+        cargarHistorico(estado.grupo.id);
+      } else if (cacheHistorico === null) {
+        actualizarEstadoHistorico(
+          "No se pudo cargar la sismicidad histórica.",
+          true
+        );
+      } else {
+        const total =
+          (cacheHistorico.perfil && cacheHistorico.perfil.total) || 0;
+        actualizarEstadoHistorico(
+          (cacheHistorico.label || "Sismicidad histórica") +
+            " · " +
+            total +
+            " punto" +
+            (total === 1 ? "" : "s"),
+          true
+        );
+      }
+    } else {
+      actualizarEstadoHistorico("", false);
+    }
     const eventos = eventosPerfilFiltrados();
     const trazas = [];
+    if (
+      mostrarHistorico &&
+      cacheHistorico &&
+      cacheHistorico.perfil &&
+      (cacheHistorico.perfil.along || []).length
+    ) {
+      trazas.push({
+        type: "scatter",
+        mode: "markers",
+        x: cacheHistorico.perfil.along,
+        y: cacheHistorico.perfil.prof,
+        marker: { size: 3, color: "#8c8c8c", opacity: 0.35 },
+        hoverinfo: "skip",
+        showlegend: false,
+        name: "Sismicidad histórica",
+      });
+    }
     if ((grafico.topo_p || []).length) {
       trazas.push({
         type: "scatter",
@@ -1189,6 +1306,28 @@
 
   if (!datos.eventos.length) {
     actualizarConteos([]);
+  }
+
+  if (historicoCheckbox) {
+    historicoCheckbox.addEventListener("change", function () {
+      mostrarHistorico = historicoCheckbox.checked;
+      try {
+        window.localStorage.setItem(
+          CLAVE_HISTORICO,
+          mostrarHistorico ? "1" : "0"
+        );
+      } catch (error) {
+        // Sin almacenamiento disponible: se mantiene en memoria.
+      }
+      if (mostrarHistorico) {
+        Object.keys(historicos).forEach(function (id) {
+          if (historicos[id] === null) {
+            delete historicos[id];
+          }
+        });
+      }
+      renderPerfil();
+    });
   }
 
   if (datos.perfiles && datos.perfiles.length) {

@@ -159,6 +159,9 @@ def test_ruta_paneles_renderiza_el_resumen(client, login, monkeypatch):
     assert 'id="panel-perfil-vacio"' in html
     assert "Perfil no disponible" in html
     assert "vineta.js" in html
+    assert 'id="panel-historico"' in html
+    assert 'id="panel-historico-estado"' in html
+    assert 'data-url-historico=' in html
     assert "Sismo no percibido / registrado" in html
     assert "Soluciones superpuestas" in html
     assert 'id="panel-seleccionar-todos"' in html
@@ -433,3 +436,48 @@ def test_perfiles_grafico_incluye_la_linea_del_perfil(monkeypatch):
 
     assert datos["P001"]["slab_lon"] == [-71, -71.5, -72]
     assert datos["P001"]["slab_lat"] == [-30, -30.5, -31]
+
+
+def test_ruta_paneles_historico_devuelve_json(client, login, monkeypatch):
+    job = _job()
+    login()
+    monkeypatch.setattr(
+        panels,
+        "perfil_historico",
+        lambda perfil_id: {"id": perfil_id, "slab_p": [1.0]},
+    )
+    monkeypatch.setattr(
+        "app.blueprints.panels.historico_datos",
+        lambda _perfil: {
+            "label": "Sismicidad histórica de prueba",
+            "perfil": {"along": [1.0], "prof": [-2.0], "total": 1},
+        },
+    )
+
+    respuesta = client.get(f"/jobs/{job.id}/paneles/historico/P001")
+
+    assert respuesta.status_code == 200
+    datos = respuesta.get_json()
+    assert datos["label"] == "Sismicidad histórica de prueba"
+    assert datos["perfil"]["total"] == 1
+
+
+def test_ruta_paneles_historico_perfil_inexistente(client, login, monkeypatch):
+    job = _job()
+    login()
+    monkeypatch.setattr(panels, "perfil_historico", lambda _perfil_id: None)
+
+    respuesta = client.get(f"/jobs/{job.id}/paneles/historico/P999")
+
+    assert respuesta.status_code == 404
+
+
+def test_perfil_historico_usa_series_del_perfil(monkeypatch):
+    monkeypatch.setattr(plots, "_perfiles", lambda: [_perfil_sintetico()])
+
+    perfil = panels.perfil_historico("P001")
+
+    assert perfil is not None
+    assert perfil["id"] == "P001"
+    assert perfil["slab_lon"] == [-71, -71.5, -72]
+    assert perfil["slab_lat"] == [-30, -30.5, -31]
