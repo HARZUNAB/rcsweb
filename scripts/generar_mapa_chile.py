@@ -1,9 +1,9 @@
 """Genera el mini mapa de planta de los listados (``_mapa_chile.svg``).
 
 El contorno de los países viene de Natural Earth 50m, que a 120x168 px se ve
-más limpio que la capa 10m; las divisiones regionales sí se leen de la capa
-10m y se recortan al polígono de Chile para que no sobresalgan de la costa.
-La proyección es lineal y debe coincidir exactamente con
+más limpio que la capa 10m. Las divisiones regionales usan la capa 10m: los
+polígonos rellenan cada región con un tono alternado y las líneas agregan el
+borde segmentado. La proyección es lineal y debe coincidir exactamente con
 ``app.services.borders.posicion_mapa`` para que los marcadores de los eventos
 caigan en el lugar correcto:
 
@@ -44,10 +44,15 @@ RESOLUCION_PAISES = "50m"
 RESOLUCION_REGIONES = "10m"
 TOLERANCIA_PAISES = 0.01
 TOLERANCIA_REGIONES = 0.01
+# Los rellenos regionales se simplifican más porque a 120 px no se distingue
+# el detalle extra y así el SVG no crece de más.
+TOLERANCIA_RELLENOS = 0.06
 AREA_MINIMA = 0.002
 # Solo las islas mayores conservan borde; el resto va con relleno para que el
 # extremo sur no se convierta en una mancha oscura a este tamaño.
 AREA_ISLA_BORDE = 0.6
+TINTE_REGION_A = "#a9c6e9"
+TINTE_REGION_B = "#d7e7f8"
 
 RUTA_SALIDA = (
     Path(__file__).resolve().parent.parent
@@ -99,6 +104,38 @@ def _cargar(
             geometria = unary_union([por_pais[codigo], geometria])
         por_pais[codigo] = geometria
     return por_pais
+
+
+def _cargar_regiones() -> list:
+    """Polígonos de las regiones de Chile (Natural Earth 10m)."""
+    ruta = shapereader.natural_earth(
+        resolution=RESOLUCION_REGIONES,
+        category="cultural",
+        name="admin_1_states_provinces",
+    )
+    lector = shapefile.Reader(ruta)
+    campos = [campo[0] for campo in lector.fields[1:]]
+    regiones = []
+    for registro in lector.iterShapeRecords():
+        if registro.shape.shapeType == 0 or not registro.shape.points:
+            continue
+        datos = dict(zip(campos, registro.record))
+        if datos.get("adm0_a3") != "CHL":
+            continue
+        geometria = shape(registro.shape.__geo_interface__)
+        if not geometria.is_empty:
+            regiones.append(geometria)
+    return regiones
+
+
+def _poligonos_de(geometrias) -> list:
+    """Aplana geometrías simples o múltiples y descarta fragmentos mínimos."""
+    return [
+        poligono
+        for geometria in geometrias
+        for poligono in _partes(geometria)
+        if poligono.geom_type == "Polygon" and poligono.area >= AREA_MINIMA
+    ]
 
 
 def _datos_poligonos(geometrias) -> list:
@@ -167,6 +204,7 @@ def generar(salida: Path) -> Path:
         "admin_1_states_provinces_lines",
         {"CHL"},
     )
+    regiones_poligonos = _cargar_regiones()
 
     vecinos = _datos_poligonos(
         [paises[codigo] for codigo in PAISES_VECINOS if codigo in paises]
@@ -180,11 +218,25 @@ def generar(salida: Path) -> Path:
 
     # Las regiones se recortan a Chile para que no crucen el mar ni Argentina.
     clip_regiones = paises["CHL"].buffer(0.03)
+    rellenos = []
+    for region in regiones_poligonos:
+        recorte = region.intersection(paises["CHL"]).intersection(BBOX)
+        if recorte.is_empty:
+            continue
+        rellenos.append(
+            recorte.simplify(TOLERANCIA_RELLENOS, preserve_topology=True)
+        )
+    # De norte a sur y alternando dos tonos para distinguir regiones vecinas.
+    rellenos.sort(key=lambda geometria: geometria.centroid.y, reverse=True)
+    poligonos_a = _poligonos_de(rellenos[0::2])
+    poligonos_b = _poligonos_de(rellenos[1::2])
 
     d_vecinos = _path_poligonos(vecinos)
     d_continente = _path_poligonos([continental])
     d_islas = _path_poligonos(islas_mayores)
     d_islas_menores = _path_poligonos(islas_menores)
+    d_region_a = _path_poligonos(poligonos_a)
+    d_region_b = _path_poligonos(poligonos_b)
     d_regiones = _path_lineas(
         unary_union(list(regiones.values())), clip_regiones
     )
@@ -197,18 +249,24 @@ def generar(salida: Path) -> Path:
     <rect width="100" height="140" fill="#eef4fa"/>
     <path class="pais-vecino" fill="#e9edf1" stroke="#c8d2dc"
           stroke-width="0.35" fill-rule="evenodd" d="{d_vecinos}"/>
-    <path class="pais-chile-casing" fill="none" stroke="#ffffff"
-          stroke-width="2.4" stroke-linejoin="round" d="{d_continente}"/>
+    <path class="pais-chile-base" fill="#b9d4f6" stroke="none"
+          fill-rule="evenodd" d="{d_continente}"/>
+    <path class="region-a" fill="{TINTE_REGION_A}" stroke="none"
+          fill-rule="evenodd" d="{d_region_a}"/>
+    <path class="region-b" fill="{TINTE_REGION_B}" stroke="none"
+          fill-rule="evenodd" d="{d_region_b}"/>
     <path class="pais-chile-menor" fill="#b9d4f6" stroke="none"
           fill-rule="evenodd" d="{d_islas_menores}"/>
-    <path class="pais-chile" fill="#b9d4f6" stroke="#1f2933"
-          stroke-width="1.15" stroke-linejoin="round" fill-rule="evenodd"
+    <path class="pais-chile-casing" fill="none" stroke="#ffffff"
+          stroke-width="3.0" stroke-linejoin="round" d="{d_continente}"/>
+    <path class="pais-chile" fill="none" stroke="#1f2933"
+          stroke-width="1.55" stroke-linejoin="round" fill-rule="evenodd"
           d="{d_continente}"/>
     <path class="pais-chile-islas" fill="#b9d4f6" stroke="#52606d"
           stroke-width="0.6" stroke-linejoin="round" fill-rule="evenodd"
           d="{d_islas}"/>
-    <path class="region-chile" fill="none" stroke="#2b3a4a"
-          stroke-width="0.9" stroke-dasharray="3 2.2"
+    <path class="region-chile" fill="none" stroke="#1f2933"
+          stroke-width="0.85" stroke-dasharray="3 2"
           stroke-linecap="round" d="{d_regiones}"/>
   </symbol>
 </svg>
