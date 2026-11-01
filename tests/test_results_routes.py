@@ -404,6 +404,8 @@ def test_tabla_muestra_minimapa_de_planta(client, login, monkeypatch):
     assert "data-src=" in html
     assert "mapa-chile-mini" in html
     assert "minimapa-planta" in html
+    assert "region-chile" in html
+    assert "stroke-dasharray" in html
     assert 'cx="50.0"' in html
     assert "text-bg-success" in html
     assert "Chile" in html

@@ -259,10 +259,18 @@ Seisan. El trabajo de demostración conserva sus resultados.
   `workspace/<job>/plots/mapas/`.
 - Los mapas estáticos usan cartopy montado en `/data/cartopy:ro`.
 - **Mini mapa de planta**: cada fila incluye un SVG liviano de Chile y los
-  países vecinos, reutilizado con `<use>` desde un único símbolo. Un punto
-  del color de la fuente marca el evento y un badge indica **Chile**, **Mar**
-  o **Fuera**, calculado con los polígonos de `fronteras.py`. No usa tiles ni
-  peticiones por fila.
+  países vecinos, reutilizado con `<use>` desde un único símbolo. La geometría
+  viene de Natural Earth 10m: contorno nacional más grueso, islas en tono medio
+  y divisiones regionales con línea segmentada más fina que el borde nacional.
+  La proyección del SVG es lineal y coincide con `borders.posicion_mapa`, de
+  modo que el punto del evento cae en el lugar correcto. El color indica la
+  fuente y un badge muestra **Chile**, **Mar** o **Fuera**, calculado con los
+  polígonos de `fronteras.py`. No usa tiles ni peticiones por fila.
+- **Regenerar el mini mapa**: se ejecuta
+  `CARTOPY_DATA_DIR=/ruta/a/cartopy python scripts/generar_mapa_chile.py`.
+  El script lee los shapefiles de Natural Earth 10m (países, islas y límites
+  regionales), aplica la misma proyección de `posicion_mapa` y reescribe
+  `app/templates/results/_mapa_chile.svg`. No modifica el proyecto base.
 - Las miniaturas usan `loading="lazy"` y las imágenes se sirven con caché HTTP.
 
 ## Servicios y puertos
@@ -330,7 +338,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **200 tests**.
+runner de solo lectura. Total actual: **206 tests**.
 
 ## Filtros y exportación
 
@@ -440,10 +448,12 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   Eventquery) y el **tipo** debajo (Todos, No publicados, No actualizados,
   Repetidos), con conteos cruzados y una línea «Filtro: …». Se aplican a los
   grupos, la planta, el perfil y el listado. La planta y el perfil muestran el
-  mismo conteo de eventos del grupo seleccionado. Al elegir un filtro, la vista
-  se desplaza hasta el **listado de eventos**; también hay enlaces «Ir al
-  listado» y «Volver a los paneles». Los paneles de catálogo no muestran estas
-  pestañas porque ya corresponden a una sola fuente. En la lista de grupos, las
+  mismo conteo de eventos del grupo seleccionado. Todas las pestañas están
+  siempre activas: una fuente válida con **0 eventos** se conserva y muestra el
+  aviso «No hay eventos para…», en lugar de volver a «Todas». Al elegir un
+  filtro con eventos, la vista se desplaza hasta el **listado de eventos**;
+  también hay enlaces «Ir al listado» y «Volver a los paneles». Los paneles de
+  catálogo no muestran estas pestañas porque ya corresponden a una sola fuente. En la lista de grupos, las
   flechas **↑/↓** recorren perfiles y territorios y actualizan automáticamente
   la planta y el perfil, sin necesidad de hacer clic en cada fila.
 - **Catálogos**: el detalle del trabajo tiene un menú con los catálogos de
