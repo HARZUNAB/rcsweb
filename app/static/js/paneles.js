@@ -33,6 +33,10 @@
   const urlHistorico = perfilEl
     ? perfilEl.dataset.urlHistorico || ""
     : "";
+  const urlRegiones = mapaEl ? mapaEl.dataset.urlRegiones || "" : "";
+  let regionesChile = null;
+  let regionesCargadas = false;
+  let cargandoRegiones = false;
   const gruposEl = document.getElementById("panel-grupos");
   const tbody = document.getElementById("panel-eventos");
   const titulo = document.getElementById("panel-grupo-titulo");
@@ -663,6 +667,127 @@
     }, 0);
   }
 
+  // Contorno y divisiones regionales para la planta. Se cargan una sola vez
+  // desde un JSON estático y se dibujan como trazas ocultas para que no
+  // intervengan en el fitbounds que ajusta el mapa a los eventos del grupo.
+  function cargarRegiones() {
+    if (!urlRegiones || regionesCargadas || cargandoRegiones) {
+      return;
+    }
+    cargandoRegiones = true;
+    fetch(urlRegiones, { headers: { Accept: "application/json" } })
+      .then(function (respuesta) {
+        return respuesta.ok ? respuesta.json() : null;
+      })
+      .then(function (datos) {
+        regionesChile =
+          datos && datos.contorno && datos.regiones ? datos : null;
+      })
+      .catch(function () {
+        regionesChile = null;
+      })
+      .finally(function () {
+        regionesCargadas = true;
+        cargandoRegiones = false;
+        if (regionesChile && estado.grupo) {
+          dibujarMapa();
+        }
+      });
+  }
+
+  // Recorta las líneas al entorno de los eventos para que el fitbounds no se
+  // abra a todo Chile al agregar la capa regional.
+  function recortarLineas(datos, bbox) {
+    const lon = [];
+    const lat = [];
+    let tramoLon = [];
+    let tramoLat = [];
+    function cerrar() {
+      if (tramoLon.length > 1) {
+        if (lon.length) {
+          lon.push(null);
+          lat.push(null);
+        }
+        lon.push.apply(lon, tramoLon);
+        lat.push.apply(lat, tramoLat);
+      }
+      tramoLon = [];
+      tramoLat = [];
+    }
+    for (let i = 0; i < datos.lon.length; i += 1) {
+      const x = datos.lon[i];
+      const y = datos.lat[i];
+      if (x === null || y === null) {
+        cerrar();
+        continue;
+      }
+      const dentro =
+        x >= bbox.minLon &&
+        x <= bbox.maxLon &&
+        y >= bbox.minLat &&
+        y <= bbox.maxLat;
+      if (dentro) {
+        tramoLon.push(x);
+        tramoLat.push(y);
+      } else {
+        cerrar();
+      }
+    }
+    cerrar();
+    return { lon: lon, lat: lat };
+  }
+
+  function trazasRegiones(eventos) {
+    const lons = eventos.map(function (evento) {
+      return evento.lon;
+    });
+    const lats = eventos.map(function (evento) {
+      return evento.lat;
+    });
+    const minLon = Math.min.apply(null, lons);
+    const maxLon = Math.max.apply(null, lons);
+    const minLat = Math.min.apply(null, lats);
+    const maxLat = Math.max.apply(null, lats);
+    const margen = Math.max(
+      1.5,
+      Math.min(3, 0.35 * Math.max(maxLon - minLon, maxLat - minLat))
+    );
+    const bbox = {
+      minLon: minLon - margen,
+      maxLon: maxLon + margen,
+      minLat: minLat - margen,
+      maxLat: maxLat + margen,
+    };
+    const contorno = recortarLineas(regionesChile.contorno, bbox);
+    const regiones = recortarLineas(regionesChile.regiones, bbox);
+    const capas = [];
+    if (contorno.lon.length > 1) {
+      capas.push({
+        type: "scattergeo",
+        mode: "lines",
+        lon: contorno.lon,
+        lat: contorno.lat,
+        line: { color: "#52606d", width: 1 },
+        hoverinfo: "skip",
+        showlegend: false,
+        name: "Contorno de Chile",
+      });
+    }
+    if (regiones.lon.length > 1) {
+      capas.push({
+        type: "scattergeo",
+        mode: "lines",
+        lon: regiones.lon,
+        lat: regiones.lat,
+        line: { color: "#7a8794", width: 1, dash: "dot" },
+        hoverinfo: "skip",
+        showlegend: false,
+        name: "Regiones de Chile",
+      });
+    }
+    return capas;
+  }
+
   function dibujarMapa() {
     if (!window.Plotly) {
       mapaEl.innerHTML =
@@ -684,6 +809,9 @@
     }
 
     const trazas = [];
+    if (regionesChile) {
+      trazas.push.apply(trazas, trazasRegiones(eventos));
+    }
     if (esPerfil) {
       const grafico = graficos[estado.grupo.id];
       if (grafico && (grafico.slab_lon || []).length) {
@@ -1329,6 +1457,10 @@
       renderPerfil();
     });
   }
+
+  // Las regiones se piden al cargar la página; cuando llegan se redibuja el
+  // mapa del grupo ya seleccionado.
+  cargarRegiones();
 
   if (datos.perfiles && datos.perfiles.length) {
     seleccionarGrupo("perfil", datos.perfiles[0].id);

@@ -250,7 +250,8 @@
               </h2>
               <div class="small text-secondary" id="panel-mapa-detalle"></div>
             </div>
-            <div id="panel-mapa" class="rounded border" style="height: 430px;"></div>
+            <div id="panel-mapa" class="rounded border" style="height: 430px;"
+                 data-url-regiones="{{ url_for('static', filename='data/chile_regiones.json') }}"></div>
             <div class="small text-secondary mt-2">
               Marcadores grandes para distinguir eventos fuera del contexto del
               perfil. Haga clic en un evento para verlo en detalle.

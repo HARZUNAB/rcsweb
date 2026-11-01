@@ -280,6 +280,7 @@ def test_ruta_paneles_filtra_por_tipo_y_fuente(client, login, monkeypatch):
     assert "Fuente" in html
     assert "Tipo" in html
     assert "Filtro:" in html
+    assert "data-url-regiones=" in html
     # Las pestañas sin eventos siguen siendo enlaces, no spans desactivados.
     assert "fuente=eventquery" in html
     assert '<span class="btn btn-sm btn-outline-secondary disabled"' not in html

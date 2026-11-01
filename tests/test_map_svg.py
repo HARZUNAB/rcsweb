@@ -1,17 +1,14 @@
-"""Pruebas del mini mapa de planta generado desde Natural Earth 10m."""
+"""Pruebas del mini mapa de planta y de los datos regionales de los paneles."""
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
-RUTA = (
-    Path(__file__).resolve().parents[1]
-    / "app"
-    / "templates"
-    / "results"
-    / "_mapa_chile.svg"
-)
+RAIZ = Path(__file__).resolve().parents[1]
+RUTA = RAIZ / "app" / "templates" / "results" / "_mapa_chile.svg"
+RUTA_JSON = RAIZ / "app" / "static" / "data" / "chile_regiones.json"
 
 
 def _svg() -> str:
@@ -26,61 +23,62 @@ def test_mapa_conserva_symbol_y_proyeccion():
     assert "borders.posicion_mapa" in svg
 
 
-def test_mapa_tiene_chile_vecinos_y_regiones():
+def test_mapa_conserva_el_estilo_original():
     svg = _svg()
     assert 'class="pais-vecino"' in svg
-    assert 'class="pais-chile-casing"' in svg
-    assert 'class="pais-chile"' in svg
-    assert 'class="pais-chile-islas"' in svg
-    assert 'class="region-chile"' in svg
-    # Las regiones se dibujan con línea segmentada y más fina que el borde
-    # nacional, para que la jerarquía visual quede clara.
+    assert 'stroke="#a9b3bd"' in svg
+    # El relleno y el borde son los del mapa original, sin halos ni rellenos
+    # regionales que cambien el aspecto.
+    chile = re.search(r'class="pais-chile" fill[^>]*', svg).group(0)
+    assert 'fill="#b9d4f6"' in chile
+    assert 'stroke="#52606d"' in chile
+    assert 'stroke-width="0.55"' in chile
+    assert 'class="region-a"' not in svg
+    assert 'class="region-b"' not in svg
+    assert 'pais-chile-casing' not in svg
+
+
+def test_mapa_tiene_divisiones_regionales_discretas():
+    svg = _svg()
     region = re.search(r'class="region-chile"[^>]*', svg).group(0)
-    assert 'stroke-dasharray="3 2"' in region
-    assert 'stroke-width="0.85"' in region
-    nacional = re.search(r'class="pais-chile" fill[^>]*', svg).group(0)
-    assert 'stroke-width="1.55"' in nacional
-    # El halo blanco separa el contorno del relleno y de los países vecinos.
-    casing = re.search(r'class="pais-chile-casing"[^>]*', svg).group(0)
-    assert 'stroke="#ffffff"' in casing
-    assert 'stroke-width="3.0"' in casing
+    assert 'fill="none"' in region
+    assert 'stroke="#52606d"' in region
+    assert 'stroke-width="0.5"' in region
+    assert 'stroke-dasharray="1.8 1.2"' in region
 
 
-def test_mapa_rellena_las_regiones():
+def test_mapa_conserva_el_detalle_del_contorno():
     svg = _svg()
-    # Dos tonos alternados para que las regiones vecinas no se confundan.
-    a = re.search(r'class="region-a" fill="([^"]+)"', svg)
-    b = re.search(r'class="region-b" fill="([^"]+)"', svg)
-    assert a and b
-    assert a.group(1) != b.group(1)
-    assert a.group(1) == "#a9c6e9"
-    assert b.group(1) == "#d7e7f8"
-    d_a = re.search(r'class="region-a"[^>]*\sd="([^"]*)"', svg).group(1)
-    d_b = re.search(r'class="region-b"[^>]*\sd="([^"]*)"', svg).group(1)
-    # Varias regiones por tono, no una sola mancha.
-    assert d_a.count("M ") >= 10
-    assert d_b.count("M ") >= 10
-    # El SVG completo se mantiene razonable para ir inline en la tabla.
-    assert len(svg) < 120_000
-
-
-def test_mapa_incluye_detalle_de_islas():
-    svg = _svg()
-    d = re.search(r'class="pais-chile" fill[^>]*\sd="([^"]*)"', svg).group(1)
-    assert d.count("M ") >= 1
-    # El contorno continental es mucho más detallado que el mapa anterior.
+    d = re.search(r'class="pais-chile"[^>]*?\sd="([^"]*)"', svg, re.S).group(1)
     assert len(d) > 5000
-    islas = re.search(
-        r'class="pais-chile-islas"[^>]*\sd="([^"]*)"', svg
-    ).group(1)
-    # Solo las islas mayores conservan borde; el resto va en la capa menor.
-    assert islas.count("M ") >= 3
-    assert 'class="pais-chile-menor"' in svg
+    assert d.count("M ") >= 20
 
 
 def test_mapa_no_se_sale_del_area_con_margen():
     svg = _svg()
     for d in re.findall(r'\sd="([^"]*)"', svg):
-        for x, y in re.findall(r"(-?\d+\.\d),(-?\d+\.\d)", d):
+        for x, y in re.findall(r"(-?\d+\.\d+),(-?\d+\.\d+)", d):
             assert -10 <= float(x) <= 110
             assert -10 <= float(y) <= 150
+
+
+def test_json_regiones_para_los_paneles():
+    datos = json.loads(RUTA_JSON.read_text(encoding="utf-8"))
+    assert set(datos) == {"contorno", "regiones"}
+    for clave in ("contorno", "regiones"):
+        assert len(datos[clave]["lon"]) == len(datos[clave]["lat"])
+        assert len(datos[clave]["lon"]) > 100
+    # Los tramos se separan con null para que Plotly no una líneas distintas.
+    assert datos["regiones"]["lon"].count(None) >= 10
+    assert datos["regiones"]["lat"].count(None) >= 10
+
+
+def test_json_regiones_dentro_del_area_de_chile():
+    datos = json.loads(RUTA_JSON.read_text(encoding="utf-8"))
+    for clave in ("contorno", "regiones"):
+        for lon in datos[clave]["lon"]:
+            if lon is not None:
+                assert -82 <= lon <= -60
+        for lat in datos[clave]["lat"]:
+            if lat is not None:
+                assert -57 <= lat <= -14

@@ -258,26 +258,25 @@ Seisan. El trabajo de demostración conserva sus resultados.
   descargar, generado con `plotear.py` del core en modo `Agg` y cacheado en
   `workspace/<job>/plots/mapas/`.
 - Los mapas estáticos usan cartopy montado en `/data/cartopy:ro`.
-- **Mini mapa de planta**: cada fila incluye un SVG de **120×168 px** con
-  Chile y los países vecinos, reutilizado con `<use>` desde un único símbolo.
-  El contorno de los países viene de Natural Earth 50m para que la costa se vea
-  limpia a ese tamaño. Las 16 regiones se rellenan con dos tonos azules
-  alternados y encima llevan la línea segmentada, de modo que la división se
-  distingue incluso a 120 px. El borde nacional lleva un halo blanco y es más
-  grueso que las líneas regionales; las islas menores van solo con relleno para
-  no formar una mancha en el extremo sur. La proyección
-  del SVG es lineal y coincide con `borders.posicion_mapa`, de modo que el punto
-  del evento cae en el lugar correcto. El color indica la fuente y un badge
-  muestra **Chile**, **Mar** o **Fuera**, calculado con los polígonos de
-  `fronteras.py`. No usa tiles ni peticiones por fila.
-- **Regenerar el mini mapa**: se ejecuta
+- **Mini mapa de planta**: cada fila incluye el SVG original de **90×130 px**
+  con Chile y los países vecinos, reutilizado con `<use>` desde un único
+  símbolo. Se conservan sus colores y su contorno; solo se agregó una capa de
+  **divisiones regionales** con línea fina y segmentada, recortada al contorno
+  de Chile. La proyección del SVG es lineal y coincide con
+  `borders.posicion_mapa`, de modo que el punto del evento cae en el lugar
+  correcto. El color indica la fuente y un badge muestra **Chile**, **Mar** o
+  **Fuera**, calculado con los polígonos de `fronteras.py`. No usa tiles ni
+  peticiones por fila.
+- **Regiones en los paneles**: la planta de los paneles carga una sola vez
+  `app/static/data/chile_regiones.json` con el contorno de Chile y las líneas
+  regionales. Se dibujan como trazas `scattergeo` finas y punteadas, recortadas
+  al entorno de los eventos, para no alterar el encuadre del grupo.
+- **Regenerar las regiones**: se ejecuta
   `CARTOPY_DATA_DIR=/ruta/a/cartopy python scripts/generar_mapa_chile.py`.
-  El script lee los shapefiles de Natural Earth 50m (países) y 10m
-  (`admin_1_states_provinces` y `admin_1_states_provinces_lines`), aplica la
-  misma proyección de `posicion_mapa` y reescribe
-  `app/templates/results/_mapa_chile.svg`. Cartopy descarga la capa de regiones
-  la primera vez si no está en el directorio de datos. No modifica el proyecto
-  base.
+  El script toma el SVG base, agrega o reemplaza la capa `region-chile` con los
+  límites de Natural Earth 10m y genera el JSON de contorno y regiones para los
+  paneles. Cartopy descarga las capas la primera vez si no están. No modifica el
+  proyecto base.
 - Las miniaturas usan `loading="lazy"` y las imágenes se sirven con caché HTTP.
 
 ## Servicios y puertos
@@ -345,7 +344,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **207 tests**.
+runner de solo lectura. Total actual: **209 tests**.
 
 ## Filtros y exportación
 

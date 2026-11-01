@@ -1,11 +1,15 @@
-"""Genera el mini mapa de planta de los listados (``_mapa_chile.svg``).
+"""Divisiones regionales del mini mapa y datos para los paneles.
 
-El contorno de los países viene de Natural Earth 50m, que a 120x168 px se ve
-más limpio que la capa 10m. Las divisiones regionales usan la capa 10m: los
-polígonos rellenan cada región con un tono alternado y las líneas agregan el
-borde segmentado. La proyección es lineal y debe coincidir exactamente con
-``app.services.borders.posicion_mapa`` para que los marcadores de los eventos
-caigan en el lugar correcto:
+El mini mapa base (``app/templates/results/_mapa_chile.svg``) se conserva tal
+como estaba: países vecinos, relleno de Chile y su contorno original a 90x130.
+Este script solo agrega (o reemplaza) la capa ``region-chile`` con los límites
+regionales de Natural Earth 10m, recortados al contorno de Chile del propio SVG.
+
+Además genera ``app/static/data/chile_regiones.json`` con el contorno de Chile
+y las líneas regionales en longitud/latitud. Los paneles usan ese archivo para
+dibujar una capa vectorial discreta sobre el mapa de Plotly.
+
+La proyección es lineal y coincide con ``app.services.borders.posicion_mapa``:
 
     x = (lon + 82) / 22 * 100
     y = (-14 - lat) / 42 * 140
@@ -13,46 +17,37 @@ caigan en el lugar correcto:
 Uso:
     CARTOPY_DATA_DIR=/ruta/a/cartopy python scripts/generar_mapa_chile.py
 
-Si no se indica ``CARTOPY_DATA_DIR`` se usa el directorio de datos de Cartopy;
-Natural Earth se descarga solo la primera vez. El resultado se escribe en
-``app/templates/results/_mapa_chile.svg`` y se versiona en el repositorio.
+Cartopy descarga Natural Earth la primera vez si no está en el directorio de
+datos. No se modifica el proyecto base.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import re
 from pathlib import Path
 
 import cartopy
 import shapefile
 from cartopy.io import shapereader
-from shapely.geometry import box, shape
+from shapely.geometry import LineString, Polygon, box, shape
 from shapely.ops import unary_union
 
 LON_MIN, LON_MAX = -82.0, -60.0
 LAT_MIN, LAT_MAX = -56.0, -14.0
 ANCHO, ALTO = 100.0, 140.0
 
-# Se recorta un grado más allá del viewBox para que los países vecinos no
-# muestren un borde recto justo en el límite del mapa.
-MARGEN = 1.0
-BBOX = box(LON_MIN - MARGEN, LAT_MIN - MARGEN, LON_MAX + MARGEN, LAT_MAX + MARGEN)
+# Mismo recorte que el mini mapa: deja fuera el reclamo antártico, que no
+# aporta regiones y alargaría el JSON y el dibujo sin necesidad.
+BBOX = box(LON_MIN - 1, LAT_MIN - 1, LON_MAX + 1, LAT_MAX + 1)
 
-PAISES_VECINOS = ("ARG", "PER", "BOL")
 RESOLUCION_PAISES = "50m"
 RESOLUCION_REGIONES = "10m"
-TOLERANCIA_PAISES = 0.01
 TOLERANCIA_REGIONES = 0.01
-# Los rellenos regionales se simplifican más porque a 120 px no se distingue
-# el detalle extra y así el SVG no crece de más.
-TOLERANCIA_RELLENOS = 0.06
-AREA_MINIMA = 0.002
-# Solo las islas mayores conservan borde; el resto va con relleno para que el
-# extremo sur no se convierta en una mancha oscura a este tamaño.
-AREA_ISLA_BORDE = 0.6
-TINTE_REGION_A = "#a9c6e9"
-TINTE_REGION_B = "#d7e7f8"
+TOLERANCIA_SVG = 0.15
+TOLERANCIA_JSON = 0.01
 
 RUTA_SALIDA = (
     Path(__file__).resolve().parent.parent
@@ -60,6 +55,13 @@ RUTA_SALIDA = (
     / "templates"
     / "results"
     / "_mapa_chile.svg"
+)
+RUTA_JSON = (
+    Path(__file__).resolve().parent.parent
+    / "app"
+    / "static"
+    / "data"
+    / "chile_regiones.json"
 )
 
 
@@ -71,21 +73,18 @@ def _proyectar(lon: float, lat: float) -> tuple[float, float]:
 
 
 def _partes(geometria):
-    """Itera los polígonos de una geometría simple o múltiple."""
-    if geometria.geom_type == "Polygon":
+    """Itera polígonos o líneas de una geometría simple o múltiple."""
+    if geometria.geom_type in {"Polygon", "LineString"}:
         return [geometria]
     return list(getattr(geometria, "geoms", []))
 
 
-def _cargar(
-    resolucion: str,
-    categoria: str,
-    nombre: str,
-    codigos: set[str],
-) -> dict:
-    """Lee una capa de Natural Earth y une las geometrías por país."""
+def _cargar_paises(codigos: set[str]) -> dict:
+    """Une las geometrías de los países indicados."""
     ruta = shapereader.natural_earth(
-        resolution=resolucion, category=categoria, name=nombre
+        resolution=RESOLUCION_PAISES,
+        category="cultural",
+        name="admin_0_countries",
     )
     lector = shapefile.Reader(ruta)
     campos = [campo[0] for campo in lector.fields[1:]]
@@ -106,12 +105,12 @@ def _cargar(
     return por_pais
 
 
-def _cargar_regiones() -> list:
-    """Polígonos de las regiones de Chile (Natural Earth 10m)."""
+def _cargar_regiones():
+    """Límites internos de las regiones de Chile (Natural Earth 10m)."""
     ruta = shapereader.natural_earth(
         resolution=RESOLUCION_REGIONES,
         category="cultural",
-        name="admin_1_states_provinces",
+        name="admin_1_states_provinces_lines",
     )
     lector = shapefile.Reader(ruta)
     campos = [campo[0] for campo in lector.fields[1:]]
@@ -120,164 +119,140 @@ def _cargar_regiones() -> list:
         if registro.shape.shapeType == 0 or not registro.shape.points:
             continue
         datos = dict(zip(campos, registro.record))
-        if datos.get("adm0_a3") != "CHL":
+        if datos.get("ADM0_A3") != "CHL":
             continue
         geometria = shape(registro.shape.__geo_interface__)
         if not geometria.is_empty:
             regiones.append(geometria)
-    return regiones
+    return unary_union(regiones)
 
 
-def _poligonos_de(geometrias) -> list:
-    """Aplana geometrías simples o múltiples y descarta fragmentos mínimos."""
-    return [
-        poligono
-        for geometria in geometrias
-        for poligono in _partes(geometria)
-        if poligono.geom_type == "Polygon" and poligono.area >= AREA_MINIMA
-    ]
+def _poligonos_svg(path: str) -> list[Polygon]:
+    """Reconstruye los polígonos del contorno de Chile desde el atributo d."""
+    poligonos = []
+    for tramo in path.split(" M "):
+        puntos = [
+            (float(x), float(y))
+            for x, y in re.findall(r"(-?\d+\.?\d*),(-?\d+\.?\d*)", tramo)
+        ]
+        if len(puntos) >= 3:
+            poligonos.append(Polygon(puntos))
+    return poligonos
 
 
-def _datos_poligonos(geometrias) -> list:
-    """Recorta, simplifica y filtra polígonos diminutos."""
-    unida = unary_union(geometrias).intersection(BBOX)
-    simplificada = unida.simplify(TOLERANCIA_PAISES, preserve_topology=True)
-    return [
-        poligono
-        for poligono in _partes(simplificada)
-        if poligono.geom_type == "Polygon" and poligono.area >= AREA_MINIMA
-    ]
-
-
-def _path_poligonos(poligonos) -> str:
-    """Une varios polígonos (con sus huecos) en un único atributo ``d``."""
-    trozos = []
-    for poligono in poligonos:
-        for anillo in [poligono.exterior, *poligono.interiors]:
-            puntos = [
-                f"{x:.1f},{y:.1f}"
-                for x, y in (_proyectar(lon, lat) for lon, lat in anillo.coords)
-            ]
-            if len(puntos) >= 3:
-                trozos.append("M " + " L ".join(puntos) + " Z")
-    return " ".join(trozos)
-
-
-def _path_lineas(geometria, recorte) -> str:
-    """Convierte los límites regionales en subcaminos abiertos y recortados."""
-    recortada = geometria.intersection(recorte).intersection(BBOX)
-    simplificada = recortada.simplify(
-        TOLERANCIA_REGIONES, preserve_topology=True
-    )
-    lineas = (
-        [simplificada]
-        if simplificada.geom_type == "LineString"
-        else list(getattr(simplificada, "geoms", []))
-    )
-    trozos = []
-    for linea in lineas:
+def _path_regiones_svg(lineas, contorno) -> str:
+    """Proyecta, recorta y simplifica las regiones en coordenadas del SVG."""
+    recortadas = []
+    for linea in _partes(lineas):
         if linea.geom_type != "LineString" or len(linea.coords) < 2:
             continue
-        puntos = [
-            f"{x:.1f},{y:.1f}"
-            for x, y in (_proyectar(lon, lat) for lon, lat in linea.coords)
-        ]
-        # El recorte deja fragmentos de un solo punto o de longitud cero; no
-        # aportan nada y solo agrandan el SVG.
-        if len(set(puntos)) < 2:
+        puntos = [_proyectar(lon, lat) for lon, lat in linea.coords]
+        recorte = LineString(puntos).intersection(contorno)
+        if recorte.is_empty:
             continue
-        trozos.append("M " + " L ".join(puntos))
+        recortadas.append(
+            recorte.simplify(TOLERANCIA_SVG, preserve_topology=True)
+        )
+    trozos = []
+    for geometria in recortadas:
+        for linea in _partes(geometria):
+            if linea.geom_type != "LineString" or len(linea.coords) < 2:
+                continue
+            puntos = [
+                f"{x:.1f},{y:.1f}" for x, y in linea.coords
+            ]
+            if len(set(puntos)) < 2:
+                continue
+            trozos.append("M " + " L ".join(puntos))
     return " ".join(trozos)
 
 
-def generar(salida: Path) -> Path:
-    """Escribe el SVG y devuelve la ruta final."""
-    paises = _cargar(
-        RESOLUCION_PAISES,
-        "cultural",
-        "admin_0_countries",
-        {"CHL", *PAISES_VECINOS},
-    )
-    regiones = _cargar(
-        RESOLUCION_REGIONES,
-        "cultural",
-        "admin_1_states_provinces_lines",
-        {"CHL"},
-    )
-    regiones_poligonos = _cargar_regiones()
+def _lineas_json(geometrias, cerrar: bool = False) -> dict:
+    """Convierte líneas o anillos en listas lon/lat con separadores None."""
+    lons: list[float | None] = []
+    lats: list[float | None] = []
+    for geometria in geometrias:
+        for parte in _partes(geometria):
+            if parte.geom_type == "Polygon":
+                anillos = [parte.exterior, *parte.interiors]
+            elif parte.geom_type == "LineString":
+                anillos = [parte]
+            else:
+                continue
+            for anillo in anillos:
+                puntos = list(anillo.coords)
+                if len(puntos) < 2:
+                    continue
+                if lons:
+                    lons.append(None)
+                    lats.append(None)
+                for lon, lat in puntos:
+                    lons.append(round(lon, 3))
+                    lats.append(round(lat, 3))
+                if cerrar and puntos[0] != puntos[-1]:
+                    lons.append(round(puntos[0][0], 3))
+                    lats.append(round(puntos[0][1], 3))
+    return {"lon": lons, "lat": lats}
 
-    vecinos = _datos_poligonos(
-        [paises[codigo] for codigo in PAISES_VECINOS if codigo in paises]
-    )
-    # El polígono de mayor área es el Chile continental; el resto son islas.
-    chile = _datos_poligonos([paises["CHL"]])
-    chile.sort(key=lambda poligono: poligono.area, reverse=True)
-    continental, islas = chile[0], chile[1:]
-    islas_mayores = [p for p in islas if p.area >= AREA_ISLA_BORDE]
-    islas_menores = [p for p in islas if p.area < AREA_ISLA_BORDE]
 
-    # Las regiones se recortan a Chile para que no crucen el mar ni Argentina.
-    clip_regiones = paises["CHL"].buffer(0.03)
-    rellenos = []
-    for region in regiones_poligonos:
-        recorte = region.intersection(paises["CHL"]).intersection(BBOX)
-        if recorte.is_empty:
-            continue
-        rellenos.append(
-            recorte.simplify(TOLERANCIA_RELLENOS, preserve_topology=True)
+def generar_svg(salida: Path) -> Path:
+    """Agrega la capa regional al SVG base y devuelve la ruta."""
+    svg = salida.read_text(encoding="utf-8")
+    # Idempotente: si ya existe una capa regional, se reemplaza.
+    svg = re.sub(
+        r'\s*<path class="region-chile".*?/>', "", svg, flags=re.S
+    )
+    if "borders.posicion_mapa" not in svg:
+        svg = svg.replace(
+            "  <symbol",
+            "  <!-- Proyeccion: app/services/borders.posicion_mapa -->\n"
+            "  <symbol",
+            1,
         )
-    # De norte a sur y alternando dos tonos para distinguir regiones vecinas.
-    rellenos.sort(key=lambda geometria: geometria.centroid.y, reverse=True)
-    poligonos_a = _poligonos_de(rellenos[0::2])
-    poligonos_b = _poligonos_de(rellenos[1::2])
 
-    d_vecinos = _path_poligonos(vecinos)
-    d_continente = _path_poligonos([continental])
-    d_islas = _path_poligonos(islas_mayores)
-    d_islas_menores = _path_poligonos(islas_menores)
-    d_region_a = _path_poligonos(poligonos_a)
-    d_region_b = _path_poligonos(poligonos_b)
-    d_regiones = _path_lineas(
-        unary_union(list(regiones.values())), clip_regiones
+    coincidencia = re.search(
+        r'class="pais-chile"[^>]*?\sd="([^"]*)"', svg, re.S
     )
+    if not coincidencia:
+        raise ValueError("El SVG base no tiene el contorno class=pais-chile")
+    contorno = unary_union(_poligonos_svg(coincidencia.group(1))).buffer(0.2)
 
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" style="display: none" aria-hidden="true">
-  <!-- Generado por scripts/generar_mapa_chile.py (Natural Earth 50m/10m).
-       La proyeccion coincide con app/services/borders.posicion_mapa. -->
-  <symbol id="mapa-chile-mini" viewBox="0 0 100 140"
-          shape-rendering="geometricPrecision">
-    <rect width="100" height="140" fill="#eef4fa"/>
-    <path class="pais-vecino" fill="#e9edf1" stroke="#c8d2dc"
-          stroke-width="0.35" fill-rule="evenodd" d="{d_vecinos}"/>
-    <path class="pais-chile-base" fill="#b9d4f6" stroke="none"
-          fill-rule="evenodd" d="{d_continente}"/>
-    <path class="region-a" fill="{TINTE_REGION_A}" stroke="none"
-          fill-rule="evenodd" d="{d_region_a}"/>
-    <path class="region-b" fill="{TINTE_REGION_B}" stroke="none"
-          fill-rule="evenodd" d="{d_region_b}"/>
-    <path class="pais-chile-menor" fill="#b9d4f6" stroke="none"
-          fill-rule="evenodd" d="{d_islas_menores}"/>
-    <path class="pais-chile-casing" fill="none" stroke="#ffffff"
-          stroke-width="3.0" stroke-linejoin="round" d="{d_continente}"/>
-    <path class="pais-chile" fill="none" stroke="#1f2933"
-          stroke-width="1.55" stroke-linejoin="round" fill-rule="evenodd"
-          d="{d_continente}"/>
-    <path class="pais-chile-islas" fill="#b9d4f6" stroke="#52606d"
-          stroke-width="0.6" stroke-linejoin="round" fill-rule="evenodd"
-          d="{d_islas}"/>
-    <path class="region-chile" fill="none" stroke="#1f2933"
-          stroke-width="0.85" stroke-dasharray="3 2"
-          stroke-linecap="round" d="{d_regiones}"/>
-  </symbol>
-</svg>
-"""
+    regiones = _cargar_regiones()
+    d_regiones = _path_regiones_svg(regiones, contorno)
+    capa = (
+        '    <path class="region-chile" fill="none" stroke="#52606d"\n'
+        '          stroke-width="0.5" stroke-dasharray="1.8 1.2"\n'
+        f'          stroke-linecap="round" d="{d_regiones}"/>\n'
+    )
+    svg = svg.replace("  </symbol>", capa + "  </symbol>", 1)
     salida.write_text(svg, encoding="utf-8")
+    return salida
+
+
+def generar_json(salida: Path) -> Path:
+    """Genera el contorno y las regiones en lon/lat para los paneles."""
+    paises = _cargar_paises({"CHL"})
+    contorno = paises["CHL"].intersection(BBOX).simplify(
+        TOLERANCIA_JSON, preserve_topology=True
+    )
+    regiones = _cargar_regiones().intersection(BBOX).simplify(
+        TOLERANCIA_JSON, preserve_topology=True
+    )
+    datos = {
+        "contorno": _lineas_json([contorno], cerrar=True),
+        "regiones": _lineas_json([regiones]),
+    }
+    salida.parent.mkdir(parents=True, exist_ok=True)
+    salida.write_text(
+        json.dumps(datos, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
     return salida
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Genera el mini mapa de planta de los listados."
+        description="Agrega las regiones al mini mapa y genera el JSON."
     )
     parser.add_argument(
         "--datos",
@@ -288,14 +263,22 @@ def main() -> int:
         "--salida",
         type=Path,
         default=RUTA_SALIDA,
-        help="Ruta del SVG de salida.",
+        help="Ruta del SVG del mini mapa.",
+    )
+    parser.add_argument(
+        "--json",
+        type=Path,
+        default=RUTA_JSON,
+        help="Ruta del JSON de contorno y regiones para los paneles.",
     )
     argumentos = parser.parse_args()
     if argumentos.datos:
         cartopy.config["data_dir"] = argumentos.datos
 
-    ruta = generar(argumentos.salida)
-    print(f"Mapa generado: {ruta} ({ruta.stat().st_size} bytes)")
+    svg = generar_svg(argumentos.salida)
+    datos = generar_json(argumentos.json)
+    print(f"Mini mapa: {svg} ({svg.stat().st_size} bytes)")
+    print(f"Datos de paneles: {datos} ({datos.stat().st_size} bytes)")
     return 0
 
 
