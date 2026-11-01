@@ -36,14 +36,32 @@ def test_mapa_tiene_chile_vecinos_y_regiones():
     # Las regiones se dibujan con línea segmentada y más fina que el borde
     # nacional, para que la jerarquía visual quede clara.
     region = re.search(r'class="region-chile"[^>]*', svg).group(0)
-    assert 'stroke-dasharray="3 2.2"' in region
-    assert 'stroke-width="0.9"' in region
+    assert 'stroke-dasharray="3 2"' in region
+    assert 'stroke-width="0.85"' in region
     nacional = re.search(r'class="pais-chile" fill[^>]*', svg).group(0)
-    assert 'stroke-width="1.15"' in nacional
+    assert 'stroke-width="1.55"' in nacional
     # El halo blanco separa el contorno del relleno y de los países vecinos.
     casing = re.search(r'class="pais-chile-casing"[^>]*', svg).group(0)
     assert 'stroke="#ffffff"' in casing
-    assert 'stroke-width="2.4"' in casing
+    assert 'stroke-width="3.0"' in casing
+
+
+def test_mapa_rellena_las_regiones():
+    svg = _svg()
+    # Dos tonos alternados para que las regiones vecinas no se confundan.
+    a = re.search(r'class="region-a" fill="([^"]+)"', svg)
+    b = re.search(r'class="region-b" fill="([^"]+)"', svg)
+    assert a and b
+    assert a.group(1) != b.group(1)
+    assert a.group(1) == "#a9c6e9"
+    assert b.group(1) == "#d7e7f8"
+    d_a = re.search(r'class="region-a"[^>]*\sd="([^"]*)"', svg).group(1)
+    d_b = re.search(r'class="region-b"[^>]*\sd="([^"]*)"', svg).group(1)
+    # Varias regiones por tono, no una sola mancha.
+    assert d_a.count("M ") >= 10
+    assert d_b.count("M ") >= 10
+    # El SVG completo se mantiene razonable para ir inline en la tabla.
+    assert len(svg) < 120_000
 
 
 def test_mapa_incluye_detalle_de_islas():
