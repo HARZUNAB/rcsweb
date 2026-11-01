@@ -258,18 +258,21 @@ Seisan. El trabajo de demostración conserva sus resultados.
   descargar, generado con `plotear.py` del core en modo `Agg` y cacheado en
   `workspace/<job>/plots/mapas/`.
 - Los mapas estáticos usan cartopy montado en `/data/cartopy:ro`.
-- **Mini mapa de planta**: cada fila incluye un SVG liviano de Chile y los
-  países vecinos, reutilizado con `<use>` desde un único símbolo. La geometría
-  viene de Natural Earth 10m: contorno nacional más grueso, islas en tono medio
-  y divisiones regionales con línea segmentada más fina que el borde nacional.
-  La proyección del SVG es lineal y coincide con `borders.posicion_mapa`, de
-  modo que el punto del evento cae en el lugar correcto. El color indica la
-  fuente y un badge muestra **Chile**, **Mar** o **Fuera**, calculado con los
-  polígonos de `fronteras.py`. No usa tiles ni peticiones por fila.
+- **Mini mapa de planta**: cada fila incluye un SVG de **120×168 px** con
+  Chile y los países vecinos, reutilizado con `<use>` desde un único símbolo.
+  El contorno de los países viene de Natural Earth 50m para que la costa se vea
+  limpia a ese tamaño; las divisiones regionales se leen de la capa 10m y se
+  recortan al polígono de Chile. El borde nacional lleva un halo blanco y es
+  más grueso que la línea segmentada de las regiones; las islas menores van
+  solo con relleno para no formar una mancha en el extremo sur. La proyección
+  del SVG es lineal y coincide con `borders.posicion_mapa`, de modo que el punto
+  del evento cae en el lugar correcto. El color indica la fuente y un badge
+  muestra **Chile**, **Mar** o **Fuera**, calculado con los polígonos de
+  `fronteras.py`. No usa tiles ni peticiones por fila.
 - **Regenerar el mini mapa**: se ejecuta
   `CARTOPY_DATA_DIR=/ruta/a/cartopy python scripts/generar_mapa_chile.py`.
-  El script lee los shapefiles de Natural Earth 10m (países, islas y límites
-  regionales), aplica la misma proyección de `posicion_mapa` y reescribe
+  El script lee los shapefiles de Natural Earth 50m (países) y 10m (regiones),
+  aplica la misma proyección de `posicion_mapa` y reescribe
   `app/templates/results/_mapa_chile.svg`. No modifica el proyecto base.
 - Las miniaturas usan `loading="lazy"` y las imágenes se sirven con caché HTTP.
 
