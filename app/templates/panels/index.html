@@ -78,21 +78,15 @@
           <tr>
             <th scope="row" class="text-secondary fw-normal">Fuente</th>
             <td>
+              {# Todas las fuentes se muestran como enlace, aunque tengan 0 eventos. #}
               <div class="d-flex flex-wrap gap-2">
                 {% for tab in fuentes_tabs %}
-                {% if tab.disponible %}
                 <a class="btn btn-sm {% if tab.activo %}btn-secondary{% else %}btn-outline-secondary{% endif %}"
-                   href="{{ tab.url }}">
+                   href="{{ tab.url }}"
+                   {% if tab.total == 0 %}title="Sin eventos para este filtro"{% endif %}>
                   {{ tab.titulo }}
                   <span class="badge text-bg-light text-dark">{{ tab.total }}</span>
                 </a>
-                {% else %}
-                <span class="btn btn-sm btn-outline-secondary disabled"
-                      aria-disabled="true">
-                  {{ tab.titulo }}
-                  <span class="badge text-bg-light text-dark">{{ tab.total }}</span>
-                </span>
-                {% endif %}
                 {% endfor %}
               </div>
             </td>
@@ -100,21 +94,15 @@
           <tr>
             <th scope="row" class="text-secondary fw-normal">Tipo</th>
             <td>
+              {# Los tipos con 0 eventos también conservan su enlace. #}
               <div class="d-flex flex-wrap gap-2">
                 {% for tab in tipos_tabs %}
-                {% if tab.disponible %}
                 <a class="btn btn-sm {% if tab.activo %}btn-primary{% else %}btn-outline-secondary{% endif %}"
-                   href="{{ tab.url }}">
+                   href="{{ tab.url }}"
+                   {% if tab.total == 0 %}title="Sin eventos para este filtro"{% endif %}>
                   {{ tab.titulo }}
                   <span class="badge text-bg-light text-dark">{{ tab.total }}</span>
                 </a>
-                {% else %}
-                <span class="btn btn-sm btn-outline-secondary disabled"
-                      aria-disabled="true">
-                  {{ tab.titulo }}
-                  <span class="badge text-bg-light text-dark">{{ tab.total }}</span>
-                </span>
-                {% endif %}
                 {% endfor %}
               </div>
             </td>
@@ -149,7 +137,8 @@
 
 {% if datos.total == 0 %}
 <div class="alert alert-light border small mb-3">
-  No hay eventos para el filtro seleccionado. Pruebe con otro tipo o fuente.
+  No hay eventos para <strong>{{ tipo_titulo }} · {{ fuente_titulo }}</strong>.
+  Pruebe con otro tipo o fuente.
 </div>
 {% endif %}
 

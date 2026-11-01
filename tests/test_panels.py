@@ -280,7 +280,9 @@ def test_ruta_paneles_filtra_por_tipo_y_fuente(client, login, monkeypatch):
     assert "Fuente" in html
     assert "Tipo" in html
     assert "Filtro:" in html
-    assert "btn-outline-secondary disabled" in html
+    # Las pestañas sin eventos siguen siendo enlaces, no spans desactivados.
+    assert "fuente=eventquery" in html
+    assert '<span class="btn btn-sm btn-outline-secondary disabled"' not in html
     assert 'id="panel-perfil-detalle"' in html
     assert "SeisComp" in html
     assert "Seisan" in html
@@ -323,7 +325,8 @@ def test_ruta_paneles_cuenta_tipos_para_la_fuente(client, login, monkeypatch):
     assert "Todos los tipos" in html
     assert "Seisan" in html
     assert "(1 evento)" in html
-    assert "btn-outline-secondary disabled" in html
+    assert "fuente=eventquery" in html
+    assert '<span class="btn btn-sm btn-outline-secondary disabled"' not in html
 
 
 def test_territorio_evento_usa_clasificacion_precisa(monkeypatch):
@@ -481,3 +484,56 @@ def test_perfil_historico_usa_series_del_perfil(monkeypatch):
     assert perfil["id"] == "P001"
     assert perfil["slab_lon"] == [-71, -71.5, -72]
     assert perfil["slab_lat"] == [-30, -30.5, -31]
+
+
+def test_ruta_paneles_eventquery_sin_eventos_es_clickeable(client, login, monkeypatch):
+    """Una fuente válida con 0 eventos se conserva y muestra el estado vacío."""
+    _asignacion_falsa(monkeypatch)
+    job = _job()
+    workspace = ruta_workspace(job.id)
+    resultados = workspace / "resultados"
+    resultados.mkdir(parents=True, exist_ok=True)
+    (resultados / "no_publicados_seisan.csv").write_text(
+        "Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Analista\n"
+        "2026-10-01 00:00:00,-30.0,-71.0,30.0,3.0,ML,ana\n",
+        encoding="utf-8",
+    )
+    login()
+
+    html = client.get(
+        f"/jobs/{job.id}/paneles",
+        query_string={"dataset": "observaciones", "fuente": "eventquery"},
+    ).get_data(as_text=True)
+
+    # No hay archivo de Eventquery, pero la pestaña debe abrirse igual.
+    assert "fuente=eventquery" in html
+    assert "No hay eventos para" in html
+    assert "0 evento" in html
+    assert "Todas las fuentes" not in html
+    assert '<span class="btn btn-sm btn-outline-secondary disabled"' not in html
+    # Sin eventos no se salta al listado vacío: el aviso debe quedar visible.
+    assert 'data-scroll="0"' in html
+
+
+def test_ruta_paneles_tipo_sin_eventos_es_clickeable(client, login, monkeypatch):
+    """Los tipos con 0 eventos también mantienen su enlace."""
+    _asignacion_falsa(monkeypatch)
+    job = _job()
+    workspace = ruta_workspace(job.id)
+    resultados = workspace / "resultados"
+    resultados.mkdir(parents=True, exist_ok=True)
+    (resultados / "no_publicados_seisan.csv").write_text(
+        "Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Analista\n"
+        "2026-10-01 00:00:00,-30.0,-71.0,30.0,3.0,ML,ana\n",
+        encoding="utf-8",
+    )
+    login()
+
+    html = client.get(
+        f"/jobs/{job.id}/paneles",
+        query_string={"dataset": "observaciones", "tipo": "repetido"},
+    ).get_data(as_text=True)
+
+    assert "tipo=repetido" in html
+    assert "No hay eventos para" in html
+    assert '<span class="btn btn-sm btn-outline-secondary disabled"' not in html

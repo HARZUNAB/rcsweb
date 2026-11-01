@@ -66,8 +66,9 @@ def index(job_id: str):
         if tipo
         else resumen_conteos["fuentes_todos"]
     )
-    if fuente and fuente not in fuentes_tipo:
-        fuente = ""
+    # Una fuente o un tipo válidos se conservan aunque no tengan coincidencias:
+    # el usuario debe poder abrir la pestaña vacía y ver el aviso, en lugar de
+    # volver silenciosamente a "Todas".
 
     datos = panels.filtrar(datos_completos, tipo or None, fuente or None)
 
@@ -83,7 +84,6 @@ def index(job_id: str):
             "titulo": "Todos",
             "total": total_todos_fuente,
             "activo": not tipo,
-            "disponible": True,
             "url": _url_panel(job.id, dataset, fuente=fuente),
         }
     ]
@@ -98,7 +98,7 @@ def index(job_id: str):
                 "titulo": TIPOS_PLURAL.get(clave, clave),
                 "total": total,
                 "activo": tipo == clave,
-                "disponible": total > 0 or tipo == clave,
+                # Siempre clickeable: con 0 se muestra el estado vacío.
                 "url": _url_panel(
                     job.id, dataset, tipo=clave, fuente=fuente
                 ),
@@ -113,7 +113,6 @@ def index(job_id: str):
                 "titulo": "Todas",
                 "total": sum(fuentes_tipo.values()),
                 "activo": not fuente,
-                "disponible": True,
                 "url": _url_panel(job.id, dataset, tipo=tipo),
             }
         )
@@ -125,7 +124,7 @@ def index(job_id: str):
                     "titulo": panels.ETIQUETAS_CATALOGO.get(clave, clave),
                     "total": total,
                     "activo": fuente == clave,
-                    "disponible": total > 0 or fuente == clave,
+                    # Eventquery puede tener 0 eventos y aun así debe abrirse.
                     "url": _url_panel(
                         job.id, dataset, tipo=tipo, fuente=clave
                     ),
@@ -195,7 +194,9 @@ def index(job_id: str):
         tipos_tabs=tipos_tabs,
         fuentes_tabs=fuentes_tabs,
         mostrar_filtros=(dataset == "observaciones"),
-        scroll_listado=bool(tipo or fuente),
+        # Con 0 eventos no conviene saltar al listado vacío: así el aviso de
+        # "No hay eventos" queda a la vista junto al filtro seleccionado.
+        scroll_listado=bool((tipo or fuente) and datos["total"]),
         volver=volver,
     )
 
