@@ -1,9 +1,11 @@
 """Genera el mini mapa de planta de los listados (``_mapa_chile.svg``).
 
-El mapa usa Natural Earth 10m: países vecinos, contorno de Chile (continental
-e islas) y los límites internos de las regiones. La proyección es lineal y debe
-coincidir exactamente con ``app.services.borders.posicion_mapa`` para que los
-marcadores de los eventos caigan en el lugar correcto:
+El contorno de los países viene de Natural Earth 50m, que a 120x168 px se ve
+más limpio que la capa 10m; las divisiones regionales sí se leen de la capa
+10m y se recortan al polígono de Chile para que no sobresalgan de la costa.
+La proyección es lineal y debe coincidir exactamente con
+``app.services.borders.posicion_mapa`` para que los marcadores de los eventos
+caigan en el lugar correcto:
 
     x = (lon + 82) / 22 * 100
     y = (-14 - lat) / 42 * 140
@@ -38,10 +40,14 @@ MARGEN = 1.0
 BBOX = box(LON_MIN - MARGEN, LAT_MIN - MARGEN, LON_MAX + MARGEN, LAT_MAX + MARGEN)
 
 PAISES_VECINOS = ("ARG", "PER", "BOL")
-TOLERANCIA_PAISES = 0.04
+RESOLUCION_PAISES = "50m"
+RESOLUCION_REGIONES = "10m"
+TOLERANCIA_PAISES = 0.01
 TOLERANCIA_REGIONES = 0.01
 AREA_MINIMA = 0.002
-TOLERANCIA_ISLAS = 0.01
+# Solo las islas mayores conservan borde; el resto va con relleno para que el
+# extremo sur no se convierta en una mancha oscura a este tamaño.
+AREA_ISLA_BORDE = 0.6
 
 RUTA_SALIDA = (
     Path(__file__).resolve().parent.parent
@@ -66,10 +72,15 @@ def _partes(geometria):
     return list(getattr(geometria, "geoms", []))
 
 
-def _cargar(categoria: str, nombre: str, codigos: set[str]) -> dict:
+def _cargar(
+    resolucion: str,
+    categoria: str,
+    nombre: str,
+    codigos: set[str],
+) -> dict:
     """Lee una capa de Natural Earth y une las geometrías por país."""
     ruta = shapereader.natural_earth(
-        resolution="10m", category=categoria, name=nombre
+        resolution=resolucion, category=categoria, name=nombre
     )
     lector = shapefile.Reader(ruta)
     campos = [campo[0] for campo in lector.fields[1:]]
@@ -115,9 +126,9 @@ def _path_poligonos(poligonos) -> str:
     return " ".join(trozos)
 
 
-def _path_lineas(geometria) -> str:
-    """Convierte los límites regionales en subcaminos abiertos."""
-    recortada = geometria.intersection(BBOX)
+def _path_lineas(geometria, recorte) -> str:
+    """Convierte los límites regionales en subcaminos abiertos y recortados."""
+    recortada = geometria.intersection(recorte).intersection(BBOX)
     simplificada = recortada.simplify(
         TOLERANCIA_REGIONES, preserve_topology=True
     )
@@ -134,6 +145,10 @@ def _path_lineas(geometria) -> str:
             f"{x:.1f},{y:.1f}"
             for x, y in (_proyectar(lon, lat) for lon, lat in linea.coords)
         ]
+        # El recorte deja fragmentos de un solo punto o de longitud cero; no
+        # aportan nada y solo agrandan el SVG.
+        if len(set(puntos)) < 2:
+            continue
         trozos.append("M " + " L ".join(puntos))
     return " ".join(trozos)
 
@@ -141,12 +156,16 @@ def _path_lineas(geometria) -> str:
 def generar(salida: Path) -> Path:
     """Escribe el SVG y devuelve la ruta final."""
     paises = _cargar(
+        RESOLUCION_PAISES,
         "cultural",
         "admin_0_countries",
         {"CHL", *PAISES_VECINOS},
     )
     regiones = _cargar(
-        "cultural", "admin_1_states_provinces_lines", {"CHL"}
+        RESOLUCION_REGIONES,
+        "cultural",
+        "admin_1_states_provinces_lines",
+        {"CHL"},
     )
 
     vecinos = _datos_poligonos(
@@ -156,33 +175,40 @@ def generar(salida: Path) -> Path:
     chile = _datos_poligonos([paises["CHL"]])
     chile.sort(key=lambda poligono: poligono.area, reverse=True)
     continental, islas = chile[0], chile[1:]
-    islas_mayores = [p for p in islas if p.area >= TOLERANCIA_ISLAS]
-    islas_menores = [p for p in islas if p.area < TOLERANCIA_ISLAS]
+    islas_mayores = [p for p in islas if p.area >= AREA_ISLA_BORDE]
+    islas_menores = [p for p in islas if p.area < AREA_ISLA_BORDE]
+
+    # Las regiones se recortan a Chile para que no crucen el mar ni Argentina.
+    clip_regiones = paises["CHL"].buffer(0.03)
 
     d_vecinos = _path_poligonos(vecinos)
     d_continente = _path_poligonos([continental])
     d_islas = _path_poligonos(islas_mayores)
     d_islas_menores = _path_poligonos(islas_menores)
-    d_regiones = _path_lineas(unary_union(list(regiones.values())))
+    d_regiones = _path_lineas(
+        unary_union(list(regiones.values())), clip_regiones
+    )
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" style="display: none" aria-hidden="true">
-  <!-- Generado por scripts/generar_mapa_chile.py (Natural Earth 10m).
+  <!-- Generado por scripts/generar_mapa_chile.py (Natural Earth 50m/10m).
        La proyeccion coincide con app/services/borders.posicion_mapa. -->
   <symbol id="mapa-chile-mini" viewBox="0 0 100 140"
           shape-rendering="geometricPrecision">
     <rect width="100" height="140" fill="#eef4fa"/>
-    <path class="pais-vecino" fill="#e9edf1" stroke="#b6bfc8"
-          stroke-width="0.3" fill-rule="evenodd" d="{d_vecinos}"/>
+    <path class="pais-vecino" fill="#e9edf1" stroke="#c8d2dc"
+          stroke-width="0.35" fill-rule="evenodd" d="{d_vecinos}"/>
+    <path class="pais-chile-casing" fill="none" stroke="#ffffff"
+          stroke-width="2.4" stroke-linejoin="round" d="{d_continente}"/>
     <path class="pais-chile-menor" fill="#b9d4f6" stroke="none"
           fill-rule="evenodd" d="{d_islas_menores}"/>
-    <path class="pais-chile-islas" fill="#b9d4f6" stroke="#52606d"
-          stroke-width="0.4" stroke-linejoin="round" fill-rule="evenodd"
-          d="{d_islas}"/>
     <path class="pais-chile" fill="#b9d4f6" stroke="#1f2933"
-          stroke-width="0.8" stroke-linejoin="round" fill-rule="evenodd"
+          stroke-width="1.15" stroke-linejoin="round" fill-rule="evenodd"
           d="{d_continente}"/>
-    <path class="region-chile" fill="none" stroke="#202020"
-          stroke-width="0.45" stroke-dasharray="1.6 1.2"
+    <path class="pais-chile-islas" fill="#b9d4f6" stroke="#52606d"
+          stroke-width="0.6" stroke-linejoin="round" fill-rule="evenodd"
+          d="{d_islas}"/>
+    <path class="region-chile" fill="none" stroke="#2b3a4a"
+          stroke-width="0.9" stroke-dasharray="3 2.2"
           stroke-linecap="round" d="{d_regiones}"/>
   </symbol>
 </svg>

@@ -29,16 +29,21 @@ def test_mapa_conserva_symbol_y_proyeccion():
 def test_mapa_tiene_chile_vecinos_y_regiones():
     svg = _svg()
     assert 'class="pais-vecino"' in svg
+    assert 'class="pais-chile-casing"' in svg
     assert 'class="pais-chile"' in svg
     assert 'class="pais-chile-islas"' in svg
     assert 'class="region-chile"' in svg
     # Las regiones se dibujan con línea segmentada y más fina que el borde
     # nacional, para que la jerarquía visual quede clara.
     region = re.search(r'class="region-chile"[^>]*', svg).group(0)
-    assert 'stroke-dasharray="1.6 1.2"' in region
-    assert 'stroke-width="0.45"' in region
+    assert 'stroke-dasharray="3 2.2"' in region
+    assert 'stroke-width="0.9"' in region
     nacional = re.search(r'class="pais-chile" fill[^>]*', svg).group(0)
-    assert 'stroke-width="0.8"' in nacional
+    assert 'stroke-width="1.15"' in nacional
+    # El halo blanco separa el contorno del relleno y de los países vecinos.
+    casing = re.search(r'class="pais-chile-casing"[^>]*', svg).group(0)
+    assert 'stroke="#ffffff"' in casing
+    assert 'stroke-width="2.4"' in casing
 
 
 def test_mapa_incluye_detalle_de_islas():
@@ -50,7 +55,9 @@ def test_mapa_incluye_detalle_de_islas():
     islas = re.search(
         r'class="pais-chile-islas"[^>]*\sd="([^"]*)"', svg
     ).group(1)
-    assert islas.count("M ") > 10
+    # Solo las islas mayores conservan borde; el resto va en la capa menor.
+    assert islas.count("M ") >= 3
+    assert 'class="pais-chile-menor"' in svg
 
 
 def test_mapa_no_se_sale_del_area_con_margen():
