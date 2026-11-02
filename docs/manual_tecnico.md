@@ -458,6 +458,87 @@ qué fuente y qué archivo se usaron.
 
 ![Catálogos de fuentes y catálogo canónico](img/esquema_catalogos.png)
 
+#### Manifiesto de fuentes
+
+El contrato objetivo es que los programas que preparan los catálogos entreguen
+un manifiesto junto con los datos canónicos. La app no debe conocer de antemano
+los nombres ni la cantidad de fuentes.
+
+Ejemplo:
+
+```json
+{
+  "schema_version": "1.0",
+  "sources": [
+    {
+      "id": "referencia",
+      "label": "Eventquery",
+      "description": "Catálogo público de referencia",
+      "role": "reference",
+      "visible_in_observaciones": false,
+      "catalog_file": "catalogo/referencia/eventos.jsonl",
+      "capabilities": ["eventos", "origenes", "magnitudes"]
+    },
+    {
+      "id": "local_a",
+      "label": "SeisComp",
+      "role": "local",
+      "visible_in_observaciones": true,
+      "priority": 1,
+      "catalog_file": "catalogo/local_a/eventos.jsonl",
+      "capabilities": ["eventos", "origenes", "magnitudes", "arribos"]
+    }
+  ]
+}
+```
+
+Campos principales:
+
+| Campo | Uso |
+|---|---|
+| `id` | Identificador técnico y estable; se usa en rutas y comparaciones |
+| `label` | Nombre visible para el usuario |
+| `description` | Texto opcional para identificar el catálogo |
+| `role` | `reference` para la fuente de comparación; `local` para las fuentes locales |
+| `visible_in_observaciones` | Si aparece en los filtros de Observaciones |
+| `priority` | Prioridad cuando hay varias fuentes locales |
+| `catalog_file` | Ruta del catálogo canónico JSONL |
+| `capabilities` | Datos que aporta la fuente |
+
+La app debe usar `role=local` para los filtros de Observaciones y excluir
+`role=reference`. No debe comparar el texto `eventquery`, `seisan` o
+`seiscomp`.
+
+**Estado de esta versión:** la app todavía conserva adaptadores y etiquetas
+integradas para Eventquery, SeisComp y Seisan. El manifiesto y los nombres
+visibles son el contrato objetivo; la migración se hará por etapas. Los trabajos
+antiguos seguirán usando el registro interno como respaldo.
+
+#### Nombres visibles de catálogos
+
+El nombre visible es un metadato de presentación; no es la identidad técnica:
+
+- `source_id`: identifica la fuente en rutas, archivos y comparaciones.
+- `label` o alias: se muestra en filtros, tablas, paneles y encabezados de PNG.
+- `description`: texto opcional para distinguir dos catálogos del mismo tipo.
+
+Ubicaciones previstas:
+
+| Nivel | Campo |
+|---|---|
+| Solicitud o carga completa | `CatalogRequest.title` |
+| Archivo descargado | `CatalogRequestFile.display_name` |
+| Fuente dentro del trabajo | `JobSource.alias` (ya existe) |
+| Manifiesto canónico | `label` y `description` |
+
+Reglas:
+
+- El nombre visible es opcional.
+- Si falta, se usa el `label` del manifiesto o el `source_id`.
+- Puede repetirse, con una advertencia de desambiguación.
+- No se usa para construir rutas ni para decidir roles.
+- Cambiar el nombre visible no invalida catálogos ni resultados.
+
 #### Archivos y normalización
 
 | Fuente | Entrada y normalización | Capacidades |
@@ -518,6 +599,33 @@ Los contratos de estación, arribo y disponibilidad de onda están definidos en
 | `EstacionCanonica` | `source_id`, `network`, `station`, `location`, `channel`, coordenadas, elevación, profundidad, vigencia, `sample_rate`, `response`, `status` |
 | `ArriboCanonico` | `source_id`, `event_id`, `origin_id`, estación/canal, `phase`, `pick_time`, `pick_status`, `weight`, `residual`, `distance_km`, `azimuth`, `snr`, `qc`, `picker_probability` |
 | `DisponibilidadOnda` | `source_id`, `event_id`, estación/canal, ventana, `status`, `source`, cobertura, `checked_at`, `error` |
+
+#### Contrato canónico de resultados
+
+Para que una fuente nueva no obligue a cambiar Resultados, los programas de
+preparación deben emitir archivos con nombres y columnas genéricas:
+
+```text
+resultados/
+  no_publicados_<source_id>.csv
+  no_actualizados_<source_id>.csv
+  repetidos_<source_id>_<informe>.csv
+```
+
+Las columnas de comparación deben usar nombres genéricos:
+
+- `fecha_referencia`, `lat_referencia`, `lon_referencia`,
+  `prof_referencia`, `mag_referencia`;
+- `fecha_local`, `lat_local`, `lon_local`, `prof_local`, `mag_local`;
+- `analista`;
+- atribución de analistas por fuente, sin nombres de fuente en el código.
+
+La app leerá el rol de referencia y las fuentes locales desde el manifiesto, no
+desde el nombre de las columnas.
+
+**Estado de esta versión:** los resultados actuales todavía usan columnas
+`*_eventquery` y atribuciones como `analista_seisan` / `analista_seiscomp`. El
+contrato genérico es el objetivo de la migración.
 
 #### Qué se guarda en cada lugar
 

@@ -61,6 +61,9 @@ para descargar los archivos.
 4. Defina el radio de estaciones.
 5. Envíe la solicitud.
 
+Eventquery se descarga siempre como catálogo de referencia; no es una fuente
+local de Observaciones.
+
 La contraseña SSH se usa solo para la descarga y no se guarda.
 
 Mientras un catálogo se está descargando, el estado muestra un spinner y un
@@ -77,8 +80,10 @@ Use **Subir catálogos** cuando ya tenga los archivos en su equipo.
 
 1. Seleccione el catálogo eventquery.
 2. Agregue SeisComp, Seisan o ambos según corresponda.
-3. Indique el período y la fuente principal.
-4. Envíe el formulario.
+3. En cada fuente local puede cambiar **Nombre de la fuente** para
+   identificarla mejor en tablas, paneles y filtros.
+4. Indique el período y la fuente principal.
+5. Envíe el formulario.
 
 Si falta un archivo o el contenido no es válido, el trabajo queda en
 **Borrador** con el detalle del problema. Corrija el archivo y cree uno nuevo,
