@@ -666,11 +666,18 @@ def claves_frontera(columnas: list[str]):
 def _insertar_frontera(columnas: list[str]) -> list[str]:
     if "Frontera" in columnas:
         return columnas
+    # «Publicado en» es una columna del proyecto base y conviene dejarla junto a
+    # «Analista»; la frontera va después para no empujarla al extremo derecho.
     posicion = len(columnas)
     for indice, columna in enumerate(columnas):
-        if columna in ("Analista", "analista"):
+        if columna in ("Publicado_en", "publicado_en"):
             posicion = indice + 1
             break
+    else:
+        for indice, columna in enumerate(columnas):
+            if columna in ("Analista", "analista"):
+                posicion = indice + 1
+                break
     columnas.insert(posicion, "Frontera")
     return columnas
 

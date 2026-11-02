@@ -248,7 +248,14 @@
               <h2 class="h6 text-uppercase text-secondary mb-0" id="panel-mapa-titulo">
                 Planta del grupo
               </h2>
-              <div class="small text-secondary" id="panel-mapa-detalle"></div>
+              <div class="d-flex align-items-center gap-2">
+                <div class="small text-secondary" id="panel-mapa-detalle"></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        id="panel-centrar-mapa"
+                        title="Volver al encuadre del grupo">
+                  Centrar
+                </button>
+              </div>
             </div>
             <div id="panel-mapa" class="rounded border" style="height: 430px;"
                  data-url-regiones="{{ url_for('static', filename='data/chile_regiones.json') }}"></div>

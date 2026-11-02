@@ -509,14 +509,8 @@
       if (typeof valor === "number" && Number.isFinite(valor)) ys.push(-valor);
     });
     eventos.forEach(function (evento) { ys.push(-evento.prof); });
-    if (historicoPerfil) {
-      (historicoPerfil.along || []).forEach(function (valor) {
-        if (typeof valor === "number" && Number.isFinite(valor)) xs.push(valor);
-      });
-      (historicoPerfil.prof || []).forEach(function (valor) {
-        if (typeof valor === "number" && Number.isFinite(valor)) ys.push(valor);
-      });
-    }
+    // La capa histórica no participa del rango: si sus profundidades entraran
+    // en el mínimo/máximo, el perfil se achataba al activar la casilla.
     const xMin = xs.length ? Math.min.apply(null, xs) : undefined;
     const xMax = xs.length ? Math.max.apply(null, xs) : undefined;
     const yMin = ys.length ? Math.min.apply(null, ys) : undefined;

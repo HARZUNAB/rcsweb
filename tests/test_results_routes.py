@@ -388,6 +388,14 @@ def test_repetidos_detalle_oculta_ver(client, login):
     assert "Haga clic en un evento" in html
 
 
+def test_base_incluye_aviso_de_carga(client, login):
+    job = _job_con_tabla(login)
+    html = client.get(
+        f"/jobs/{job.id}/resultados/no-publicados"
+    ).get_data(as_text=True)
+    assert 'id="cargando-pagina"' in html
+
+
 def test_tabla_muestra_minimapa_de_planta(client, login, monkeypatch):
     job = _job_con_tabla(login)
     monkeypatch.setattr(

@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from app.services.results import construir_resultados, exportar_csv, leer_tabla
+from app.services.results import (
+    _insertar_frontera,
+    construir_resultados,
+    exportar_csv,
+    leer_tabla,
+)
 
 
 def _escribir(workspace, relativa, contenido):
@@ -236,3 +241,22 @@ def test_exportar_sin_resultados_devuelve_vacio(app, tmp_path):
 
     assert datos == b""
     assert total == 0
+
+
+def test_frontera_se_inserta_despues_de_publicado_en():
+    columnas = ["Analista", "Publicado_en", "Estado"]
+    assert _insertar_frontera(columnas) == [
+        "Analista",
+        "Publicado_en",
+        "Frontera",
+        "Estado",
+    ]
+
+
+def test_frontera_se_inserta_despues_de_analista_sin_publicado():
+    columnas = ["Analista", "Estado"]
+    assert _insertar_frontera(columnas) == [
+        "Analista",
+        "Frontera",
+        "Estado",
+    ]

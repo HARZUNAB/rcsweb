@@ -103,6 +103,14 @@
   </div>
 </footer>
 
+<div id="cargando-pagina" class="cargando-pagina d-none"
+     role="status" aria-live="polite">
+  <div class="cargando-caja">
+    <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+    <span>Cargando…</span>
+  </div>
+</div>
+
 <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/htmx/htmx.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/flatpickr/flatpickr.min.js') }}"></script>

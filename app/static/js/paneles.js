@@ -765,6 +765,16 @@
       overlay.appendChild(regiones);
       mapaEl.appendChild(overlay);
     }
+    // Refuerza el anclaje y el recorte aunque el CSS venga de caché: la capa
+    // debe quedar siempre dentro del mapa, no sobre la tarjeta completa.
+    mapaEl.style.position = "relative";
+    overlay.style.position = "absolute";
+    overlay.style.inset = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.overflow = "hidden";
+    overlay.style.pointerEvents = "none";
+    overlay.style.zIndex = "10";
     return overlay;
   }
 
@@ -1502,6 +1512,17 @@
         });
       }
       renderPerfil();
+    });
+  }
+
+  const botonCentrarMapa = document.getElementById("panel-centrar-mapa");
+  if (botonCentrarMapa) {
+    botonCentrarMapa.addEventListener("click", function () {
+      if (window.Plotly && mapaEl && mapaEl.data) {
+        window.Plotly.relayout(mapaEl, {
+          "geo.fitbounds": "locations",
+        });
+      }
     });
   }
 

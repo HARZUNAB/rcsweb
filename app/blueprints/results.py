@@ -78,7 +78,7 @@ TITULOS = {
     "Mag.": "Mag.",
     "Tipo_mag.": "Tipo mag.",
     "Analista": "Analista",
-    "Publicado_en": "Publicado en",
+    "Publicado_en": "Publicado en otra fuente",
     "Estado": "Estado",
     "Dt_otra_seg": "Δt otra fuente (s)",
     "Dist_otra_km": "Dist. otra fuente (km)",

@@ -216,7 +216,10 @@ Seisan. El trabajo de demostración conserva sus resultados.
 - **Miniaturas a pedido**: el perfil de subducción de cada fila se genera con
   matplotlib puro y se cachea en `workspace/<job>/plots/miniaturas/`. No se
   piden hasta activar el interruptor «Miniaturas» o el botón «Ver miniaturas»
-  de la fila; así el listado carga liviano.
+  de la fila; así el listado carga liviano. Al abrirlas, el perfil y el mini
+  mapa de planta se muestran lado a lado; la primera columna se ensancha solo
+  lo necesario y los parámetros conservan su ancho (la tabla sigue con scroll
+  horizontal).
 - **Detalle interactivo**: planta y perfil con zoom. Online usa Leaflet con
   OpenStreetMap; offline usa Plotly con TopoJSON local (`world_110m.json` y
   `world_50m.json`). Los eventos se colorean por fuente, hay leyenda y al hacer
@@ -246,9 +249,10 @@ Seisan. El trabajo de demostración conserva sus resultados.
 - **Sismicidad histórica**: casilla opcional en el bloque **Perfil** del
   detalle, tanto online como offline. Al activarla se pide la serie del perfil
   por JSON y se redibuja solo el perfil, sin recargar la página: se conservan
-  el scroll y el zoom del mapa. El estado queda en la URL del detalle y los
-  enlaces de modo online/offline lo conservan. La planta no dibuja la capa
-  histórica.
+  el scroll y el zoom del mapa. El rango de los ejes se calcula sin la capa
+  histórica, de modo que el perfil no se achata al activarla. El estado queda
+  en la URL del detalle y los enlaces de modo online/offline lo conservan. La
+  planta no dibuja la capa histórica.
 - **Sospechosos**: se reutiliza `sismicidad.es_sospechoso` del core. El evento
   conserva el color de su fuente y se marca con borde violeta `#7b1196` y la
   leyenda “Sospechoso (borde violeta)”.
@@ -275,8 +279,10 @@ Seisan. El trabajo de demostración conserva sus resultados.
   `app/static/data/chile_regiones.json` con el contorno de Chile y las líneas
   regionales. Se dibujan en una capa SVG sobre el mapa con **todo Chile**: no
   intervienen en el encuadre y se vuelven a proyectar al hacer zoom, desplazar
-  o redimensionar. Una traza invisible de contexto mantiene el encuadre
-  regional del grupo.
+  o redimensionar. La capa se ancla y recorta al mapa aunque el CSS venga de
+  caché, y el botón **«Centrar»** devuelve el encuadre regional del grupo
+  después de hacer zoom o desplazar. Una traza invisible de contexto mantiene
+  el encuadre inicial.
 - **Regenerar las regiones**: se ejecuta
   `CARTOPY_DATA_DIR=/ruta/a/cartopy python scripts/generar_mapa_chile.py`.
   El script toma el SVG base, agrega o reemplaza la capa `region-chile` con los
@@ -350,7 +356,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **209 tests**.
+runner de solo lectura. Total actual: **212 tests**.
 
 ## Filtros y exportación
 
@@ -374,6 +380,13 @@ runner de solo lectura. Total actual: **209 tests**.
 - El listado de eventos de los paneles también permite seleccionar y descargar
   todo, lo filtrado o lo seleccionado.
 - El detalle de cada fila conserva el filtro y el orden al volver.
+- **Publicado en otra fuente**: en los listados que tienen esa columna se
+  muestra junto a «Analista», antes de la frontera. Indica la otra fuente donde
+  se publicó el evento (por ejemplo, SeisComp); «Tipo mag.» es el tipo de
+  magnitud y no la fuente.
+- **Aviso de carga**: las navegaciones internas muestran un aviso con spinner
+  y «Cargando…» cuando tardan más de ~120 ms. Se excluyen descargas, enlaces
+  externos, anclas y peticiones HTMX.
 
 ## Endpoints
 

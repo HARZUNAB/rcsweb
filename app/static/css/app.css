@@ -86,8 +86,9 @@ footer {
   --perfil-ancho: 150px;
 }
 
-.tabla-resultados.con-miniaturas {
-  --perfil-ancho: 245px;
+.tabla-resultados.con-miniaturas,
+.tabla-resultados.con-miniaturas-fila {
+  --perfil-ancho: 265px;
 }
 
 .tabla-resultados thead th:nth-child(1),
@@ -303,7 +304,7 @@ footer {
 .miniaturas-fila {
   display: none;
   align-items: flex-start;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   margin-top: 6px;
 }
@@ -355,6 +356,17 @@ footer {
   line-height: 1.1;
 }
 
+@media (max-width: 767.98px) {
+  .tabla-resultados.con-miniaturas,
+  .tabla-resultados.con-miniaturas-fila {
+    --perfil-ancho: 220px;
+  }
+
+  .miniaturas-fila {
+    flex-wrap: wrap;
+  }
+}
+
 /* Planta de los paneles: capa SVG con el contorno y las regiones de todo
    Chile. Va sobre el mapa, pero no intercepta clics ni hover. */
 #panel-mapa {
@@ -369,4 +381,28 @@ footer {
   pointer-events: none;
   z-index: 10;
   overflow: hidden;
+}
+
+/* Aviso de carga para navegaciones internas lentas (paneles, catálogos). */
+.cargando-pagina {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.cargando-caja {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1.25rem;
+  background: #fff;
+  border: 1px solid #e3e6ea;
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 24px rgba(31, 41, 51, 0.12);
+  font-weight: 600;
+  color: #1f2933;
 }

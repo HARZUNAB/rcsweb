@@ -212,9 +212,121 @@
       caja.classList.toggle("abierta", abrir);
       boton.textContent = abrir ? "Ocultar miniaturas" : "Ver miniaturas";
       boton.setAttribute("aria-expanded", String(abrir));
+      const tabla = boton.closest(".tabla-resultados");
+      if (tabla) {
+        const abiertas = tabla.querySelectorAll(".miniaturas-fila.abierta").length;
+        tabla.classList.toggle("con-miniaturas-fila", abiertas > 0);
+      }
       if (abrir) {
         cargarMiniaturas(caja);
       }
     });
+  });
+})();
+
+// Aviso de carga para navegaciones internas lentas (paneles, catálogos).
+(function () {
+  const aviso = document.getElementById("cargando-pagina");
+  if (!aviso) {
+    return;
+  }
+  let temporizador = null;
+
+  function mostrar() {
+    window.clearTimeout(temporizador);
+    temporizador = window.setTimeout(function () {
+      aviso.classList.remove("d-none");
+    }, 120);
+  }
+
+  function ocultar() {
+    window.clearTimeout(temporizador);
+    aviso.classList.add("d-none");
+  }
+
+  function esNavegacion(enlace) {
+    if (enlace.hasAttribute("download")) {
+      return false;
+    }
+    if (enlace.target && enlace.target !== "_self") {
+      return false;
+    }
+    if (
+      enlace.hasAttribute("hx-get") ||
+      enlace.hasAttribute("hx-post") ||
+      enlace.hasAttribute("hx-put") ||
+      enlace.hasAttribute("hx-delete")
+    ) {
+      return false;
+    }
+    const href = enlace.getAttribute("href") || "";
+    if (
+      !href ||
+      href.startsWith("#") ||
+      href.startsWith("javascript:") ||
+      href.startsWith("mailto:") ||
+      href.startsWith("tel:")
+    ) {
+      return false;
+    }
+    if (
+      href.includes("/exportar") ||
+      href.includes("/mapa.png") ||
+      href.includes("/miniatura.png")
+    ) {
+      return false;
+    }
+    const url = new URL(enlace.href, window.location.href);
+    return url.origin === window.location.origin;
+  }
+
+  document.addEventListener("click", function (evento) {
+    if (
+      evento.defaultPrevented ||
+      evento.button !== 0 ||
+      evento.metaKey ||
+      evento.ctrlKey ||
+      evento.shiftKey ||
+      evento.altKey
+    ) {
+      return;
+    }
+    const enlace = evento.target.closest("a[href]");
+    if (!enlace || !esNavegacion(enlace)) {
+      return;
+    }
+    mostrar();
+  });
+
+  document.addEventListener("submit", function (evento) {
+    if (evento.defaultPrevented) {
+      return;
+    }
+    const formulario = evento.target;
+    if (formulario.target && formulario.target !== "_self") {
+      return;
+    }
+    if (
+      formulario.hasAttribute("hx-get") ||
+      formulario.hasAttribute("hx-post") ||
+      formulario.hasAttribute("hx-put") ||
+      formulario.hasAttribute("hx-delete")
+    ) {
+      return;
+    }
+    const accion = formulario.getAttribute("action") || "";
+    if (accion.includes("/exportar")) {
+      return;
+    }
+    mostrar();
+  });
+
+  window.addEventListener("pageshow", ocultar);
+  window.addEventListener("load", ocultar);
+  window.addEventListener("popstate", ocultar);
+  document.addEventListener("keydown", function (evento) {
+    if (evento.key === "Escape") {
+      ocultar();
+    }
   });
 })();
