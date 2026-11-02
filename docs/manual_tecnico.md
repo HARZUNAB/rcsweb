@@ -107,23 +107,434 @@ sudo du -sh /var/lib/docker/volumes/rcsweb_pgdata/_data
 df -h /var/lib/docker
 ```
 
-### Tablas principales
+### Esquema relacional
 
-| Tabla | Contenido |
-|---|---|
-| `users` | Usuarios, rol, estado y hash de contraseña |
-| `jobs` | Trabajos: período, estado, creador y solicitud asociada |
-| `job_files` | Archivos de entrada del trabajo |
-| `job_sources` | Fuentes locales y su prioridad |
-| `job_steps` | Pasos del pipeline |
-| `job_artifacts` | Artefactos descargables |
-| `catalog_requests` | Solicitudes de catálogos por SSH |
-| `audit_log` | Auditoría de acciones |
+RCS Web usa una base PostgreSQL 16 para el estado de la aplicación. La base
+guarda usuarios, solicitudes, trabajos, archivos, pasos, artefactos, fuentes y
+auditoría; **no guarda los catálogos sísmicos, los resultados ni los mapas**.
+Esos archivos viven en el workspace de cada trabajo.
+
+![Esquema relacional de la aplicación](img/esquema_bd.png)
+
+Los diagramas se regeneran con:
+
+```bash
+.venv/bin/python scripts/generar_esquema_bd.py
+```
+
+#### Grupos de tablas
+
+| Grupo | Tablas | Función |
+|---|---|---|
+| Seguridad | `users`, `audit_log` | Cuentas, roles y registro de acciones |
+| Solicitudes | `catalog_requests`, `catalog_request_files` | Pedidos de catálogos y archivos asociados |
+| Trabajos | `jobs`, `job_files`, `job_sources`, `job_steps`, `job_artifacts` | Ejecución, insumos, fuentes, pasos y descargas |
+| Catálogo canónico reservado | `catalog_events`, `stations`, `arrivals`, `waveform_availability` | Esquema futuro para eventos, estaciones, arribos y ondas |
+| Migraciones | `alembic_version` | Revisión aplicada por Alembic |
 
 La relación de propiedad es `jobs.created_by_id → users.id`. Los trabajos
 creados por solicitud usan el usuario que hizo la solicitud. Los trabajos sin
 creador (datos antiguos o de demostración) solo los ven administradores y
 supervisores.
+
+#### Relaciones y borrado
+
+| Tabla hija / campo | Tabla padre | Cardinalidad | Al borrar |
+|---|---|---|---|
+| `catalog_requests.requested_by_id` | `users` | N:1 | `SET NULL` |
+| `jobs.created_by_id` | `users` | N:1 | `SET NULL` |
+| `audit_log.user_id` | `users` | N:1 | `SET NULL` |
+| `catalog_request_files.request_id` | `catalog_requests` | N:1 | `CASCADE` |
+| `jobs.catalog_request_id` | `catalog_requests` | N:1 | `SET NULL` |
+| `job_sources.catalog_file_id` | `catalog_request_files` | N:1 | `SET NULL` |
+| `job_files.job_id` | `jobs` | N:1 | `CASCADE` |
+| `job_sources.job_id` | `jobs` | N:1 | `CASCADE` |
+| `job_steps.job_id` | `jobs` | N:1 | `CASCADE` |
+| `job_artifacts.job_id` | `jobs` | N:1 | `CASCADE` |
+| `catalog_events.job_id` | `jobs` | N:1 | `CASCADE` |
+| `stations.job_id` | `jobs` | N:1 | `CASCADE` |
+| `arrivals.job_id` | `jobs` | N:1 | `CASCADE` |
+| `waveform_availability.job_id` | `jobs` | N:1 | `CASCADE` |
+
+`catalog_events`, `stations`, `arrivals` y `waveform_availability` no tienen
+claves foráneas hacia `job_sources`: `source_id` y `event_id` son claves
+lógicas del catálogo canónico.
+
+#### Diccionario de tablas
+
+##### `users`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `username` | String(80) | No | UNIQUE | Nombre de acceso |
+| `password_hash` | String(255) | No | — | Hash de la contraseña |
+| `role` | String(32) | No | — | `admin`, `supervisor`, `analista` o `consulta` |
+| `active` | Boolean | No | — | Cuenta habilitada |
+| `created_at` | DateTime(tz) | No | — | Fecha de creación |
+
+##### `audit_log`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `user_id` | Integer | Sí | FK → `users.id` | Usuario que ejecutó la acción |
+| `action` | String(64) | No | IDX | Acción registrada |
+| `entity` | String(80) | Sí | — | Entidad afectada |
+| `meta` | JSON | Sí | — | Datos adicionales |
+| `created_at` | DateTime(tz) | No | IDX | Fecha de la acción |
+
+##### `catalog_requests`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | String(36) | No | PK | UUID de la solicitud |
+| `mode` | String(16) | No | — | `upload` o `ssh` |
+| `period_start` | DateTime(tz) | Sí | — | Inicio del período solicitado |
+| `period_end` | DateTime(tz) | Sí | — | Fin del período solicitado |
+| `status` | String(20) | No | IDX | Estado de la solicitud |
+| `progress` | Integer | No | — | Porcentaje de avance |
+| `current_step` | String(80) | Sí | — | Paso actual |
+| `primary_source` | String(32) | Sí | — | Fuente principal |
+| `station_radius_km` | Integer | Sí | — | Radio de estaciones |
+| `requested_by_id` | Integer | Sí | FK → `users.id` | Usuario solicitante |
+| `server` | String(255) | Sí | — | Servidor SSH |
+| `remote_user` | String(80) | Sí | — | Usuario remoto |
+| `created_at` | DateTime(tz) | No | IDX | Fecha de creación |
+| `started_at` | DateTime(tz) | Sí | — | Inicio de ejecución |
+| `finished_at` | DateTime(tz) | Sí | — | Fin de ejecución |
+| `error` | Text | Sí | — | Error, si corresponde |
+
+##### `catalog_request_files`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `request_id` | String(36) | No | FK → `catalog_requests.id`, IDX | Solicitud asociada |
+| `kind` | String(32) | No | — | Tipo de catálogo |
+| `format` | String(32) | No | — | Formato efectivo |
+| `status` | String(20) | No | — | Estado del archivo |
+| `stored_path` | String(255) | Sí | — | Ruta de almacenamiento |
+| `original_name` | String(255) | Sí | — | Nombre original |
+| `size` | Integer | No | — | Tamaño en bytes |
+| `sha256` | String(64) | Sí | IDX | Huella del archivo |
+| `message` | Text | Sí | — | Mensaje de error o validación |
+
+##### `jobs`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | String(36) | No | PK | UUID del trabajo |
+| `period_start` | DateTime(tz) | Sí | — | Inicio del período |
+| `period_end` | DateTime(tz) | Sí | — | Fin del período |
+| `status` | String(20) | No | IDX | Estado del trabajo |
+| `progress` | Integer | No | — | Porcentaje de avance |
+| `current_step` | String(80) | Sí | — | Paso actual |
+| `station_radius_km` | Integer | Sí | — | Radio de estaciones |
+| `created_by_id` | Integer | Sí | FK → `users.id` | Creador |
+| `created_at` | DateTime(tz) | No | IDX | Fecha de creación |
+| `started_at` | DateTime(tz) | Sí | — | Inicio de ejecución |
+| `finished_at` | DateTime(tz) | Sí | — | Fin de ejecución |
+| `error` | Text | Sí | — | Error, si corresponde |
+| `origin` | String(16) | No | — | `upload` o `ssh` |
+| `catalog_request_id` | String(36) | Sí | FK → `catalog_requests.id` | Solicitud de origen |
+
+##### `job_files`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `job_id` | String(36) | No | FK → `jobs.id`, IDX | Trabajo asociado |
+| `kind` | String(32) | No | — | `seisan`, `eventquery` o `seiscomp` |
+| `original_name` | String(255) | No | — | Nombre original |
+| `stored_name` | String(255) | No | — | Nombre almacenado |
+| `size` | Integer | No | — | Tamaño en bytes |
+| `sha256` | String(64) | Sí | IDX | Huella del archivo |
+| `uploaded_at` | DateTime(tz) | No | — | Fecha de carga |
+
+##### `job_sources`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `job_id` | String(36) | No | FK → `jobs.id`, IDX | Trabajo asociado |
+| `kind` | String(64) | No | UNIQUE (`job_id`, `kind`) | Código de la fuente |
+| `alias` | String(80) | No | — | Nombre visible |
+| `format` | String(32) | No | — | Formato efectivo |
+| `role` | String(24) | No | — | `local_principal` o `local_secundaria` |
+| `priority` | Integer | No | — | Prioridad de la fuente |
+| `status` | String(20) | No | — | `ok` o `error` |
+| `message` | Text | Sí | — | Detalle del error |
+| `capabilities` | JSON | Sí | — | Capacidades declaradas |
+| `catalog_file_id` | Integer | Sí | FK → `catalog_request_files.id` | Archivo de origen |
+
+##### `job_steps`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `job_id` | String(36) | No | FK → `jobs.id`, IDX | Trabajo asociado |
+| `orden` | Integer | No | — | Orden de ejecución |
+| `script` | String(120) | No | — | Script ejecutado |
+| `status` | String(20) | No | — | Estado del paso |
+| `exit_code` | Integer | Sí | — | Código de salida |
+| `started_at` | DateTime(tz) | Sí | — | Inicio |
+| `finished_at` | DateTime(tz) | Sí | — | Fin |
+| `log_path` | String(255) | Sí | — | Ruta del registro |
+
+##### `job_artifacts`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `job_id` | String(36) | No | FK → `jobs.id`, IDX | Trabajo asociado |
+| `tipo` | String(48) | No | — | Tipo de artefacto |
+| `ruta` | String(255) | No | — | Ruta relativa al workspace |
+| `mime` | String(80) | Sí | — | Tipo MIME |
+| `size` | Integer | No | — | Tamaño en bytes |
+
+##### `alembic_version`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `version_num` | String(32) | No | PK | Revisión de Alembic aplicada |
+
+#### Tablas canónicas reservadas
+
+Las cuatro tablas siguientes existen por migración, pero el pipeline actual no
+las llena. Se documentan para que el esquema quede completo y para futuras
+extensiones de la app.
+
+##### `catalog_events`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `job_id` | String(36) | No | FK → `jobs.id`, IDX | Trabajo asociado |
+| `source_id` | String(64) | No | IDX | Fuente lógica |
+| `event_id` | String(128) | No | IDX | Identificador en la fuente |
+| `event_time` | DateTime(tz) | Sí | — | Fecha y hora |
+| `latitude` | Float | Sí | — | Latitud |
+| `longitude` | Float | Sí | — | Longitud |
+| `depth_km` | Float | Sí | — | Profundidad |
+| `magnitude` | Float | Sí | — | Magnitud |
+| `magnitude_type` | String(16) | No | — | Tipo de magnitud |
+| `agency` | String(80) | No | — | Agencia |
+| `analyst` | String(80) | No | — | Analista |
+| `status` | String(32) | No | — | `published` o `reported` |
+| `is_preferred` | Boolean | No | — | Solución preferida |
+| `is_published` | Boolean | No | — | Publicado en Eventquery |
+| `raw` | JSON | Sí | — | Registro original |
+
+Restricción: `UNIQUE (job_id, source_id, event_id)`.
+
+##### `stations`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `job_id` | String(36) | No | FK → `jobs.id`, IDX | Trabajo asociado |
+| `source_id` | String(64) | No | IDX | Fuente lógica |
+| `network` | String(16) | No | — | Red |
+| `station` | String(16) | No | — | Estación |
+| `location` | String(16) | No | — | Localización |
+| `channel` | String(16) | No | — | Canal |
+| `latitude` | Float | Sí | — | Latitud |
+| `longitude` | Float | Sí | — | Longitud |
+| `elevation_m` | Float | Sí | — | Elevación |
+| `depth_m` | Float | Sí | — | Profundidad |
+| `start_time` | DateTime(tz) | Sí | — | Inicio de operación |
+| `end_time` | DateTime(tz) | Sí | — | Fin de operación |
+| `sample_rate` | Float | Sí | — | Frecuencia de muestreo |
+| `response` | Text | Sí | — | Respuesta instrumental |
+| `status` | String(32) | No | — | Estado |
+
+##### `arrivals`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `job_id` | String(36) | No | FK → `jobs.id`, IDX | Trabajo asociado |
+| `source_id` | String(64) | No | IDX | Fuente lógica |
+| `event_id` | String(128) | No | IDX | Evento lógico |
+| `origin_id` | String(128) | No | — | Origen lógico |
+| `network` | String(16) | No | — | Red |
+| `station` | String(16) | No | — | Estación |
+| `location` | String(16) | No | — | Localización |
+| `channel` | String(16) | No | — | Canal |
+| `phase` | String(16) | No | — | Fase |
+| `pick_time` | DateTime(tz) | Sí | — | Instante del pick |
+| `pick_status` | String(16) | No | — | `manual` o `automatic` |
+| `is_used_in_solution` | Boolean | Sí | — | Usado en la solución |
+| `weight` | Float | Sí | — | Peso |
+| `polarity` | String(16) | No | — | Polaridad |
+| `residual` | Float | Sí | — | Residuo |
+| `distance_km` | Float | Sí | — | Distancia |
+| `azimuth` | Float | Sí | — | Azimut |
+| `snr` | Float | Sí | — | Relación señal/ruido |
+| `qc` | String(32) | No | — | Control de calidad |
+| `picker_probability` | Float | Sí | — | Probabilidad del picker |
+
+##### `waveform_availability`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `job_id` | String(36) | No | FK → `jobs.id`, IDX | Trabajo asociado |
+| `source_id` | String(64) | No | IDX | Fuente lógica |
+| `event_id` | String(128) | No | IDX | Evento lógico |
+| `network` | String(16) | No | — | Red |
+| `station` | String(16) | No | — | Estación |
+| `location` | String(16) | No | — | Localización |
+| `channel` | String(16) | No | — | Canal |
+| `window_start` | DateTime(tz) | Sí | — | Inicio de ventana |
+| `window_end` | DateTime(tz) | Sí | — | Fin de ventana |
+| `status` | String(20) | No | — | Estado de disponibilidad |
+| `source` | String(32) | No | — | Origen del chequeo |
+| `coverage_from` | DateTime(tz) | Sí | — | Inicio de cobertura |
+| `coverage_to` | DateTime(tz) | Sí | — | Fin de cobertura |
+| `checked_at` | DateTime(tz) | Sí | — | Fecha del chequeo |
+| `error` | Text | Sí | — | Error |
+
+#### Estados usados
+
+| Campo | Valores |
+|---|---|
+| `jobs.status` | `draft`, `queued`, `running`, `cancelling`, `cancelled`, `done`, `failed` |
+| `catalog_requests.status` | `draft`, `queued`, `running`, `partial`, `done`, `failed`, `cancelled` |
+| `catalog_request_files.status` | `pending`, `downloading`, `ok`, `error` |
+| `job_sources.status` | `ok`, `error` |
+| `job_steps.status` | `pending`, `running`, `skipped`, `done`, `failed` |
+| `waveform_availability.status` | `not_checked` y estados de la extensión |
+
+#### Índices y restricciones
+
+| Tabla | Índice o restricción |
+|---|---|
+| `users` | `UNIQUE (username)` |
+| `catalog_requests` | `IDX (status)`, `IDX (created_at)` |
+| `catalog_request_files` | `IDX (request_id)`, `IDX (sha256)` |
+| `jobs` | `IDX (status)`, `IDX (created_at)` |
+| `job_files` | `IDX (job_id)`, `IDX (sha256)` |
+| `job_sources` | `UNIQUE (job_id, kind)`, `IDX (job_id)` |
+| `job_steps` | `IDX (job_id)` |
+| `job_artifacts` | `IDX (job_id)` |
+| `audit_log` | `IDX (action)`, `IDX (created_at)` |
+| `catalog_events` | `UNIQUE (job_id, source_id, event_id)`, `IDX (job_id, source_id, event_id)` |
+| `stations` | `IDX (job_id, source_id)` |
+| `arrivals` | `IDX (job_id, source_id, event_id)` |
+| `waveform_availability` | `IDX (job_id, source_id, event_id)` |
+
+#### Migraciones
+
+| Revisión | Cambio |
+|---|---|
+| `cb10aab37264` | Esquema base |
+| `87eb5ccba2fe` | Catálogo canónico y extensiones |
+| `5b45ba75d014` | Progreso de solicitudes |
+| `7457da261ab1` | Fuente principal en solicitudes |
+| `ccd1bba64919` | Radio de estaciones |
+| `9f1c2a7b4d10` | Alias visibles sin mecanismo de origen |
+
+Para consultar o aplicar migraciones:
+
+```bash
+flask --app app db current
+flask --app app db history
+flask --app app db upgrade
+```
+
+Las pruebas usan SQLite en memoria (`TestConfig`), por lo que no reproducen
+todas las diferencias de PostgreSQL. La base de producción es PostgreSQL 16.
+
+### Catálogos de fuentes y catálogo canónico
+
+#### No hay tablas relacionales por fuente
+
+Las fuentes **Eventquery**, **SeisComp** y **Seisan** no se cargan en
+PostgreSQL. El pipeline las lee desde archivos, las normaliza y escribe un
+catálogo canónico JSONL en el workspace. La base solo conserva los metadatos de
+qué fuente y qué archivo se usaron.
+
+![Catálogos de fuentes y catálogo canónico](img/esquema_catalogos.png)
+
+#### Archivos y normalización
+
+| Fuente | Entrada y normalización | Capacidades |
+|---|---|---|
+| Eventquery | `eventquery_<inicio>_<fin>.csv`; el adaptador usa `datos/new_2_<eventquery>.csv` como catálogo publicado de referencia | `eventos`, `origenes`, `magnitudes` |
+| SeisComp | `seiscomp_<inicio>_<fin>.csv` → `datos/seiscomp_parametros.csv` | `eventos`, `origenes`, `magnitudes`, `arribos`, `inventario`, `disponibilidad_ondas` |
+| Seisan | `select.out` → `datos/salida_collect.csv` | `eventos`, `origenes`, `magnitudes`, `excluidos` |
+
+Columnas mínimas que valida la app:
+
+| Fuente | Estructura mínima |
+|---|---|
+| Eventquery | `time`, `lat`, `lon`, `depth`, `mag`, `tipo_mag`, `ref`, `perc` |
+| SeisComp | `ot_utc`, `latitud`, `longitud`, `profundidad_km`, `magnitud`, `tipo_magnitud`, `operador` |
+| Seisan | `select.out`: líneas con año, mes, día, hora, minuto y segundo |
+
+Los adaptadores normalizan a `Fecha_Hora`, `Latitud`, `Longitud`, `Prof.`,
+`Mag.`, `Tipo_mag.` y `Analista`. El catálogo canónico agrega `source_id`,
+`event_id`, `agency`, `status`, `is_preferred`, `is_published` y `raw`.
+
+`job_sources` registra las fuentes locales del trabajo: `kind`, `format`,
+`role`, `priority`, `capabilities` y el `catalog_file_id` cuando el archivo vino
+de una solicitud. `job_files` registra los archivos subidos y
+`catalog_request_files` los archivos descargados por SSH.
+
+#### Catálogo canónico JSONL
+
+Ruta:
+
+```text
+workspace/<job_id>/catalogo/<source_id>/eventos.jsonl
+```
+
+Cada línea es un objeto `EventoCanonico`:
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `source_id` | texto | Fuente que aportó el evento |
+| `event_id` | texto | Identificador dentro de la fuente |
+| `event_time` | texto / fecha | Fecha y hora del evento |
+| `latitude` | decimal | Latitud |
+| `longitude` | decimal | Longitud |
+| `depth_km` | decimal | Profundidad |
+| `magnitude` | decimal | Magnitud |
+| `magnitude_type` | texto | Tipo de magnitud |
+| `agency` | texto | Agencia o fuente |
+| `analyst` | texto | Analista |
+| `status` | texto | `published` o `reported` |
+| `is_preferred` | booleano | Solución preferida |
+| `is_published` | booleano | Publicado en Eventquery |
+| `raw` | JSON | Fila original normalizada |
+
+Los contratos de estación, arribo y disponibilidad de onda están definidos en
+`app/domain/catalogs/schema.py`:
+
+| Contrato | Campos principales |
+|---|---|
+| `EstacionCanonica` | `source_id`, `network`, `station`, `location`, `channel`, coordenadas, elevación, profundidad, vigencia, `sample_rate`, `response`, `status` |
+| `ArriboCanonico` | `source_id`, `event_id`, `origin_id`, estación/canal, `phase`, `pick_time`, `pick_status`, `weight`, `residual`, `distance_km`, `azimuth`, `snr`, `qc`, `picker_probability` |
+| `DisponibilidadOnda` | `source_id`, `event_id`, estación/canal, ventana, `status`, `source`, cobertura, `checked_at`, `error` |
+
+#### Qué se guarda en cada lugar
+
+| Dato | PostgreSQL | Workspace |
+|---|---|---|
+| Usuarios, roles y preferencias de cuenta | `users` | — |
+| Solicitudes y archivos de origen | `catalog_requests`, `catalog_request_files` | Archivos descargados |
+| Trabajos, pasos y artefactos | `jobs`, `job_files`, `job_steps`, `job_artifacts` | Archivos de entrada y logs |
+| Fuentes usadas | `job_sources` | — |
+| Catálogos normalizados | Solo metadatos | `datos/*.csv`, `inputs/*` |
+| Catálogo canónico | Tablas reservadas, no pobladas | `catalogo/<source_id>/eventos.jsonl` |
+| Resultados | — | `resultados/*.csv` |
+| Mapas y paneles | — | `plots/`, `paneles/` |
+| Auditoría | `audit_log` | — |
+
+La copia de seguridad debe incluir la base y el workspace: la base sin los
+archivos no permite reproducir un trabajo.
 
 ### Workspace
 

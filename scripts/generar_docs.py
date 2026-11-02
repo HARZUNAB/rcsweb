@@ -188,15 +188,37 @@ def _tabla(doc: Document, tabla: Tag) -> None:
     if not filas:
         return
     columnas = max(len(fila.find_all(["th", "td"])) for fila in filas)
+    textos = []
+    for fila in filas:
+        textos.append(
+            [_texto(celda) for celda in fila.find_all(["th", "td"])]
+        )
+    pesos = []
+    for indice in range(columnas):
+        palabras = []
+        for fila in textos:
+            if indice < len(fila):
+                palabras.extend(fila[indice].split())
+        largo = max((len(palabra) for palabra in palabras), default=0)
+        pesos.append(max(4.0, largo * 0.7))
+    total = sum(pesos) or 1.0
+    anchos = [max(1.3, 16.0 * peso / total) for peso in pesos]
+    factor = 16.0 / sum(anchos) if sum(anchos) else 1.0
+    anchos = [ancho * factor for ancho in anchos]
+
     tabla_doc = doc.add_table(rows=0, cols=columnas)
     tabla_doc.style = "Table Grid"
     tabla_doc.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tabla_doc.autofit = False
+    for indice, ancho in enumerate(anchos):
+        tabla_doc.columns[indice].width = Cm(ancho)
     for fila in filas:
         celdas = fila.find_all(["th", "td"])
         fila_doc = tabla_doc.add_row().cells
         for indice, celda in enumerate(celdas):
             if indice >= columnas:
                 break
+            fila_doc[indice].width = Cm(anchos[indice])
             parrafo = fila_doc[indice].paragraphs[0]
             es_cabecera = celda.name == "th"
             _runs(parrafo, celda, negrita=es_cabecera)
@@ -224,7 +246,7 @@ def _cuerpo(doc: Document, soup: BeautifulSoup) -> None:
         nombre = elemento.name
         if nombre in ("h1", "script", "style"):
             continue
-        if nombre in ("h2", "h3", "h4"):
+        if nombre in ("h2", "h3", "h4", "h5"):
             doc.add_heading(_texto(elemento), level=int(nombre[1]))
         elif nombre == "p":
             imagenes = elemento.find_all("img")
