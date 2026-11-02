@@ -301,7 +301,7 @@ def test_resumen_mapa_no_publicado():
     )
     assert resumen is not None
     assert resumen["titulo"] == "No publicados · Seisan"
-    texto = " ".join(resumen["lineas"])
+    texto = " ".join(resumen["filas"])
     assert "2026-10-13 09:55:59" in texto
     assert "2.8 ML" in texto
     assert "128.5" in texto
@@ -339,9 +339,11 @@ def test_resumen_mapa_no_actualizado():
     resumen = plots.resumen_mapa(
         "no_actualizados", "No actualizados · Seisan", filas, 0, "x.csv", "job2"
     )
-    texto = " ".join(resumen["lineas"])
-    assert "Local ·" in texto
-    assert "Publicado ·" in texto
+    texto = " ".join(resumen["filas"] + [resumen["nota"] or ""])
+    assert len(resumen["filas"]) == 2
+    assert resumen["filas"][0].startswith("Local ·")
+    assert resumen["filas"][1].startswith("Publicado ·")
+    assert "\n" not in " ".join(resumen["filas"])
     assert "Δt 10 s" in texto
     assert "Alta" in texto
     assert "lat, lon" in texto
@@ -364,8 +366,9 @@ def test_resumen_mapa_repetido():
     resumen = plots.resumen_mapa(
         "repetidos", "Repetidos · Publicados", filas, 0, "x.csv", "job3"
     )
-    texto = " ".join(resumen["lineas"])
-    assert "Solución seleccionada" in texto
+    texto = " ".join(resumen["filas"])
+    assert len(resumen["filas"]) == 1
+    assert resumen["filas"][0].startswith("Seleccionado ·")
     assert "2.5 ML" in texto
     assert "Referencia: Prueba" in texto
 
@@ -380,7 +383,7 @@ def test_componer_resumen_agrega_encabezado():
     base.save(buffer, format="PNG")
     resumen = {
         "titulo": "No publicados · Seisan",
-        "lineas": ["Fecha y hora: 2026-10-13", "Magnitud: 2.8 ML"],
+        "filas": ["2026-10-13 09:55:59 | 2.8 ML"],
         "pie": "RCS Web · trabajo job1",
     }
     final = plots._componer_resumen(buffer.getvalue(), resumen)
@@ -439,3 +442,76 @@ def test_margen_sin_coordenadas_devuelve_none():
     assert margen_planta_eventos(None) is None
     assert margen_planta_eventos([{"latitud": "x", "longitud": "-69.0"}]) is None
     assert margen_planta_eventos([{"latitud": "-23.0"}]) is None
+
+
+def test_fuente_imagen_usa_el_tamano_solicitado():
+    fuente = plots._fuente_imagen("DejaVuSans.ttf", 22)
+    assert getattr(fuente, "size", None) == 22
+
+
+def test_componer_resumen_crece_con_una_fila_por_evento():
+    from io import BytesIO
+
+    from PIL import Image
+
+    base = Image.new("RGB", (800, 200), "white")
+    buffer = BytesIO()
+    base.save(buffer, format="PNG")
+    una = {
+        "titulo": "No actualizados · Seisan",
+        "filas": ["Local · 2026-10-01 | 3.0 ML"],
+        "pie": "RCS Web · trabajo job1",
+    }
+    dos = {
+        "titulo": "No actualizados · Seisan",
+        "filas": [
+            "Local · 2026-10-01 | 3.0 ML",
+            "Publicado · 2026-10-01 | 3.1 ML",
+        ],
+        "pie": "RCS Web · trabajo job1",
+    }
+    alto_una = Image.open(
+        BytesIO(plots._componer_resumen(buffer.getvalue(), una))
+    ).height
+    alto_dos = Image.open(
+        BytesIO(plots._componer_resumen(buffer.getvalue(), dos))
+    ).height
+    assert alto_dos > alto_una
+
+
+def test_resumen_mapa_repetido_una_fila_por_solucion(monkeypatch):
+    filas = [
+        {
+            "fecha_hora": "2026-10-01 00:00:00",
+            "latitud": "-30.0",
+            "longitud": "-71.0",
+            "prof": "10.0",
+            "mag": "2.5",
+            "tipomag": "ML",
+            "analista": "ana",
+        },
+        {
+            "fecha_hora": "2026-10-01 00:00:02",
+            "latitud": "-30.002",
+            "longitud": "-71.003",
+            "prof": "11.0",
+            "mag": "2.4",
+            "tipomag": "ML",
+            "analista": "beto",
+        },
+    ]
+    monkeypatch.setattr(
+        plots,
+        "grupo_repetidos",
+        lambda _filas, _indice, _archivo: [
+            {"fila": filas[1], "_fila": 1},
+            {"fila": filas[0], "_fila": 0},
+        ],
+    )
+    resumen = plots.resumen_mapa(
+        "repetidos", "Repetidos · Publicados", filas, 0, "x.csv", "job3"
+    )
+    assert len(resumen["filas"]) == 2
+    assert resumen["filas"][0].startswith("Seleccionado ·")
+    assert resumen["filas"][1].startswith("Solución ·")
+    assert "Grupo: 2 soluciones" in resumen["nota"]

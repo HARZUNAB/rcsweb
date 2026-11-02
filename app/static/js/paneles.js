@@ -1288,10 +1288,16 @@
   // activan los dos mapas sin necesidad de hacer clic en cada fila.
   const filasPanel = Array.from(document.querySelectorAll(".fila-panel"));
   filasPanel.forEach(function (fila) {
-    fila.addEventListener("click", function () {
+    fila.addEventListener("click", function (evento) {
+      if (evento.target.closest("[data-ver-grupo]")) {
+        return;
+      }
       seleccionarGrupo(fila.dataset.grupo, fila.dataset.id);
     });
     fila.addEventListener("keydown", function (evento) {
+      if (evento.target.closest("[data-ver-grupo]")) {
+        return;
+      }
       if (evento.key === "ArrowDown" || evento.key === "ArrowUp") {
         evento.preventDefault();
         const posicion = filasPanel.indexOf(fila);

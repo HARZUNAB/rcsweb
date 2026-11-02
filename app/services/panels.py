@@ -563,6 +563,78 @@ def filtrar(datos: dict, tipo: str | None = None, fuente: str | None = None) -> 
     return filtrado
 
 
+def grupo_eventos(datos: dict, tipo: str, ident: str) -> dict | None:
+    """Eventos y resumen de un perfil o de un territorio sin perfil."""
+    if tipo == "perfil":
+        eventos = [
+            evento
+            for evento in datos.get("eventos", [])
+            if evento.get("perfil") == ident
+        ]
+        if not eventos:
+            return None
+        return {
+            "tipo": "perfil",
+            "id": ident,
+            "titulo": f"Perfil {ident}",
+            "eventos": eventos,
+            "resumen": _resumen_perfil(ident, eventos),
+        }
+    if tipo == "territorio":
+        eventos = [
+            evento
+            for evento in datos.get("eventos", [])
+            if not evento.get("perfil") and evento.get("territorio") == ident
+        ]
+        if not eventos:
+            return None
+        return {
+            "tipo": "territorio",
+            "id": ident,
+            "titulo": f"Territorio {ident}",
+            "eventos": eventos,
+            "resumen": _resumen_territorio(ident, eventos),
+        }
+    return None
+
+
+def resumen_grupo_png(
+    detalle: dict,
+    *,
+    dataset: str,
+    dataset_titulo: str,
+    tipo_titulo: str,
+    fuente_titulo: str,
+    job_id: str,
+) -> dict:
+    """Encabezado del PNG de un grupo: fuente, filtros y conteos, sin eventos."""
+    total = len(detalle["eventos"])
+    resumen = detalle["resumen"]
+    titulo = (
+        f"{detalle['titulo']} · {total} "
+        f"evento{'s' if total != 1 else ''}"
+    )
+    if dataset == "observaciones":
+        subtitulo = [
+            f"{dataset_titulo} · Fuente: {fuente_titulo} · Tipo: {tipo_titulo}",
+            (
+                f"No publicados: {resumen.get('no_publicados', 0)} | "
+                f"No actualizados: {resumen.get('no_actualizados', 0)} | "
+                f"Repetidos: {resumen.get('repetidos', 0)} | "
+                f"Sospechosos: {resumen.get('sospechosos', 0)}"
+            ),
+        ]
+    else:
+        subtitulo = [f"{dataset_titulo} · Fuente: {fuente_titulo}"]
+    return {
+        "titulo": titulo,
+        "subtitulo": subtitulo,
+        "filas": [],
+        "nota": None,
+        "pie": f"RCS Web · trabajo {job_id}",
+    }
+
+
 def conteos(datos: dict) -> dict:
     """Totales por tipo y por fuente, para las pestañas del panel."""
     tipos = {clave: 0 for clave in TIPOS}
@@ -679,8 +751,10 @@ __all__ = [
     "conteos",
     "datasets_disponibles",
     "filtrar",
+    "grupo_eventos",
     "perfil_historico",
     "perfiles_grafico",
+    "resumen_grupo_png",
     "TERRITORIOS",
     "TIPOS",
 ]

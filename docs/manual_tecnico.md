@@ -289,10 +289,19 @@ de root.
 El proyecto base se monta en solo lectura y no se modifica. Las miniaturas,
 mapas y paneles se cachean en el workspace.
 
-Los PNG de mapa llevan un encabezado con el resumen del evento: fecha, magnitud,
-profundidad, coordenadas, analista, frontera y estado en la otra fuente. El
-resumen se arma en `app/services/plots.py` y la caché usa el sufijo `_resumen`
-para no servir imágenes antiguas sin datos.
+Los PNG de evento llevan un encabezado con una fila por evento: fecha, magnitud,
+profundidad, coordenadas, analista, frontera y estado en la otra fuente. En los
+no actualizados se agregan las filas local y publicada y la diferencia; en los
+repetidos, una fila por solución. El resumen se arma en `app/services/plots.py`
+y la caché usa el sufijo `_resumen` para no servir imágenes antiguas sin datos.
+
+Los grupos de Paneles tienen dos rutas: el detalle interactivo en
+`/jobs/<job>/paneles/<dataset>/<perfil|territorio>/<id>` y el PNG en la misma
+ruta con `/mapa.png`. El PNG usa `generar_mapa_grupo` de
+`app/services/plots.py`, no incluye filas de eventos y su encabezado declara el
+dataset, la fuente, el filtro de tipo y los conteos. Los perfiles usan
+`modo="auto"` (planta + perfil) y los territorios `modo="planta"`. La caché de
+`workspace/<job>/plots/paneles/` incluye el grupo y los filtros en la huella.
 
 La vista en planta del PNG ajusta el margen en `app/services/extent.py`. Con un
 solo evento usa 2.0° de contexto; con varias soluciones usa

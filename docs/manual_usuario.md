@@ -145,9 +145,10 @@ Más abajo está el perfil de subducción.
 - El perfil conserva su escala al activar o desactivar la casilla.
 - Al pasar el mouse por un evento se resalta también en la otra vista.
 - **Abrir PNG** y **Descargar PNG** generan una imagen del mapa.
-- El PNG incluye un encabezado con fecha y hora, magnitud, profundidad,
-  coordenadas, analista y estado en la otra fuente, para identificar el evento
-  sin abrir la ficha.
+- El PNG incluye un encabezado con una fila por evento: fecha y hora, magnitud,
+  profundidad, coordenadas, analista y estado en la otra fuente, separados por
+  «|». En los no actualizados se muestran el local y el publicado, y debajo la
+  diferencia.
 - La vista en planta se adapta a la cantidad de soluciones:
   - con un solo evento usa una vista regional (unos 8° × 4°) para ubicarlo en
     el país;
@@ -166,6 +167,8 @@ perfil, por territorio.
   correspondiente.
 - **Grupos**: seleccione un perfil o territorio. Las flechas **↑/↓** recorren
   la lista.
+- **Ver** abre el detalle del grupo: planta y perfil interactivos, listado de
+  eventos y botones para abrir o descargar el PNG.
 - **Planta del grupo**: muestra los eventos y las divisiones regionales de
   Chile. Use **Centrar** para volver al encuadre del grupo después de hacer
   zoom o desplazar.
@@ -174,6 +177,11 @@ perfil, por territorio.
 - **Solo sospechosos** limita la vista a los eventos marcados.
 - **Ir al listado** lleva a la tabla de eventos del grupo.
 - **Descargar** permite bajar todo, lo filtrado o lo seleccionado.
+- **PNG del grupo**: identifica el perfil o territorio, la fuente y los filtros
+  aplicados, y muestra los conteos de No publicados, No actualizados y
+  Repetidos. No incluye el listado de eventos dentro de la imagen.
+
+![Detalle de un grupo de Paneles](img/paneles_grupo.png)
 
 ## Catálogos
 

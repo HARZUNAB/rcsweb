@@ -166,6 +166,7 @@
                 <th class="text-end text-nowrap">Alta</th>
                 {% endif %}
                 <th class="text-nowrap">Along</th>
+                <th class="text-end text-nowrap">Ver</th>
               </tr>
             </thead>
             <tbody>
@@ -189,6 +190,12 @@
                   {% else %}
                     —
                   {% endif %}
+                </td>
+                <td class="text-end">
+                  <a class="btn btn-sm btn-outline-secondary" data-ver-grupo
+                     href="{{ url_for('panels.grupo', job_id=job.id, dataset=dataset,
+                                       grupo='perfil', ident=perfil.id,
+                                       tipo=tipo_actual, fuente=fuente_actual) }}">Ver</a>
                 </td>
               </tr>
               {% endfor %}
@@ -215,6 +222,7 @@
                 <th class="text-end text-nowrap">Rep.</th>
                 {% endif %}
                 <th class="text-end text-nowrap">Sosp.</th>
+                <th class="text-end text-nowrap">Ver</th>
               </tr>
             </thead>
             <tbody>
@@ -229,6 +237,12 @@
                 <td class="text-end">{{ territorio.repetidos }}</td>
                 {% endif %}
                 <td class="text-end">{{ territorio.sospechosos }}</td>
+                <td class="text-end">
+                  <a class="btn btn-sm btn-outline-secondary" data-ver-grupo
+                     href="{{ url_for('panels.grupo', job_id=job.id, dataset=dataset,
+                                       grupo='territorio', ident=territorio.nombre,
+                                       tipo=tipo_actual, fuente=fuente_actual) }}">Ver</a>
+                </td>
               </tr>
               {% endfor %}
             </tbody>

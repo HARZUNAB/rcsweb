@@ -71,7 +71,17 @@ def main() -> int:
         print("uso: plot_cli.py <salida.png>", file=sys.stderr)
         return 2
     datos = json.load(sys.stdin)
-    plotear.abrir_eventos(datos["eventos"], datos["fuente"])
+    if datos.get("modo") == "planta":
+        plotear.plotear_planta(
+            datos["eventos"],
+            datos["fuente"],
+            mostrar_json=False,
+            con_boton_detener=False,
+            bloquear=False,
+            delta_auto=False,
+        )
+    else:
+        plotear.abrir_eventos(datos["eventos"], datos["fuente"])
     figura = plt.gcf()
     figura.savefig(sys.argv[1], dpi=110, bbox_inches="tight")
     plt.close("all")

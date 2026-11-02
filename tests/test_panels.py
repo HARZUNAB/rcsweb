@@ -539,3 +539,225 @@ def test_ruta_paneles_tipo_sin_eventos_es_clickeable(client, login, monkeypatch)
     assert "tipo=repetido" in html
     assert "No hay eventos para" in html
     assert '<span class="btn btn-sm btn-outline-secondary disabled"' not in html
+
+
+def _panel_con_perfil_y_territorio(monkeypatch):
+    _asignacion_falsa(monkeypatch)
+    job = _job()
+    workspace = ruta_workspace(job.id)
+    resultados = workspace / "resultados"
+    resultados.mkdir(parents=True, exist_ok=True)
+    (resultados / "no_publicados_seisan.csv").write_text(
+        "Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Analista\n"
+        "2026-10-01 00:00:00,-30.0,-71.0,30.0,3.0,ML,ana\n"
+        "2026-10-02 00:00:00,-40.0,-100.0,20.0,3.5,ML,beto\n",
+        encoding="utf-8",
+    )
+    return job
+
+
+def test_grupo_eventos_distingue_perfil_y_territorio():
+    eventos = [
+        {
+            "id": "p1",
+            "perfil": "P001",
+            "territorio": None,
+            "lat": -30.0,
+            "lon": -71.0,
+            "along_km": 50.0,
+            "tipo_observacion": "no_publicado",
+            "sospechoso": False,
+            "revision": "",
+        },
+        {
+            "id": "t1",
+            "perfil": None,
+            "territorio": "Otros",
+            "lat": -40.0,
+            "lon": -100.0,
+            "along_km": None,
+            "tipo_observacion": "no_publicado",
+            "sospechoso": True,
+            "revision": "",
+        },
+    ]
+    datos = {"eventos": eventos}
+
+    perfil = panels.grupo_eventos(datos, "perfil", "P001")
+    territorio = panels.grupo_eventos(datos, "territorio", "Otros")
+
+    assert perfil["titulo"] == "Perfil P001"
+    assert [evento["id"] for evento in perfil["eventos"]] == ["p1"]
+    assert territorio["titulo"] == "Territorio Otros"
+    assert [evento["id"] for evento in territorio["eventos"]] == ["t1"]
+    assert panels.grupo_eventos(datos, "perfil", "P999") is None
+    assert panels.grupo_eventos(datos, "otro", "P001") is None
+
+
+def test_resumen_grupo_png_identifica_fuente_filtros_y_conteos():
+    detalle = {
+        "titulo": "Perfil P001",
+        "eventos": [{"id": "p1"}],
+        "resumen": {
+            "no_publicados": 3,
+            "no_actualizados": 2,
+            "repetidos": 1,
+            "sospechosos": 4,
+        },
+    }
+    resumen = panels.resumen_grupo_png(
+        detalle,
+        dataset="observaciones",
+        dataset_titulo="Observaciones",
+        tipo_titulo="No publicados",
+        fuente_titulo="Seisan",
+        job_id="job1",
+    )
+
+    assert resumen["filas"] == []
+    assert resumen["titulo"] == "Perfil P001 · 1 evento"
+    assert "Observaciones · Fuente: Seisan · Tipo: No publicados" in resumen["subtitulo"]
+    assert (
+        "No publicados: 3 | No actualizados: 2 | Repetidos: 1 | "
+        "Sospechosos: 4"
+    ) in resumen["subtitulo"]
+    assert "job1" in resumen["pie"]
+
+
+def test_resumen_grupo_png_catalogo_no_muestra_conteos_por_tipo():
+    detalle = {
+        "titulo": "Perfil P002",
+        "eventos": [{"id": "c1"}, {"id": "c2"}],
+        "resumen": {"sospechosos": 0},
+    }
+    resumen = panels.resumen_grupo_png(
+        detalle,
+        dataset="catalogo_seiscomp",
+        dataset_titulo="Catálogo SeisComp",
+        tipo_titulo="Todos los tipos",
+        fuente_titulo="SeisComp",
+        job_id="job2",
+    )
+
+    assert resumen["filas"] == []
+    assert resumen["subtitulo"] == ["Catálogo SeisComp · Fuente: SeisComp"]
+    assert not any("No publicados" in linea for linea in resumen["subtitulo"])
+
+
+def test_indice_paneles_agrega_columna_ver(client, login, monkeypatch):
+    job = _panel_con_perfil_y_territorio(monkeypatch)
+    login()
+
+    html = client.get(
+        f"/jobs/{job.id}/paneles",
+        query_string={
+            "dataset": "observaciones",
+            "tipo": "no_publicado",
+            "fuente": "seisan",
+        },
+    ).get_data(as_text=True)
+
+    assert ">Ver</a>" in html
+    assert "data-ver-grupo" in html
+    assert f"/jobs/{job.id}/paneles/observaciones/perfil/P001" in html
+    assert f"/jobs/{job.id}/paneles/observaciones/territorio/Otros" in html
+    assert "tipo=no_publicado" in html
+    assert "fuente=seisan" in html
+
+
+def test_ruta_detalle_grupo_perfil(client, login, monkeypatch):
+    job = _panel_con_perfil_y_territorio(monkeypatch)
+    login()
+
+    respuesta = client.get(
+        f"/jobs/{job.id}/paneles/observaciones/perfil/P001"
+    )
+
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    assert "Perfil P001" in html
+    assert "Descargar PNG" in html
+    assert 'id="panel-datos"' in html
+    assert 'id="panel-mapa"' in html
+    assert 'id="panel-perfil"' in html
+
+
+def test_ruta_detalle_grupo_territorio_sin_perfil(client, login, monkeypatch):
+    job = _panel_con_perfil_y_territorio(monkeypatch)
+    login()
+
+    respuesta = client.get(
+        f"/jobs/{job.id}/paneles/observaciones/territorio/Otros"
+    )
+
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    assert "Territorio Otros" in html
+    assert 'id="panel-mapa"' in html
+    assert 'id="panel-perfil"' not in html
+
+
+def test_ruta_detalle_grupo_inexistente(client, login, monkeypatch):
+    job = _panel_con_perfil_y_territorio(monkeypatch)
+    login()
+
+    assert (
+        client.get(
+            f"/jobs/{job.id}/paneles/observaciones/perfil/P999"
+        ).status_code
+        == 404
+    )
+
+
+def test_ruta_png_grupo_no_incluye_filas_de_eventos(client, login, monkeypatch):
+    job = _panel_con_perfil_y_territorio(monkeypatch)
+    login()
+    capturado = {}
+
+    def falso(workspace, eventos, fuente, resumen, cache_key, modo="auto"):
+        capturado.update(
+            {
+                "eventos": eventos,
+                "fuente": fuente,
+                "resumen": resumen,
+                "cache_key": cache_key,
+                "modo": modo,
+            }
+        )
+        return b"\x89PNG\r\n\x1a\n" + b"0" * 32
+
+    monkeypatch.setattr(plots, "generar_mapa_grupo", falso)
+
+    respuesta = client.get(
+        f"/jobs/{job.id}/paneles/observaciones/perfil/P001/mapa.png",
+        query_string={"tipo": "no_publicado", "fuente": "seisan"},
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.mimetype == "image/png"
+    assert capturado["modo"] == "auto"
+    assert capturado["resumen"]["filas"] == []
+    assert "Fuente: Seisan" in capturado["resumen"]["subtitulo"][0]
+    assert "Tipo: No publicados" in capturado["resumen"]["subtitulo"][0]
+    assert "No publicados: 1" in capturado["resumen"]["subtitulo"][1]
+    assert capturado["eventos"][0]["latitud"] == -30.0
+    assert "no_publicado" in capturado["cache_key"]
+
+
+def test_ruta_png_grupo_territorio_fuerza_planta(client, login, monkeypatch):
+    job = _panel_con_perfil_y_territorio(monkeypatch)
+    login()
+    capturado = {}
+
+    def falso(workspace, eventos, fuente, resumen, cache_key, modo="auto"):
+        capturado["modo"] = modo
+        return b"\x89PNG\r\n\x1a\n" + b"0" * 32
+
+    monkeypatch.setattr(plots, "generar_mapa_grupo", falso)
+
+    respuesta = client.get(
+        f"/jobs/{job.id}/paneles/observaciones/territorio/Otros/mapa.png"
+    )
+
+    assert respuesta.status_code == 200
+    assert capturado["modo"] == "planta"

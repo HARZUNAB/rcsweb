@@ -8,6 +8,7 @@ necesitan cartopy.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import math
@@ -21,7 +22,6 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-import matplotlib.font_manager as font_manager  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 from flask import current_app  # noqa: E402
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
@@ -550,94 +550,159 @@ def _frontera_evento(fila: dict, lat: str, lon: str) -> str:
         return "—"
 
 
-def _lineas_evento(
+def _fila_evento(
+    fecha: str,
+    magnitud: str,
+    profundidad: str,
+    latitud: str,
+    longitud: str,
+    analista: str = "",
+    extras: list[str] | None = None,
+) -> str:
+    """Una fila compacta con los parámetros de un evento."""
+    prof = str(profundidad).strip() if profundidad is not None else "—"
+    partes = [
+        fecha or "—",
+        magnitud or "—",
+        f"{prof} km" if prof and prof != "—" else "—",
+        f"{latitud}, {longitud}",
+    ]
+    if analista and analista != "—":
+        partes.append(str(analista))
+    for extra in extras or []:
+        if extra:
+            partes.append(str(extra))
+    return " | ".join(partes)
+
+
+def _analista_repetido(fila: dict) -> str:
+    for clave in ("analista", "analista_seisan", "analista_seiscomp"):
+        valor = str(fila.get(clave) or "").strip()
+        if valor:
+            return valor
+    return "—"
+
+
+def _nota_no_actualizado(fila: dict) -> str | None:
+    partes = []
+    dt = _valor_fila(fila, "dt_seg")
+    if dt != "—":
+        partes.append(f"Δt {dt} s")
+    dlat = _valor_fila(fila, "dlat")
+    dlon = _valor_fila(fila, "dlon")
+    if dlat != "—" or dlon != "—":
+        partes.append(f"Δ {dlat}°, {dlon}°")
+    dist = _valor_fila(fila, "dist_km")
+    if dist != "—":
+        partes.append(f"Dist. {dist} km")
+    estado = _valor_fila(fila, "publicacion_probable")
+    if estado != "—":
+        partes.append(f"Estado: {estado}")
+    revision = _valor_fila(fila, "revision")
+    if revision != "—":
+        partes.append(f"Revisión: {revision}")
+    discrepancias = _valor_fila(fila, "discrepancias")
+    if discrepancias != "—":
+        partes.append(f"Discrepancias: {discrepancias}")
+    frontera = _frontera_evento(fila, "lat_local", "lon_local")
+    if frontera != "—":
+        partes.append(f"Frontera: {frontera}")
+    return " | ".join(partes) or None
+
+
+def _filas_evento(
     tabla: str, filas: list[dict], indice: int, archivo: str
-) -> list[str]:
+) -> tuple[list[str], str | None]:
+    """Una fila por evento para el encabezado del PNG.
+
+    Los no actualizados llevan dos filas (local y publicado) y una nota con la
+    diferencia. Los repetidos llevan una fila por solución del grupo.
+    """
     fila = filas[indice]
+
     if tabla == "no_actualizados":
-        lineas = [
-            f"Local · {_valor_fila(fila, 'fecha_local')} · "
-            f"Mag. {_texto_mag(fila, 'mag_local', 'tipo_mag_local')} · "
-            f"Prof. {_valor_fila(fila, 'prof_local')} km",
-            f"Local · Lat. {_valor_fila(fila, 'lat_local')} · "
-            f"Lon. {_valor_fila(fila, 'lon_local')} · "
-            f"Analista: {_valor_fila(fila, 'analista')}",
-            f"Publicado · {_valor_fila(fila, 'fecha_eventquery')} · "
-            f"Mag. {_texto_mag(fila, 'mag_eventquery', 'tipo_mag_eventquery')} · "
-            f"Prof. {_valor_fila(fila, 'prof_eventquery')} km",
-            f"Publicado · Lat. {_valor_fila(fila, 'lat_eventquery')} · "
-            f"Lon. {_valor_fila(fila, 'lon_eventquery')}",
-        ]
-        deltas = (
-            f"Δt {_valor_fila(fila, 'dt_seg')} s · "
-            f"Δlat {_valor_fila(fila, 'dlat')}° · "
-            f"Δlon {_valor_fila(fila, 'dlon')}° · "
-            f"Dist. {_valor_fila(fila, 'dist_km')} km"
+        local = _fila_evento(
+            _valor_fila(fila, "fecha_local"),
+            _texto_mag(fila, "mag_local", "tipo_mag_local"),
+            _valor_fila(fila, "prof_local"),
+            _valor_fila(fila, "lat_local"),
+            _valor_fila(fila, "lon_local"),
+            _valor_fila(fila, "analista"),
         )
-        if any(valor != "—" for valor in (
-            _valor_fila(fila, "dt_seg"),
-            _valor_fila(fila, "dlat"),
-            _valor_fila(fila, "dlon"),
-            _valor_fila(fila, "dist_km"),
-        )):
-            lineas.append(deltas)
-        estado = (
-            f"Estado: {_valor_fila(fila, 'publicacion_probable')} · "
-            f"Revisión: {_valor_fila(fila, 'revision')} · "
-            f"Discrepancias: {_valor_fila(fila, 'discrepancias')}"
+        publicado = _fila_evento(
+            _valor_fila(fila, "fecha_eventquery"),
+            _texto_mag(fila, "mag_eventquery", "tipo_mag_eventquery"),
+            _valor_fila(fila, "prof_eventquery"),
+            _valor_fila(fila, "lat_eventquery"),
+            _valor_fila(fila, "lon_eventquery"),
         )
-        lineas.append(estado)
-        frontera = _frontera_evento(fila, "lat_local", "lon_local")
-        if frontera != "—":
-            lineas.append(f"Frontera más cercana: {frontera}")
-        return lineas
+        return [f"Local · {local}", f"Publicado · {publicado}"], _nota_no_actualizado(fila)
 
     if tabla == "repetidos":
-        lineas = [
-            f"Solución seleccionada · {_valor_fila(fila, 'fecha_hora')}",
-            f"Mag. {_texto_mag(fila, 'mag', 'tipomag')} · "
-            f"Prof. {_valor_fila(fila, 'prof')} km",
-            f"Lat. {_valor_fila(fila, 'latitud')} · "
-            f"Lon. {_valor_fila(fila, 'longitud')} · "
-            f"Analista: {_valor_fila(fila, 'analista')}",
-            f"Referencia: {_valor_fila(fila, 'referencia')} · "
-            f"Percibido: {_valor_fila(fila, 'percibido')}",
-        ]
         try:
-            total = len(grupo_repetidos(filas, indice, archivo))
+            grupo = grupo_repetidos(filas, indice, archivo)
         except Exception:
-            total = 0
-        if total:
-            lineas.append(f"Grupo: {total} soluciones")
+            grupo = []
+        if not grupo:
+            grupo = [{"fila": fila, "_fila": indice}]
+        grupo.sort(key=lambda item: 0 if item.get("_fila", indice) == indice else 1)
+        filas_evento = []
+        for item in grupo:
+            actual = item.get("fila", fila)
+            seleccionado = item.get("_fila", indice) == indice
+            etiqueta = "Seleccionado" if seleccionado else "Solución"
+            extras = []
+            referencia = _valor_fila(actual, "referencia")
+            if referencia != "—":
+                extras.append(f"Referencia: {referencia}")
+            percibido = _valor_fila(actual, "percibido")
+            if percibido != "—":
+                extras.append(f"Percibido: {percibido}")
+            texto = _fila_evento(
+                _valor_fila(actual, "fecha_hora"),
+                _texto_mag(actual, "mag", "tipomag"),
+                _valor_fila(actual, "prof"),
+                _valor_fila(actual, "latitud"),
+                _valor_fila(actual, "longitud"),
+                _analista_repetido(actual),
+                extras,
+            )
+            filas_evento.append(f"{etiqueta} · {texto}")
+        nota = []
+        if len(grupo) > 1:
+            nota.append(f"Grupo: {len(grupo)} soluciones")
         frontera = _frontera_evento(fila, "latitud", "longitud")
         if frontera != "—":
-            lineas.append(f"Frontera más cercana: {frontera}")
-        return lineas
+            nota.append(f"Frontera: {frontera}")
+        return filas_evento, " | ".join(nota) or None
 
     # No publicados y catálogos de entrada.
-    analista = _valor_fila(fila, "Analista", "Analista probable")
-    lineas = [
-        f"Fecha y hora: {_valor_fila(fila, 'Fecha_Hora')}",
-        f"Magnitud: {_texto_mag(fila, 'Mag.', 'Tipo_mag.')} · "
-        f"Profundidad: {_valor_fila(fila, 'Prof.')} km",
-        f"Latitud: {_valor_fila(fila, 'Latitud')} · "
-        f"Longitud: {_valor_fila(fila, 'Longitud')}",
-        f"Analista: {analista}",
-    ]
+    extras = []
+    publicado = _valor_fila(fila, "Publicado_en")
+    if publicado != "—":
+        extras.append(f"Publicado en: {publicado}")
+    estado = _valor_fila(fila, "Estado")
+    if estado != "—":
+        extras.append(f"Estado: {estado}")
     referencia = _valor_fila(fila, "Referencia")
     if referencia != "—":
-        lineas.append(f"Referencia: {referencia}")
+        extras.append(f"Referencia: {referencia}")
     percibido = _valor_fila(fila, "Percib.", "Percibido")
     if percibido != "—":
-        lineas.append(f"Percibido: {percibido}")
-    publicado = _valor_fila(fila, "Publicado_en")
-    estado = _valor_fila(fila, "Estado")
-    if publicado != "—" or estado != "—":
-        lineas.append(f"Publicado en: {publicado} · Estado: {estado}")
+        extras.append(f"Percibido: {percibido}")
     frontera = _frontera_evento(fila, "Latitud", "Longitud")
     if frontera != "—":
-        lineas.append(f"Frontera más cercana: {frontera}")
-    return lineas
+        extras.append(f"Frontera: {frontera}")
+    texto = _fila_evento(
+        _valor_fila(fila, "Fecha_Hora"),
+        _texto_mag(fila, "Mag.", "Tipo_mag."),
+        _valor_fila(fila, "Prof."),
+        _valor_fila(fila, "Latitud"),
+        _valor_fila(fila, "Longitud"),
+        _valor_fila(fila, "Analista", "Analista probable"),
+        extras,
+    )
+    return [texto], None
 
 
 def resumen_mapa(
@@ -651,9 +716,12 @@ def resumen_mapa(
     """Datos que se dibujan en el encabezado del PNG del evento."""
     if indice < 0 or indice >= len(filas):
         return None
+    filas_evento, nota = _filas_evento(tabla, filas, indice, archivo)
     return {
         "titulo": titulo,
-        "lineas": _lineas_evento(tabla, filas, indice, archivo),
+        "subtitulo": [],
+        "filas": filas_evento,
+        "nota": nota,
         "pie": f"RCS Web · trabajo {job_id}",
     }
 
@@ -675,14 +743,48 @@ def _envolver(texto: str, fuente, ancho: float, dibujo: ImageDraw.ImageDraw):
 
 def _fuente_imagen(nombre: str, tamano: int):
     try:
-        ruta = Path(font_manager.get_data_path()) / "fonts" / "ttf" / nombre
+        ruta = Path(matplotlib.get_data_path()) / "fonts" / "ttf" / nombre
         return ImageFont.truetype(str(ruta), tamano)
     except Exception:
         return ImageFont.load_default()
 
 
+def _lista_texto(valor) -> list[str]:
+    if not valor:
+        return []
+    if isinstance(valor, (list, tuple)):
+        return [str(item) for item in valor if str(item).strip()]
+    return [str(valor)]
+
+
+def _ajustar_fuente(filas: list[str], disponible: float, dibujo: ImageDraw.ImageDraw):
+    """Fuente común para las filas: 22 px, reduciendo hasta 16 si no caben."""
+    for tamano in range(22, 15, -1):
+        fuente = _fuente_imagen("DejaVuSans.ttf", tamano)
+        if all(dibujo.textlength(fila, font=fuente) <= disponible for fila in filas):
+            return fuente, tamano
+    return _fuente_imagen("DejaVuSans.ttf", 16), 16
+
+
+def _recortar(
+    texto: str, fuente, ancho: float, dibujo: ImageDraw.ImageDraw
+) -> str:
+    """Recorta con puntos suspensivos si una fila excede el ancho."""
+    if dibujo.textlength(texto, font=fuente) <= ancho:
+        return texto
+    puntos = "…"
+    bajo, alto = 0, len(texto)
+    while bajo < alto:
+        medio = (bajo + alto + 1) // 2
+        if dibujo.textlength(texto[:medio] + puntos, font=fuente) <= ancho:
+            bajo = medio
+        else:
+            alto = medio - 1
+    return texto[:bajo].rstrip() + puntos
+
+
 def _componer_resumen(png: bytes, resumen: dict | None) -> bytes:
-    """Agrega el encabezado con los datos del evento al PNG del core."""
+    """Agrega el encabezado con los datos del evento o del grupo al PNG."""
     if not resumen:
         return png
     try:
@@ -694,27 +796,48 @@ def _componer_resumen(png: bytes, resumen: dict | None) -> bytes:
     margen = 30
     disponible = ancho - 2 * margen
     fuente_titulo = _fuente_imagen("DejaVuSans-Bold.ttf", 30)
-    fuente_texto = _fuente_imagen("DejaVuSans.ttf", 18)
+    fuente_subtitulo = _fuente_imagen("DejaVuSans.ttf", 18)
+    fuente_nota = _fuente_imagen("DejaVuSans.ttf", 16)
     fuente_pie = _fuente_imagen("DejaVuSans.ttf", 13)
     dibujo = ImageDraw.Draw(original)
+
     titulo = _envolver(resumen.get("titulo", ""), fuente_titulo, disponible, dibujo)
-    lineas = []
-    for linea in resumen.get("lineas", []):
-        lineas.extend(_envolver(linea, fuente_texto, disponible, dibujo))
+    subtitulo = []
+    for linea in _lista_texto(resumen.get("subtitulo")):
+        subtitulo.extend(
+            _envolver(linea, fuente_subtitulo, disponible, dibujo)
+        )
+    filas = [str(fila) for fila in resumen.get("filas", []) if str(fila).strip()]
+    fuente_filas, tamano_filas = _ajustar_fuente(filas, disponible, dibujo)
+    filas = [
+        _recortar(fila, fuente_filas, disponible, dibujo) for fila in filas
+    ]
+    nota = []
+    if resumen.get("nota"):
+        nota = _envolver(
+            resumen["nota"], fuente_nota, disponible, dibujo
+        )
     pie = resumen.get("pie", "")
 
     alto_titulo = 37
-    alto_texto = 26
+    alto_subtitulo = 26
+    alto_fila = tamano_filas + 9
+    alto_nota = 22
     alto_pie = 20
-    encabezado = (
-        margen
-        + alto_titulo * len(titulo)
-        + 10
-        + alto_texto * len(lineas)
-        + 12
-        + alto_pie
-        + margen
-    )
+    encabezado = margen
+    encabezado += alto_titulo * len(titulo)
+    encabezado += 4 + 12
+    encabezado += alto_subtitulo * len(subtitulo)
+    if subtitulo:
+        encabezado += 8
+    encabezado += alto_fila * len(filas)
+    if filas:
+        encabezado += 6
+    encabezado += alto_nota * len(nota)
+    if nota:
+        encabezado += 6
+    encabezado += alto_pie + margen
+
     nueva = Image.new("RGB", (ancho, encabezado + alto), "#f4f7fb")
     nueva.paste(original, (0, encabezado))
     dibujo = ImageDraw.Draw(nueva)
@@ -723,13 +846,24 @@ def _componer_resumen(png: bytes, resumen: dict | None) -> bytes:
     for linea in titulo:
         dibujo.text((margen, y), linea, font=fuente_titulo, fill="#1f3a5f")
         y += alto_titulo
-    y += 6
+    y += 4
     dibujo.line((margen, y, ancho - margen, y), fill="#dbe4ee", width=2)
     y += 12
-    for linea in lineas:
-        dibujo.text((margen, y), linea, font=fuente_texto, fill="#1f2933")
-        y += alto_texto
-    y += 8
+    for linea in subtitulo:
+        dibujo.text((margen, y), linea, font=fuente_subtitulo, fill="#34495e")
+        y += alto_subtitulo
+    if subtitulo:
+        y += 8
+    for linea in filas:
+        dibujo.text((margen, y), linea, font=fuente_filas, fill="#1f2933")
+        y += alto_fila
+    if filas:
+        y += 6
+    for linea in nota:
+        dibujo.text((margen, y), linea, font=fuente_nota, fill="#52606d")
+        y += alto_nota
+    if nota:
+        y += 6
     if pie:
         dibujo.text((margen, y), pie, font=fuente_pie, fill="#7b8794")
 
@@ -738,19 +872,15 @@ def _componer_resumen(png: bytes, resumen: dict | None) -> bytes:
     return buffer.getvalue()
 
 
-def generar_mapa(
+def _renderizar_core(
     workspace: Path,
-    tabla: str,
-    opcion: str,
-    archivo: str,
-    filas: list[dict],
-    indice: int,
-    resumen: dict | None = None,
+    destino: Path,
+    eventos: list[dict],
+    fuente: str,
+    resumen: dict | None,
+    modo: str = "auto",
 ) -> bytes:
-    """Mapa completo (planta + perfil) con resumen del evento en el PNG."""
-    destino = _ruta_cache(
-        workspace, "mapas", tabla, archivo, indice, sufijo="_resumen"
-    )
+    """Ejecuta el renderizador del core y compone el encabezado."""
     if destino.is_file():
         return destino.read_bytes()
 
@@ -759,12 +889,11 @@ def generar_mapa(
             return destino.read_bytes()
 
         try:
-            eventos = _eventos(tabla, archivo, filas, indice)
-            if not eventos:
-                raise ValueError("el evento no tiene coordenadas")
             core = _preparar_core()
             if not core.is_dir():
                 raise ValueError("el core del proyecto no está montado")
+            if not eventos:
+                raise ValueError("el grupo no tiene eventos con coordenadas")
 
             cli = Path(__file__).with_name("plot_cli.py")
             entorno = os.environ.copy()
@@ -778,7 +907,11 @@ def generar_mapa(
             proceso = subprocess.run(
                 [sys.executable, str(cli), str(temporal)],
                 input=json.dumps(
-                    {"eventos": eventos, "fuente": _fuente(tabla, opcion)},
+                    {
+                        "eventos": eventos,
+                        "fuente": fuente,
+                        "modo": modo,
+                    },
                     ensure_ascii=False,
                 ),
                 cwd=str(workspace),
@@ -807,4 +940,52 @@ def generar_mapa(
                 resumen,
             )
 
-    return destino.read_bytes()
+
+def generar_mapa(
+    workspace: Path,
+    tabla: str,
+    opcion: str,
+    archivo: str,
+    filas: list[dict],
+    indice: int,
+    resumen: dict | None = None,
+) -> bytes:
+    """Mapa completo (planta + perfil) con resumen del evento en el PNG."""
+    destino = _ruta_cache(
+        workspace, "mapas", tabla, archivo, indice, sufijo="_resumen"
+    )
+    eventos = _eventos(tabla, archivo, filas, indice)
+    return _renderizar_core(
+        workspace,
+        destino,
+        eventos,
+        _fuente(tabla, opcion),
+        resumen,
+    )
+
+
+def generar_mapa_grupo(
+    workspace: Path,
+    eventos: list[dict],
+    fuente: str,
+    resumen: dict | None,
+    cache_key: str,
+    modo: str = "auto",
+) -> bytes:
+    """Mapa de un grupo de Paneles, sin listado de eventos en el PNG.
+
+    ``modo='auto'`` deja que el core elija planta + perfil; ``modo='planta'``
+    fuerza solo la vista en planta (territorios sin perfil).
+    """
+    base = workspace / "plots" / "paneles"
+    base.mkdir(parents=True, exist_ok=True)
+    huella = hashlib.sha1(cache_key.encode("utf-8")).hexdigest()[:20]
+    destino = base / f"{huella}.png"
+    return _renderizar_core(
+        workspace,
+        destino,
+        eventos,
+        fuente,
+        resumen,
+        modo=modo,
+    )

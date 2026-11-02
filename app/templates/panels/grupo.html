@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}{{ detalle.titulo }} · Paneles{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="text-secondary small text-uppercase mb-1">
+      <a class="text-reset text-decoration-none"
+         href="{{ url_for('jobs.detalle', job_id=job.id) }}">Trabajo {{ job.id[:8] }}</a>
+      · <a class="text-reset text-decoration-none" href="{{ volver }}">Paneles</a>
+      · {{ dataset_titulo }}
+    </div>
+    <h1 class="h3 mb-1">{{ detalle.titulo }}</h1>
+    <div class="d-flex flex-wrap align-items-center gap-2 text-secondary small">
+      <span>{{ datos.total }} evento{{ '' if datos.total == 1 else 's' }}</span>
+      {% if mostrar_filtros %}
+      <span class="badge text-bg-light text-dark">Fuente: {{ fuente_titulo }}</span>
+      <span class="badge text-bg-light text-dark">Tipo: {{ tipo_titulo }}</span>
+      {% endif %}
+      {% if datos.sospechosos %}
+      <span class="badge text-bg-warning text-dark">
+        {{ datos.sospechosos }} sospechoso{{ '' if datos.sospechosos == 1 else 's' }}
+      </span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ volver }}">Volver a Paneles</a>
+    <a class="btn btn-outline-primary" href="{{ url_mapa }}"
+       target="_blank" rel="noopener">Abrir PNG</a>
+    <a class="btn btn-outline-secondary" href="{{ url_mapa }}"
+       download="panel_{{ detalle.tipo }}_{{ detalle.id }}.png">Descargar PNG</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Eventos</div>
+        <div class="fs-3 fw-semibold">{{ datos.total }}</div>
+      </div>
+    </div>
+  </div>
+  {% if mostrar_filtros %}
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">No publicados</div>
+        <div class="fs-3 fw-semibold">{{ detalle.resumen.no_publicados }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">No actualizados</div>
+        <div class="fs-3 fw-semibold">{{ detalle.resumen.no_actualizados }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Repetidos</div>
+        <div class="fs-3 fw-semibold">{{ detalle.resumen.repetidos }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  <div class="col-12 {% if detalle.tipo == 'perfil' %}col-xl-6{% endif %}">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <h2 class="h6 text-uppercase text-secondary mb-0" id="panel-mapa-titulo">
+            Planta del grupo
+          </h2>
+          <div class="d-flex align-items-center gap-2">
+            <div class="small text-secondary" id="panel-mapa-detalle"></div>
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    id="panel-centrar-mapa"
+                    title="Volver al encuadre del grupo">
+              Centrar
+            </button>
+          </div>
+        </div>
+        <div id="panel-mapa" class="rounded border" style="height: 520px;"
+             data-url-regiones="{{ url_for('static', filename='data/chile_regiones.json') }}"></div>
+        <div class="small text-secondary mt-2">
+          Haga clic en un evento para ver su ficha. El PNG del grupo no incluye
+          el listado de eventos.
+        </div>
+        <div class="d-flex flex-wrap gap-3 small text-secondary mt-2">
+          <span>
+            <span class="d-inline-block rounded-circle me-1"
+                  style="width: 10px; height: 10px; background: #ffff00; border: 1px solid #000;"></span>
+            Sismo no percibido / registrado
+          </span>
+          <span>
+            <span class="d-inline-block rounded-circle me-1"
+                  style="width: 10px; height: 10px; background: #c00000; border: 1px solid #000;"></span>
+            Sismo percibido
+          </span>
+          <span>
+            <span class="d-inline-block rounded-circle me-1"
+                  style="width: 10px; height: 10px; background: #bfbfbf; border: 3px solid #7b1196;"></span>
+            Sospechoso (borde violeta)
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if detalle.tipo == 'perfil' %}
+  <div class="col-12 col-xl-6" id="panel-perfil-col">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <h2 class="h6 text-uppercase text-secondary mb-0" id="panel-perfil-titulo">
+            Perfil
+          </h2>
+          <div class="small text-secondary">
+            <span id="panel-perfil-detalle"></span>
+            <span class="panel-perfil-subtitulo">Topografía, slab y eventos</span>
+          </div>
+        </div>
+        <div class="position-relative">
+          <div id="panel-perfil" class="rounded border" style="height: 520px;"
+               data-url-historico="{{ url_for('panels.historico', job_id=job.id, perfil_id='__PERFIL__') }}"></div>
+          <div id="panel-perfil-vacio" class="perfil-vacio d-none">
+            <div>
+              <div class="fw-semibold">Perfil no disponible</div>
+              <div class="small text-secondary">
+                Este grupo no tiene perfil de subducción asignado.
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+          <div class="small text-secondary">
+            Haga clic en un evento del perfil o de la planta para ver su viñeta.
+          </div>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   id="panel-historico" disabled>
+            <label class="form-check-label small" for="panel-historico">
+              Sismicidad histórica (perfil)
+            </label>
+          </div>
+        </div>
+        <div class="small text-secondary mt-1 d-none" id="panel-historico-estado">
+          <span class="d-inline-block rounded-circle me-1"
+                style="width: 8px; height: 8px; background: #8c8c8c; opacity: 0.45;"></span>
+          <span id="panel-historico-texto"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card border-0 shadow-sm mt-3" id="panel-listado"
+     data-scroll="0" data-job-id="{{ job.id }}" tabindex="-1">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <div>
+        <h2 class="h6 text-uppercase text-secondary mb-0" id="panel-grupo-titulo">
+          Listado de eventos
+        </h2>
+        <div class="small text-secondary" id="panel-grupo-detalle">
+          {{ detalle.titulo }}
+        </div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="badge text-bg-light text-dark" id="panel-grupo-total"></span>
+        <span class="badge text-bg-light text-dark" id="panel-seleccionados-count">
+          0 seleccionados
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                id="panel-descargar-todo">Descargar CSV</button>
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                id="panel-descargar-seleccionados" disabled>
+          Descargar seleccionados
+        </button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="text-center col-seleccion">
+              <input class="form-check-input" type="checkbox"
+                     id="panel-seleccionar-todos"
+                     aria-label="Seleccionar todos los eventos de la página">
+            </th>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Fuente</th>
+            <th class="text-end">Mag.</th>
+            <th class="text-end">Prof. (km)</th>
+            <th>Revisión</th>
+            <th class="text-end">Sospechoso</th>
+            <th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody id="panel-eventos">
+          <tr>
+            <td colspan="9" class="text-center text-secondary py-3">
+              Cargando eventos…
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="small text-secondary mt-2 d-none" id="panel-eventos-aviso"></div>
+  </div>
+</div>
+
+<script type="application/json" id="panel-datos">{{ datos|tojson }}</script>
+<script type="application/json" id="panel-perfiles-grafico">{{ perfiles_grafico|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/plotly/plotly.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vineta.js') }}"></script>
+<script src="{{ url_for('static', filename='js/paneles.js') }}"></script>
+{% endblock %}
