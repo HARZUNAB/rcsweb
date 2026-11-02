@@ -9,11 +9,25 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from .registry import FORMATOS
+
 RUTA_POR_DEFECTO = Path(__file__).with_name("sources.json")
+ID_VALIDO = re.compile(r"^[a-zA-Z0-9_-]+$")
+HANDLERS_DESCARGA = {"eventquery", "seisan", "seiscomp"}
+DISPONIBILIDADES = {"", "seiscomp"}
+
+
+class ManifestError(ValueError):
+    """Configuración de fuentes inválida."""
+
+    def __init__(self, errores: list[str]):
+        self.errores = list(errores)
+        super().__init__("; ".join(self.errores))
 
 
 @dataclass(frozen=True)
@@ -72,9 +86,14 @@ def _leer(ruta: str, _mtime: int) -> tuple[Fuente, ...]:
             format=str(item.get("format") or item["id"]).strip(),
             description=str(item.get("description") or "").strip(),
             accept=tuple(
-                str(extension).strip()
-                for extension in item.get("accept", [])
-                if str(extension).strip()
+                extension
+                if extension.startswith(".")
+                else "." + extension
+                for extension in (
+                    str(valor).strip()
+                    for valor in item.get("accept", [])
+                )
+                if extension and extension != "."
             ),
             validator=str(item.get("validator") or item.get("format") or item["id"]).strip(),
             download_handler=str(item.get("download_handler") or "").strip(),
@@ -92,16 +111,92 @@ def _leer(ruta: str, _mtime: int) -> tuple[Fuente, ...]:
             raise ValueError(f"Rol inválido para {fuente.id}: {fuente.role!r}")
         vistos.add(fuente.id)
         fuentes.append(fuente)
-    referencias = [fuente for fuente in fuentes if fuente.es_referencia]
-    if len(referencias) != 1:
-        raise ValueError("El manifiesto debe tener exactamente una fuente de referencia.")
-    if not any(fuente.es_local for fuente in fuentes):
-        raise ValueError("El manifiesto debe incluir al menos una fuente local.")
     return tuple(fuentes)
 
 
 def fuente_role(item: dict) -> str:
     return str(item.get("role") or "local")
+
+
+def validar() -> tuple[Fuente, ...]:
+    """Valida el manifiesto y devuelve sus fuentes.
+
+    Se usa al arrancar la app y desde ``flask sources validate``. Un manifiesto
+    inválido se rechaza completo para no dejar la aplicación en un estado
+    ambiguo.
+    """
+    try:
+        fuentes = cargar()
+    except (OSError, ValueError) as exc:
+        raise ManifestError([str(exc)]) from exc
+
+    errores: list[str] = []
+    if not fuentes:
+        errores.append("El manifiesto no declara ninguna fuente.")
+    referencias = [fuente for fuente in fuentes if fuente.es_referencia]
+    if len(referencias) != 1:
+        errores.append(
+            "El manifiesto debe tener exactamente una fuente con role=reference."
+        )
+    if not any(fuente.es_local for fuente in fuentes):
+        errores.append("El manifiesto debe incluir al menos una fuente local.")
+    if sum(1 for fuente in fuentes if fuente.default_primary) > 1:
+        errores.append("Solo una fuente puede tener default_primary=true.")
+
+    from ...services import validators as modulo_validadores
+
+    for fuente in fuentes:
+        etiqueta = fuente.id or "(sin id)"
+        if not fuente.id:
+            errores.append("Hay una fuente sin id.")
+        elif not ID_VALIDO.match(fuente.id):
+            errores.append(
+                f"El id {fuente.id!r} solo puede usar letras, números, guion y guion bajo."
+            )
+        if not fuente.label:
+            errores.append(f"La fuente {etiqueta} no tiene label.")
+        if fuente.format not in FORMATOS:
+            errores.append(
+                f"La fuente {etiqueta} usa un formato desconocido: {fuente.format!r}."
+            )
+        if not hasattr(modulo_validadores, f"validar_{fuente.validator}"):
+            errores.append(
+                f"La fuente {etiqueta} usa un validador desconocido: "
+                f"{fuente.validator!r}."
+            )
+        if fuente.download_handler and fuente.download_handler not in HANDLERS_DESCARGA:
+            errores.append(
+                f"La fuente {etiqueta} usa un handler de descarga desconocido: "
+                f"{fuente.download_handler!r}."
+            )
+        if fuente.es_referencia and not fuente.download_handler:
+            errores.append(
+                f"La fuente de referencia {etiqueta} no tiene download_handler."
+            )
+        if fuente.availability not in DISPONIBILIDADES:
+            errores.append(
+                f"La fuente {etiqueta} usa una disponibilidad desconocida: "
+                f"{fuente.availability!r}."
+            )
+        if fuente.es_referencia and fuente.default_primary:
+            errores.append(
+                f"La fuente de referencia {etiqueta} no puede ser default_primary."
+            )
+        if fuente.es_referencia and fuente.visible_in_observaciones:
+            errores.append(
+                f"La fuente de referencia {etiqueta} no puede aparecer en Observaciones."
+            )
+        if fuente.stored_filename and (
+            "/" in fuente.stored_filename or "\\" in fuente.stored_filename
+        ):
+            errores.append(
+                f"La fuente {etiqueta} tiene un stored_filename con ruta: "
+                f"{fuente.stored_filename!r}."
+            )
+
+    if errores:
+        raise ManifestError(errores)
+    return fuentes
 
 
 def cargar() -> tuple[Fuente, ...]:
@@ -161,6 +256,7 @@ def aceptar(identificador: str) -> set[str]:
 
 __all__ = [
     "Fuente",
+    "ManifestError",
     "aceptar",
     "cargar",
     "default_primary",
@@ -172,4 +268,5 @@ __all__ = [
     "opciones_locales",
     "por_id",
     "referencia",
+    "validar",
 ]

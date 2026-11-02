@@ -8,6 +8,8 @@ import click
 from flask import Flask
 from flask.cli import with_appcontext
 
+from .domain.catalogs.manifest import ManifestError
+from .domain.catalogs.manifest import validar as validar_manifiesto
 from .extensions import db
 from .models import Job, User
 from .security import ETIQUETAS_ROL, ROLES_VALIDOS
@@ -31,6 +33,7 @@ def register_cli(app: Flask) -> None:
     app.cli.add_command(reset_password)
     app.cli.add_command(list_users)
     app.cli.add_command(delete_job)
+    app.cli.add_command(sources)
 
 
 def _crear_admin() -> None:
@@ -47,6 +50,26 @@ def _crear_admin() -> None:
         click.echo(f"Usuario '{username}' creado.")
     else:
         click.echo(f"Usuario '{username}' ya existe.")
+
+
+@click.group("sources")
+def sources() -> None:
+    """Validación y consulta del manifiesto de fuentes."""
+
+
+@sources.command("validate")
+@with_appcontext
+def sources_validate() -> None:
+    """Valida el manifiesto de fuentes antes de arrancar la app."""
+    try:
+        fuentes = validar_manifiesto()
+    except ManifestError as exc:
+        for error in exc.errores:
+            click.echo(f"ERROR: {error}", err=True)
+        raise click.ClickException("Manifiesto de fuentes inválido.") from exc
+    click.echo(f"Manifiesto válido: {len(fuentes)} fuentes.")
+    for fuente in fuentes:
+        click.echo(f"  {fuente.id}\t{fuente.label}\t{fuente.role}")
 
 
 @click.command("init-db")

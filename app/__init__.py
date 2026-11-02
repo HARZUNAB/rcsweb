@@ -6,6 +6,8 @@ from flask import Flask, flash, redirect, render_template, request, url_for
 from flask_login import current_user, logout_user
 
 from .config import Config
+from .domain.catalogs.manifest import ManifestError
+from .domain.catalogs.manifest import validar as validar_manifiesto
 from .extensions import csrf, db, login_manager, migrate
 from .security import etiqueta_rol, tiene_permiso
 
@@ -13,6 +15,12 @@ from .security import etiqueta_rol, tiene_permiso
 def create_app(config_object: type | None = None) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config_object or Config)
+
+    try:
+        validar_manifiesto()
+    except ManifestError as exc:
+        app.logger.error("Manifiesto de fuentes inválido: %s", exc)
+        raise
 
     db.init_app(app)
     migrate.init_app(app, db)

@@ -517,6 +517,17 @@ manifiesto. Los adaptadores del pipeline siguen indexados por `format`: una
 fuente nueva con un formato existente funciona sin tocar la app; un formato
 nuevo requiere su adaptador o preparación externa.
 
+El manifiesto se valida al arrancar. Debe tener exactamente una fuente con
+`role=reference`, al menos una fuente local, IDs únicos y seguros, formatos,
+validadores y handlers conocidos. Para comprobarlo manualmente:
+
+```bash
+flask --app app sources validate
+```
+
+El comando muestra cada fuente y termina con error si el manifiesto no es
+válido.
+
 #### Nombres visibles de catálogos
 
 El nombre visible es un metadato de presentación; no es la identidad técnica:

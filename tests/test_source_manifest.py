@@ -217,3 +217,130 @@ def test_solicitud_con_fuente_nueva(client, login, tmp_path, monkeypatch):
     archivos = {archivo.kind: archivo for archivo in solicitud.files}
     assert set(archivos) == {"ref_x", "local_a"}
     assert archivos["local_a"].display_name == "Local A octubre"
+
+
+def _manifiesto_extra(tmp_path, monkeypatch, sources):
+    ruta = tmp_path / "sources_extra.json"
+    ruta.write_text(json.dumps({"version": 1, "sources": sources}), encoding="utf-8")
+    monkeypatch.setenv("CATALOG_SOURCES_MANIFEST", str(ruta))
+    return ruta
+
+
+def test_validar_rechaza_dos_referencias(tmp_path, monkeypatch):
+    _manifiesto_extra(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "id": "ref_a",
+                "label": "Ref A",
+                "role": "reference",
+                "format": "eventquery",
+                "validator": "eventquery",
+                "download_handler": "eventquery",
+            },
+            {
+                "id": "ref_b",
+                "label": "Ref B",
+                "role": "reference",
+                "format": "eventquery",
+                "validator": "eventquery",
+                "download_handler": "eventquery",
+            },
+            {
+                "id": "local_a",
+                "label": "Local A",
+                "role": "local",
+                "format": "seiscomp",
+                "validator": "seiscomp",
+            },
+        ],
+    )
+
+    import pytest
+
+    with pytest.raises(manifest.ManifestError) as exc:
+        manifest.validar()
+    assert "exactamente una" in str(exc.value)
+
+
+def test_validar_rechaza_formato_desconocido(tmp_path, monkeypatch):
+    _manifiesto_extra(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "id": "ref_x",
+                "label": "Ref X",
+                "role": "reference",
+                "format": "eventquery",
+                "validator": "eventquery",
+                "download_handler": "eventquery",
+            },
+            {
+                "id": "local_x",
+                "label": "Local X",
+                "role": "local",
+                "format": "formato_inexistente",
+                "validator": "seiscomp",
+            },
+        ],
+    )
+
+    import pytest
+
+    with pytest.raises(manifest.ManifestError) as exc:
+        manifest.validar()
+    assert "formato desconocido" in str(exc.value)
+
+
+def test_cli_sources_validate_ok(app):
+    resultado = app.test_cli_runner().invoke(args=["sources", "validate"])
+
+    assert resultado.exit_code == 0
+    assert "Manifiesto válido" in resultado.output
+
+
+def test_cli_sources_validate_invalido(app, tmp_path, monkeypatch):
+    _manifiesto_extra(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "id": "only_local",
+                "label": "Solo local",
+                "role": "local",
+                "format": "seiscomp",
+                "validator": "seiscomp",
+            }
+        ],
+    )
+
+    resultado = app.test_cli_runner().invoke(args=["sources", "validate"])
+
+    assert resultado.exit_code == 1
+    assert "ERROR" in resultado.output
+
+
+def test_create_app_rechaza_manifiesto_invalido(tmp_path, monkeypatch):
+    _manifiesto_extra(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "id": "only_local",
+                "label": "Solo local",
+                "role": "local",
+                "format": "seiscomp",
+                "validator": "seiscomp",
+            }
+        ],
+    )
+
+    import pytest
+
+    from app import create_app
+    from app.config import TestConfig
+
+    with pytest.raises(manifest.ManifestError):
+        create_app(TestConfig)
