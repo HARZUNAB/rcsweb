@@ -38,10 +38,13 @@
       {% if job.status in ('queued', 'running', 'cancelling') %}
       <div class="d-flex justify-content-end mt-3">
         {% if job.status in ('queued', 'running') %}
-        <form method="post" action="{{ url_for('jobs.cancelar', job_id=job.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar trabajo</button>
-        </form>
+          {% if puede('trabajos.cancelar')
+                and (puede('trabajos.todos') or job.created_by_id == current_user.id) %}
+          <form method="post" action="{{ url_for('jobs.cancelar', job_id=job.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar trabajo</button>
+          </form>
+          {% endif %}
         {% else %}
         <span class="text-secondary small">Cancelando…</span>
         {% endif %}

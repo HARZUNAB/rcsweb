@@ -17,6 +17,7 @@ from flask_login import login_required
 
 from ..extensions import db
 from ..models import Job
+from ..security import permiso_requerido
 from ..services import colores
 from ..services.audit import registrar
 from ..services.borders import mapa_fila, texto_frontera_coords
@@ -287,6 +288,7 @@ def titulo_columna(clave: str) -> str:
 
 @results_bp.get("/jobs/<job_id>/resultados")
 @login_required
+@permiso_requerido("catalogos.ver")
 def overview(job_id: str):
     job = _job(job_id)
     return redirect(url_for("jobs.detalle", job_id=job.id) + "#resultados")
@@ -507,30 +509,35 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
 
 @results_bp.get("/jobs/<job_id>/resultados/no-publicados")
 @login_required
+@permiso_requerido("catalogos.ver")
 def no_publicados(job_id: str):
     return _render_tabla(job_id, "no_publicados", request.args.get("fuente", "seiscomp"))
 
 
 @results_bp.get("/jobs/<job_id>/resultados/no-actualizados")
 @login_required
+@permiso_requerido("catalogos.ver")
 def no_actualizados(job_id: str):
     return _render_tabla(job_id, "no_actualizados", request.args.get("fuente", "seiscomp"))
 
 
 @results_bp.get("/jobs/<job_id>/resultados/repetidos")
 @login_required
+@permiso_requerido("catalogos.ver")
 def repetidos(job_id: str):
     return _render_tabla(job_id, "repetidos", request.args.get("clave", "publica_amplio"))
 
 
 @results_bp.get("/jobs/<job_id>/catalogos")
 @login_required
+@permiso_requerido("catalogos.ver")
 def catalogos(job_id: str):
     return _render_tabla(job_id, "catalogos", request.args.get("catalogo") or "")
 
 
 @results_bp.get("/jobs/<job_id>/resultados/<tabla>/exportar")
 @login_required
+@permiso_requerido("resultados.exportar")
 def exportar(job_id: str, tabla: str):
     job = _job(job_id)
     config, _opciones, opcion = _opcion_valida(tabla, job)
@@ -577,6 +584,7 @@ def exportar(job_id: str, tabla: str):
     "/jobs/<job_id>/resultados/<tabla>/exportar-seleccionados"
 )
 @login_required
+@permiso_requerido("resultados.exportar")
 def exportar_seleccionados(job_id: str, tabla: str):
     """Descarga solo las filas marcadas, aunque estén ocultas por el filtro."""
     job = _job(job_id)
@@ -622,6 +630,7 @@ def exportar_seleccionados(job_id: str, tabla: str):
 
 @results_bp.get("/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>/miniatura.png")
 @login_required
+@permiso_requerido("catalogos.ver")
 def miniatura(job_id: str, tabla: str, opcion: str, fila: int):
     job = _job(job_id)
     if tabla not in TABLAS:
@@ -643,6 +652,7 @@ def miniatura(job_id: str, tabla: str, opcion: str, fila: int):
 
 @results_bp.get("/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>/mapa.png")
 @login_required
+@permiso_requerido("resultados.exportar")
 def mapa(job_id: str, tabla: str, opcion: str, fila: int):
     job = _job(job_id)
     if tabla not in TABLAS:
@@ -664,6 +674,7 @@ def mapa(job_id: str, tabla: str, opcion: str, fila: int):
 
 @results_bp.get("/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>")
 @login_required
+@permiso_requerido("catalogos.ver")
 def detalle(job_id: str, tabla: str, opcion: str, fila: int):
     job = _job(job_id)
     if tabla not in TABLAS:

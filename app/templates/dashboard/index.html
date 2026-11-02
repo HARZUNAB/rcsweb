@@ -9,12 +9,16 @@
     <p class="text-secondary mb-0">Catálogos procesados y en curso.</p>
   </div>
   <div class="d-flex flex-wrap gap-2">
+    {% if puede('solicitudes.crear') %}
     <a class="btn btn-primary" href="{{ url_for('solicitudes.nueva') }}">
       Solicitar catálogos
     </a>
+    {% endif %}
+    {% if puede('trabajos.crear') %}
     <a class="btn btn-outline-secondary" href="{{ url_for('jobs.nuevo') }}">
       Subir catálogos
     </a>
+    {% endif %}
   </div>
 </div>
 
@@ -86,8 +90,9 @@
             <div class="d-flex justify-content-end gap-1">
               <a class="btn btn-sm btn-outline-primary"
                  href="{{ url_for('jobs.detalle', job_id=job.id) }}">Ver</a>
-              {% if job.status in ('draft', 'done', 'failed', 'cancelled')
-                    and (current_user.role == 'admin' or job.created_by_id == current_user.id) %}
+              {% if puede('trabajos.eliminar')
+                    and job.status in ('draft', 'done', 'failed', 'cancelled')
+                    and (puede('trabajos.todos') or job.created_by_id == current_user.id) %}
                 <button type="button" class="btn btn-sm btn-outline-danger"
                         data-bs-toggle="modal" data-bs-target="#modalEliminar"
                         data-job-url="{{ url_for('jobs.eliminar', job_id=job.id) }}"
@@ -103,12 +108,16 @@
           <td colspan="5" class="text-center py-5">
             <div class="text-secondary mb-2">Todavía no hay trabajos.</div>
             <div class="d-flex justify-content-center gap-2">
+              {% if puede('solicitudes.crear') %}
               <a class="btn btn-sm btn-primary" href="{{ url_for('solicitudes.nueva') }}">
                 Solicitar catálogos
               </a>
+              {% endif %}
+              {% if puede('trabajos.crear') %}
               <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('jobs.nuevo') }}">
                 Subir catálogos
               </a>
+              {% endif %}
             </div>
           </td>
         </tr>
@@ -118,5 +127,7 @@
   </div>
 </div>
 
+{% if puede('trabajos.eliminar') %}
 {% include "jobs/_modal_eliminar.html" %}
+{% endif %}
 {% endblock %}

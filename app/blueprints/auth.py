@@ -58,6 +58,12 @@ def login():
     return render_template("auth/login.html", form=form)
 
 
+@auth_bp.get("/recuperar")
+def recuperar():
+    """Instrucciones para restablecer el acceso (sin correo configurado)."""
+    return render_template("auth/recuperar.html")
+
+
 @auth_bp.post("/logout")
 @login_required
 def logout():

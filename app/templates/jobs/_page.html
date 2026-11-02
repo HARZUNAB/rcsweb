@@ -29,13 +29,13 @@
       {{ badge_estado(job.status) }}
       {% if job.status == 'done' %}
         <a class="btn btn-sm btn-outline-primary" href="#resultados">Resultados</a>
-        {% if paneles %}
+        {% if paneles and puede('paneles.ver') %}
         <a class="btn btn-sm btn-outline-primary"
            href="{{ url_for('panels.index', job_id=job.id, dataset=paneles[0].clave) }}">
           Paneles
         </a>
         {% endif %}
-        {% if indice.catalogos %}
+        {% if indice.catalogos and puede('catalogos.ver') %}
         <div class="dropdown">
           <button class="btn btn-sm btn-outline-primary dropdown-toggle"
                   type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -54,11 +54,14 @@
           </ul>
         </div>
         {% endif %}
+        {% if puede('trabajos.descargar') %}
         <a class="btn btn-sm btn-outline-secondary"
            href="{{ url_for('jobs.descargas', job_id=job.id) }}">Descargas</a>
+        {% endif %}
       {% endif %}
-      {% if job.status in ('draft', 'done', 'failed', 'cancelled')
-            and (current_user.role == 'admin' or job.created_by_id == current_user.id) %}
+      {% if puede('trabajos.eliminar')
+            and job.status in ('draft', 'done', 'failed', 'cancelled')
+            and (puede('trabajos.todos') or job.created_by_id == current_user.id) %}
         <button type="button" class="btn btn-sm btn-outline-danger"
                 data-bs-toggle="modal" data-bs-target="#modalEliminar"
                 data-job-url="{{ url_for('jobs.eliminar', job_id=job.id) }}"

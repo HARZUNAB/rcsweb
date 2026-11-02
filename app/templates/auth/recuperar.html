@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Recuperar acceso{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-sm-10 col-md-8 col-lg-6">
+    <div class="card shadow-sm border-0 mt-4">
+      <div class="card-body p-4">
+        <h1 class="h4 mb-3">Recuperar acceso</h1>
+        <p class="text-secondary">
+          Por seguridad, las contraseñas no se pueden recuperar: solo
+          restablecer.
+        </p>
+        <p class="mb-2">
+          Si su cuenta es de uso interno, solicite al administrador que le
+          restablezca la contraseña desde
+          <strong>Usuarios</strong>.
+        </p>
+        <p class="mb-2">
+          Si usted es el administrador, ejecute en el servidor:
+        </p>
+        <pre class="bg-light border rounded p-2 small mb-3"><code>docker compose exec web flask --app app reset-password &lt;usuario&gt;</code></pre>
+        <p class="text-secondary small">
+          El comando pedirá la nueva contraseña dos veces. Después de ingresar,
+          cámbiela desde <strong>Mi perfil</strong>.
+        </p>
+        <a class="btn btn-primary" href="{{ url_for('auth.login') }}">
+          Volver al ingreso
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

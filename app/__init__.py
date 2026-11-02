@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from flask import Flask, render_template
+from flask import Flask, flash, redirect, render_template, request, url_for
+from flask_login import current_user, logout_user
 
 from .config import Config
 from .extensions import csrf, db, login_manager, migrate
+from .security import etiqueta_rol, tiene_permiso
 
 
 def create_app(config_object: type | None = None) -> Flask:
@@ -40,6 +42,27 @@ def create_app(config_object: type | None = None) -> Flask:
     from .cli import register_cli
 
     register_cli(app)
+
+    @app.context_processor
+    def _contexto_permisos():
+        return {
+            "puede": lambda permiso: tiene_permiso(current_user, permiso),
+            "etiqueta_rol": etiqueta_rol,
+        }
+
+    @app.before_request
+    def _sesion_activa():
+        """Cierra la sesión si la cuenta fue desactivada."""
+        if request.endpoint == "static" or request.path.startswith("/static/"):
+            return None
+        if current_user.is_authenticated and not current_user.active:
+            logout_user()
+            flash(
+                "Su cuenta fue desactivada. Contacte al administrador.",
+                "warning",
+            )
+            return redirect(url_for("auth.login"))
+        return None
 
     from .services.links import url_catalogo_dia
 

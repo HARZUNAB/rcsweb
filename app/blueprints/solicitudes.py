@@ -19,6 +19,7 @@ from flask_login import current_user, login_required
 from ..extensions import db
 from ..forms import ReintentarForm, SolicitudForm
 from ..models import CatalogRequest, CatalogRequestFile, Job, nuevo_uuid
+from ..security import alcance_total, permiso_requerido
 from ..services.acquisition import (
     log_solicitud,
     preparar_workspace,
@@ -51,13 +52,14 @@ def _puede_reintentar(solicitud: CatalogRequest) -> bool:
         return False
     if _job_de(solicitud) is not None:
         return False
-    if getattr(current_user, "role", None) == "admin":
+    if alcance_total(current_user):
         return True
     return solicitud.requested_by_id == getattr(current_user, "id", None)
 
 
 @solicitudes_bp.get("/")
 @login_required
+@permiso_requerido("solicitudes.ver")
 def lista():
     solicitudes = (
         db.session.execute(
@@ -71,6 +73,7 @@ def lista():
 
 @solicitudes_bp.route("/nueva", methods=["GET", "POST"])
 @login_required
+@permiso_requerido("solicitudes.crear")
 def nueva():
     form = SolicitudForm()
     seiscomp_ok = seiscomp_configurada()
@@ -161,6 +164,7 @@ def nueva():
 
 @solicitudes_bp.post("/probar-seiscomp")
 @login_required
+@permiso_requerido("solicitudes.crear")
 def probar_seiscomp():
     resultado = probar_conexion()
     if resultado["ok"]:
@@ -173,12 +177,14 @@ def probar_seiscomp():
 
 @solicitudes_bp.get("/<request_id>")
 @login_required
+@permiso_requerido("solicitudes.ver")
 def detalle(request_id: str):
     return render_template("solicitudes/detail.html", **_contexto(request_id))
 
 
 @solicitudes_bp.get("/<request_id>/estado")
 @login_required
+@permiso_requerido("solicitudes.ver")
 def estado(request_id: str):
     return render_template("solicitudes/_page.html", **_contexto(request_id))
 
@@ -198,6 +204,7 @@ def _contexto(request_id: str) -> dict:
 
 @solicitudes_bp.post("/<request_id>/reintentar")
 @login_required
+@permiso_requerido("solicitudes.gestionar")
 def reintentar(request_id: str):
     solicitud = _solicitud(request_id)
     if not _puede_reintentar(solicitud):

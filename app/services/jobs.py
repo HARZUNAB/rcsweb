@@ -8,6 +8,7 @@ from flask import current_app
 
 from ..extensions import db
 from ..models import Job
+from ..security import alcance_total
 from .audit import registrar
 from .workspace import ruta_workspace
 
@@ -22,7 +23,7 @@ def puede_eliminar(job: Job, usuario) -> bool:
     """Admin o el creador del trabajo."""
     if usuario is None or not getattr(usuario, "is_authenticated", False):
         return False
-    if getattr(usuario, "role", None) == "admin":
+    if alcance_total(usuario):
         return True
     return job.created_by_id == getattr(usuario, "id", None)
 

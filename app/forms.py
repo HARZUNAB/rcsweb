@@ -13,6 +13,7 @@ from wtforms import (
     IntegerField,
     PasswordField,
     RadioField,
+    SelectField,
     StringField,
     SubmitField,
 )
@@ -26,6 +27,7 @@ from wtforms.validators import (
 )
 from wtforms.widgets import TextInput
 
+from .security import ETIQUETAS_ROL, ROLES_VALIDOS
 from .services.sources import default_primary, fuentes_locales
 
 LOCALES = [(fuente.codigo, fuente.etiqueta) for fuente in fuentes_locales()]
@@ -245,3 +247,56 @@ class SolicitudForm(FlaskForm):
 class ReintentarForm(FlaskForm):
     password = PasswordField("Contraseña del servidor", validators=[DataRequired()])
     submit = SubmitField("Reintentar descarga")
+
+
+class UsuarioForm(FlaskForm):
+    """Alta de un usuario desde la administración."""
+
+    username = StringField(
+        "Usuario", validators=[DataRequired(), Length(min=3, max=80)]
+    )
+    role = SelectField(
+        "Rol",
+        choices=[(rol, ETIQUETAS_ROL[rol]) for rol in ROLES_VALIDOS],
+        default="analista",
+    )
+    password = PasswordField(
+        "Contraseña",
+        validators=[DataRequired(), Length(min=8, max=128)],
+    )
+    confirm_password = PasswordField(
+        "Repetir contraseña",
+        validators=[
+            DataRequired(),
+            EqualTo("password", message="Las contraseñas no coinciden."),
+        ],
+    )
+    active = BooleanField("Activo", default=True)
+    submit = SubmitField("Crear usuario")
+
+
+class RolUsuarioForm(FlaskForm):
+    """Cambio de rol y estado de un usuario."""
+
+    role = SelectField(
+        "Rol", choices=[(rol, ETIQUETAS_ROL[rol]) for rol in ROLES_VALIDOS]
+    )
+    active = BooleanField("Activo")
+    submit = SubmitField("Guardar cambios")
+
+
+class ResetPasswordForm(FlaskForm):
+    """Restablecimiento de contraseña por un administrador."""
+
+    new_password = PasswordField(
+        "Nueva contraseña",
+        validators=[DataRequired(), Length(min=8, max=128)],
+    )
+    confirm_password = PasswordField(
+        "Repetir la nueva contraseña",
+        validators=[
+            DataRequired(),
+            EqualTo("new_password", message="Las contraseñas no coinciden."),
+        ],
+    )
+    submit = SubmitField("Restablecer contraseña")

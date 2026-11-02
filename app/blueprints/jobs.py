@@ -21,6 +21,7 @@ from flask_login import current_user, login_required
 from ..extensions import db
 from ..forms import JobForm
 from ..models import Job, JobArtifact, JobFile, JobSource, nuevo_uuid
+from ..security import alcance_total, permiso_requerido
 from ..services.audit import registrar
 from ..services.jobs import JobNoEliminable, eliminar_trabajo, puede_eliminar
 from ..services.panels import datasets_disponibles
@@ -72,6 +73,7 @@ def _contexto_detalle(job: Job) -> dict:
 
 @jobs_bp.route("/new", methods=["GET", "POST"])
 @login_required
+@permiso_requerido("trabajos.crear")
 def nuevo():
     form = JobForm()
     if request.method == "GET":
@@ -263,20 +265,25 @@ def nuevo():
 
 @jobs_bp.get("/<job_id>")
 @login_required
+@permiso_requerido("trabajos.ver")
 def detalle(job_id: str):
     return render_template("jobs/detail.html", **_contexto_detalle(_job(job_id)))
 
 
 @jobs_bp.get("/<job_id>/estado")
 @login_required
+@permiso_requerido("trabajos.ver")
 def estado(job_id: str):
     return render_template("jobs/_page.html", **_contexto_detalle(_job(job_id)))
 
 
 @jobs_bp.post("/<job_id>/cancelar")
 @login_required
+@permiso_requerido("trabajos.cancelar")
 def cancelar(job_id: str):
     job = _job(job_id)
+    if not alcance_total(current_user) and job.created_by_id != current_user.id:
+        abort(403)
     if job.status == "queued":
         job.status = "cancelled"
         job.current_step = "Cancelado"
@@ -297,6 +304,7 @@ def cancelar(job_id: str):
 
 @jobs_bp.post("/<job_id>/eliminar")
 @login_required
+@permiso_requerido("trabajos.eliminar")
 def eliminar(job_id: str):
     job = _job(job_id)
     if not puede_eliminar(job, current_user):
@@ -312,6 +320,7 @@ def eliminar(job_id: str):
 
 @jobs_bp.get("/<job_id>/descargas")
 @login_required
+@permiso_requerido("trabajos.descargar")
 def descargas(job_id: str):
     job = _job(job_id)
     grupos = {
@@ -331,6 +340,7 @@ def descargas(job_id: str):
 
 @jobs_bp.get("/<job_id>/descargar/<int:artifact_id>")
 @login_required
+@permiso_requerido("trabajos.descargar")
 def descargar(job_id: str, artifact_id: int):
     job = _job(job_id)
     artefacto = db.session.get(JobArtifact, artifact_id)

@@ -8,12 +8,14 @@ from sqlalchemy import func
 
 from ..extensions import db
 from ..models import Job
+from ..security import permiso_requerido
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
 
 @dashboard_bp.get("/")
 @login_required
+@permiso_requerido("trabajos.ver")
 def index():
     trabajos = (
         db.session.execute(db.select(Job).order_by(Job.created_at.desc()).limit(10)).scalars().all()

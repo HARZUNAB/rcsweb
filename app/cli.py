@@ -10,13 +10,26 @@ from flask.cli import with_appcontext
 
 from .extensions import db
 from .models import Job, User
+from .security import ETIQUETAS_ROL, ROLES_VALIDOS
+from .services.audit import registrar
 from .services.jobs import JobNoEliminable, eliminar_trabajo
+from .services.users import (
+    UsuarioError,
+    actualizar_usuario,
+    crear_usuario,
+)
+from .services.users import (
+    reset_password as cambiar_password,
+)
 
 
 def register_cli(app: Flask) -> None:
     app.cli.add_command(init_db)
     app.cli.add_command(seed_admin)
     app.cli.add_command(create_user)
+    app.cli.add_command(set_role)
+    app.cli.add_command(reset_password)
+    app.cli.add_command(list_users)
     app.cli.add_command(delete_job)
 
 
@@ -55,18 +68,101 @@ def seed_admin() -> None:
 @click.command("create-user")
 @click.argument("username")
 @click.option("--password", prompt=True, hide_input=True, confirmation_prompt=True)
-@click.option("--role", default="analista", show_default=True)
+@click.option(
+    "--role",
+    type=click.Choice(ROLES_VALIDOS),
+    default="analista",
+    show_default=True,
+)
 @with_appcontext
 def create_user(username: str, password: str, role: str) -> None:
     """Crea un usuario nuevo."""
-    if db.session.execute(db.select(User).filter_by(username=username)).scalar_one_or_none():
-        raise click.ClickException(f"El usuario '{username}' ya existe.")
+    try:
+        user = crear_usuario(username, password, role)
+    except UsuarioError as exc:
+        raise click.ClickException(str(exc)) from exc
+    registrar(
+        "user.create",
+        entity=user.username,
+        meta={"rol": user.role, "origen": "cli"},
+    )
+    click.echo(
+        f"Usuario '{user.username}' creado con rol "
+        f"'{ETIQUETAS_ROL.get(user.role, user.role)}'."
+    )
 
-    user = User(username=username, role=role)
-    user.set_password(password)
-    db.session.add(user)
-    db.session.commit()
-    click.echo(f"Usuario '{username}' creado con rol '{role}'.")
+
+@click.command("set-role")
+@click.argument("username")
+@click.argument("role", type=click.Choice(ROLES_VALIDOS))
+@with_appcontext
+def set_role(username: str, role: str) -> None:
+    """Cambia el rol de un usuario."""
+    user = db.session.execute(
+        db.select(User).filter_by(username=username)
+    ).scalar_one_or_none()
+    if user is None:
+        raise click.ClickException(f"No existe el usuario '{username}'.")
+    try:
+        actualizar_usuario(user, role, user.active)
+    except UsuarioError as exc:
+        raise click.ClickException(str(exc)) from exc
+    registrar(
+        "user.update",
+        entity=user.username,
+        meta={"rol": user.role, "origen": "cli"},
+    )
+    click.echo(
+        f"Usuario '{user.username}' ahora tiene rol "
+        f"'{ETIQUETAS_ROL.get(user.role, user.role)}'."
+    )
+
+
+@click.command("reset-password")
+@click.argument("username")
+@click.option("--password", prompt=True, hide_input=True, confirmation_prompt=True)
+@click.option("--activar/--no-activar", default=True)
+@with_appcontext
+def reset_password(username: str, password: str, activar: bool) -> None:
+    """Restablece la contraseña de un usuario."""
+    user = db.session.execute(
+        db.select(User).filter_by(username=username)
+    ).scalar_one_or_none()
+    if user is None:
+        raise click.ClickException(f"No existe el usuario '{username}'.")
+    try:
+        cambiar_password(user, password)
+    except UsuarioError as exc:
+        raise click.ClickException(str(exc)) from exc
+    if activar and not user.active:
+        user.active = True
+        db.session.commit()
+    registrar(
+        "user.password_reset",
+        entity=user.username,
+        meta={"origen": "cli", "activo": user.active},
+    )
+    click.echo(f"Contraseña de '{user.username}' restablecida.")
+
+
+@click.command("list-users")
+@with_appcontext
+def list_users() -> None:
+    """Lista los usuarios, su rol y estado."""
+    usuarios = (
+        db.session.execute(db.select(User).order_by(User.username))
+        .scalars()
+        .all()
+    )
+    if not usuarios:
+        click.echo("No hay usuarios.")
+        return
+    for user in usuarios:
+        estado = "activo" if user.active else "inactivo"
+        click.echo(
+            f"{user.username}\t"
+            f"{ETIQUETAS_ROL.get(user.role, user.role)}\t{estado}"
+        )
 
 
 @click.command("delete-job")

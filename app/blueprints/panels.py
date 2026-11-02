@@ -7,6 +7,7 @@ from flask_login import login_required
 
 from ..extensions import db
 from ..models import Job
+from ..security import permiso_requerido
 from ..services import panels
 from ..services.history import datos as historico_datos
 from ..services.workspace import ruta_workspace
@@ -34,6 +35,7 @@ def _url_panel(job_id: str, dataset: str, tipo: str = "", fuente: str = "") -> s
 
 @panels_bp.get("/jobs/<job_id>/paneles")
 @login_required
+@permiso_requerido("paneles.ver")
 def index(job_id: str):
     job = db.session.get(Job, job_id)
     if job is None:
@@ -203,6 +205,7 @@ def index(job_id: str):
 
 @panels_bp.get("/jobs/<job_id>/paneles/historico/<perfil_id>")
 @login_required
+@permiso_requerido("paneles.ver")
 def historico(job_id: str, perfil_id: str):
     """Sismicidad histórica proyectada al perfil, para los mini perfiles."""
     job = db.session.get(Job, job_id)

@@ -3,5 +3,7 @@
 
 {% block content %}
 {% include "jobs/_page.html" %}
+{% if puede('trabajos.eliminar') %}
 {% include "jobs/_modal_eliminar.html" %}
+{% endif %}
 {% endblock %}

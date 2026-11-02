@@ -96,6 +96,7 @@
               Miniaturas
             </label>
           </div>
+          {% if puede('resultados.exportar') %}
           <a class="btn btn-sm btn-outline-secondary" href="{{ url_exportar_todo() }}">
             Descargar todo
           </a>
@@ -110,6 +111,7 @@
                   data-limpiar-seleccion>
             Limpiar selección
           </button>
+          {% endif %}
         </div>
       </div>
 
@@ -128,9 +130,11 @@
           <thead class="table-light">
             <tr>
               <th class="text-nowrap">
+                {% if puede('resultados.exportar') %}
                 <input class="form-check-input me-1" type="checkbox"
                        data-seleccionar-todos
                        aria-label="Seleccionar todos los eventos de esta página">
+                {% endif %}
                 Ubicación
               </th>
               {% for clave, titulo in columnas %}
@@ -176,10 +180,12 @@
               {% set url_web = url_catalogo_dia(fecha_evento) %}
               <td class="celda-ubicacion">
                 <div class="d-flex align-items-start gap-2">
+                  {% if puede('resultados.exportar') %}
                   <input class="form-check-input seleccion-evento mt-1"
                          type="checkbox"
                          value="{{ fila.get('_fila') }}"
                          aria-label="Seleccionar evento">
+                  {% endif %}
                   <div class="flex-grow-1">
                 {% set mapa = fila.get('_mapa', {}) %}
                 {% set ubic = fila.get('_ubicacion') %}

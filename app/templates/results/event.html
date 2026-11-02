@@ -236,10 +236,12 @@
           <a class="btn btn-sm btn-outline-secondary" id="enlace-mapa-modo"
              href="{{ url_online }}{% if historico_activo %}&historico=1{% endif %}">Intentar online</a>
         {% endif %}
+        {% if puede('resultados.exportar') %}
         <a class="btn btn-sm btn-outline-primary" href="{{ url_mapa }}"
            target="_blank" rel="noopener">Abrir PNG</a>
         <a class="btn btn-sm btn-outline-secondary" href="{{ url_mapa }}"
            download="mapa.png">Descargar PNG</a>
+        {% endif %}
       </div>
     </div>
 

@@ -9,9 +9,11 @@
       Solicitudes de catálogos y su historial.
     </p>
   </div>
+  {% if puede('solicitudes.crear') %}
   <a class="btn btn-primary" href="{{ url_for('solicitudes.nueva') }}">
     Nueva solicitud
   </a>
+  {% endif %}
 </div>
 
 <div class="card border-0 shadow-sm">

@@ -159,10 +159,56 @@ make clean                # detener y borrar volúmenes
    clasificación, mapa de planta y perfil, y en repetidos el grupo completo de
    duplicados.
 6. Se puede cancelar un trabajo en cola o en ejecución.
-6. La sección **Auditoría** (solo administradores) registra login, alta,
-   cancelación, fin/fallo y descargas.
+6. La sección **Auditoría** (administradores y supervisores) registra login,
+   alta, cancelación, fin/fallo y descargas.
 7. Un trabajo terminado, fallido o cancelado puede **eliminarse** desde el panel
-   o el detalle (creador o admin); se borran sus resultados y su workspace.
+   o el detalle (creador, administrador o supervisor); se borran sus resultados
+   y su workspace.
+
+## Roles y permisos
+
+| Opción | Administrador | Supervisor | Analista | Consulta |
+|---|:---:|:---:|:---:|:---:|
+| Ver trabajos | Sí | Sí | Sí | Sí |
+| Subir catálogos | Sí | Sí | Sí | — |
+| Cancelar trabajo | Sí, todos | Sí, todos | Solo propios | — |
+| Eliminar trabajo | Sí, todos | Sí, todos | Solo propios | — |
+| Descargar artefactos | Sí | Sí | Sí | — |
+| Solicitar catálogos | Sí | Sí | Sí | — |
+| Ver solicitudes | Sí | Sí | Sí | — |
+| Reintentar solicitud | Sí, todas | Sí, todas | Solo propias | — |
+| Paneles | Sí | Sí | Sí | Sí |
+| Catálogos y resultados | Sí | Sí | Sí | Sí |
+| Exportar listados | Sí | Sí | Sí | — |
+| Auditoría | Sí | Sí | — | — |
+| Gestión de usuarios | Sí | — | — | — |
+
+- **Administrador**: acceso total.
+- **Supervisor**: toda la operación y la auditoría; no administra cuentas ni
+  restablece contraseñas.
+- **Analista**: operación diaria; solo cancela, elimina o reintenta lo que creó.
+- **Consulta**: solo lectura; no crea, descarga ni exporta.
+
+Los permisos se aplican en el servidor. Ocultar un botón no reemplaza el
+control: un acceso directo sin permiso responde **403**. Si una cuenta se
+desactiva, su sesión se cierra en la siguiente petición.
+
+## Usuarios y acceso
+
+- La pantalla **Usuarios** (solo administrador) permite crear cuentas, cambiar
+  roles, activar o desactivar usuarios y restablecer contraseñas. No permite
+  dejar el sistema sin administradores activos.
+- La pantalla **Auditoría** está disponible para administradores y supervisores.
+- El login incluye **«¿Olvidó su contraseña?»** con las instrucciones de
+  recuperación. Las contraseñas no se pueden recuperar; solo restablecer.
+- Comandos de recuperación y mantenimiento:
+
+```bash
+docker compose exec web flask --app app list-users
+docker compose exec web flask --app app set-role <usuario> <rol>
+docker compose exec web flask --app app reset-password <usuario>
+docker compose exec web flask --app app create-user <usuario> --role analista
+```
 
 ## Pipeline
 
@@ -356,7 +402,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **212 tests**.
+runner de solo lectura. Total actual: **244 tests**.
 
 ## Filtros y exportación
 
@@ -414,14 +460,16 @@ runner de solo lectura. Total actual: **212 tests**.
 | POST | `/solicitudes/probar-seiscomp` | Probar conexión SeisComp |
 | GET | `/solicitudes/<id>` | Detalle y progreso |
 | POST | `/solicitudes/<id>/reintentar` | Reintentar descarga |
-| GET | `/admin/auditoria` | Auditoría (solo admin) |
+| GET | `/admin/auditoria` | Auditoría (admin y supervisor) |
+| GET | `/admin/usuarios` | Gestión de usuarios (solo admin) |
 | GET | `/health` | Estado de base, core, workspace y dump |
 
 ## Eliminación de trabajos
 
 - Botón **Eliminar** en el panel y en el detalle, con confirmación modal.
 - Solo para trabajos en estado `done`, `failed` o `cancelled`.
-- Puede eliminar el **creador** del trabajo o un **administrador**.
+- Puede eliminar el **creador** del trabajo, un **administrador** o un
+  **supervisor**.
 - Borra el registro, sus archivos, pasos y artefactos, y la carpeta del
   workspace. La auditoría conserva la entrada `job.delete`.
 - Un trabajo en cola o en ejecución no se puede eliminar; primero hay que
