@@ -136,6 +136,11 @@ Al pulsar **Ver** en una fila se abre la ficha del evento.
 - El mapa interactivo permite acercar, alejar y seleccionar eventos.
 - La planta abre con una vista regional para que el evento se ubique en el
   contexto del país.
+- La planta y el perfil ocupan la columna izquierda; al hacer clic en un evento,
+  sus parámetros aparecen en el panel fijo de la derecha. En pantallas angostas
+  el panel pasa debajo de los mapas.
+- En modo offline se resaltan el contorno nacional y las divisiones regionales
+  de Chile.
 
 Más abajo está el perfil de subducción.
 

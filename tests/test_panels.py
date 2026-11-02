@@ -681,6 +681,10 @@ def test_ruta_detalle_grupo_perfil(client, login, monkeypatch):
     assert 'id="mapa-detalle"' in html
     assert 'id="perfil-detalle"' in html
     assert "mapa_detalle.js" in html
+    assert "regiones_mapa.js" in html
+    assert 'id="detalle-evento-panel"' in html
+    assert 'id="detalle-evento-contenido"' in html
+    assert "data-url-regiones" in html
     assert "paneles.js" not in html
     assert 'id="grupo-descargar-csv"' in html
 
@@ -700,6 +704,7 @@ def test_ruta_detalle_grupo_territorio_sin_perfil(client, login, monkeypatch):
     assert "Sin perfil asignado" in html
     assert "Perfil no disponible" in html
     assert "mapa_detalle.js" in html
+    assert 'id="detalle-evento-panel"' in html
     assert "paneles.js" not in html
 
 

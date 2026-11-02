@@ -239,6 +239,10 @@ def test_detalle_muestra_mapa_interactivo(client, login):
     assert 'id="mapa-seleccion-perfil"' not in html
     assert '"clave"' in html
     assert "mapa_detalle.js" in html
+    assert "regiones_mapa.js" in html
+    assert 'id="detalle-evento-panel"' in html
+    assert 'id="detalle-evento-contenido"' in html
+    assert "data-url-regiones" in html
     assert "Seisan" in html
 
 

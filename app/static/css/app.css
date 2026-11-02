@@ -377,7 +377,8 @@ footer {
   overflow: hidden;
 }
 
-.panel-mapa-overlay {
+.panel-mapa-overlay,
+.mapa-regiones-overlay {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -385,6 +386,38 @@ footer {
   pointer-events: none;
   z-index: 10;
   overflow: hidden;
+}
+
+#mapa-detalle {
+  overflow: hidden;
+}
+
+.container-detalle {
+  max-width: 100%;
+  width: 100%;
+}
+
+/* Detalle de mapas: los dos mapas quedan a la izquierda y el evento a la
+   derecha, para que la ficha no tape la planta ni el perfil. */
+.detalle-evento-panel {
+  position: sticky;
+  top: 1rem;
+  min-height: 430px;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  background: #fff;
+}
+
+.perfil-contenedor-detalle {
+  max-width: none;
+}
+
+@media (max-width: 1199.98px) {
+  .detalle-evento-panel {
+    position: static;
+    min-height: 0;
+    max-height: none;
+  }
 }
 
 /* Aviso de carga para navegaciones internas lentas (paneles, catálogos). */

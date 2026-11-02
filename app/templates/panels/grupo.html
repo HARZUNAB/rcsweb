@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block main_class %} container-detalle{% endblock %}
 {% block title %}{{ detalle.titulo }} · Paneles{% endblock %}
 
 {% block content %}
@@ -220,6 +221,7 @@
 {% if puntos_mapa %}
 <script src="{{ url_for('static', filename='vendor/plotly/plotly.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/vineta.js') }}"></script>
+<script src="{{ url_for('static', filename='js/regiones_mapa.js') }}"></script>
 <script src="{{ url_for('static', filename='js/mapa_detalle.js') }}"></script>
 {% endif %}
 {% endblock %}

@@ -92,7 +92,7 @@
   </div>
 </nav>
 
-<main class="container py-4 flex-grow-1">
+<main class="container{% block main_class %}{% endblock %} py-4 flex-grow-1">
   {% with mensajes = get_flashed_messages(with_categories=true) %}
     {% if mensajes %}
       <div class="mb-3">

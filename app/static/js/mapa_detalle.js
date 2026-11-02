@@ -5,6 +5,8 @@
   const datos = document.getElementById("mapa-datos");
   const contenedor = document.getElementById("mapa-detalle");
   const perfil = document.getElementById("perfil-detalle");
+  const panelContenido = document.getElementById("detalle-evento-contenido");
+  const cerrarDetalle = document.getElementById("cerrar-detalle-evento");
   if (!datos || !contenedor) {
     return;
   }
@@ -115,6 +117,10 @@
   }
 
   function mostrarSeleccion(punto, ancla) {
+    if (panelContenido) {
+      panelContenido.innerHTML = detalleHtml(punto);
+      return;
+    }
     if (!window.RCSVineta) {
       return;
     }
@@ -128,6 +134,40 @@
   let marcadoresLeaflet = [];
   let perfilEventos = [];
   let perfilTrazaIdx = null;
+
+  const urlRegiones = contenedor.dataset.urlRegiones || "";
+  let regionesChile = null;
+
+  function dibujarRegiones() {
+    if (
+      plantaTipo !== "plotly" ||
+      !regionesChile ||
+      !window.RCSRegiones
+    ) {
+      return;
+    }
+    window.RCSRegiones.dibujar(contenedor, regionesChile, {
+      contorno_color: "#1f3a5f",
+      contorno_ancho: "1.8",
+      regiones_color: "#52606d",
+      regiones_ancho: "1.2",
+      regiones_dash: "4 2",
+    });
+  }
+
+  function programarRegiones() {
+    window.requestAnimationFrame(dibujarRegiones);
+  }
+
+  function cargarRegiones() {
+    if (!urlRegiones || !window.RCSRegiones || regionesChile) {
+      return;
+    }
+    window.RCSRegiones.cargar(urlRegiones).then(function (datos) {
+      regionesChile = datos;
+      programarRegiones();
+    });
+  }
 
   function claveDe(punto) {
     if (punto && punto.clave) {
@@ -383,11 +423,20 @@
   function limpiarSeleccion() {
     resaltarPlanta(-1);
     resaltarPerfil(-1);
+    if (panelContenido) {
+      panelContenido.innerHTML =
+        '<div class="small text-secondary">' +
+        "Haga clic en un evento del mapa o del perfil para ver sus parámetros." +
+        "</div>";
+    }
     if (window.RCSVineta) {
       window.RCSVineta.ocultar();
     }
   }
 
+  if (cerrarDetalle) {
+    cerrarDetalle.addEventListener("click", limpiarSeleccion);
+  }
   document.addEventListener("rcs:vineta-cerrada", limpiarSeleccion);
 
   function anclaDeEvento(evento, nodo) {
@@ -785,6 +834,14 @@
       scrollZoom: true,
       topojsonURL: contenedor.dataset.topojsonUrl || undefined,
     }).then(function () {
+      cargarRegiones();
+      programarRegiones();
+      if (!contenedor._regionesEventos) {
+        contenedor._regionesEventos = true;
+        contenedor.on("plotly_relayout", programarRegiones);
+        contenedor.on("plotly_afterplot", programarRegiones);
+        window.addEventListener("resize", programarRegiones);
+      }
       contenedor.on("plotly_click", function (evento) {
         const seleccion = evento.points[0];
         if (!seleccion || seleccion.curveNumber !== 0) {
@@ -862,6 +919,9 @@
   function dibujarLeaflet() {
     plantaTipo = "leaflet";
     marcadoresLeaflet = [];
+    if (window.RCSRegiones) {
+      window.RCSRegiones.ocultar(contenedor);
+    }
     if (!window.L) {
       dibujarPlotly();
       return;

@@ -718,6 +718,13 @@ El detalle de un grupo reutiliza el parcial `app/templates/_mapa_detalle.html` y
 `app/static/js/mapa_detalle.js`, igual que Resultados y Catálogos. La vista
 general de Paneles mantiene el mapa liviano de `app/static/js/paneles.js`.
 
+Todos los detalles usan una columna de mapas de 7/12 y un panel de evento de
+5/12. El panel reemplaza a la viñeta flotante. En modo offline,
+`app/static/js/regiones_mapa.js` dibuja el contorno nacional y las divisiones
+regionales con el mismo `chile_regiones.json` de las miniaturas, recortados al
+marco del geo de Plotly. Las vistas de detalle usan el contenedor ancho
+`.container-detalle`.
+
 La vista en planta del PNG ajusta el margen en `app/services/extent.py`. Con un
 solo evento usa 2.0° de contexto; con varias soluciones usa
 `clamp(separación × 0.5, 0.01°, 0.6°)`, donde la separación es la mayor
