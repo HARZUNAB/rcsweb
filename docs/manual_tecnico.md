@@ -289,6 +289,11 @@ de root.
 El proyecto base se monta en solo lectura y no se modifica. Las miniaturas,
 mapas y paneles se cachean en el workspace.
 
+Los PNG de mapa llevan un encabezado con el resumen del evento: fecha, magnitud,
+profundidad, coordenadas, analista, frontera y estado en la otra fuente. El
+resumen se arma en `app/services/plots.py` y la caché usa el sufijo `_resumen`
+para no servir imágenes antiguas sin datos.
+
 ## Operación y diagnóstico
 
 ### Estado de los servicios

@@ -274,3 +274,110 @@ def test_perfil_mapa_sin_perfil_devuelve_none(monkeypatch):
     monkeypatch.setattr(plots, "_asignar", lambda filas, perfiles: (filas, None))
 
     assert plots.perfil_mapa("no_publicados", "x.csv", [], 0, "seiscomp") is None
+
+
+def test_resumen_mapa_no_publicado():
+    filas = [
+        {
+            "Fecha_Hora": "2026-10-13 09:55:59",
+            "Latitud": "-23.007",
+            "Longitud": "-69.027",
+            "Prof.": "128.5",
+            "Mag.": "2.8",
+            "Tipo_mag.": "ML",
+            "Analista": "maca",
+            "Publicado_en": "",
+            "Estado": "Ambiguo: 2 candidatos en SeisComp",
+        }
+    ]
+    resumen = plots.resumen_mapa(
+        "no_publicados", "No publicados · Seisan", filas, 0, "x.csv", "job1"
+    )
+    assert resumen is not None
+    assert resumen["titulo"] == "No publicados · Seisan"
+    texto = " ".join(resumen["lineas"])
+    assert "2026-10-13 09:55:59" in texto
+    assert "2.8 ML" in texto
+    assert "128.5" in texto
+    assert "-23.007" in texto
+    assert "maca" in texto
+    assert "Ambiguo: 2 candidatos" in texto
+    assert "trabajo job1" in resumen["pie"]
+
+
+def test_resumen_mapa_no_actualizado():
+    filas = [
+        {
+            "fecha_local": "2026-10-01 10:00:00",
+            "lat_local": "-30.0",
+            "lon_local": "-71.0",
+            "prof_local": "20.0",
+            "mag_local": "3.0",
+            "tipo_mag_local": "ML",
+            "fecha_eventquery": "2026-10-01 10:00:10",
+            "lat_eventquery": "-30.010",
+            "lon_eventquery": "-71.010",
+            "prof_eventquery": "21.0",
+            "mag_eventquery": "3.1",
+            "tipo_mag_eventquery": "ML",
+            "analista": "ana",
+            "dt_seg": "10",
+            "dlat": "0.010",
+            "dlon": "0.010",
+            "dist_km": "1.5",
+            "publicacion_probable": "Alta",
+            "revision": "Sí",
+            "discrepancias": "lat, lon",
+        }
+    ]
+    resumen = plots.resumen_mapa(
+        "no_actualizados", "No actualizados · Seisan", filas, 0, "x.csv", "job2"
+    )
+    texto = " ".join(resumen["lineas"])
+    assert "Local ·" in texto
+    assert "Publicado ·" in texto
+    assert "Δt 10 s" in texto
+    assert "Alta" in texto
+    assert "lat, lon" in texto
+
+
+def test_resumen_mapa_repetido():
+    filas = [
+        {
+            "fecha_hora": "2026-10-01 00:00:00",
+            "latitud": "-30.0",
+            "longitud": "-71.0",
+            "prof": "10.0",
+            "mag": "2.5",
+            "tipomag": "ML",
+            "analista": "ana",
+            "referencia": "Prueba",
+            "percibido": "f",
+        }
+    ]
+    resumen = plots.resumen_mapa(
+        "repetidos", "Repetidos · Publicados", filas, 0, "x.csv", "job3"
+    )
+    texto = " ".join(resumen["lineas"])
+    assert "Solución seleccionada" in texto
+    assert "2.5 ML" in texto
+    assert "Referencia: Prueba" in texto
+
+
+def test_componer_resumen_agrega_encabezado():
+    from io import BytesIO
+
+    from PIL import Image
+
+    base = Image.new("RGB", (240, 120), "white")
+    buffer = BytesIO()
+    base.save(buffer, format="PNG")
+    resumen = {
+        "titulo": "No publicados · Seisan",
+        "lineas": ["Fecha y hora: 2026-10-13", "Magnitud: 2.8 ML"],
+        "pie": "RCS Web · trabajo job1",
+    }
+    final = plots._componer_resumen(buffer.getvalue(), resumen)
+    imagen = Image.open(BytesIO(final))
+    assert imagen.width == 240
+    assert imagen.height > 120

@@ -21,9 +21,10 @@ import matplotlib
 
 matplotlib.use("Agg")
 
+import matplotlib.font_manager as font_manager  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 from flask import current_app  # noqa: E402
-from PIL import Image, ImageDraw  # noqa: E402
+from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
 from . import colores
 from .borders import texto_frontera_coords  # noqa: E402
@@ -239,7 +240,14 @@ def _fuente(tabla: str, opcion: str) -> str:
     return "seisan"
 
 
-def _ruta_cache(workspace: Path, carpeta: str, tabla: str, archivo: str, indice: int) -> Path:
+def _ruta_cache(
+    workspace: Path,
+    carpeta: str,
+    tabla: str,
+    archivo: str,
+    indice: int,
+    sufijo: str = "",
+) -> Path:
     raiz = workspace.resolve()
     nombre = Path(archivo).name
     if nombre != archivo:
@@ -248,7 +256,7 @@ def _ruta_cache(workspace: Path, carpeta: str, tabla: str, archivo: str, indice:
     if not base.is_relative_to(raiz):
         raise ValueError("ruta fuera del workspace")
     base.mkdir(parents=True, exist_ok=True)
-    return base / f"{indice}.png"
+    return base / f"{indice}{sufijo}.png"
 
 
 def _placeholder(mensaje: str, ancho: int = 1200, alto: int = 520) -> bytes:
@@ -521,6 +529,215 @@ def generar_miniatura(
     return png
 
 
+def _valor_fila(fila: dict, *claves: str) -> str:
+    for clave in claves:
+        valor = fila.get(clave)
+        if valor is not None and str(valor).strip():
+            return str(valor).strip()
+    return "—"
+
+
+def _texto_mag(fila: dict, mag: str, tipo: str) -> str:
+    valor = _valor_fila(fila, mag)
+    clase = _valor_fila(fila, tipo)
+    return f"{valor} {clase}" if clase != "—" else valor
+
+
+def _frontera_evento(fila: dict, lat: str, lon: str) -> str:
+    try:
+        return texto_frontera_coords(float(fila.get(lat)), float(fila.get(lon)))
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _lineas_evento(
+    tabla: str, filas: list[dict], indice: int, archivo: str
+) -> list[str]:
+    fila = filas[indice]
+    if tabla == "no_actualizados":
+        lineas = [
+            f"Local · {_valor_fila(fila, 'fecha_local')} · "
+            f"Mag. {_texto_mag(fila, 'mag_local', 'tipo_mag_local')} · "
+            f"Prof. {_valor_fila(fila, 'prof_local')} km",
+            f"Local · Lat. {_valor_fila(fila, 'lat_local')} · "
+            f"Lon. {_valor_fila(fila, 'lon_local')} · "
+            f"Analista: {_valor_fila(fila, 'analista')}",
+            f"Publicado · {_valor_fila(fila, 'fecha_eventquery')} · "
+            f"Mag. {_texto_mag(fila, 'mag_eventquery', 'tipo_mag_eventquery')} · "
+            f"Prof. {_valor_fila(fila, 'prof_eventquery')} km",
+            f"Publicado · Lat. {_valor_fila(fila, 'lat_eventquery')} · "
+            f"Lon. {_valor_fila(fila, 'lon_eventquery')}",
+        ]
+        deltas = (
+            f"Δt {_valor_fila(fila, 'dt_seg')} s · "
+            f"Δlat {_valor_fila(fila, 'dlat')}° · "
+            f"Δlon {_valor_fila(fila, 'dlon')}° · "
+            f"Dist. {_valor_fila(fila, 'dist_km')} km"
+        )
+        if any(valor != "—" for valor in (
+            _valor_fila(fila, "dt_seg"),
+            _valor_fila(fila, "dlat"),
+            _valor_fila(fila, "dlon"),
+            _valor_fila(fila, "dist_km"),
+        )):
+            lineas.append(deltas)
+        estado = (
+            f"Estado: {_valor_fila(fila, 'publicacion_probable')} · "
+            f"Revisión: {_valor_fila(fila, 'revision')} · "
+            f"Discrepancias: {_valor_fila(fila, 'discrepancias')}"
+        )
+        lineas.append(estado)
+        frontera = _frontera_evento(fila, "lat_local", "lon_local")
+        if frontera != "—":
+            lineas.append(f"Frontera más cercana: {frontera}")
+        return lineas
+
+    if tabla == "repetidos":
+        lineas = [
+            f"Solución seleccionada · {_valor_fila(fila, 'fecha_hora')}",
+            f"Mag. {_texto_mag(fila, 'mag', 'tipomag')} · "
+            f"Prof. {_valor_fila(fila, 'prof')} km",
+            f"Lat. {_valor_fila(fila, 'latitud')} · "
+            f"Lon. {_valor_fila(fila, 'longitud')} · "
+            f"Analista: {_valor_fila(fila, 'analista')}",
+            f"Referencia: {_valor_fila(fila, 'referencia')} · "
+            f"Percibido: {_valor_fila(fila, 'percibido')}",
+        ]
+        try:
+            total = len(grupo_repetidos(filas, indice, archivo))
+        except Exception:
+            total = 0
+        if total:
+            lineas.append(f"Grupo: {total} soluciones")
+        frontera = _frontera_evento(fila, "latitud", "longitud")
+        if frontera != "—":
+            lineas.append(f"Frontera más cercana: {frontera}")
+        return lineas
+
+    # No publicados y catálogos de entrada.
+    analista = _valor_fila(fila, "Analista", "Analista probable")
+    lineas = [
+        f"Fecha y hora: {_valor_fila(fila, 'Fecha_Hora')}",
+        f"Magnitud: {_texto_mag(fila, 'Mag.', 'Tipo_mag.')} · "
+        f"Profundidad: {_valor_fila(fila, 'Prof.')} km",
+        f"Latitud: {_valor_fila(fila, 'Latitud')} · "
+        f"Longitud: {_valor_fila(fila, 'Longitud')}",
+        f"Analista: {analista}",
+    ]
+    referencia = _valor_fila(fila, "Referencia")
+    if referencia != "—":
+        lineas.append(f"Referencia: {referencia}")
+    percibido = _valor_fila(fila, "Percib.", "Percibido")
+    if percibido != "—":
+        lineas.append(f"Percibido: {percibido}")
+    publicado = _valor_fila(fila, "Publicado_en")
+    estado = _valor_fila(fila, "Estado")
+    if publicado != "—" or estado != "—":
+        lineas.append(f"Publicado en: {publicado} · Estado: {estado}")
+    frontera = _frontera_evento(fila, "Latitud", "Longitud")
+    if frontera != "—":
+        lineas.append(f"Frontera más cercana: {frontera}")
+    return lineas
+
+
+def resumen_mapa(
+    tabla: str,
+    titulo: str,
+    filas: list[dict],
+    indice: int,
+    archivo: str,
+    job_id: str,
+) -> dict | None:
+    """Datos que se dibujan en el encabezado del PNG del evento."""
+    if indice < 0 or indice >= len(filas):
+        return None
+    return {
+        "titulo": titulo,
+        "lineas": _lineas_evento(tabla, filas, indice, archivo),
+        "pie": f"RCS Web · trabajo {job_id}",
+    }
+
+
+def _envolver(texto: str, fuente, ancho: float, dibujo: ImageDraw.ImageDraw):
+    lineas = []
+    for bloque in str(texto).split("\n"):
+        actual = ""
+        for palabra in bloque.split():
+            candidato = (actual + " " + palabra).strip()
+            if not actual or dibujo.textlength(candidato, font=fuente) <= ancho:
+                actual = candidato
+            else:
+                lineas.append(actual)
+                actual = palabra
+        lineas.append(actual)
+    return lineas or [""]
+
+
+def _fuente_imagen(nombre: str, tamano: int):
+    try:
+        ruta = Path(font_manager.get_data_path()) / "fonts" / "ttf" / nombre
+        return ImageFont.truetype(str(ruta), tamano)
+    except Exception:
+        return ImageFont.load_default()
+
+
+def _componer_resumen(png: bytes, resumen: dict | None) -> bytes:
+    """Agrega el encabezado con los datos del evento al PNG del core."""
+    if not resumen:
+        return png
+    try:
+        original = Image.open(io.BytesIO(png)).convert("RGB")
+    except Exception:
+        return png
+
+    ancho, alto = original.size
+    margen = 30
+    disponible = ancho - 2 * margen
+    fuente_titulo = _fuente_imagen("DejaVuSans-Bold.ttf", 30)
+    fuente_texto = _fuente_imagen("DejaVuSans.ttf", 18)
+    fuente_pie = _fuente_imagen("DejaVuSans.ttf", 13)
+    dibujo = ImageDraw.Draw(original)
+    titulo = _envolver(resumen.get("titulo", ""), fuente_titulo, disponible, dibujo)
+    lineas = []
+    for linea in resumen.get("lineas", []):
+        lineas.extend(_envolver(linea, fuente_texto, disponible, dibujo))
+    pie = resumen.get("pie", "")
+
+    alto_titulo = 37
+    alto_texto = 26
+    alto_pie = 20
+    encabezado = (
+        margen
+        + alto_titulo * len(titulo)
+        + 10
+        + alto_texto * len(lineas)
+        + 12
+        + alto_pie
+        + margen
+    )
+    nueva = Image.new("RGB", (ancho, encabezado + alto), "#f4f7fb")
+    nueva.paste(original, (0, encabezado))
+    dibujo = ImageDraw.Draw(nueva)
+
+    y = margen
+    for linea in titulo:
+        dibujo.text((margen, y), linea, font=fuente_titulo, fill="#1f3a5f")
+        y += alto_titulo
+    y += 6
+    dibujo.line((margen, y, ancho - margen, y), fill="#dbe4ee", width=2)
+    y += 12
+    for linea in lineas:
+        dibujo.text((margen, y), linea, font=fuente_texto, fill="#1f2933")
+        y += alto_texto
+    y += 8
+    if pie:
+        dibujo.text((margen, y), pie, font=fuente_pie, fill="#7b8794")
+
+    buffer = io.BytesIO()
+    nueva.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 def generar_mapa(
     workspace: Path,
     tabla: str,
@@ -528,9 +745,12 @@ def generar_mapa(
     archivo: str,
     filas: list[dict],
     indice: int,
+    resumen: dict | None = None,
 ) -> bytes:
-    """Mapa completo (planta + perfil) en un subproceso con backend Agg."""
-    destino = _ruta_cache(workspace, "mapas", tabla, archivo, indice)
+    """Mapa completo (planta + perfil) con resumen del evento en el PNG."""
+    destino = _ruta_cache(
+        workspace, "mapas", tabla, archivo, indice, sufijo="_resumen"
+    )
     if destino.is_file():
         return destino.read_bytes()
 
@@ -571,15 +791,20 @@ def generar_mapa(
             if proceso.returncode != 0 or not temporal.is_file():
                 detalle = (proceso.stderr or proceso.stdout or "").strip()[-1500:]
                 raise RuntimeError(detalle or "el renderizador no generó la imagen")
-            temporal.replace(destino)
-            return destino.read_bytes()
+            final = _componer_resumen(temporal.read_bytes(), resumen)
+            destino.write_bytes(final)
+            temporal.unlink(missing_ok=True)
+            return final
         except Exception as exc:
             current_app.logger.warning("No se pudo generar el mapa: %s", exc)
             # No se cachea el error: el próximo pedido puede reintentar.
-            return _placeholder(
-                f"Mapa no disponible\n{str(exc)[:160]}",
-                ancho=1200,
-                alto=520,
+            return _componer_resumen(
+                _placeholder(
+                    f"Mapa no disponible\n{str(exc)[:160]}",
+                    ancho=1200,
+                    alto=520,
+                ),
+                resumen,
             )
 
     return destino.read_bytes()

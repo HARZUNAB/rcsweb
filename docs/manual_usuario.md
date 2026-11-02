@@ -145,6 +145,9 @@ Más abajo está el perfil de subducción.
 - El perfil conserva su escala al activar o desactivar la casilla.
 - Al pasar el mouse por un evento se resalta también en la otra vista.
 - **Abrir PNG** y **Descargar PNG** generan una imagen del mapa.
+- El PNG incluye un encabezado con fecha y hora, magnitud, profundidad,
+  coordenadas, analista y estado en la otra fuente, para identificar el evento
+  sin abrir la ficha.
 
 ## Paneles sismotectónicos
 

@@ -37,6 +37,7 @@ from ..services.plots import (
     generar_miniatura,
     marcar_sospechosos,
     perfil_desde_eventos,
+    resumen_mapa,
 )
 from ..services.results import (
     NO_ACT_COLUMNS,
@@ -670,7 +671,27 @@ def mapa(job_id: str, tabla: str, opcion: str, fila: int):
     _columnas, filas = leido
     if fila < 0 or fila >= len(filas):
         abort(404)
-    png = generar_mapa(ruta_workspace(job.id), tabla, opcion, archivo, filas, fila)
+    titulo_opcion = next(
+        (titulo for clave, titulo in _opciones(tabla, job) if clave == opcion),
+        opcion,
+    )
+    resumen = resumen_mapa(
+        tabla,
+        f"{TABLAS[tabla]['titulo']} · {titulo_opcion}",
+        filas,
+        fila,
+        archivo,
+        job.id,
+    )
+    png = generar_mapa(
+        ruta_workspace(job.id),
+        tabla,
+        opcion,
+        archivo,
+        filas,
+        fila,
+        resumen=resumen,
+    )
     return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
 
 
