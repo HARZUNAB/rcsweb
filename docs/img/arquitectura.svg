@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="Arial, Helvetica, sans-serif">
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <text x="600" y="42" text-anchor="middle" font-size="26" font-weight="bold" fill="#1f2933">Arquitectura de RCS Web</text>
+  <text x="600" y="70" text-anchor="middle" font-size="14" fill="#52606d">Servicios, archivos y volúmenes persistentes</text>
+
+  <!-- Navegador -->
+  <rect x="60" y="110" width="300" height="80" rx="12" fill="#eef4fa" stroke="#1f3a5f" stroke-width="2"/>
+  <text x="210" y="142" text-anchor="middle" font-size="17" font-weight="bold" fill="#1f2933">Navegador</text>
+  <text x="210" y="166" text-anchor="middle" font-size="13" fill="#52606d">usuario / analista / admin</text>
+
+  <!-- Web -->
+  <rect x="450" y="110" width="300" height="80" rx="12" fill="#eef4fa" stroke="#1f3a5f" stroke-width="2"/>
+  <text x="600" y="142" text-anchor="middle" font-size="17" font-weight="bold" fill="#1f2933">Flask web</text>
+  <text x="600" y="166" text-anchor="middle" font-size="13" fill="#52606d">web:8000 · gunicorn / flask</text>
+
+  <!-- Worker -->
+  <rect x="450" y="250" width="300" height="80" rx="12" fill="#eef4fa" stroke="#1f3a5f" stroke-width="2"/>
+  <text x="600" y="282" text-anchor="middle" font-size="17" font-weight="bold" fill="#1f2933">Worker Celery</text>
+  <text x="600" y="306" text-anchor="middle" font-size="13" fill="#52606d">tasks · pipeline</text>
+
+  <!-- Core -->
+  <rect x="840" y="250" width="300" height="80" rx="12" fill="#f7f7f4" stroke="#7b8794" stroke-width="2"/>
+  <text x="990" y="282" text-anchor="middle" font-size="17" font-weight="bold" fill="#1f2933">Core sísmico</text>
+  <text x="990" y="306" text-anchor="middle" font-size="13" fill="#52606d">revisacatalogosweb · solo lectura</text>
+
+  <!-- PostgreSQL -->
+  <rect x="60" y="430" width="300" height="90" rx="12" fill="#e8f0fb" stroke="#1f3a5f" stroke-width="2"/>
+  <text x="210" y="462" text-anchor="middle" font-size="17" font-weight="bold" fill="#1f2933">PostgreSQL</text>
+  <text x="210" y="486" text-anchor="middle" font-size="13" fill="#52606d">db:5434 · base rcs</text>
+  <text x="210" y="505" text-anchor="middle" font-size="12" fill="#52606d">volumen rcsweb_pgdata</text>
+
+  <!-- Redis -->
+  <rect x="450" y="430" width="300" height="90" rx="12" fill="#e8f0fb" stroke="#1f3a5f" stroke-width="2"/>
+  <text x="600" y="462" text-anchor="middle" font-size="17" font-weight="bold" fill="#1f2933">Redis</text>
+  <text x="600" y="486" text-anchor="middle" font-size="13" fill="#52606d">redis:6380 · cola</text>
+  <text x="600" y="505" text-anchor="middle" font-size="12" fill="#52606d">volumen redisdata</text>
+
+  <!-- Workspace -->
+  <rect x="840" y="430" width="300" height="90" rx="12" fill="#f7f7f4" stroke="#7b8794" stroke-width="2"/>
+  <text x="990" y="462" text-anchor="middle" font-size="17" font-weight="bold" fill="#1f2933">Workspace</text>
+  <text x="990" y="486" text-anchor="middle" font-size="13" fill="#52606d">./workspace → /workspace</text>
+  <text x="990" y="505" text-anchor="middle" font-size="12" fill="#52606d">catálogos · resultados · mapas</text>
+
+  <!-- flechas -->
+  <defs>
+    <marker id="flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#52606d"/>
+    </marker>
+  </defs>
+  <line x1="360" y1="150" x2="442" y2="150" stroke="#52606d" stroke-width="2.5" marker-end="url(#flecha)"/>
+  <line x1="600" y1="190" x2="600" y2="242" stroke="#52606d" stroke-width="2.5" marker-end="url(#flecha)"/>
+  <line x1="750" y1="290" x2="832" y2="290" stroke="#52606d" stroke-width="2.5" marker-end="url(#flecha)"/>
+  <line x1="600" y1="330" x2="600" y2="422" stroke="#52606d" stroke-width="2.5" marker-end="url(#flecha)"/>
+  <line x1="450" y1="190" x2="300" y2="422" stroke="#52606d" stroke-width="2.5" marker-end="url(#flecha)"/>
+  <line x1="990" y1="330" x2="990" y2="422" stroke="#52606d" stroke-width="2.5" marker-end="url(#flecha)"/>
+</svg>

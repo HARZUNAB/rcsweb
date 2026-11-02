@@ -1,0 +1,222 @@
+# Manual de usuario
+
+RCS Web es el revisor de catálogos sísmicos de la red. Permite solicitar o
+subir catálogos, procesarlos, revisar los resultados, abrir el detalle de cada
+evento y consultar los paneles de contexto sismotectónico.
+
+**Versión:** 0.7.3 · **Actualizado:** noviembre de 2026
+
+## Acceso
+
+Ingrese desde el navegador con el usuario y la contraseña que le entregó el
+administrador.
+
+![Pantalla de ingreso](img/login.png)
+
+Si no recuerda la contraseña, use el enlace **«¿Olvidó su contraseña?»**. Por
+seguridad, las claves no se recuperan: un administrador debe restablecerla
+desde **Usuarios**. Si usted es el administrador, el manual técnico explica el
+comando de recuperación.
+
+### Roles
+
+| Rol | Alcance |
+|---|---|
+| **Administrador** | Acceso total, usuarios y auditoría |
+| **Supervisor** | Toda la operación y la auditoría, sin gestión de usuarios |
+| **Analista** | Operación diaria sobre sus propios trabajos y solicitudes |
+| **Consulta** | Solo lectura de sus propios trabajos |
+
+El **analista** y la **consulta** solo ven los trabajos que crearon. El
+administrador y el supervisor ven todos. La columna **Creador** del panel y la
+línea «por …» del detalle identifican al autor.
+
+## Panel de trabajos
+
+Al ingresar verá el resumen de trabajos y la lista de los más recientes.
+
+![Panel de trabajos](img/panel.png)
+
+- **Total, En curso, Terminados y Fallidos** muestran los trabajos que puede
+  ver.
+- Cada fila indica período, estado, creador, paso actual y fecha de creación.
+- **Ver** abre el detalle.
+- **Eliminar** aparece solo si tiene permiso y el trabajo es suyo, salvo para
+  administradores y supervisores.
+
+## Crear un trabajo
+
+Hay dos formas de iniciar un trabajo.
+
+### Solicitar catálogos
+
+Use **Solicitar catálogos** cuando la aplicación deba conectarse al servidor
+para descargar los archivos.
+
+![Solicitud de catálogos](img/solicitud.png)
+
+1. Indique el período.
+2. Complete los datos del servidor y la contraseña SSH.
+3. Elija las fuentes: SeisComp, Seisan o ambas.
+4. Defina el radio de estaciones.
+5. Envíe la solicitud.
+
+La contraseña SSH se usa solo para la descarga y no se guarda.
+
+### Subir catálogos
+
+Use **Subir catálogos** cuando ya tenga los archivos en su equipo.
+
+![Subir catálogos](img/subir.png)
+
+1. Seleccione el catálogo eventquery.
+2. Agregue SeisComp, Seisan o ambos según corresponda.
+3. Indique el período y la fuente principal.
+4. Envíe el formulario.
+
+Si falta un archivo o el contenido no es válido, el trabajo queda en
+**Borrador** con el detalle del problema. Corrija el archivo y cree uno nuevo,
+o elimine el borrador.
+
+## Seguimiento del trabajo
+
+El detalle muestra el progreso, los pasos, el registro y los accesos a los
+resultados.
+
+![Detalle del trabajo](img/trabajo.png)
+
+- **Resultados** lleva a las tablas del trabajo.
+- **Paneles** abre el contexto sismotectónico.
+- **Catálogos** permite revisar los catálogos procesados.
+- **Descargas** reúne los archivos generados.
+- **Cancelar trabajo** detiene un trabajo en cola o en ejecución.
+- **Eliminar** borra el trabajo, sus archivos y sus resultados. La auditoría
+  conserva el registro de la eliminación.
+
+## Resultados
+
+Las tablas **No publicados**, **No actualizados** y **Repetidos** permiten
+revisar los eventos.
+
+![Listado de resultados](img/resultados.png)
+
+- **Buscar en todas las columnas** aplica una búsqueda general.
+- **Filtros por columna**: las columnas de texto filtran por contenido. Las
+  numéricas aceptan un rango como `3..5`, o expresiones como `>=3`, `<=5` y
+  `=3`.
+- **Ordenar**: haga clic en el encabezado de una columna.
+- **Miniaturas**: active el interruptor o use **Ver miniaturas** en una fila
+  para ver el perfil y el mini mapa de planta lado a lado.
+- **Ficha de ubicación**: indica Chile continental, insular, costa, mar
+  chileno, otro país o alta mar.
+- **Publicado en otra fuente**: cuando corresponde, indica la otra fuente donde
+  se publicó el evento. **Tipo mag.** es el tipo de magnitud, no la fuente.
+- **Descargar todo** incluye todas las filas del archivo.
+- **Descargar filtrado** incluye todas las filas que cumplen el filtro, no solo
+  la página visible.
+- **Descargar seleccionados** incluye solo las filas marcadas, aunque estén
+  ocultas por el filtro.
+- La barra horizontal superior permite desplazar la tabla sin bajar hasta el
+  final.
+
+## Detalle del evento
+
+Al pulsar **Ver** en una fila se abre la ficha del evento.
+
+![Mapa y perfil del evento](img/detalle.png)
+
+- La columna izquierda muestra los parámetros de la solución local.
+- La columna derecha muestra el estado en la otra fuente, cuando existe.
+- El mapa interactivo permite acercar, alejar y seleccionar eventos.
+- La planta abre con una vista regional para que el evento se ubique en el
+  contexto del país.
+
+Más abajo está el perfil de subducción.
+
+![Perfil con sismicidad histórica](img/detalle_perfil.png)
+
+- **Sismicidad histórica (perfil)** agrega los sismos históricos en gris.
+- El perfil conserva su escala al activar o desactivar la casilla.
+- Al pasar el mouse por un evento se resalta también en la otra vista.
+- **Abrir PNG** y **Descargar PNG** generan una imagen del mapa.
+
+## Paneles sismotectónicos
+
+Los paneles agrupan los eventos por perfil de subducción y, cuando no tienen
+perfil, por territorio.
+
+![Paneles sismotectónicos](img/paneles.png)
+
+- **Fuente** y **Tipo** filtran los grupos, la planta, el perfil y el listado.
+  Una pestaña con cero eventos se puede abrir y muestra el aviso
+  correspondiente.
+- **Grupos**: seleccione un perfil o territorio. Las flechas **↑/↓** recorren
+  la lista.
+- **Planta del grupo**: muestra los eventos y las divisiones regionales de
+  Chile. Use **Centrar** para volver al encuadre del grupo después de hacer
+  zoom o desplazar.
+- **Perfil**: topografía, slab y eventos. La casilla de sismicidad histórica
+  carga la serie del perfil seleccionado.
+- **Solo sospechosos** limita la vista a los eventos marcados.
+- **Ir al listado** lleva a la tabla de eventos del grupo.
+- **Descargar** permite bajar todo, lo filtrado o lo seleccionado.
+
+## Catálogos
+
+Desde el detalle del trabajo puede abrir los catálogos procesados:
+**Eventquery**, **Seisan** y **SeisComp**.
+
+- Las columnas y filtros funcionan como en los resultados.
+- **Eventquery** incluye **Percibido** y **Analista probable**, calculado
+  cruzando la solución publicada con SeisComp y Seisan.
+- **Web** abre el catálogo diario de sismologia.cl para la fecha del evento.
+- **Ver** abre el detalle del evento.
+
+## Usuarios y perfil
+
+Cada usuario puede cambiar su contraseña desde **Mi perfil**.
+
+![Mi perfil](img/perfil.png)
+
+El **administrador** además dispone de la pantalla **Usuarios**.
+
+![Usuarios](img/usuarios.png)
+
+- Crear usuarios.
+- Cambiar el rol.
+- Activar o desactivar cuentas.
+- Restablecer contraseñas.
+
+El sistema no permite dejar sin administradores activos. Si una cuenta se
+desactiva, su sesión se cierra en la siguiente petición.
+
+## Preguntas frecuentes
+
+**No veo un trabajo que otro usuario creó.**
+Es normal: los analistas y las consultas solo ven sus propios trabajos. El
+administrador o el supervisor pueden verlo.
+
+**No aparece la fuente Eventquery.**
+Puede tener cero eventos. La pestaña se puede abrir y muestra el aviso de
+filtro sin eventos.
+
+**El mapa se ve demasiado cerca.**
+La planta usa una vista regional; puede alejar con la rueda del mouse. En los
+paneles, use **Centrar** para volver al encuadre del grupo.
+
+**La página tarda y no sé si está trabajando.**
+Después de una navegación lenta aparece un aviso con un spinner y
+«Cargando…».
+
+**Olvidé mi contraseña.**
+Use **«¿Olvidó su contraseña?»** en el ingreso. La clave solo puede
+restablecerse desde **Usuarios** por un administrador.
+
+**¿Dónde quedan mis trabajos?**
+Los metadatos y la lista quedan en la base de datos de la aplicación; los
+archivos de cada trabajo se guardan en el espacio de trabajo del servidor. El
+manual técnico detalla las rutas.
+
+**¿Puedo descargar los resultados?**
+Sí, si su rol lo permite. Analistas, supervisores y administradores pueden
+exportar; la consulta es solo lectura.

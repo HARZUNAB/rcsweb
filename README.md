@@ -11,6 +11,19 @@ estaciones es editable por solicitud, con 400 km por defecto. Las fechas se
 ingresan como `dd/mm/aaaa` y el detalle del evento incluye mapas interactivos
 online/offline con zoom, colores por fuente y viñetas de parámetros.
 
+## Documentación
+
+- **Manual de usuario**: [Markdown](docs/manual_usuario.md) ·
+  [DOCX](docs/manual_usuario.docx)
+- **Manual técnico**: [Markdown](docs/manual_tecnico.md) ·
+  [DOCX](docs/manual_tecnico.docx)
+
+Los Markdown son la fuente de verdad. Los DOCX se regeneran con:
+
+```bash
+.venv/bin/python scripts/generar_docs.py
+```
+
 ## Stack
 
 - **Backend:** Flask 3, SQLAlchemy 2, Flask-Login, Flask-WTF
@@ -420,7 +433,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **247 tests**.
+runner de solo lectura. Total actual: **249 tests**.
 
 ## Filtros y exportación
 
