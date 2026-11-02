@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 
 import matplotlib
 
@@ -35,7 +36,34 @@ gridliner.Gridliner._draw_gridliner = lambda self, renderer=None: None
 
 import plotear  # noqa: E402
 
+# El paquete de la app está instalado en el mismo entorno; se agrega la raíz
+# para poder reutilizar el cálculo del margen desde el subproceso.
+RAIZ_APP = Path(__file__).resolve().parents[2]
+if str(RAIZ_APP) not in sys.path:
+    sys.path.insert(0, str(RAIZ_APP))
+from app.services.extent import margen_planta_eventos  # noqa: E402
+
 plotear._mostrar_figura = lambda bloquear: None
+
+# Ajuste de contexto de la planta sin modificar el proyecto base: un evento
+# solo se muestra con vista regional; varias soluciones cercanas se acercan
+# para poder diferenciarlas.
+_extent_original = plotear._extent_planta_por_eventos
+
+
+def _extent_con_contexto(
+    eventos,
+    perfil=None,
+    territorio=None,
+    margen_adicional=None,
+):
+    margen = margen_planta_eventos(eventos)
+    if margen is not None:
+        margen_adicional = margen
+    return _extent_original(eventos, perfil, territorio, margen_adicional)
+
+
+plotear._extent_planta_por_eventos = _extent_con_contexto
 
 
 def main() -> int:

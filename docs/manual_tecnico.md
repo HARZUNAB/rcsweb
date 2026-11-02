@@ -294,6 +294,13 @@ profundidad, coordenadas, analista, frontera y estado en la otra fuente. El
 resumen se arma en `app/services/plots.py` y la caché usa el sufijo `_resumen`
 para no servir imágenes antiguas sin datos.
 
+La vista en planta del PNG ajusta el margen en `app/services/extent.py`. Con un
+solo evento usa 2.0° de contexto; con varias soluciones usa
+`clamp(separación × 0.5, 0.01°, 0.6°)`, donde la separación es la mayor
+diferencia en grados entre las soluciones. `app/services/plot_cli.py` intercepta
+`plotear._extent_planta_por_eventos` para aplicar ese margen sin modificar el
+core. El perfil conserva su escala.
+
 ## Operación y diagnóstico
 
 ### Estado de los servicios

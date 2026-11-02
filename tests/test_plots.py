@@ -9,6 +9,12 @@ import pytest
 from app.extensions import db
 from app.models import Job, nuevo_uuid
 from app.services import plots
+from app.services.extent import (
+    MARGEN_MAXIMO,
+    MARGEN_MINIMO,
+    MARGEN_UN_EVENTO,
+    margen_planta_eventos,
+)
 from app.services.workspace import crear_workspace
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 128
@@ -381,3 +387,55 @@ def test_componer_resumen_agrega_encabezado():
     imagen = Image.open(BytesIO(final))
     assert imagen.width == 240
     assert imagen.height > 120
+
+
+def test_margen_un_evento_usa_vista_regional():
+    eventos = [{"latitud": "-23.0", "longitud": "-69.0"}]
+    assert margen_planta_eventos(eventos) == MARGEN_UN_EVENTO
+
+
+def test_margen_un_evento_repetido_usa_vista_regional():
+    eventos = [
+        {"latitud": "-23.0", "longitud": "-69.0"},
+        {"latitud": "-23.0", "longitud": "-69.0"},
+    ]
+    assert margen_planta_eventos(eventos) == MARGEN_UN_EVENTO
+
+
+def test_margen_soluciones_cercanas_se_acerca():
+    eventos = [
+        {"latitud": "-23.000", "longitud": "-69.000"},
+        {"latitud": "-23.001", "longitud": "-69.001"},
+    ]
+    assert margen_planta_eventos(eventos) == pytest.approx(0.01)
+
+
+def test_margen_soluciones_casi_identicas_usa_el_piso():
+    eventos = [
+        {"latitud": "-23.00000", "longitud": "-69.00000"},
+        {"latitud": "-23.00001", "longitud": "-69.00001"},
+    ]
+    assert margen_planta_eventos(eventos) == MARGEN_MINIMO
+
+
+def test_margen_soluciones_separadas_crece_con_la_separacion():
+    eventos = [
+        {"latitud": "-23.0", "longitud": "-69.0"},
+        {"latitud": "-23.0", "longitud": "-69.6"},
+    ]
+    assert margen_planta_eventos(eventos) == pytest.approx(0.3)
+
+
+def test_margen_grupo_disperso_usa_el_maximo():
+    eventos = [
+        {"latitud": "-23.0", "longitud": "-69.0"},
+        {"latitud": "-33.0", "longitud": "-71.0"},
+    ]
+    assert margen_planta_eventos(eventos) == MARGEN_MAXIMO
+
+
+def test_margen_sin_coordenadas_devuelve_none():
+    assert margen_planta_eventos([]) is None
+    assert margen_planta_eventos(None) is None
+    assert margen_planta_eventos([{"latitud": "x", "longitud": "-69.0"}]) is None
+    assert margen_planta_eventos([{"latitud": "-23.0"}]) is None

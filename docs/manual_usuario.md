@@ -148,6 +148,11 @@ Más abajo está el perfil de subducción.
 - El PNG incluye un encabezado con fecha y hora, magnitud, profundidad,
   coordenadas, analista y estado en la otra fuente, para identificar el evento
   sin abrir la ficha.
+- La vista en planta se adapta a la cantidad de soluciones:
+  - con un solo evento usa una vista regional (unos 8° × 4°) para ubicarlo en
+    el país;
+  - con varias soluciones cercanas se acerca lo necesario para distinguirlas;
+  - si el grupo está disperso, mantiene todos los eventos a la vista.
 
 ## Paneles sismotectónicos
 
