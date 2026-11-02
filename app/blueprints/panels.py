@@ -15,6 +15,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
+from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..models import Job
 from ..security import permiso_requerido, puede_ver_trabajo
@@ -27,8 +28,6 @@ from ..services.workspace import ruta_workspace
 panels_bp = Blueprint("panels", __name__)
 
 TIPOS_VALIDOS = {"", "no_publicado", "no_actualizado", "repetido"}
-FUENTES_VALIDAS = {"", "seiscomp", "seisan", "eventquery"}
-FUENTES_ORDEN = ("seiscomp", "seisan", "eventquery")
 TIPOS_PLURAL = {
     "no_publicado": "No publicados",
     "no_actualizado": "No actualizados",
@@ -58,12 +57,16 @@ def _titulo_tipo(tipo: str) -> str:
     return "Todos los tipos" if not tipo else TIPOS_PLURAL.get(tipo, tipo)
 
 
-def _titulo_fuente(fuente: str) -> str:
-    return (
-        "Todas las fuentes"
-        if not fuente
-        else panels.ETIQUETAS_CATALOGO.get(fuente, fuente)
+def _fuentes_observaciones() -> tuple[str, ...]:
+    return tuple(
+        definicion.id
+        for definicion in fuentes_manifest.locales()
+        if definicion.visible_in_observaciones
     )
+
+
+def _titulo_fuente(fuente: str) -> str:
+    return "Todas las fuentes" if not fuente else panels.etiqueta_fuente(fuente)
 
 
 def _leer_panel(job: Job, dataset: str | None = None) -> dict:
@@ -78,12 +81,13 @@ def _leer_panel(job: Job, dataset: str | None = None) -> dict:
         abort(404)
     tipo = request.args.get("tipo", "")
     fuente = request.args.get("fuente", "")
-    if dataset != "observaciones":
+    if dataset == "observaciones":
+        if tipo not in TIPOS_VALIDOS:
+            tipo = ""
+        if fuente not in _fuentes_observaciones():
+            fuente = ""
+    else:
         tipo = ""
-        fuente = ""
-    if tipo not in TIPOS_VALIDOS:
-        tipo = ""
-    if fuente not in FUENTES_VALIDAS:
         fuente = ""
     datos = panels.filtrar(
         panels.cargar(workspace, dataset), tipo or None, fuente or None
@@ -171,7 +175,7 @@ def _fuente_png(ctx: dict) -> str:
 def _fuente_titulo_png(ctx: dict) -> str:
     if ctx["dataset"].startswith("catalogo_"):
         clave = ctx["dataset"].split("_", 1)[1]
-        return panels.ETIQUETAS_CATALOGO.get(clave, clave)
+        return panels.etiqueta_fuente(clave)
     return _titulo_fuente(ctx["fuente"])
 
 
@@ -220,8 +224,10 @@ def _puntos_grupo(eventos: list[dict]) -> list[dict]:
         puntos.append(
             {
                 "fuente": codigo,
-                "etiqueta": panels.ETIQUETAS_CATALOGO.get(
-                    codigo, "Publicado" if codigo == "publicado" else codigo
+                "etiqueta": (
+                    "Publicado"
+                    if codigo == "publicado"
+                    else panels.etiqueta_fuente(codigo)
                 ),
                 "color": estilo["color"],
                 "borde": estilo["borde"],
@@ -324,12 +330,13 @@ def index(job_id: str):
     datos_completos = panels.cargar(workspace, dataset)
     tipo = request.args.get("tipo", "")
     fuente = request.args.get("fuente", "")
-    if dataset != "observaciones":
+    if dataset == "observaciones":
+        if tipo not in TIPOS_VALIDOS:
+            tipo = ""
+        if fuente not in _fuentes_observaciones():
+            fuente = ""
+    else:
         tipo = ""
-        fuente = ""
-    if tipo not in TIPOS_VALIDOS:
-        tipo = ""
-    if fuente not in FUENTES_VALIDAS:
         fuente = ""
 
     resumen_conteos = panels.conteos(datos_completos)
@@ -388,12 +395,12 @@ def index(job_id: str):
                 "url": _url_panel(job.id, dataset, tipo=tipo),
             }
         )
-        for clave in FUENTES_ORDEN:
+        for clave in _fuentes_observaciones():
             total = fuentes_tipo.get(clave, 0)
             fuentes_tabs.append(
                 {
                     "clave": clave,
-                    "titulo": panels.ETIQUETAS_CATALOGO.get(clave, clave),
+                    "titulo": panels.etiqueta_fuente(clave),
                     "total": total,
                     "activo": fuente == clave,
                     # Eventquery puede tener 0 eventos y aun así debe abrirse.

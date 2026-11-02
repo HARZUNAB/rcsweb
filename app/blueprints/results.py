@@ -15,6 +15,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
+from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..models import Job
 from ..security import permiso_requerido, puede_ver_trabajo
@@ -52,7 +53,6 @@ from ..services.results import (
 from ..services.results import (
     exportar_seleccionados as exportar_seleccionados_csv,
 )
-from ..services.sources import FUENTES, default_primary, etiqueta
 from ..services.ubicacion import clasificar as clasificar_ubicacion
 from ..services.workspace import ruta_workspace
 
@@ -113,19 +113,22 @@ def _job(job_id: str) -> Job:
 
 def _fuentes_job(job: Job) -> list[str]:
     """Fuentes locales del trabajo, principal primero."""
+    locales = {definicion.id: definicion for definicion in fuentes_manifest.locales()}
     pares: list[tuple[str, str]] = []
     for source in job.sources:
-        if source.kind in FUENTES and FUENTES[source.kind].es_local:
+        if source.kind in locales:
             pares.append((source.role, source.kind))
     if not pares:
         vistos = set()
         for archivo in job.files:
-            if archivo.kind not in FUENTES or not FUENTES[archivo.kind].es_local:
-                continue
-            if archivo.kind in vistos:
+            if archivo.kind not in locales or archivo.kind in vistos:
                 continue
             vistos.add(archivo.kind)
-            rol = "local_principal" if archivo.kind == "seiscomp" else "local_secundaria"
+            rol = (
+                "local_principal"
+                if archivo.kind == fuentes_manifest.default_primary()
+                else "local_secundaria"
+            )
             pares.append((rol, archivo.kind))
     if not pares:
         # Compatibilidad con trabajos viejos sin job_sources: inferir desde los
@@ -135,15 +138,15 @@ def _fuentes_job(job: Job) -> list[str]:
         for patron in ("no_publicados_*.csv", "no_actualizados_*.csv"):
             for ruta in base.glob(patron):
                 codigo = ruta.stem.split("_", 2)[-1]
-                if codigo in FUENTES and FUENTES[codigo].es_local:
+                if codigo in locales:
                     codigos.add(codigo)
         for ruta in base.glob("repetidos_*.csv"):
             partes = ruta.stem.split("_")
             if len(partes) > 1 and partes[1] != "publica":
                 codigo = partes[1]
-                if codigo in FUENTES and FUENTES[codigo].es_local:
+                if codigo in locales:
                     codigos.add(codigo)
-        predeterminada = default_primary()
+        predeterminada = fuentes_manifest.default_primary()
         pares = [
             (
                 "local_principal" if codigo == predeterminada else "local_secundaria",
@@ -155,13 +158,14 @@ def _fuentes_job(job: Job) -> list[str]:
         # Último recurso: índice de resultados.
         indice = cargar_indice(ruta_workspace(job.id))
         codigos = set(indice.get("no_publicados", {})) | set(indice.get("no_actualizados", {}))
+        referencia = fuentes_manifest.referencia().id
         for clave in indice.get("repetidos", {}):
-            if clave.startswith("publica"):
+            if clave.startswith(referencia) or clave.startswith("publica"):
                 continue
             codigo = clave.split("_", 1)[0]
-            if codigo in FUENTES and FUENTES[codigo].es_local:
+            if codigo in locales:
                 codigos.add(codigo)
-        predeterminada = default_primary()
+        predeterminada = fuentes_manifest.default_primary()
         pares = [
             (
                 "local_principal" if codigo == predeterminada else "local_secundaria",
@@ -177,15 +181,19 @@ def _alias(job: Job, codigo: str) -> str:
     for source in job.sources:
         if source.kind == codigo:
             return source.alias_mostrado
-    return etiqueta(codigo)
+    return fuentes_manifest.etiqueta(codigo)
 
 
 def _opciones(tabla: str, job: Job) -> list[tuple[str, str]]:
     if tabla == "catalogos":
         indice = cargar_indice(ruta_workspace(job.id))
         disponibles = indice.get("catalogos") or {}
-        orden = [c for c in ("eventquery", "seisan", "seiscomp") if c in disponibles]
-        return [(clave, etiqueta(clave)) for clave in orden]
+        orden = [
+            definicion.id
+            for definicion in fuentes_manifest.fuentes()
+            if definicion.id in disponibles
+        ]
+        return [(clave, fuentes_manifest.etiqueta(clave)) for clave in orden]
     fuentes = _fuentes_job(job)
     if tabla == "repetidos":
         labels = {codigo: _alias(job, codigo) for codigo in fuentes}

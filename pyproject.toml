@@ -56,7 +56,7 @@ dev = [
 include = ["app*", "tasks*"]
 
 [tool.setuptools.package-data]
-app = ["templates/**/*", "static/**/*"]
+app = ["templates/**/*", "static/**/*", "domain/catalogs/*.json"]
 
 [tool.ruff]
 line-length = 100

@@ -6,7 +6,6 @@ import datetime
 import os
 
 from flask_wtf import FlaskForm
-from flask_wtf.file import FileAllowed, FileField, FileRequired
 from wtforms import (
     BooleanField,
     DateField,
@@ -28,9 +27,6 @@ from wtforms.validators import (
 from wtforms.widgets import TextInput
 
 from .security import ETIQUETAS_ROL, ROLES_VALIDOS
-from .services.sources import default_primary, fuentes_locales
-
-LOCALES = [(fuente.codigo, fuente.etiqueta) for fuente in fuentes_locales()]
 
 
 class FechaField(DateField):
@@ -126,64 +122,17 @@ class PasswordChangeForm(FlaskForm):
 class JobForm(FlaskForm):
     period_start = FechaField("Desde")
     period_end = FechaField("Hasta")
-
-    eventquery = FileField(
-        "Catálogo eventquery (CSV)",
-        validators=[FileRequired(), FileAllowed(["csv"], "un CSV de eventquery")],
-    )
-
-    incluir_seiscomp = BooleanField("Incluir SeisComp", default=False)
-    alias_seiscomp = StringField("Nombre de la fuente", validators=[Length(max=80)])
-    seiscomp = FileField(
-        "Catálogo SeisComp (CSV)",
-        validators=[FileAllowed(["csv"], "un CSV de SeisComp")],
-    )
-
-    incluir_seisan = BooleanField("Incluir Seisan", default=False)
-    alias_seisan = StringField("Nombre de la fuente", validators=[Length(max=80)])
-    seisan = FileField(
-        "Catálogo Seisan (select.out)",
-        validators=[FileAllowed(["out", "txt", "dat"], "select.out")],
-    )
-
     primary_source = RadioField(
         "Fuente local principal",
-        choices=LOCALES,
-        default=default_primary,
+        choices=[],
         validators=[DataRequired()],
     )
     submit = SubmitField("Validar y crear trabajo")
 
+
     def validate_period_end(self, field):  # noqa: N802 - API de WTForms
         if self.period_start.data and field.data and field.data < self.period_start.data:
             raise ValidationError("La fecha de término debe ser posterior a la de inicio.")
-
-    def validate(self, extra_validators=None):  # noqa: N802 - API de WTForms
-        valido = super().validate(extra_validators)
-
-        seleccion = []
-        if self.incluir_seiscomp.data:
-            seleccion.append("seiscomp")
-        if self.incluir_seisan.data:
-            seleccion.append("seisan")
-
-        if not seleccion:
-            self.incluir_seiscomp.errors.append(
-                "Seleccione al menos una fuente local para comparar con eventquery."
-            )
-            valido = False
-        elif not _principal_incluida(self, seleccion):
-            valido = False
-
-        if self.incluir_seiscomp.data and not (self.seiscomp.data and self.seiscomp.data.filename):
-            self.seiscomp.errors.append("Suba el catálogo de SeisComp o desmarque la fuente.")
-            valido = False
-
-        if self.incluir_seisan.data and not (self.seisan.data and self.seisan.data.filename):
-            self.seisan.errors.append("Suba select.out o desmarque la fuente.")
-            valido = False
-
-        return valido
 
 
 class SolicitudForm(FlaskForm):
@@ -192,9 +141,6 @@ class SolicitudForm(FlaskForm):
     server = StringField("Servidor", validators=[DataRequired()], default=_ssh_host)
     remote_user = StringField("Usuario", validators=[DataRequired()], default=_ssh_user)
     password = PasswordField("Contraseña del servidor", validators=[DataRequired()])
-
-    incluir_seisan = BooleanField("Incluir Seisan", default=True)
-    incluir_seiscomp = BooleanField("Incluir SeisComp", default=False)
     radio_km = IntegerField(
         "Radio de estaciones (km)",
         default=_radio_default,
@@ -205,43 +151,14 @@ class SolicitudForm(FlaskForm):
     )
     primary_source = RadioField(
         "Fuente local principal",
-        choices=[("seiscomp", "SeisComp"), ("seisan", "Seisan")],
-        default="seiscomp",
+        choices=[],
+        validators=[DataRequired()],
     )
     submit = SubmitField("Solicitar y descargar")
 
     def validate_period_end(self, field):  # noqa: N802 - API de WTForms
         if self.period_start.data and field.data and field.data < self.period_start.data:
             raise ValidationError("La fecha de término debe ser posterior a la de inicio.")
-
-    def validate(self, extra_validators=None):  # noqa: N802 - API de WTForms
-        valido = super().validate(extra_validators)
-        if not self.incluir_seisan.data and not self.incluir_seiscomp.data:
-            self.incluir_seisan.errors.append(
-                "Seleccione al menos una fuente local para descargar."
-            )
-            valido = False
-        else:
-            seleccion = [
-                codigo
-                for codigo, incluir in (
-                    ("seisan", self.incluir_seisan.data),
-                    ("seiscomp", self.incluir_seiscomp.data),
-                )
-                if incluir
-            ]
-            if not _principal_incluida(self, seleccion):
-                valido = False
-        if self.incluir_seiscomp.data:
-            from .services.seiscomp import configurada
-
-            if self.radio_km.data is None:
-                self.radio_km.errors.append("Indicá el radio de estaciones para SeisComp.")
-                valido = False
-            if not configurada():
-                self.incluir_seiscomp.errors.append("SeisComp no está configurado.")
-                valido = False
-        return valido
 
 
 class ReintentarForm(FlaskForm):

@@ -99,7 +99,7 @@
           <tbody>
             {% for archivo in solicitud.files|sort(attribute='kind') %}
             <tr>
-              <td>{{ etiquetas.get(archivo.kind, archivo.kind) }}</td>
+              <td>{{ archivo.display_name or etiquetas.get(archivo.kind, archivo.kind) }}</td>
               <td>
                 {% if archivo.status == 'ok' %}
                   <span class="badge text-bg-success">OK</span>

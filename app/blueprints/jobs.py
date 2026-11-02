@@ -18,6 +18,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
+from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..forms import JobForm
 from ..models import Job, JobArtifact, JobFile, JobSource, nuevo_uuid
@@ -27,7 +28,13 @@ from ..services.jobs import JobNoEliminable, eliminar_trabajo, puede_eliminar
 from ..services.panels import datasets_disponibles
 from ..services.queue import encolar_trabajo
 from ..services.results import cargar_indice
-from ..services.sources import default_primary, etiqueta, etiquetas, fuente
+from ..services.source_selection import (
+    error_en,
+    extension_permitida,
+    fuente_por_id,
+    leer_formulario,
+    opciones_formulario,
+)
 from ..services.validators import validar_fuente
 from ..services.workspace import (
     crear_workspace,
@@ -53,12 +60,20 @@ def _contexto_detalle(job: Job) -> dict:
     workspace = ruta_workspace(job.id)
     indice = cargar_indice(workspace)
     codigos = set(indice.get("no_publicados", {})) | set(indice.get("no_actualizados", {}))
+    referencia = fuentes_manifest.referencia()
     for clave in indice.get("repetidos", {}):
-        if not clave.startswith("publica"):
+        if not (
+            clave == referencia.id
+            or clave.startswith(referencia.id + "_")
+            or clave.startswith("publica")
+        ):
             codigos.add(clave.split("_", 1)[0])
     fuentes = sorted(
         codigos,
-        key=lambda codigo: (0 if codigo == default_primary() else 1, codigo),
+        key=lambda codigo: (
+            0 if codigo == fuentes_manifest.default_primary() else 1,
+            codigo,
+        ),
     )
     return {
         "job": job,
@@ -66,7 +81,7 @@ def _contexto_detalle(job: Job) -> dict:
         "log": leer_log(workspace, max_lineas=250),
         "artefactos": job.artifacts,
         "activo": job.activo,
-        "etiquetas": etiquetas(),
+        "etiquetas": fuentes_manifest.etiquetas(),
         "aliases": {source.kind: source.alias_mostrado for source in job.sources},
         "fuentes": fuentes,
         "paneles": datasets_disponibles(workspace),
@@ -77,192 +92,274 @@ def _contexto_detalle(job: Job) -> dict:
 @login_required
 @permiso_requerido("trabajos.crear")
 def nuevo():
+    definiciones = fuentes_manifest.fuentes()
+    locales = fuentes_manifest.locales()
+    referencia = fuentes_manifest.referencia()
     form = JobForm()
+    form.primary_source.choices = [(fuente.id, fuente.label) for fuente in locales]
+
     if request.method == "GET":
-        form.incluir_seiscomp.data = True
-        form.incluir_seisan.data = False
-        form.primary_source.data = default_primary()
+        form.primary_source.data = (
+            fuentes_manifest.default_primary()
+            or (locales[0].id if locales else "")
+        )
+        fuentes_form = opciones_formulario(
+            definiciones,
+            {
+                referencia.id,
+                *(
+                    fuente.id
+                    for fuente in locales
+                    if fuente.default_primary
+                ),
+            },
+        )
+    else:
+        fuentes_form = leer_formulario(definiciones)
+        referencia_form = fuente_por_id(fuentes_form, referencia.id)
+        if referencia_form is not None:
+            referencia_form["incluir"] = True
+
+    if request.method == "POST" and not (request.form.get("primary_source") or "").strip():
+        form.primary_source.data = (
+            fuentes_manifest.default_primary()
+            or (locales[0].id if locales else "")
+        )
 
     if form.validate_on_submit():
-        inicio = form.period_start.data
-        fin = form.period_end.data
-        period_start = datetime.combine(inicio, time.min, tzinfo=UTC)
-        period_end = datetime.combine(fin, time(23, 59, 59), tzinfo=UTC)
+        seleccionadas = [
+            opcion
+            for opcion in fuentes_form
+            if opcion["fuente"].es_local and opcion["incluir"]
+        ]
+        valido = True
 
-        seleccion = []
-        if form.incluir_seiscomp.data:
-            seleccion.append("seiscomp")
-        if form.incluir_seisan.data:
-            seleccion.append("seisan")
+        if not seleccionadas:
+            error_en(
+                fuentes_form,
+                locales[0],
+                "Seleccione al menos una fuente local para comparar con la referencia.",
+            )
+            valido = False
 
-        principal = form.primary_source.data
-        if principal not in seleccion:
-            predeterminada = default_primary()
-            principal = predeterminada if predeterminada in seleccion else seleccion[0]
-        orden = [principal] + [codigo for codigo in seleccion if codigo != principal]
-
-        job = Job(
-            id=nuevo_uuid(),
-            period_start=period_start,
-            period_end=period_end,
-            status="draft",
-            origin="upload",
-            current_step="Validando catálogos",
-            created_by_id=current_user.id,
-        )
-        workspace = crear_workspace(job.id)
-        archivos_meta = []
-        rutas = {}
-
-        def _guardar(kind: str, archivo) -> None:
-            almacenado = nombre_entrada(kind, archivo.filename)
-            destino = workspace / "inputs" / almacenado
-            tamano, sha256 = guardar_archivo(archivo, destino)
-            if tamano == 0:
-                raise ValueError(f"El archivo «{archivo.filename}» está vacío.")
-            db.session.add(
-                JobFile(
-                    job_id=job.id,
-                    kind=kind,
-                    original_name=archivo.filename,
-                    stored_name=f"inputs/{almacenado}",
-                    size=tamano,
-                    sha256=sha256,
+        for opcion in fuentes_form:
+            fuente_def = opcion["fuente"]
+            if not fuente_def.es_referencia and not opcion["incluir"]:
+                continue
+            if not extension_permitida(fuente_def, opcion["archivo"]):
+                error_en(
+                    fuentes_form,
+                    fuente_def,
+                    f"Seleccione un archivo válido para {fuente_def.label} "
+                    f"({', '.join(fuente_def.accept) or 'sin extensión fija'}).",
                 )
-            )
-            archivos_meta.append(
-                {
-                    "kind": kind,
-                    "nombre": archivo.filename,
-                    "bytes": tamano,
-                    "sha256": sha256,
-                }
-            )
-            rutas[kind] = destino
+                valido = False
 
-        try:
-            _guardar("eventquery", form.eventquery.data)
-            for codigo in orden:
-                archivo = getattr(form, codigo).data
-                if archivo is None or not archivo.filename:
-                    raise ValueError(f"Falta el archivo de {codigo}.")
-                _guardar(codigo, archivo)
-
-            db.session.add(job)
-            db.session.add(
-                JobSource(
-                    job_id=job.id,
-                    kind="eventquery",
-                    alias="Eventquery",
-                    format="eventquery",
-                    role="referencia",
-                    priority=0,
-                    capabilities=sorted(fuente("eventquery").capacidades),
+        if seleccionadas:
+            ids = {opcion["fuente"].id for opcion in seleccionadas}
+            principal = form.primary_source.data
+            if principal not in ids:
+                predeterminada = fuentes_manifest.default_primary()
+                principal = (
+                    predeterminada if predeterminada in ids else seleccionadas[0]["fuente"].id
                 )
+                form.primary_source.data = principal
+        else:
+            principal = ""
+
+        if valido:
+            inicio = form.period_start.data
+            fin = form.period_end.data
+            period_start = datetime.combine(inicio, time.min, tzinfo=UTC)
+            period_end = datetime.combine(fin, time(23, 59, 59), tzinfo=UTC)
+            orden = [principal] + [
+                opcion["fuente"].id
+                for opcion in seleccionadas
+                if opcion["fuente"].id != principal
+            ]
+            opciones_por_id = {
+                opcion["fuente"].id: opcion for opcion in fuentes_form
+            }
+
+            job = Job(
+                id=nuevo_uuid(),
+                period_start=period_start,
+                period_end=period_end,
+                status="draft",
+                origin="upload",
+                current_step="Validando catálogos",
+                created_by_id=current_user.id,
             )
-            for indice, codigo in enumerate(orden, start=1):
-                alias = (getattr(form, f"alias_{codigo}").data or "").strip()
+            workspace = crear_workspace(job.id)
+            archivos_meta = []
+            rutas = {}
+
+            def _guardar(kind: str, archivo) -> None:
+                almacenado = nombre_entrada(kind, archivo.filename)
+                destino = workspace / "inputs" / almacenado
+                tamano, sha256 = guardar_archivo(archivo, destino)
+                if tamano == 0:
+                    raise ValueError(f"El archivo «{archivo.filename}» está vacío.")
+                db.session.add(
+                    JobFile(
+                        job_id=job.id,
+                        kind=kind,
+                        original_name=archivo.filename,
+                        stored_name=f"inputs/{almacenado}",
+                        size=tamano,
+                        sha256=sha256,
+                    )
+                )
+                archivos_meta.append(
+                    {
+                        "kind": kind,
+                        "nombre": archivo.filename,
+                        "bytes": tamano,
+                        "sha256": sha256,
+                    }
+                )
+                rutas[kind] = destino
+
+            try:
+                referencia_opcion = opciones_por_id[referencia.id]
+                _guardar(referencia.id, referencia_opcion["archivo"])
+                for source_id in orden:
+                    _guardar(
+                        source_id,
+                        opciones_por_id[source_id]["archivo"],
+                    )
+
+                db.session.add(job)
                 db.session.add(
                     JobSource(
                         job_id=job.id,
-                        kind=codigo,
-                        alias=alias or etiqueta(codigo),
-                        format=codigo,
-                        role=("local_principal" if codigo == principal else "local_secundaria"),
-                        priority=indice,
-                        capabilities=sorted(fuente(codigo).capacidades),
+                        kind=referencia.id,
+                        alias=referencia.label,
+                        format=referencia.format,
+                        role="referencia",
+                        priority=0,
+                        capabilities=sorted(referencia.capacidades),
                     )
                 )
-            db.session.commit()
-        except Exception as exc:  # noqa: BLE001 - se informa al usuario
-            db.session.rollback()
-            shutil.rmtree(workspace, ignore_errors=True)
-            flash(f"No se pudo crear el trabajo: {exc}", "danger")
-            return render_template("jobs/new.html", form=form)
+                for indice, source_id in enumerate(orden, start=1):
+                    opcion = opciones_por_id[source_id]
+                    fuente_def = opcion["fuente"]
+                    db.session.add(
+                        JobSource(
+                            job_id=job.id,
+                            kind=fuente_def.id,
+                            alias=opcion["alias"] or fuente_def.label,
+                            format=fuente_def.format,
+                            role=(
+                                "local_principal"
+                                if fuente_def.id == principal
+                                else "local_secundaria"
+                            ),
+                            priority=indice,
+                            capabilities=sorted(fuente_def.capacidades),
+                        )
+                    )
+                db.session.commit()
+            except Exception as exc:  # noqa: BLE001 - se informa al usuario
+                db.session.rollback()
+                shutil.rmtree(workspace, ignore_errors=True)
+                flash(f"No se pudo crear el trabajo: {exc}", "danger")
+                return render_template(
+                    "jobs/new.html", form=form, fuentes=fuentes_form
+                )
 
-        # Validación de contenido, formato y cobertura.
-        try:
-            validaciones = {}
-            for source in job.sources:
-                ruta = rutas.get(source.kind)
-                if ruta is None:
-                    resultado = {
-                        "ok": False,
-                        "errores": ["No se encontró el archivo cargado."],
-                        "advertencias": [],
-                        "eventos": 0,
+            try:
+                validaciones = {}
+                for source in job.sources:
+                    ruta = rutas.get(source.kind)
+                    definicion = fuentes_manifest.por_id(source.kind)
+                    validador = definicion.validator if definicion else source.kind
+                    if ruta is None:
+                        resultado = {
+                            "ok": False,
+                            "errores": ["No se encontró el archivo cargado."],
+                            "advertencias": [],
+                            "eventos": 0,
+                        }
+                    else:
+                        resultado = validar_fuente(
+                            validador,
+                            ruta,
+                            job.period_start,
+                            job.period_end,
+                        )
+                    validaciones[source.kind] = resultado
+                    source.status = "ok" if resultado["ok"] else "error"
+                    mensajes = resultado["errores"] + resultado["advertencias"]
+                    source.message = "\n".join(mensajes) if mensajes else None
+                db.session.commit()
+            except Exception as exc:  # noqa: BLE001
+                job.status = "failed"
+                job.error = f"No se pudo validar los catálogos: {exc}"
+                job.current_step = "Error de validación"
+                db.session.commit()
+                flash("No se pudo validar los catálogos. Revise el detalle.", "danger")
+                return redirect(url_for("jobs.detalle", job_id=job.id))
+
+            todo_ok = all(resultado["ok"] for resultado in validaciones.values())
+            meta = {
+                "inicio": job.inicio14,
+                "fin": job.fin14,
+                "fuentes": orden,
+                "principal": principal,
+                "archivos": archivos_meta,
+                "validacion": {
+                    codigo: {
+                        "ok": resultado["ok"],
+                        "eventos": resultado["eventos"],
+                        "errores": resultado["errores"],
                     }
-                else:
-                    resultado = validar_fuente(source.kind, ruta, job.period_start, job.period_end)
-                validaciones[source.kind] = resultado
-                source.status = "ok" if resultado["ok"] else "error"
-                mensajes = resultado["errores"] + resultado["advertencias"]
-                source.message = "\n".join(mensajes) if mensajes else None
-            db.session.commit()
-        except Exception as exc:  # noqa: BLE001
-            job.status = "failed"
-            job.error = f"No se pudo validar los catálogos: {exc}"
-            job.current_step = "Error de validación"
-            db.session.commit()
-            flash("No se pudo validar los catálogos. Revise el detalle.", "danger")
-            return redirect(url_for("jobs.detalle", job_id=job.id))
+                    for codigo, resultado in validaciones.items()
+                },
+            }
 
-        todo_ok = all(resultado["ok"] for resultado in validaciones.values())
-        meta = {
-            "inicio": job.inicio14,
-            "fin": job.fin14,
-            "fuentes": orden,
-            "principal": principal,
-            "archivos": archivos_meta,
-            "validacion": {
-                codigo: {
-                    "ok": resultado["ok"],
-                    "eventos": resultado["eventos"],
-                    "errores": resultado["errores"],
-                }
-                for codigo, resultado in validaciones.items()
-            },
-        }
+            if not todo_ok:
+                job.status = "draft"
+                job.current_step = "Validación fallida"
+                job.error = (
+                    "Alguno de los catálogos no pasó la validación. "
+                    "Revise el detalle, corrija el archivo y cree un trabajo nuevo."
+                )
+                db.session.commit()
+                registrar("job.create", entity=job.id, meta=meta)
+                flash(
+                    "El trabajo quedó en borrador: hay catálogos inválidos. "
+                    "Revise el detalle antes de volver a intentar.",
+                    "danger",
+                )
+                return redirect(url_for("jobs.detalle", job_id=job.id))
 
-        if not todo_ok:
-            job.status = "draft"
-            job.current_step = "Validación fallida"
-            job.error = (
-                "Alguno de los catálogos no pasó la validación. "
-                "Revise el detalle, corrija el archivo y cree un trabajo nuevo."
-            )
+            job.status = "queued"
+            job.current_step = "En cola"
+            job.error = None
             db.session.commit()
             registrar("job.create", entity=job.id, meta=meta)
-            flash(
-                "El trabajo quedó en borrador: hay catálogos inválidos. "
-                "Revise el detalle antes de volver a intentar.",
-                "danger",
-            )
+
+            try:
+                encolar_trabajo(job.id)
+                flash(
+                    "Trabajo encolado. El progreso se actualiza automáticamente.",
+                    "success",
+                )
+            except Exception as exc:  # noqa: BLE001 - Redis caído, por ejemplo
+                job.status = "failed"
+                job.error = f"No se pudo encolar en Celery: {exc}"
+                job.current_step = "Error al encolar"
+                db.session.commit()
+                flash(
+                    "El trabajo quedó creado pero no se pudo encolar. "
+                    "Revise que Redis y el worker estén activos.",
+                    "danger",
+                )
+
             return redirect(url_for("jobs.detalle", job_id=job.id))
 
-        job.status = "queued"
-        job.current_step = "En cola"
-        job.error = None
-        db.session.commit()
-        registrar("job.create", entity=job.id, meta=meta)
-
-        try:
-            encolar_trabajo(job.id)
-            flash("Trabajo encolado. El progreso se actualiza automáticamente.", "success")
-        except Exception as exc:  # noqa: BLE001 - Redis caído, por ejemplo
-            job.status = "failed"
-            job.error = f"No se pudo encolar en Celery: {exc}"
-            job.current_step = "Error al encolar"
-            db.session.commit()
-            flash(
-                "El trabajo quedó creado pero no se pudo encolar. "
-                "Revise que Redis y el worker estén activos.",
-                "danger",
-            )
-
-        return redirect(url_for("jobs.detalle", job_id=job.id))
-
-    return render_template("jobs/new.html", form=form)
+    return render_template("jobs/new.html", form=form, fuentes=fuentes_form)
 
 
 @jobs_bp.get("/<job_id>")
@@ -333,7 +430,7 @@ def descargas(job_id: str):
         job=job,
         grupos=grupos,
         indice=cargar_indice(ruta_workspace(job.id)),
-        etiquetas=etiquetas(),
+        etiquetas=fuentes_manifest.etiquetas(),
         aliases={source.kind: source.alias_mostrado for source in job.sources},
     )
 

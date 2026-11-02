@@ -509,10 +509,13 @@ La app debe usar `role=local` para los filtros de Observaciones y excluir
 `role=reference`. No debe comparar el texto `eventquery`, `seisan` o
 `seiscomp`.
 
-**Estado de esta versión:** la app todavía conserva adaptadores y etiquetas
-integradas para Eventquery, SeisComp y Seisan. El manifiesto y los nombres
-visibles son el contrato objetivo; la migración se hará por etapas. Los trabajos
-antiguos seguirán usando el registro interno como respaldo.
+**Estado de esta versión:** la app carga el manifiesto desde
+`app/domain/catalogs/sources.json`, o desde la ruta indicada por
+`CATALOG_SOURCES_MANIFEST`. Los formularios de solicitud y carga, los filtros de
+Paneles, las pestañas de catálogos y la adquisición usan las fuentes del
+manifiesto. Los adaptadores del pipeline siguen indexados por `format`: una
+fuente nueva con un formato existente funciona sin tocar la app; un formato
+nuevo requiere su adaptador o preparación externa.
 
 #### Nombres visibles de catálogos
 
@@ -540,6 +543,9 @@ Reglas:
 - Cambiar el nombre visible no invalida catálogos ni resultados.
 
 #### Archivos y normalización
+
+El manifiesto por defecto declara las fuentes de la tabla. Un manifiesto
+distinto puede declarar otras fuentes o cambiar sus nombres visibles.
 
 | Fuente | Entrada y normalización | Capacidades |
 |---|---|---|

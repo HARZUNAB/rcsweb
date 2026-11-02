@@ -10,6 +10,7 @@ from pathlib import Path
 
 from flask import current_app
 
+from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..models import (
     CatalogRequest,
@@ -21,7 +22,6 @@ from ..models import (
 )
 from .audit import registrar
 from .queue import encolar_trabajo
-from .sources import fuente
 from .validators import validar_fuente
 from .workspace import crear_workspace
 
@@ -166,9 +166,11 @@ def _guardar_archivo(
     workspace: Path,
 ) -> Path:
     archivo = _archivo(request, kind)
+    definicion = fuentes_manifest.por_id(kind)
     archivo.status = "ok"
     archivo.original_name = origen.name
-    destino = workspace / "files" / ("select.out" if kind == "seisan" else origen.name)
+    nombre = definicion.stored_filename if definicion else ""
+    destino = workspace / "files" / (nombre or origen.name)
     if origen.resolve() != destino.resolve():
         shutil.copy2(origen, destino)
     archivo.stored_path = str(destino.relative_to(workspace))
@@ -179,19 +181,23 @@ def _guardar_archivo(
 
 
 def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
+    referencia = fuentes_manifest.referencia()
     locales = [
         archivo
         for archivo in request.files
-        if archivo.kind in ("seisan", "seiscomp") and archivo.status == "ok" and archivo.stored_path
+        if archivo.kind != referencia.id
+        and archivo.status == "ok"
+        and archivo.stored_path
     ]
     if not locales:
         raise RuntimeError("La solicitud no tiene ninguna fuente local válida.")
 
     principal = request.primary_source
     if principal not in {archivo.kind for archivo in locales}:
+        predeterminada = fuentes_manifest.default_primary()
         principal = (
-            "seiscomp"
-            if any(archivo.kind == "seiscomp" for archivo in locales)
+            predeterminada
+            if predeterminada in {archivo.kind for archivo in locales}
             else locales[0].kind
         )
     locales.sort(key=lambda archivo: (0 if archivo.kind == principal else 1, archivo.kind))
@@ -214,17 +220,20 @@ def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
     db.session.add(
         JobSource(
             job_id=job.id,
-            kind="eventquery",
-            alias="Eventquery",
-            format="eventquery",
+            kind=referencia.id,
+            alias=referencia.label,
+            format=referencia.format,
             role="referencia",
             priority=0,
-            capabilities=sorted(fuente("eventquery").capacidades),
+            capabilities=sorted(referencia.capacidades),
         )
     )
     for indice, archivo in enumerate(locales, start=1):
-        formato = archivo.format or archivo.kind
-        alias = "SeisComp" if archivo.kind == "seiscomp" else "Seisan"
+        definicion = fuentes_manifest.por_id(archivo.kind)
+        formato = archivo.format or (definicion.format if definicion else archivo.kind)
+        alias = archivo.display_name or (
+            definicion.label if definicion else archivo.kind
+        )
         db.session.add(
             JobSource(
                 job_id=job.id,
@@ -233,7 +242,9 @@ def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
                 format=formato,
                 role=("local_principal" if archivo.kind == principal else "local_secundaria"),
                 priority=indice,
-                capabilities=sorted(fuente(formato).capacidades),
+                capabilities=sorted(
+                    definicion.capacidades if definicion else frozenset()
+                ),
             )
         )
 
@@ -319,63 +330,64 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
                 progreso=lambda f: _progreso(request, 5, 5, f),
             )
 
-            archivo = _archivo(request, "eventquery")
-            archivo.status = "downloading"
-            request.current_step = "Descargando eventquery"
-            db.session.commit()
-
-            def progreso_eventquery(f):
-                _progreso(request, 10, 30, f)
-
-            ruta_eventquery = tc.traer_eventquery(
-                request.inicio14,
-                request.fin14,
-                conexion,
-                cwd=str(workspace),
-                log=log.escribir,
-                progreso=progreso_eventquery,
-                forzar=True,
+            referencia = fuentes_manifest.referencia()
+            archivos = sorted(
+                request.files,
+                key=lambda archivo: 0 if archivo.kind == referencia.id else 1,
             )
-            _guardar_archivo(request, "eventquery", Path(ruta_eventquery), workspace)
-
-            if _tiene(request, "seisan"):
-                archivo = _archivo(request, "seisan")
+            for archivo in archivos:
+                definicion = fuentes_manifest.por_id(archivo.kind)
+                if definicion is None or not definicion.descargable:
+                    continue
                 archivo.status = "downloading"
-                request.current_step = "Descargando Seisan"
+                request.current_step = f"Descargando {definicion.label}"
                 db.session.commit()
+                manejador = definicion.download_handler
 
-                def progreso_seisan(f):
-                    _progreso(request, 40, 25, f)
+                if manejador == "eventquery":
+                    ruta = tc.traer_eventquery(
+                        request.inicio14,
+                        request.fin14,
+                        conexion,
+                        cwd=str(workspace),
+                        log=log.escribir,
+                        progreso=lambda f: _progreso(request, 10, 30, f),
+                        forzar=True,
+                    )
+                elif manejador == "seisan":
+                    ruta = tc.traer_seisan(
+                        request.inicio14,
+                        request.fin14,
+                        conexion,
+                        cwd=str(workspace),
+                        log=log.escribir,
+                        progreso=lambda f: _progreso(request, 40, 25, f),
+                        forzar=True,
+                    )
+                elif manejador == "seiscomp":
+                    from .seiscomp import exportar_ventana
 
-                ruta_seisan = tc.traer_seisan(
-                    request.inicio14,
-                    request.fin14,
-                    conexion,
-                    cwd=str(workspace),
-                    log=log.escribir,
-                    progreso=progreso_seisan,
-                    forzar=True,
-                )
-                _guardar_archivo(request, "seisan", Path(ruta_seisan), workspace)
+                    salida = (
+                        workspace
+                        / "files"
+                        / f"{definicion.id}_{request.inicio14}_{request.fin14}.csv"
+                    )
+                    exportar_ventana(
+                        request.inicio14,
+                        request.fin14,
+                        salida,
+                        radio_km=request.station_radius_km or 400,
+                        log=log.escribir,
+                        log_detalle=current_app.logger.info,
+                        progreso=lambda f: _progreso(request, 65, 25, f),
+                    )
+                    ruta = salida
+                else:
+                    raise RuntimeError(
+                        f"No hay manejador de descarga para {definicion.label}."
+                    )
 
-            if _tiene(request, "seiscomp"):
-                from .seiscomp import exportar_ventana
-
-                archivo = _archivo(request, "seiscomp")
-                archivo.status = "downloading"
-                request.current_step = "Exportando datos de SeisComp"
-                db.session.commit()
-                salida = workspace / "files" / f"seiscomp_{request.inicio14}_{request.fin14}.csv"
-                exportar_ventana(
-                    request.inicio14,
-                    request.fin14,
-                    salida,
-                    radio_km=request.station_radius_km or 400,
-                    log=log.escribir,
-                    log_detalle=current_app.logger.info,
-                    progreso=lambda f: _progreso(request, 65, 25, f),
-                )
-                _guardar_archivo(request, "seiscomp", salida, workspace)
+                _guardar_archivo(request, archivo.kind, Path(ruta), workspace)
 
         request.current_step = "Validando catálogos"
         request.progress = 95
@@ -385,8 +397,14 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
         for archivo in request.files:
             if not archivo.stored_path:
                 continue
+            definicion = fuentes_manifest.por_id(archivo.kind)
+            validador = (
+                definicion.validator
+                if definicion
+                else (archivo.format or archivo.kind)
+            )
             resultado = validar_fuente(
-                archivo.format or archivo.kind,
+                validador,
                 workspace / archivo.stored_path,
                 request.period_start,
                 request.period_end,

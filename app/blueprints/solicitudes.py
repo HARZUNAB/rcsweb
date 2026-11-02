@@ -16,6 +16,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
+from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..forms import ReintentarForm, SolicitudForm
 from ..models import CatalogRequest, CatalogRequestFile, Job, nuevo_uuid
@@ -31,11 +32,20 @@ from ..services.acquisition import (
 )
 from ..services.audit import registrar
 from ..services.queue import encolar_solicitud
-from ..services.seiscomp import configurada as seiscomp_configurada
 from ..services.seiscomp import probar_conexion
-from ..services.sources import etiquetas
+from ..services.source_selection import (
+    error_en,
+    leer_formulario,
+    opciones_formulario,
+)
 
 solicitudes_bp = Blueprint("solicitudes", __name__, url_prefix="/solicitudes")
+
+
+def seiscomp_configurada() -> bool:
+    from ..services.seiscomp import configurada
+
+    return configurada()
 
 
 def _solicitud(request_id: str) -> CatalogRequest:
@@ -84,91 +94,173 @@ def lista():
 @login_required
 @permiso_requerido("solicitudes.crear")
 def nueva():
-    form = SolicitudForm()
+    referencia = fuentes_manifest.referencia()
+    descargables = fuentes_manifest.descargables()
     seiscomp_ok = seiscomp_configurada()
+    fuente_conexion = next(
+        (fuente for fuente in descargables if fuente.availability == "seiscomp"),
+        None,
+    )
+
+    def disponible(fuente) -> bool:
+        if fuente.availability == "seiscomp":
+            return seiscomp_ok
+        return True
+
+    form = SolicitudForm()
+    form.primary_source.choices = [
+        (fuente.id, fuente.label) for fuente in descargables
+    ]
     if request.method == "GET":
-        form.incluir_seiscomp.data = seiscomp_ok
-        form.incluir_seisan.data = not seiscomp_ok
-        form.primary_source.data = "seiscomp" if seiscomp_ok else "seisan"
+        candidatas = [fuente for fuente in descargables if disponible(fuente)]
+        predeterminada = fuentes_manifest.default_primary()
+        elegida = next(
+            (fuente for fuente in candidatas if fuente.id == predeterminada),
+            candidatas[0] if candidatas else None,
+        )
+        form.primary_source.data = elegida.id if elegida else ""
+        fuentes_form = opciones_formulario(
+            descargables, {elegida.id} if elegida else set()
+        )
+    else:
+        fuentes_form = leer_formulario(descargables)
+
+    if request.method == "POST" and not (request.form.get("primary_source") or "").strip():
+        predeterminada = fuentes_manifest.default_primary()
+        form.primary_source.data = (
+            predeterminada
+            or (descargables[0].id if descargables else "")
+        )
 
     if form.validate_on_submit():
-        inicio = form.period_start.data
-        fin = form.period_end.data
-        seleccion = [
-            codigo
-            for codigo, incluir in (
-                ("seisan", form.incluir_seisan.data),
-                ("seiscomp", form.incluir_seiscomp.data),
-            )
-            if incluir
+        seleccionadas = [
+            opcion for opcion in fuentes_form if opcion["incluir"]
         ]
-        principal = form.primary_source.data
-        if principal not in seleccion:
-            principal = "seiscomp" if "seiscomp" in seleccion else seleccion[0]
-        radio_km = form.radio_km.data if "seiscomp" in seleccion else None
-
-        solicitud = CatalogRequest(
-            id=nuevo_uuid(),
-            mode="ssh",
-            period_start=datetime.combine(inicio, time.min, tzinfo=UTC),
-            period_end=datetime.combine(fin, time(23, 59, 59), tzinfo=UTC),
-            status="queued",
-            progress=0,
-            current_step="En cola",
-            primary_source=principal,
-            station_radius_km=radio_km,
-            requested_by_id=current_user.id,
-            server=form.server.data.strip(),
-            remote_user=form.remote_user.data.strip(),
-        )
-        db.session.add(solicitud)
-        db.session.commit()
-
-        archivos = [
-            CatalogRequestFile(
-                request_id=solicitud.id,
-                kind="eventquery",
-                format="eventquery",
-                status="pending",
+        valido = True
+        if not seleccionadas:
+            error_en(
+                fuentes_form,
+                descargables[0],
+                "Seleccione al menos una fuente local para descargar.",
             )
-        ]
-        for codigo in seleccion:
-            archivos.append(
+            valido = False
+        for opcion in seleccionadas:
+            fuente_def = opcion["fuente"]
+            if fuente_def.availability == "seiscomp" and not seiscomp_ok:
+                error_en(
+                    fuentes_form,
+                    fuente_def,
+                    f"{fuente_def.label} no está configurado. Avise al administrador.",
+                )
+                valido = False
+            if fuente_def.requires_radius and form.radio_km.data is None:
+                error_en(
+                    fuentes_form,
+                    fuente_def,
+                    "Indique el radio de estaciones.",
+                )
+                valido = False
+        if seleccionadas:
+            ids = {opcion["fuente"].id for opcion in seleccionadas}
+            principal = form.primary_source.data
+            if principal not in ids:
+                form.primary_source.errors.append(
+                    "La fuente principal debe estar entre las fuentes incluidas."
+                )
+                valido = False
+        else:
+            principal = ""
+
+        if valido:
+            inicio = form.period_start.data
+            fin = form.period_end.data
+            requiere_radio = any(
+                opcion["fuente"].requires_radius for opcion in seleccionadas
+            )
+            radio_km = form.radio_km.data if requiere_radio else None
+            solicitud = CatalogRequest(
+                id=nuevo_uuid(),
+                mode="ssh",
+                period_start=datetime.combine(inicio, time.min, tzinfo=UTC),
+                period_end=datetime.combine(fin, time(23, 59, 59), tzinfo=UTC),
+                status="queued",
+                progress=0,
+                current_step="En cola",
+                primary_source=principal,
+                station_radius_km=radio_km,
+                requested_by_id=current_user.id,
+                server=form.server.data.strip(),
+                remote_user=form.remote_user.data.strip(),
+            )
+            db.session.add(solicitud)
+            db.session.commit()
+
+            archivos = [
                 CatalogRequestFile(
                     request_id=solicitud.id,
-                    kind=codigo,
-                    format=codigo,
+                    kind=referencia.id,
+                    format=referencia.format,
+                    display_name=referencia.label,
                     status="pending",
                 )
-            )
-        db.session.add_all(archivos)
-        db.session.commit()
-        preparar_workspace(solicitud.id)
-
-        registrar(
-            "catalog.request",
-            entity=solicitud.id,
-            meta={
-                "inicio": solicitud.inicio14,
-                "fin": solicitud.fin14,
-                "servidor": solicitud.server,
-                "usuario": solicitud.remote_user,
-                "catalogos": ["eventquery"] + seleccion,
-                "principal": principal,
-                "radio_km": radio_km,
-            },
-        )
-        try:
-            encolar_solicitud(solicitud.id, form.password.data)
-            flash("Solicitud encolada. La descarga se actualiza automáticamente.", "success")
-        except Exception as exc:  # noqa: BLE001
-            solicitud.status = "failed"
-            solicitud.error = f"No se pudo encolar: {exc}"
-            solicitud.current_step = "Error al encolar"
+            ]
+            for opcion in seleccionadas:
+                fuente_def = opcion["fuente"]
+                archivos.append(
+                    CatalogRequestFile(
+                        request_id=solicitud.id,
+                        kind=fuente_def.id,
+                        format=fuente_def.format,
+                        display_name=opcion["alias"] or fuente_def.label,
+                        status="pending",
+                    )
+                )
+            db.session.add_all(archivos)
             db.session.commit()
-            flash("La solicitud quedó creada pero no se pudo encolar.", "danger")
-        return redirect(url_for("solicitudes.detalle", request_id=solicitud.id))
-    return render_template("solicitudes/new.html", form=form, seiscomp_ok=seiscomp_ok)
+            preparar_workspace(solicitud.id)
+
+            registrar(
+                "catalog.request",
+                entity=solicitud.id,
+                meta={
+                    "inicio": solicitud.inicio14,
+                    "fin": solicitud.fin14,
+                    "servidor": solicitud.server,
+                    "usuario": solicitud.remote_user,
+                    "catalogos": [referencia.id]
+                    + [opcion["fuente"].id for opcion in seleccionadas],
+                    "principal": principal,
+                    "radio_km": radio_km,
+                },
+            )
+            try:
+                encolar_solicitud(solicitud.id, form.password.data)
+                flash(
+                    "Solicitud encolada. La descarga se actualiza automáticamente.",
+                    "success",
+                )
+            except Exception as exc:  # noqa: BLE001
+                solicitud.status = "failed"
+                solicitud.error = f"No se pudo encolar: {exc}"
+                solicitud.current_step = "Error al encolar"
+                db.session.commit()
+                flash(
+                    "La solicitud quedó creada pero no se pudo encolar.",
+                    "danger",
+                )
+            return redirect(
+                url_for("solicitudes.detalle", request_id=solicitud.id)
+            )
+
+    return render_template(
+        "solicitudes/new.html",
+        form=form,
+        fuentes=fuentes_form,
+        seiscomp_ok=seiscomp_ok,
+        fuente_conexion=fuente_conexion,
+        radio_disponible=any(fuente.requires_radius for fuente in descargables),
+        referencia=referencia,
+    )
 
 
 @solicitudes_bp.post("/probar-seiscomp")
@@ -204,7 +296,7 @@ def _contexto(request_id: str) -> dict:
         "solicitud": solicitud,
         "job": _job_de(solicitud),
         "log": log_solicitud(solicitud.id),
-        "etiquetas": etiquetas(),
+        "etiquetas": fuentes_manifest.etiquetas(),
         "form_reintento": ReintentarForm(),
         "puede_reintentar": _puede_reintentar(solicitud),
         "activa": solicitud.status in ("queued", "running"),

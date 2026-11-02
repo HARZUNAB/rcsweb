@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "eventquery",
+      "label": "Eventquery",
+      "role": "reference",
+      "format": "eventquery",
+      "description": "Catálogo público de referencia para las comparaciones.",
+      "accept": [".csv"],
+      "validator": "eventquery",
+      "download_handler": "eventquery",
+      "stored_filename": "",
+      "requires_radius": false,
+      "availability": "",
+      "default_primary": false,
+      "visible_in_observaciones": false
+    },
+    {
+      "id": "seiscomp",
+      "label": "SeisComp",
+      "role": "local",
+      "format": "seiscomp",
+      "description": "Exportación de soluciones locales de SeisComp.",
+      "accept": [".csv"],
+      "validator": "seiscomp",
+      "download_handler": "seiscomp",
+      "stored_filename": "",
+      "requires_radius": true,
+      "availability": "seiscomp",
+      "default_primary": true,
+      "visible_in_observaciones": true
+    },
+    {
+      "id": "seisan",
+      "label": "Seisan",
+      "role": "local",
+      "format": "seisan",
+      "description": "Salida select.out de Seisan.",
+      "accept": [".out", ".txt", ".dat"],
+      "validator": "seisan",
+      "download_handler": "seisan",
+      "stored_filename": "select.out",
+      "requires_radius": false,
+      "availability": "",
+      "default_primary": false,
+      "visible_in_observaciones": true
+    }
+  ]
+}

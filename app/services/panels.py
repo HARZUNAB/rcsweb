@@ -19,6 +19,7 @@ import json
 import math
 from pathlib import Path
 
+from ..domain.catalogs import manifest as fuentes_manifest
 from . import colores, plots, ubicacion
 from .results import cargar_indice
 
@@ -40,11 +41,8 @@ TIPOS = {
     "repetido": "Repetido",
 }
 
-ETIQUETAS_CATALOGO = {
-    "eventquery": "Eventquery",
-    "seisan": "Seisan",
-    "seiscomp": "SeisComp",
-}
+def etiqueta_fuente(codigo: str) -> str:
+    return fuentes_manifest.etiqueta(codigo)
 
 
 def _numero(valor):
@@ -136,7 +134,7 @@ def _catalogo_info(workspace: Path, catalogo: str) -> dict | None:
 def _eventos_catalogo(workspace: Path, catalogo: str) -> tuple[str, list[dict]]:
     info = _catalogo_info(workspace, catalogo)
     if not info or not info.get("archivo"):
-        return ETIQUETAS_CATALOGO.get(catalogo, catalogo), []
+        return etiqueta_fuente(catalogo), []
     ruta = workspace / info["archivo"]
     eventos = []
     for indice_fila, fila in enumerate(_leer_csv(ruta)):
@@ -150,23 +148,28 @@ def _eventos_catalogo(workspace: Path, catalogo: str) -> tuple[str, list[dict]]:
             mag="Mag.",
             tipo="Tipo_mag.",
             analista=(
-                "Analista probable" if catalogo == "eventquery" else "Analista"
+                "Analista probable"
+                if catalogo == fuentes_manifest.referencia().id
+                else "Analista"
             ),
             percibido=(
-                fila.get("Percep.", "") if catalogo == "eventquery" else ""
+                fila.get("Percep.", "")
+                if catalogo == fuentes_manifest.referencia().id
+                else ""
             ),
             origen={"tabla": "catalogos", "opcion": catalogo, "fila": indice_fila},
         )
         if evento is not None:
             evento["id"] = f"{catalogo}-{indice_fila}"
             eventos.append(evento)
-    etiqueta = ETIQUETAS_CATALOGO.get(catalogo, catalogo)
+    etiqueta = etiqueta_fuente(catalogo)
     return f"Catálogo {etiqueta}", eventos
 
 
 def _eventos_no_publicados(workspace: Path) -> list[dict]:
     eventos = []
-    for fuente in ("seiscomp", "seisan"):
+    for definicion in fuentes_manifest.locales():
+        fuente = definicion.id
         ruta = workspace / "resultados" / f"no_publicados_{fuente}.csv"
         for indice_fila, fila in enumerate(_leer_csv(ruta)):
             evento = _evento(
@@ -194,7 +197,8 @@ def _eventos_no_publicados(workspace: Path) -> list[dict]:
 
 def _eventos_no_actualizados(workspace: Path) -> list[dict]:
     eventos = []
-    for fuente in ("seiscomp", "seisan"):
+    for definicion in fuentes_manifest.locales():
+        fuente = definicion.id
         ruta = workspace / "resultados" / f"no_actualizados_{fuente}.csv"
         for indice_fila, fila in enumerate(_leer_csv(ruta)):
             evento = _evento(
@@ -222,6 +226,26 @@ def _eventos_no_actualizados(workspace: Path) -> list[dict]:
     return eventos
 
 
+def _fuente_para_informe(clave_informe: str) -> str:
+    locales = sorted(
+        fuentes_manifest.locales(), key=lambda fuente: len(fuente.id), reverse=True
+    )
+    for definicion in locales:
+        prefijos = (definicion.id, definicion.format)
+        if any(
+            clave_informe == prefijo or clave_informe.startswith(prefijo + "_")
+            for prefijo in prefijos
+            if prefijo
+        ):
+            return definicion.id
+    referencia = fuentes_manifest.referencia()
+    if clave_informe == "publica" or clave_informe.startswith("publica_"):
+        return referencia.id
+    if clave_informe == referencia.id or clave_informe.startswith(referencia.id + "_"):
+        return referencia.id
+    return clave_informe.split("_", 1)[0]
+
+
 def _eventos_repetidos(workspace: Path) -> list[dict]:
     """Todos los informes de repetidos, sin contar dos veces el mismo evento.
 
@@ -233,12 +257,7 @@ def _eventos_repetidos(workspace: Path) -> list[dict]:
     carpeta = workspace / "resultados"
     for ruta in sorted(carpeta.glob("repetidos_*.csv")):
         clave_informe = ruta.stem.replace("repetidos_", "")
-        if clave_informe.startswith("publica"):
-            fuente = "eventquery"
-        elif clave_informe.startswith("seiscomp"):
-            fuente = "seiscomp"
-        else:
-            fuente = "seisan"
+        fuente = _fuente_para_informe(clave_informe)
         excluido = "exclu" in clave_informe
         for indice_fila, fila in enumerate(_leer_csv(ruta)):
             evento = _evento(
@@ -263,15 +282,17 @@ def _eventos_repetidos(workspace: Path) -> list[dict]:
             )
             if evento is None:
                 continue
-            if fuente == "eventquery" and not evento["analista"]:
+            if fuente == fuentes_manifest.referencia().id and not evento["analista"]:
                 partes = []
-                for clave_analista, etiqueta_analista in (
-                    ("analista_seiscomp", "SeisComp"),
-                    ("analista_seisan", "Seisan"),
-                ):
-                    valor = _texto(fila.get(clave_analista))
-                    if valor:
-                        partes.append(f"{etiqueta_analista}: {valor}")
+                for definicion in fuentes_manifest.locales():
+                    for clave_analista in (
+                        f"analista_{definicion.id}",
+                        f"analista_{definicion.format}",
+                    ):
+                        valor = _texto(fila.get(clave_analista))
+                        if valor:
+                            partes.append(f"{definicion.label}: {valor}")
+                            break
                 evento["analista"] = "; ".join(partes)
             clave = (
                 fuente,
@@ -735,12 +756,12 @@ def datasets_disponibles(workspace: Path) -> list[dict]:
                 "grupo": "Observaciones",
             }
         )
-    for clave in ("eventquery", "seisan", "seiscomp"):
-        if clave in (indice.get("catalogos") or {}):
+    for definicion in fuentes_manifest.fuentes():
+        if definicion.id in (indice.get("catalogos") or {}):
             opciones.append(
                 {
-                    "clave": f"catalogo_{clave}",
-                    "titulo": f"Catálogo {ETIQUETAS_CATALOGO.get(clave, clave)}",
+                    "clave": f"catalogo_{definicion.id}",
+                    "titulo": f"Catálogo {definicion.label}",
                     "grupo": "Por catálogo",
                 }
             )
@@ -751,6 +772,7 @@ __all__ = [
     "cargar",
     "conteos",
     "datasets_disponibles",
+    "etiqueta_fuente",
     "filtrar",
     "grupo_eventos",
     "perfil_historico",

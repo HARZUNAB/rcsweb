@@ -57,12 +57,12 @@ para descargar los archivos.
 
 1. Indique el período.
 2. Complete los datos del servidor y la contraseña SSH.
-3. Elija las fuentes: SeisComp, Seisan o ambas.
+3. Elija las fuentes disponibles en la configuración.
 4. Defina el radio de estaciones.
 5. Envíe la solicitud.
 
-Eventquery se descarga siempre como catálogo de referencia; no es una fuente
-local de Observaciones.
+La fuente de referencia se descarga siempre como catálogo de referencia; no es
+una fuente local de Observaciones.
 
 La contraseña SSH se usa solo para la descarga y no se guarda.
 
@@ -78,8 +78,8 @@ Use **Subir catálogos** cuando ya tenga los archivos en su equipo.
 
 ![Subir catálogos](img/subir.png)
 
-1. Seleccione el catálogo eventquery.
-2. Agregue SeisComp, Seisan o ambos según corresponda.
+1. Seleccione el catálogo de referencia.
+2. Agregue las fuentes locales disponibles según corresponda.
 3. En cada fuente local puede cambiar **Nombre de la fuente** para
    identificarla mejor en tablas, paneles y filtros.
 4. Indique el período y la fuente principal.
