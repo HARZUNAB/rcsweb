@@ -521,6 +521,7 @@ def cargar(workspace: Path, dataset: str) -> dict:
                 "prof": evento["prof"],
                 "fecha": evento["fecha"],
                 "mag": evento.get("mag", ""),
+                "tipo": evento.get("tipo", ""),
                 "analista": evento.get("analista", ""),
                 "perfil": evento.get("perfil"),
                 "along_km": evento.get("along_km"),

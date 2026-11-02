@@ -1,0 +1,110 @@
+{% set hist_activo = historico_activo|default(false) %}
+{% set titulo = titulo_mapa|default('Mapa interactivo') %}
+{% set descripcion = descripcion_mapa|default('Planta y perfil. Haga clic en un evento de cualquiera de las dos vistas: se resalta en ambas y se muestran sus parámetros.') %}
+{% set archivo_png = download_name|default('mapa.png') %}
+{% set texto_perfil_vacio = texto_sin_perfil|default('El evento no tiene perfil de subducción asignado.') %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <div>
+        <h2 class="h6 text-uppercase text-secondary mb-0">{{ titulo }}</h2>
+        <div class="small text-secondary">{{ descripcion }}</div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        {% if mapa_modo == 'online' %}
+          <span class="badge text-bg-success">Online</span>
+          <a class="btn btn-sm btn-outline-secondary" id="enlace-mapa-modo"
+             href="{{ url_offline }}{% if hist_activo %}&historico=1{% endif %}">Usar offline</a>
+        {% else %}
+          <span class="badge text-bg-secondary">Offline</span>
+          <a class="btn btn-sm btn-outline-secondary" id="enlace-mapa-modo"
+             href="{{ url_online }}{% if hist_activo %}&historico=1{% endif %}">Intentar online</a>
+        {% endif %}
+        {% if puede_exportar %}
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_mapa }}"
+           target="_blank" rel="noopener">Abrir PNG</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_mapa }}"
+           download="{{ archivo_png }}">Descargar PNG</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-3 small mb-2" id="leyenda-mapa">
+      {% for item in leyenda_mapa %}
+      <span>
+        <span class="d-inline-block rounded-circle me-1"
+              style="width: 12px; height: 12px; background: {{ item.relleno }}; border: {{ item.borde_ancho }}px solid {{ item.borde }};"></span>
+        {{ item.etiqueta }}
+      </span>
+      {% endfor %}
+      {% if perfil_datos %}
+      <span><span class="d-inline-block me-1"
+                   style="width: 12px; height: 8px; background: #e8dcc2; border: 1px solid #b8a37a;"></span>Topografía</span>
+      <span><span class="d-inline-block me-1"
+                   style="width: 12px; height: 3px; background: #1f1f1f;"></span>Slab</span>
+      {% endif %}
+    </div>
+
+    <div id="mapa-aviso" class="alert alert-warning small d-none">
+      No se pudieron cargar las tiles del mapa online.
+      <a id="mapa-aviso-link" href="{{ url_offline }}">Cambiar al mapa offline</a>.
+    </div>
+
+    <div id="mapa-detalle" class="rounded border"
+         style="height: 430px;"
+         data-modo="{{ mapa_modo }}"
+         data-offline-url="{{ url_offline }}"
+         data-online-url="{{ url_online }}"
+         data-url-historico="{{ url_for('panels.historico', job_id=job.id, perfil_id='__PERFIL__') }}"
+         data-topojson-url="{{ url_for('static', filename='vendor/plotly/topojson/') }}"></div>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3 mb-2">
+      <h3 class="h6 text-uppercase text-secondary mb-0">Perfil</h3>
+      {% if perfil_datos %}
+      <form method="get" class="d-flex align-items-center gap-2">
+        <input type="hidden" name="volver" value="{{ volver }}">
+        <input type="hidden" name="mapa" value="{{ mapa_modo }}">
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 id="mostrar-historico" name="historico" value="1"
+                 {% if hist_activo %}checked{% endif %}>
+          <label class="form-check-label small" for="mostrar-historico">
+            Sismicidad histórica (perfil)
+          </label>
+        </div>
+      </form>
+      {% else %}
+      <span class="badge text-bg-light text-dark">Sin perfil asignado</span>
+      {% endif %}
+    </div>
+    {% if perfil_datos %}
+    <div class="small text-secondary mb-2 {% if not hist_activo %}d-none{% endif %}"
+         id="historico-label">
+      <span class="d-inline-block rounded-circle me-1"
+            style="width: 8px; height: 8px; background: #8c8c8c; opacity: 0.45;"></span>
+      <span id="historico-texto">{{ historico.label if historico else '' }}</span>
+    </div>
+    {% endif %}
+    <div class="perfil-contenedor">
+      <div id="perfil-detalle" class="rounded border">
+        {% if not perfil_datos %}
+        <div class="perfil-vacio">
+          <div>
+            <div class="fw-semibold">Perfil no disponible</div>
+            <div class="small text-secondary">
+              {{ texto_perfil_vacio }}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="mapa-datos">{{ puntos_mapa|tojson }}</script>
+{% if perfil_datos %}
+<script type="application/json" id="perfil-datos">{{ perfil_datos|tojson }}</script>
+{% endif %}
+{% if hist_activo and historico %}
+<script type="application/json" id="historico-datos">{{ historico|tojson }}</script>
+{% endif %}

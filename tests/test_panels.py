@@ -677,9 +677,12 @@ def test_ruta_detalle_grupo_perfil(client, login, monkeypatch):
     html = respuesta.get_data(as_text=True)
     assert "Perfil P001" in html
     assert "Descargar PNG" in html
-    assert 'id="panel-datos"' in html
-    assert 'id="panel-mapa"' in html
-    assert 'id="panel-perfil"' in html
+    assert 'id="mapa-datos"' in html
+    assert 'id="mapa-detalle"' in html
+    assert 'id="perfil-detalle"' in html
+    assert "mapa_detalle.js" in html
+    assert "paneles.js" not in html
+    assert 'id="grupo-descargar-csv"' in html
 
 
 def test_ruta_detalle_grupo_territorio_sin_perfil(client, login, monkeypatch):
@@ -693,8 +696,11 @@ def test_ruta_detalle_grupo_territorio_sin_perfil(client, login, monkeypatch):
     assert respuesta.status_code == 200
     html = respuesta.get_data(as_text=True)
     assert "Territorio Otros" in html
-    assert 'id="panel-mapa"' in html
-    assert 'id="panel-perfil"' not in html
+    assert 'id="mapa-detalle"' in html
+    assert "Sin perfil asignado" in html
+    assert "Perfil no disponible" in html
+    assert "mapa_detalle.js" in html
+    assert "paneles.js" not in html
 
 
 def test_ruta_detalle_grupo_inexistente(client, login, monkeypatch):
@@ -761,3 +767,18 @@ def test_ruta_png_grupo_territorio_fuerza_planta(client, login, monkeypatch):
 
     assert respuesta.status_code == 200
     assert capturado["modo"] == "planta"
+
+
+def test_ruta_detalle_grupo_respeta_mapa_offline(client, login, monkeypatch):
+    job = _panel_con_perfil_y_territorio(monkeypatch)
+    login()
+
+    html = client.get(
+        f"/jobs/{job.id}/paneles/observaciones/perfil/P001",
+        query_string={"mapa": "offline"},
+    ).get_data(as_text=True)
+
+    assert 'data-modo="offline"' in html
+    assert 'id="mapa-datos"' in html
+    assert 'id="perfil-datos"' in html
+    assert "mapa_detalle.js" in html

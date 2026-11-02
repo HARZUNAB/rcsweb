@@ -167,8 +167,9 @@ perfil, por territorio.
   correspondiente.
 - **Grupos**: seleccione un perfil o territorio. Las flechas **↑/↓** recorren
   la lista.
-- **Ver** abre el detalle del grupo: planta y perfil interactivos, listado de
-  eventos y botones para abrir o descargar el PNG.
+- **Ver** abre el detalle del grupo con el mismo mapa interactivo de Resultados
+  y Catálogos: planta, perfil, selector online/offline, listado de eventos y
+  botones para abrir o descargar el PNG.
 - **Planta del grupo**: muestra los eventos y las divisiones regionales de
   Chile. Use **Centrar** para volver al encuadre del grupo después de hacer
   zoom o desplazar.

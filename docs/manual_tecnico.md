@@ -714,6 +714,10 @@ dataset, la fuente, el filtro de tipo y los conteos. Los perfiles usan
 `modo="auto"` (planta + perfil) y los territorios `modo="planta"`. La caché de
 `workspace/<job>/plots/paneles/` incluye el grupo y los filtros en la huella.
 
+El detalle de un grupo reutiliza el parcial `app/templates/_mapa_detalle.html` y
+`app/static/js/mapa_detalle.js`, igual que Resultados y Catálogos. La vista
+general de Paneles mantiene el mapa liviano de `app/static/js/paneles.js`.
+
 La vista en planta del PNG ajusta el margen en `app/services/extent.py`. Con un
 solo evento usa 2.0° de contexto; con varias soluciones usa
 `clamp(separación × 0.5, 0.01°, 0.6°)`, donde la separación es la mayor

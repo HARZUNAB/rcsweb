@@ -18,8 +18,10 @@ from flask_login import current_user, login_required
 from ..extensions import db
 from ..models import Job
 from ..security import permiso_requerido, puede_ver_trabajo
-from ..services import panels, plots
+from ..services import colores, panels, plots
+from ..services.borders import texto_frontera_coords
 from ..services.history import datos as historico_datos
+from ..services.maps import modo_mapa
 from ..services.workspace import ruta_workspace
 
 panels_bp = Blueprint("panels", __name__)
@@ -133,6 +135,7 @@ def _eventos_vista(
                 "percibido": evento.get("percibido", ""),
                 "color": evento.get("color", ""),
                 "mag": evento["mag"],
+                "tipo": evento.get("tipo", ""),
                 "prof": evento["prof"],
                 "revision": evento["revision"],
                 "sospechoso": evento["sospechoso"],
@@ -186,6 +189,116 @@ def _parametros_grupo(
     if ctx["fuente"]:
         parametros["fuente"] = ctx["fuente"]
     return parametros
+
+
+def _frontera_punto(evento: dict) -> str:
+    try:
+        return texto_frontera_coords(
+            float(evento["lat"]), float(evento["lon"])
+        )
+    except (KeyError, TypeError, ValueError):
+        return "—"
+
+
+def _puntos_grupo(eventos: list[dict]) -> list[dict]:
+    """Puntos del grupo con el mismo contrato que el mapa de Resultados."""
+    puntos = []
+    for evento in eventos:
+        fuente = evento.get("fuente") or "publicado"
+        codigo = (
+            fuente
+            if fuente in ("seiscomp", "seisan", "eventquery")
+            else "publicado"
+        )
+        estilo = colores.estilo_punto(
+            codigo,
+            {
+                "percibido": evento.get("percibido", ""),
+                "sospechoso": bool(evento.get("sospechoso")),
+            },
+        )
+        puntos.append(
+            {
+                "fuente": codigo,
+                "etiqueta": panels.ETIQUETAS_CATALOGO.get(
+                    codigo, "Publicado" if codigo == "publicado" else codigo
+                ),
+                "color": estilo["color"],
+                "borde": estilo["borde"],
+                "borde_ancho": estilo["borde_ancho"],
+                "rol": None,
+                "percibido": evento.get("percibido", ""),
+                "fecha": evento.get("fecha", ""),
+                "lat": evento.get("lat"),
+                "lon": evento.get("lon"),
+                "prof": evento.get("prof"),
+                "along_km": evento.get("along_km"),
+                "mag": evento.get("mag", ""),
+                "tipo": evento.get("tipo", ""),
+                "analista": evento.get("analista", ""),
+                "frontera": _frontera_punto(evento),
+                "sospechoso": bool(evento.get("sospechoso")),
+                "estado": "",
+                "url": evento.get("url"),
+            }
+        )
+    return puntos
+
+
+def _perfil_grupo(ident: str, puntos: list[dict]) -> dict | None:
+    grafico = panels.perfiles_grafico([ident]).get(ident)
+    if not grafico:
+        return None
+    return {
+        "id": ident,
+        "topo_p": grafico.get("topo_p", []),
+        "topo_alt": grafico.get("topo_alt", []),
+        "slab_p": grafico.get("slab_p", []),
+        "slab_depth": grafico.get("slab_depth", []),
+        "slab_lon": grafico.get("slab_lon", []),
+        "slab_lat": grafico.get("slab_lat", []),
+        "eventos": [
+            punto
+            for punto in puntos
+            if punto.get("along_km") is not None
+            and punto.get("prof") is not None
+        ],
+    }
+
+
+def _leyenda_grupo(puntos: list[dict]) -> list[dict]:
+    items = [
+        {
+            "etiqueta": "Sismo no percibido / registrado",
+            "relleno": colores.COLOR_NO_PERCIBIDO,
+            "borde": "#000000",
+            "borde_ancho": 1.2,
+        },
+        {
+            "etiqueta": "Sismo percibido",
+            "relleno": colores.COLOR_PERCIBIDO,
+            "borde": "#000000",
+            "borde_ancho": 1.2,
+        },
+    ]
+    if any(punto.get("sospechoso") for punto in puntos):
+        items.append(
+            {
+                "etiqueta": "Sospechoso (borde violeta)",
+                "relleno": colores.COLOR_NEUTRO,
+                "borde": colores.COLOR_BORDE_SOSPECHOSO,
+                "borde_ancho": colores.GROSOR_BORDE_SOSPECHOSO,
+            }
+        )
+    items.append(
+        {
+            "etiqueta": "Evento seleccionado",
+            "relleno": "transparent",
+            "borde": colores.COLOR_RESALTADO,
+            "borde_ancho": 2.0,
+        }
+    )
+    return items
 
 
 @panels_bp.get("/jobs/<job_id>/paneles")
@@ -392,11 +505,26 @@ def grupo(job_id: str, dataset: str, grupo: str, ident: str):
         "sin_perfil": sum(1 for e in detalle["eventos"] if not e.get("perfil")),
         "sospechosos": detalle["resumen"].get("sospechosos", 0),
         "eventos": eventos_vista,
-        "perfiles": [detalle["resumen"]] if grupo == "perfil" else [],
-        "territorios": [detalle["resumen"]] if grupo == "territorio" else [],
     }
+    puntos = _puntos_grupo(eventos_vista)
+    perfil_datos = _perfil_grupo(ident, puntos) if grupo == "perfil" else None
+    parametros = _parametros_grupo(job, ctx, grupo, ident)
+    url_offline = url_for(
+        "panels.grupo", **{**parametros, "mapa": "offline"}
+    )
+    url_online = url_for(
+        "panels.grupo", **{**parametros, "mapa": "online"}
+    )
+    historico_activo = bool(
+        perfil_datos and request.args.get("historico") == "1"
+    )
+    historico = None
+    if historico_activo:
+        perfil = panels.perfil_historico(ident)
+        if perfil is not None:
+            historico = historico_datos(perfil)
     url_mapa = url_for(
-        "panels.grupo_mapa", **_parametros_grupo(job, ctx, grupo, ident)
+        "panels.grupo_mapa", **parametros
     )
     return render_template(
         "panels/grupo.html",
@@ -410,10 +538,23 @@ def grupo(job_id: str, dataset: str, grupo: str, ident: str):
         tipo_titulo=_titulo_tipo(ctx["tipo"]),
         fuente_titulo=_fuente_titulo_png(ctx),
         mostrar_filtros=(ctx["dataset"] == "observaciones"),
-        perfiles_grafico=(
-            panels.perfiles_grafico([ident]) if grupo == "perfil" else {}
-        ),
+        puntos_mapa=puntos,
+        perfil_datos=perfil_datos,
+        leyenda_mapa=_leyenda_grupo(puntos),
+        mapa_modo=modo_mapa(request.args.get("mapa")),
+        url_offline=url_offline,
+        url_online=url_online,
         url_mapa=url_mapa,
+        puede_exportar=True,
+        historico_activo=historico_activo,
+        historico=historico,
+        texto_sin_perfil="El grupo no tiene perfil de subducción asignado.",
+        titulo_mapa="Mapa interactivo",
+        descripcion_mapa=(
+            "Planta y perfil del grupo. Haga clic en un evento de cualquiera "
+            "de las dos vistas para ver sus parámetros."
+        ),
+        download_name=f"panel_{grupo}_{ident}.png",
         volver=volver,
     )
 
