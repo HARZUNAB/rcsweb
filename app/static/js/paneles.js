@@ -695,49 +695,9 @@
       });
   }
 
-  // Recorta las líneas al entorno de los eventos para que el fitbounds no se
-  // abra a todo Chile al agregar la capa regional.
-  function recortarLineas(datos, bbox) {
-    const lon = [];
-    const lat = [];
-    let tramoLon = [];
-    let tramoLat = [];
-    function cerrar() {
-      if (tramoLon.length > 1) {
-        if (lon.length) {
-          lon.push(null);
-          lat.push(null);
-        }
-        lon.push.apply(lon, tramoLon);
-        lat.push.apply(lat, tramoLat);
-      }
-      tramoLon = [];
-      tramoLat = [];
-    }
-    for (let i = 0; i < datos.lon.length; i += 1) {
-      const x = datos.lon[i];
-      const y = datos.lat[i];
-      if (x === null || y === null) {
-        cerrar();
-        continue;
-      }
-      const dentro =
-        x >= bbox.minLon &&
-        x <= bbox.maxLon &&
-        y >= bbox.minLat &&
-        y <= bbox.maxLat;
-      if (dentro) {
-        tramoLon.push(x);
-        tramoLat.push(y);
-      } else {
-        cerrar();
-      }
-    }
-    cerrar();
-    return { lon: lon, lat: lat };
-  }
-
-  function trazasRegiones(eventos) {
+  // Traza invisible en las esquinas del área del grupo: mantiene el encuadre
+  // regional actual sin dibujar las líneas recortadas.
+  function trazaContexto(eventos) {
     const lons = eventos.map(function (evento) {
       return evento.lon;
     });
@@ -752,40 +712,122 @@
       1.5,
       Math.min(3, 0.35 * Math.max(maxLon - minLon, maxLat - minLat))
     );
-    const bbox = {
-      minLon: minLon - margen,
-      maxLon: maxLon + margen,
-      minLat: minLat - margen,
-      maxLat: maxLat + margen,
+    return {
+      type: "scattergeo",
+      mode: "markers",
+      lon: [
+        minLon - margen,
+        maxLon + margen,
+        minLon - margen,
+        maxLon + margen,
+      ],
+      lat: [
+        minLat - margen,
+        minLat - margen,
+        maxLat + margen,
+        maxLat + margen,
+      ],
+      marker: { size: 1, opacity: 0 },
+      hoverinfo: "skip",
+      showlegend: false,
+      name: "Contexto",
     };
-    const contorno = recortarLineas(regionesChile.contorno, bbox);
-    const regiones = recortarLineas(regionesChile.regiones, bbox);
-    const capas = [];
-    if (contorno.lon.length > 1) {
-      capas.push({
-        type: "scattergeo",
-        mode: "lines",
-        lon: contorno.lon,
-        lat: contorno.lat,
-        line: { color: "#52606d", width: 1 },
-        hoverinfo: "skip",
-        showlegend: false,
-        name: "Contorno de Chile",
-      });
+  }
+
+  // La capa regional va en un SVG sobre el mapa. No es una traza de Plotly,
+  // así que no interviene en el fitbounds y puede mostrar todo Chile aunque
+  // el encuadre inicial esté centrado en un grupo.
+  function obtenerOverlay() {
+    let overlay = mapaEl.querySelector(".panel-mapa-overlay");
+    if (!overlay) {
+      overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      overlay.setAttribute("class", "panel-mapa-overlay");
+      const contorno = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path"
+      );
+      contorno.setAttribute("class", "overlay-contorno");
+      contorno.setAttribute("fill", "none");
+      contorno.setAttribute("stroke", "#52606d");
+      contorno.setAttribute("stroke-width", "1");
+      contorno.setAttribute("stroke-linecap", "round");
+      const regiones = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path"
+      );
+      regiones.setAttribute("class", "overlay-regiones");
+      regiones.setAttribute("fill", "none");
+      regiones.setAttribute("stroke", "#7a8794");
+      regiones.setAttribute("stroke-width", "1");
+      regiones.setAttribute("stroke-dasharray", "3 2");
+      regiones.setAttribute("stroke-linecap", "round");
+      overlay.appendChild(contorno);
+      overlay.appendChild(regiones);
+      mapaEl.appendChild(overlay);
     }
-    if (regiones.lon.length > 1) {
-      capas.push({
-        type: "scattergeo",
-        mode: "lines",
-        lon: regiones.lon,
-        lat: regiones.lat,
-        line: { color: "#7a8794", width: 1, dash: "dot" },
-        hoverinfo: "skip",
-        showlegend: false,
-        name: "Regiones de Chile",
-      });
+    return overlay;
+  }
+
+  function pathProyectado(datos, proyeccion) {
+    const partes = [];
+    let parte = [];
+    function cerrar() {
+      if (parte.length > 1) {
+        partes.push("M " + parte.join(" L "));
+      }
+      parte = [];
     }
-    return capas;
+    for (let i = 0; i < datos.lon.length; i += 1) {
+      const lon = datos.lon[i];
+      const lat = datos.lat[i];
+      if (lon === null || lat === null) {
+        cerrar();
+        continue;
+      }
+      const punto = proyeccion([lon, lat]);
+      if (!punto || !Number.isFinite(punto[0]) || !Number.isFinite(punto[1])) {
+        cerrar();
+        continue;
+      }
+      parte.push(punto[0].toFixed(1) + "," + punto[1].toFixed(1));
+    }
+    cerrar();
+    return partes.join(" ");
+  }
+
+  function dibujarOverlayRegiones() {
+    const overlay = obtenerOverlay();
+    if (!regionesChile) {
+      overlay.classList.add("d-none");
+      return;
+    }
+    const geo = mapaEl._fullLayout && mapaEl._fullLayout.geo;
+    const sub = geo && geo._subplot;
+    const proyeccion = sub && sub.projection;
+    if (!proyeccion) {
+      overlay.classList.add("d-none");
+      return;
+    }
+    const ancho = mapaEl.clientWidth;
+    const alto = mapaEl.clientHeight;
+    overlay.setAttribute("viewBox", "0 0 " + ancho + " " + alto);
+    overlay.classList.remove("d-none");
+    overlay
+      .querySelector(".overlay-contorno")
+      .setAttribute(
+        "d",
+        pathProyectado(regionesChile.contorno, proyeccion)
+      );
+    overlay
+      .querySelector(".overlay-regiones")
+      .setAttribute(
+        "d",
+        pathProyectado(regionesChile.regiones, proyeccion)
+      );
+  }
+
+  function programarOverlay() {
+    window.requestAnimationFrame(dibujarOverlayRegiones);
   }
 
   function dibujarMapa() {
@@ -809,9 +851,7 @@
     }
 
     const trazas = [];
-    if (regionesChile) {
-      trazas.push.apply(trazas, trazasRegiones(eventos));
-    }
+    trazas.push(trazaContexto(eventos));
     if (esPerfil) {
       const grafico = graficos[estado.grupo.id];
       if (grafico && (grafico.slab_lon || []).length) {
@@ -875,10 +915,15 @@
       showlegend: false,
       paper_bgcolor: "#ffffff",
     };
-    window.Plotly.react(mapaEl, trazas, layout, {
+    const dibujado = window.Plotly.react(mapaEl, trazas, layout, {
       responsive: true,
       displaylogo: false,
     });
+    if (dibujado && dibujado.then) {
+      dibujado.then(programarOverlay);
+    } else {
+      programarOverlay();
+    }
     estado.trazaMapa = indiceEventos;
     if (!mapaEl._panelClick) {
       mapaEl._panelClick = true;
@@ -892,6 +937,8 @@
           seleccionarEvento(punto, anclaDeEvento(evento, mapaEl));
         }
       });
+      mapaEl.on("plotly_relayout", programarOverlay);
+      mapaEl.on("plotly_afterplot", programarOverlay);
       mapaEl.on("plotly_hover", function (evento) {
         if (sincronizandoHover) {
           return;
@@ -1461,6 +1508,8 @@
   // Las regiones se piden al cargar la página; cuando llegan se redibuja el
   // mapa del grupo ya seleccionado.
   cargarRegiones();
+  // Al cambiar el ancho de la tarjeta se vuelve a proyectar la capa regional.
+  window.addEventListener("resize", programarOverlay);
 
   if (datos.perfiles && datos.perfiles.length) {
     seleccionarGrupo("perfil", datos.perfiles[0].id);

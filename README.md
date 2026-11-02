@@ -273,8 +273,10 @@ Seisan. El trabajo de demostración conserva sus resultados.
   peticiones por fila.
 - **Regiones en los paneles**: la planta de los paneles carga una sola vez
   `app/static/data/chile_regiones.json` con el contorno de Chile y las líneas
-  regionales. Se dibujan como trazas `scattergeo` finas y punteadas, recortadas
-  al entorno de los eventos, para no alterar el encuadre del grupo.
+  regionales. Se dibujan en una capa SVG sobre el mapa con **todo Chile**: no
+  intervienen en el encuadre y se vuelven a proyectar al hacer zoom, desplazar
+  o redimensionar. Una traza invisible de contexto mantiene el encuadre
+  regional del grupo.
 - **Regenerar las regiones**: se ejecuta
   `CARTOPY_DATA_DIR=/ruta/a/cartopy python scripts/generar_mapa_chile.py`.
   El script toma el SVG base, agrega o reemplaza la capa `region-chile` con los
