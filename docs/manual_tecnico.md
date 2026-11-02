@@ -293,7 +293,7 @@ Los PNG de evento llevan un encabezado con una fila por evento: fecha, magnitud,
 profundidad, coordenadas, analista, frontera y estado en la otra fuente. En los
 no actualizados se agregan las filas local y publicada y la diferencia; en los
 repetidos, una fila por solución. El resumen se arma en `app/services/plots.py`
-y la caché usa el sufijo `_resumen` para no servir imágenes antiguas sin datos.
+y la caché usa el sufijo `_resumen2` para no servir imágenes antiguas sin datos.
 
 Los grupos de Paneles tienen dos rutas: el detalle interactivo en
 `/jobs/<job>/paneles/<dataset>/<perfil|territorio>/<id>` y el PNG en la misma

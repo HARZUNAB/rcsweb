@@ -952,7 +952,7 @@ def generar_mapa(
 ) -> bytes:
     """Mapa completo (planta + perfil) con resumen del evento en el PNG."""
     destino = _ruta_cache(
-        workspace, "mapas", tabla, archivo, indice, sufijo="_resumen"
+        workspace, "mapas", tabla, archivo, indice, sufijo="_resumen2"
     )
     eventos = _eventos(tabla, archivo, filas, indice)
     return _renderizar_core(
