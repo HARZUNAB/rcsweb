@@ -13,11 +13,11 @@ from flask import (
     send_file,
     url_for,
 )
-from flask_login import login_required
+from flask_login import current_user, login_required
 
 from ..extensions import db
 from ..models import Job
-from ..security import permiso_requerido
+from ..security import permiso_requerido, puede_ver_trabajo
 from ..services import colores
 from ..services.audit import registrar
 from ..services.borders import mapa_fila, texto_frontera_coords
@@ -105,6 +105,8 @@ def _job(job_id: str) -> Job:
     job = db.session.get(Job, job_id)
     if job is None:
         abort(404)
+    if not puede_ver_trabajo(job, current_user):
+        abort(403)
     return job
 
 

@@ -19,7 +19,11 @@ from flask_login import current_user, login_required
 from ..extensions import db
 from ..forms import ReintentarForm, SolicitudForm
 from ..models import CatalogRequest, CatalogRequestFile, Job, nuevo_uuid
-from ..security import alcance_total, permiso_requerido
+from ..security import (
+    alcance_total,
+    permiso_requerido,
+    puede_ver_solicitud,
+)
 from ..services.acquisition import (
     log_solicitud,
     preparar_workspace,
@@ -38,6 +42,8 @@ def _solicitud(request_id: str) -> CatalogRequest:
     solicitud = db.session.get(CatalogRequest, request_id)
     if solicitud is None:
         abort(404)
+    if not puede_ver_solicitud(solicitud, current_user):
+        abort(403)
     return solicitud
 
 
@@ -61,12 +67,15 @@ def _puede_reintentar(solicitud: CatalogRequest) -> bool:
 @login_required
 @permiso_requerido("solicitudes.ver")
 def lista():
-    solicitudes = (
-        db.session.execute(
-            db.select(CatalogRequest).order_by(CatalogRequest.created_at.desc()).limit(50)
+    consulta = db.select(CatalogRequest).order_by(
+        CatalogRequest.created_at.desc()
+    )
+    if not alcance_total(current_user):
+        consulta = consulta.where(
+            CatalogRequest.requested_by_id == current_user.id
         )
-        .scalars()
-        .all()
+    solicitudes = (
+        db.session.execute(consulta.limit(50)).scalars().all()
     )
     return render_template("solicitudes/list.html", solicitudes=solicitudes)
 

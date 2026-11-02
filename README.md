@@ -189,6 +189,11 @@ make clean                # detener y borrar volúmenes
 - **Analista**: operación diaria; solo cancela, elimina o reintenta lo que creó.
 - **Consulta**: solo lectura; no crea, descarga ni exporta.
 
+Cada trabajo guarda su creador. El **analista** y la **consulta** solo ven sus
+propios trabajos; el **administrador** y el **supervisor** ven todos. La columna
+**Creador** del panel y la línea «por …» del detalle identifican al autor. Las
+solicitudes de catálogos siguen la misma regla de propiedad.
+
 Los permisos se aplican en el servidor. Ocultar un botón no reemplaza el
 control: un acceso directo sin permiso responde **403**. Si una cuenta se
 desactiva, su sesión se cierra en la siguiente petición.
@@ -209,6 +214,19 @@ docker compose exec web flask --app app set-role <usuario> <rol>
 docker compose exec web flask --app app reset-password <usuario>
 docker compose exec web flask --app app create-user <usuario> --role analista
 ```
+
+## Dónde se guardan los trabajos
+
+- **Registro y metadatos**: PostgreSQL `rcs` del contenedor `rcsweb-db`, en el
+  volumen Docker `rcsweb_pgdata`. Las tablas principales son `jobs`,
+  `job_files`, `job_sources`, `job_steps`, `job_artifacts`, `catalog_requests`,
+  `audit_log` y `users`. El puerto del host es `127.0.0.1:5434`.
+- **Archivos de cada trabajo**: en el host,
+  `workspace/<job_id>/` (montado como `/workspace` en los contenedores). Ahí
+  quedan catálogos, resultados, mapas, miniaturas y registros. Al eliminar el
+  trabajo se borran su registro y su carpeta; la auditoría se conserva.
+- Para inspeccionar el volumen de PostgreSQL:
+  `sudo docker volume inspect rcsweb_pgdata`.
 
 ## Pipeline
 
@@ -402,7 +420,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **244 tests**.
+runner de solo lectura. Total actual: **247 tests**.
 
 ## Filtros y exportación
 

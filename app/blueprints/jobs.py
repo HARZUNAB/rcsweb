@@ -21,7 +21,7 @@ from flask_login import current_user, login_required
 from ..extensions import db
 from ..forms import JobForm
 from ..models import Job, JobArtifact, JobFile, JobSource, nuevo_uuid
-from ..security import alcance_total, permiso_requerido
+from ..security import permiso_requerido, puede_ver_trabajo
 from ..services.audit import registrar
 from ..services.jobs import JobNoEliminable, eliminar_trabajo, puede_eliminar
 from ..services.panels import datasets_disponibles
@@ -44,6 +44,8 @@ def _job(job_id: str) -> Job:
     job = db.session.get(Job, job_id)
     if job is None:
         abort(404)
+    if not puede_ver_trabajo(job, current_user):
+        abort(403)
     return job
 
 
@@ -282,8 +284,6 @@ def estado(job_id: str):
 @permiso_requerido("trabajos.cancelar")
 def cancelar(job_id: str):
     job = _job(job_id)
-    if not alcance_total(current_user) and job.created_by_id != current_user.id:
-        abort(403)
     if job.status == "queued":
         job.status = "cancelled"
         job.current_step = "Cancelado"

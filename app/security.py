@@ -85,6 +85,23 @@ def alcance_total(usuario) -> bool:
     return tiene_permiso(usuario, "trabajos.todos")
 
 
+def puede_ver_trabajo(job, usuario) -> bool:
+    """Admin/supervisor ven todo; el resto solo lo que creó."""
+    if usuario is None or not getattr(usuario, "is_authenticated", False):
+        return False
+    return alcance_total(usuario) or job.created_by_id == getattr(usuario, "id", None)
+
+
+def puede_ver_solicitud(solicitud, usuario) -> bool:
+    """Misma regla de propiedad para las solicitudes de catálogos."""
+    if usuario is None or not getattr(usuario, "is_authenticated", False):
+        return False
+    return (
+        alcance_total(usuario)
+        or solicitud.requested_by_id == getattr(usuario, "id", None)
+    )
+
+
 def permiso_requerido(permiso: str):
     """Exige sesión iniciada y el permiso indicado."""
 

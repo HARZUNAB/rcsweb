@@ -160,8 +160,7 @@ def test_navegacion_segun_rol(client, usuarios):
 
 
 def test_consulta_no_exporta_ni_descarga(client, usuarios):
-    _login(client, "analista")
-    job = _job_con_tabla()
+    job = _job_con_tabla(usuarios["consulta"].id)
     _login(client, "consulta")
     html = client.get(
         f"/jobs/{job.id}/resultados/no-publicados",
@@ -177,9 +176,9 @@ def test_consulta_no_exporta_ni_descarga(client, usuarios):
     assert client.get(f"/jobs/{job.id}/descargas").status_code == 403
 
 
-def test_analista_exporta_pero_no_borra_ajeno(client, usuarios):
+def test_analista_exporta_su_trabajo(client, usuarios):
     _login(client, "analista")
-    job = _job_con_tabla()
+    job = _job_con_tabla(usuarios["analista"].id)
     html = client.get(
         f"/jobs/{job.id}/resultados/no-publicados",
         query_string={"fuente": "seisan"},
@@ -192,11 +191,7 @@ def test_analista_exporta_pero_no_borra_ajeno(client, usuarios):
     )
     assert respuesta.status_code == 200
     assert respuesta.data.startswith(b"\xef\xbb\xbf")
-
-    # El trabajo no es suyo: puede verlo, pero no eliminarlo ni cancelarlo.
     assert client.get(f"/jobs/{job.id}").status_code == 200
-    assert client.post(f"/jobs/{job.id}/eliminar").status_code == 403
-    assert client.post(f"/jobs/{job.id}/cancelar").status_code == 403
 
 
 def test_analista_elimina_y_cancela_lo_propio(client, usuarios):
@@ -223,8 +218,7 @@ def test_supervisor_elimina_y_cancela_ajenos(client, usuarios):
 
 
 def test_job_detail_oculta_descargas_para_consulta(client, usuarios):
-    _login(client, "analista")
-    job = _job_con_tabla()
+    job = _job_con_tabla(usuarios["consulta"].id)
     _login(client, "consulta")
     html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
     assert "Descargas" not in html
@@ -331,3 +325,39 @@ def test_recuperar_acceso_es_publico_y_orienta(client):
     assert "reset-password" in html
     login = client.get("/login").get_data(as_text=True)
     assert "¿Olvidó su contraseña?" in login
+
+
+def test_analista_no_ve_trabajo_ajeno(client, usuarios):
+    admin = db.session.execute(
+        db.select(User).filter_by(username="tester")
+    ).scalar_one()
+    job = _job(admin.id)
+    _login(client, "analista")
+    html = client.get("/").get_data(as_text=True)
+    assert job.id not in html
+    assert client.get(f"/jobs/{job.id}").status_code == 403
+    assert client.get(f"/jobs/{job.id}/resultados").status_code == 403
+    assert client.get(f"/jobs/{job.id}/paneles").status_code == 403
+    assert client.post(f"/jobs/{job.id}/eliminar").status_code == 403
+    assert client.post(f"/jobs/{job.id}/cancelar").status_code == 403
+
+
+def test_admin_ve_trabajo_ajeno_y_creador(client, usuarios):
+    analista = usuarios["analista"]
+    job = _job(analista.id)
+    _login(client, "tester")
+    html = client.get("/").get_data(as_text=True)
+    assert job.id in html
+    assert "Creador" in html
+    assert "analista" in html
+    assert client.get(f"/jobs/{job.id}").status_code == 200
+
+
+def test_consulta_ve_solo_su_trabajo(client, usuarios):
+    consulta = usuarios["consulta"]
+    job = _job(consulta.id)
+    _login(client, "consulta")
+    html = client.get("/").get_data(as_text=True)
+    assert job.id in html
+    assert client.get(f"/jobs/{job.id}").status_code == 200
+    assert client.post(f"/jobs/{job.id}/eliminar").status_code == 403
