@@ -39,6 +39,22 @@
   const aviso = document.getElementById("mapa-aviso");
   const avisoLink = document.getElementById("mapa-aviso-link");
 
+  // Vista inicial de la planta: si el evento o el grupo están muy
+  // concentrados, se abre con contexto regional en vez de zoom de ciudad.
+  const ZOOM_INICIAL_MAX = 7;
+  const SPAN_MIN_LON = 8.0;
+  const SPAN_MIN_LAT = 3.0;
+  const SPAN_MIN_LAT_PLOTLY = 5.0;
+  const FACTOR_SPAN = 1.2;
+
+  const historicoCheck = document.getElementById("mostrar-historico");
+  const historicoLabel = document.getElementById("historico-label");
+  const historicoTexto = document.getElementById("historico-texto");
+  const enlaceModo = document.getElementById("enlace-mapa-modo");
+  const urlHistorico = contenedor.dataset.urlHistorico || "";
+  let historicoCache = historicoDatos;
+  let historicoActivo = !!(historicoCheck && historicoCheck.checked);
+
   function esc(valor) {
     return String(valor === null || valor === undefined ? "" : valor).replace(
       /[&<>"']/g,
@@ -573,6 +589,122 @@
     });
   }
 
+  function actualizarEtiquetaHistorico(datos, error) {
+    if (!historicoLabel || !historicoTexto) {
+      return;
+    }
+    if (error) {
+      historicoTexto.textContent = error;
+      historicoLabel.classList.remove("d-none", "text-secondary");
+      historicoLabel.classList.add("text-danger");
+      return;
+    }
+    if (datos && datos.label) {
+      const total = (datos.perfil && datos.perfil.total) || 0;
+      historicoTexto.textContent =
+        datos.label + " · " + total + " puntos";
+      historicoLabel.classList.remove("d-none", "text-danger");
+      historicoLabel.classList.add("text-secondary");
+      return;
+    }
+    historicoTexto.textContent = "";
+    historicoLabel.classList.add("d-none");
+    historicoLabel.classList.remove("text-danger");
+    historicoLabel.classList.add("text-secondary");
+  }
+
+  function actualizarUrlHistorico(activo) {
+    const url = new URL(window.location.href);
+    if (activo) {
+      url.searchParams.set("historico", "1");
+    } else {
+      url.searchParams.delete("historico");
+    }
+    window.history.replaceState(null, "", url.toString());
+  }
+
+  function actualizarEnlaceModo() {
+    if (!enlaceModo) {
+      return;
+    }
+    const base = modo === "online"
+      ? contenedor.dataset.offlineUrl
+      : contenedor.dataset.onlineUrl;
+    if (!base) {
+      return;
+    }
+    const url = new URL(base, window.location.origin);
+    if (historicoActivo) {
+      url.searchParams.set("historico", "1");
+    } else {
+      url.searchParams.delete("historico");
+    }
+    enlaceModo.href = url.pathname + url.search;
+  }
+
+  function aplicarHistorico(datos) {
+    historicoDatos = datos;
+    historicoActivo = !!datos;
+    if (historicoCheck) {
+      historicoCheck.checked = historicoActivo;
+    }
+    actualizarEtiquetaHistorico(datos);
+    actualizarUrlHistorico(historicoActivo);
+    actualizarEnlaceModo();
+    if (perfilDatos) {
+      dibujarPerfilCompleto(perfilDatos);
+    }
+  }
+
+  function cargarHistorico() {
+    if (!historicoCheck) {
+      return;
+    }
+    // Sin perfil o sin endpoint utilizable se conserva el envío del formulario.
+    if (!perfilDatos || !perfilDatos.id || !urlHistorico) {
+      if (historicoCheck.form) {
+        historicoCheck.form.submit();
+      }
+      return;
+    }
+    if (!historicoCheck.checked) {
+      aplicarHistorico(null);
+      return;
+    }
+    if (historicoCache) {
+      aplicarHistorico(historicoCache);
+      return;
+    }
+    historicoCheck.disabled = true;
+    fetch(
+      urlHistorico.replace("__PERFIL__", encodeURIComponent(perfilDatos.id)),
+      { headers: { Accept: "application/json" } }
+    )
+      .then(function (respuesta) {
+        if (!respuesta.ok) {
+          throw new Error("historico");
+        }
+        return respuesta.json();
+      })
+      .then(function (datos) {
+        historicoCache = datos;
+        aplicarHistorico(datos);
+      })
+      .catch(function () {
+        historicoCheck.checked = false;
+        historicoActivo = false;
+        actualizarEtiquetaHistorico(
+          null,
+          "No se pudo cargar la sismicidad histórica."
+        );
+        actualizarUrlHistorico(false);
+        actualizarEnlaceModo();
+      })
+      .finally(function () {
+        historicoCheck.disabled = false;
+      });
+  }
+
   function dibujarPerfil() {
     if (!perfil || !perfilDatos) {
       // Sin perfil asignado: el template muestra "Perfil no disponible".
@@ -627,8 +759,14 @@
     const latMax = Math.max.apply(null, latitudes);
     const lonMin = Math.min.apply(null, longitudes);
     const lonMax = Math.max.apply(null, longitudes);
-    const latSpan = Math.max((latMax - latMin) * 1.2, 5.0);
-    const lonSpan = Math.max((lonMax - lonMin) * 1.2, 8.0);
+    const latSpan = Math.max(
+      (latMax - latMin) * FACTOR_SPAN,
+      SPAN_MIN_LAT_PLOTLY
+    );
+    const lonSpan = Math.max(
+      (lonMax - lonMin) * FACTOR_SPAN,
+      SPAN_MIN_LON
+    );
     const latCentro = (latMin + latMax) / 2;
     const lonCentro = (lonMin + lonMax) / 2;
     const layout = {
@@ -700,6 +838,33 @@
     });
   }
 
+  function limitesIniciales(coordenadas) {
+    const validas = coordenadas.filter(function (punto) {
+      return Number.isFinite(punto[0]) && Number.isFinite(punto[1]);
+    });
+    if (!validas.length) {
+      return null;
+    }
+    const latitudes = validas.map(function (punto) {
+      return punto[0];
+    });
+    const longitudes = validas.map(function (punto) {
+      return punto[1];
+    });
+    const latMin = Math.min.apply(null, latitudes);
+    const latMax = Math.max.apply(null, latitudes);
+    const lonMin = Math.min.apply(null, longitudes);
+    const lonMax = Math.max.apply(null, longitudes);
+    const latSpan = Math.max((latMax - latMin) * FACTOR_SPAN, SPAN_MIN_LAT);
+    const lonSpan = Math.max((lonMax - lonMin) * FACTOR_SPAN, SPAN_MIN_LON);
+    const latCentro = (latMin + latMax) / 2;
+    const lonCentro = (lonMin + lonMax) / 2;
+    return [
+      [latCentro - latSpan / 2, lonCentro - lonSpan / 2],
+      [latCentro + latSpan / 2, lonCentro + lonSpan / 2],
+    ];
+  }
+
   function dibujarLeaflet() {
     plantaTipo = "leaflet";
     marcadoresLeaflet = [];
@@ -763,11 +928,19 @@
       marcadoresLeaflet.push(marcador);
       coordenadas.push([punto.lat, punto.lon]);
     });
-    if (coordenadas.length === 1) {
-      mapa.setView(coordenadas[0], 9);
-    } else {
-      mapa.fitBounds(coordenadas, { padding: [30, 30] });
+    const limites = limitesIniciales(coordenadas);
+    if (limites) {
+      mapa.fitBounds(limites, { padding: [30, 30], animate: false });
+      // En mapas anchos un área mínima puede elegir un zoom mayor; se limita
+      // para que el evento siempre se ubique en un contexto regional.
+      if (mapa.getZoom() > ZOOM_INICIAL_MAX) {
+        mapa.setZoom(ZOOM_INICIAL_MAX, { animate: false });
+      }
     }
+  }
+
+  if (historicoCheck) {
+    historicoCheck.addEventListener("change", cargarHistorico);
   }
 
   if (modo === "online") {

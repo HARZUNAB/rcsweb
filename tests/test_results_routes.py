@@ -316,6 +316,10 @@ def test_historico_se_activa_por_query(client, login, monkeypatch):
     assert 'id="mostrar-historico"' in sin
     assert "checked" not in re.search(r'<input[^>]*id="mostrar-historico"[^>]*>', sin).group(0)
     assert 'id="historico-datos"' not in sin
+    assert "data-url-historico=" in sin
+    assert 'id="historico-label"' in sin
+    # La casilla ya no recarga la página: el histórico se pide por JSON.
+    assert "this.form.submit()" not in sin
 
     con = client.get(
         f"/jobs/{job.id}/resultados/no_publicados/seisan/0",
@@ -325,6 +329,9 @@ def test_historico_se_activa_por_query(client, login, monkeypatch):
     assert "checked" in casilla
     assert 'id="historico-datos"' in con
     assert "Sismicidad histórica" in con
+    assert "data-url-historico=" in con
+    etiqueta = re.search(r'<div[^>]*id="historico-label"[^>]*>', con).group(0)
+    assert "d-none" not in etiqueta
     historico = json.loads(
         re.search(
             r'<script type="application/json" id="historico-datos">(.*?)</script>',

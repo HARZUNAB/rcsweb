@@ -224,9 +224,11 @@ Seisan. El trabajo de demostración conserva sus resultados.
   compartida**: al elegir un evento en la planta o en el perfil se abre la misma
   viñeta y el evento se resalta en ambas vistas; no se dibuja una línea vertical.
   La viñeta busca una zona libre y no se superpone con la planta ni el perfil;
-  en pantallas angostas se muestra como hoja inferior. En
-  `No actualizados` se ven la solución local y la publicada; en `Repetidos` se
-  ve el grupo completo.
+  en pantallas angostas se muestra como hoja inferior. La planta abre con una
+  vista regional: si el evento o el grupo están muy concentrados, se usa un
+  mínimo de 8° de longitud × 3° de latitud y se limita el zoom inicial a 7.
+  En `No actualizados` se ven la solución local y la publicada; en `Repetidos`
+  se ve el grupo completo.
 - **Colores y leyendas**: se usa la paleta del proyecto base: amarillo para
   sismos registrados o no percibidos, rojo para Eventquery percibido, anillo
   blanco/negro para la solución publicada, borde violeta para sospechosos, aro
@@ -242,9 +244,11 @@ Seisan. El trabajo de demostración conserva sus resultados.
   `asigna_perfiles` del core, con zoom y clic. El contenedor se limita a
   820 × 420 px en escritorio para que no quede demasiado estirado.
 - **Sismicidad histórica**: casilla opcional en el bloque **Perfil** del
-  detalle, tanto online como offline. Al activarla se cargan
-  `base_2020_2026.dat` y la proyección al perfil; el estado queda en la URL
-  del detalle. La planta no dibuja la capa histórica.
+  detalle, tanto online como offline. Al activarla se pide la serie del perfil
+  por JSON y se redibuja solo el perfil, sin recargar la página: se conservan
+  el scroll y el zoom del mapa. El estado queda en la URL del detalle y los
+  enlaces de modo online/offline lo conservan. La planta no dibuja la capa
+  histórica.
 - **Sospechosos**: se reutiliza `sismicidad.es_sospechoso` del core. El evento
   conserva el color de su fuente y se marca con borde violeta `#7b1196` y la
   leyenda “Sospechoso (borde violeta)”.

@@ -229,10 +229,12 @@
       <div class="d-flex flex-wrap align-items-center gap-2">
         {% if mapa_modo == 'online' %}
           <span class="badge text-bg-success">Online</span>
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_offline }}{% if historico_activo %}&historico=1{% endif %}">Usar offline</a>
+          <a class="btn btn-sm btn-outline-secondary" id="enlace-mapa-modo"
+             href="{{ url_offline }}{% if historico_activo %}&historico=1{% endif %}">Usar offline</a>
         {% else %}
           <span class="badge text-bg-secondary">Offline</span>
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_online }}{% if historico_activo %}&historico=1{% endif %}">Intentar online</a>
+          <a class="btn btn-sm btn-outline-secondary" id="enlace-mapa-modo"
+             href="{{ url_online }}{% if historico_activo %}&historico=1{% endif %}">Intentar online</a>
         {% endif %}
         <a class="btn btn-sm btn-outline-primary" href="{{ url_mapa }}"
            target="_blank" rel="noopener">Abrir PNG</a>
@@ -267,6 +269,7 @@
          data-modo="{{ mapa_modo }}"
          data-offline-url="{{ url_offline }}"
          data-online-url="{{ url_online }}"
+         data-url-historico="{{ url_for('panels.historico', job_id=job.id, perfil_id='__PERFIL__') }}"
          data-topojson-url="{{ url_for('static', filename='vendor/plotly/topojson/') }}"></div>
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3 mb-2">
@@ -278,8 +281,7 @@
         <div class="form-check form-switch mb-0">
           <input class="form-check-input" type="checkbox" role="switch"
                  id="mostrar-historico" name="historico" value="1"
-                 {% if historico_activo %}checked{% endif %}
-                 onchange="this.form.submit()">
+                 {% if historico_activo %}checked{% endif %}>
           <label class="form-check-label small" for="mostrar-historico">
             Sismicidad histórica (perfil)
           </label>
@@ -289,11 +291,12 @@
       <span class="badge text-bg-light text-dark">Sin perfil asignado</span>
       {% endif %}
     </div>
-    {% if perfil_datos and historico_activo %}
-    <div class="small text-secondary mb-2">
+    {% if perfil_datos %}
+    <div class="small text-secondary mb-2 {% if not historico_activo %}d-none{% endif %}"
+         id="historico-label">
       <span class="d-inline-block rounded-circle me-1"
             style="width: 8px; height: 8px; background: #8c8c8c; opacity: 0.45;"></span>
-      {{ historico.label }}
+      <span id="historico-texto">{{ historico.label if historico else '' }}</span>
     </div>
     {% endif %}
     <div class="perfil-contenedor">
