@@ -1209,14 +1209,43 @@
         line: { color: "#adb5bd", width: 1, dash: "dot" },
       },
     ];
+    // La capa histórica no entra en el rango: si entra, el perfil cambia de
+    // escala al activar la casilla. Se conserva el encuadre entre rerenderizados.
+    const xs = [];
+    const ys = [];
+    (grafico.topo_p || []).concat(grafico.slab_p || []).concat(
+      eventos.map(function (evento) { return evento.along_km; })
+    ).forEach(function (valor) {
+      if (typeof valor === "number" && Number.isFinite(valor)) xs.push(valor);
+    });
+    (grafico.topo_alt || []).forEach(function (valor) {
+      if (typeof valor === "number" && Number.isFinite(valor)) ys.push(valor / 1000.0);
+    });
+    (grafico.slab_depth || []).forEach(function (valor) {
+      if (typeof valor === "number" && Number.isFinite(valor)) ys.push(-valor);
+    });
+    eventos.forEach(function (evento) { ys.push(-evento.prof); });
+    const xMin = xs.length ? Math.min.apply(null, xs) : undefined;
+    const xMax = xs.length ? Math.max.apply(null, xs) : undefined;
+    const yMin = ys.length ? Math.min.apply(null, ys) : undefined;
+    const yMax = ys.length ? Math.max.apply(null, ys) : undefined;
     const layout = {
       margin: { l: 55, r: 15, t: 15, b: 45 },
-      xaxis: { title: "Distancia a lo largo del perfil (km)", zeroline: false },
-      yaxis: { title: "Elevación / Profundidad (km)", zeroline: true },
+      xaxis: {
+        title: "Distancia a lo largo del perfil (km)",
+        range: xMin !== undefined ? [xMin, xMax] : undefined,
+        zeroline: false,
+      },
+      yaxis: {
+        title: "Elevación / Profundidad (km)",
+        range: yMin !== undefined ? [yMin, yMax] : undefined,
+        zeroline: true,
+      },
       showlegend: false,
       paper_bgcolor: "#ffffff",
       plot_bgcolor: "#ffffff",
       shapes: shapes,
+      uirevision: estado.grupo.id,
     };
     window.Plotly.react(perfilEl, trazas, layout, {
       responsive: true,
