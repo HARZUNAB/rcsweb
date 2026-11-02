@@ -834,6 +834,33 @@
         "d",
         pathProyectado(regionesChile.regiones, proyeccion)
       );
+
+    // El contorno de Chile se proyecta con la vista completa, pero la planta
+    // de Plotly conserva proporción y deja franjas blancas. Se recorta el SVG
+    // al marco real del geo para que no se dibuje bajo el borde del mapa.
+    const geoEl = mapaEl.querySelector(".geo");
+    const clip = geoEl ? geoEl.getAttribute("clip-path") : "";
+    const coincidencia = clip && clip.match(/^url\(#(.+)\)$/);
+    const rectClip = coincidencia
+      ? document.querySelector(
+          "#" + coincidencia[1] + " rect"
+        )
+      : null;
+    if (rectClip) {
+      const x = Number(rectClip.getAttribute("x") || 0);
+      const y = Number(rectClip.getAttribute("y") || 0);
+      const w = Number(rectClip.getAttribute("width") || 0);
+      const h = Number(rectClip.getAttribute("height") || 0);
+      const izquierda = Math.max(0, x);
+      const arriba = Math.max(0, y);
+      const derecha = Math.max(0, ancho - (x + w));
+      const abajo = Math.max(0, alto - (y + h));
+      overlay.style.clipPath =
+        "inset(" + arriba + "px " + derecha + "px " +
+        abajo + "px " + izquierda + "px)";
+    } else {
+      overlay.style.clipPath = "none";
+    }
   }
 
   function programarOverlay() {

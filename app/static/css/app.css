@@ -369,8 +369,12 @@ footer {
 
 /* Planta de los paneles: capa SVG con el contorno y las regiones de todo
    Chile. Va sobre el mapa, pero no intercepta clics ni hover. */
-#panel-mapa {
+#panel-mapa,
+#panel-perfil {
   position: relative;
+  /* Plotly dibuja el geo y el perfil fuera del área visible al hacer zoom;
+     el recorte mantiene el contenido dentro del borde de la tarjeta. */
+  overflow: hidden;
 }
 
 .panel-mapa-overlay {
