@@ -406,3 +406,19 @@ footer {
   font-weight: 600;
   color: #1f2933;
 }
+
+/* Indicador de trabajo activo: pulso lento junto al spinner de Bootstrap. */
+@keyframes pulso-trabajo {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.58; }
+}
+
+.estado-trabajando {
+  animation: pulso-trabajo 1.9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .estado-trabajando {
+    animation: none;
+  }
+}

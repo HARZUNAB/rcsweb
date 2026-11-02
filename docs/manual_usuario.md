@@ -63,6 +63,12 @@ para descargar los archivos.
 
 La contraseña SSH se usa solo para la descarga y no se guarda.
 
+Mientras un catálogo se está descargando, el estado muestra un spinner y un
+pulso lento, y la página se actualiza cada 2 segundos. Así se distingue una
+descarga en curso de una pantalla detenida.
+
+![Descarga en curso](img/descarga.png)
+
 ### Subir catálogos
 
 Use **Subir catálogos** cuando ya tenga los archivos en su equipo.

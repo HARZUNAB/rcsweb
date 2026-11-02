@@ -2,11 +2,19 @@
   {%- if status == 'done' -%}
     <span class="badge text-bg-success">Terminado</span>
   {%- elif status == 'running' -%}
-    <span class="badge text-bg-primary">En curso</span>
+    <span class="badge text-bg-primary estado-trabajando d-inline-flex align-items-center gap-1"
+          role="status">
+      <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+      En curso
+    </span>
   {%- elif status == 'queued' -%}
     <span class="badge text-bg-warning">En cola</span>
   {%- elif status == 'cancelling' -%}
-    <span class="badge text-bg-warning">Cancelando</span>
+    <span class="badge text-bg-warning estado-trabajando d-inline-flex align-items-center gap-1"
+          role="status">
+      <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+      Cancelando
+    </span>
   {%- elif status == 'failed' -%}
     <span class="badge text-bg-danger">Fallido</span>
   {%- elif status == 'cancelled' -%}
@@ -20,7 +28,11 @@
   {%- if status == 'done' -%}
     <span class="badge text-bg-success">OK</span>
   {%- elif status == 'running' -%}
-    <span class="badge text-bg-primary">Ejecutando</span>
+    <span class="badge text-bg-primary estado-trabajando d-inline-flex align-items-center gap-1"
+          role="status">
+      <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+      Ejecutando
+    </span>
   {%- elif status == 'skipped' -%}
     <span class="badge text-bg-secondary">Omitido</span>
   {%- elif status == 'failed' -%}

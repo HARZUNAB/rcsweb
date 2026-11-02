@@ -402,6 +402,22 @@ def test_lista_y_detalle(client, login, app):
     assert "10.54.217.9" in respuesta.get_data(as_text=True)
 
 
+def test_detalle_muestra_indicador_de_descarga(client, login, app):
+    login()
+    solicitud = _solicitud(app, status="running")
+    archivo = solicitud.files[0]
+    archivo.status = "downloading"
+    db.session.commit()
+
+    html = client.get(f"/solicitudes/{solicitud.id}").get_data(as_text=True)
+    assert "estado-trabajando" in html
+    assert "spinner-border" in html
+    assert "Descargando" in html
+
+    lista = client.get("/solicitudes/").get_data(as_text=True)
+    assert "estado-trabajando" in lista
+
+
 def test_ejecutar_solicitud_crea_job(app, monkeypatch):
     solicitud = _solicitud(app)
     encolados = []

@@ -43,7 +43,11 @@
             {% if solicitud.status == 'done' %}
               <span class="badge text-bg-success">Terminada</span>
             {% elif solicitud.status == 'running' %}
-              <span class="badge text-bg-primary">Descargando</span>
+              <span class="badge text-bg-primary estado-trabajando d-inline-flex align-items-center gap-1"
+                    role="status">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                Descargando
+              </span>
             {% elif solicitud.status == 'queued' %}
               <span class="badge text-bg-warning">En cola</span>
             {% elif solicitud.status == 'partial' %}
