@@ -169,6 +169,9 @@ def test_ruta_paneles_renderiza_el_resumen(client, login, monkeypatch):
     assert 'id="panel-descargar-filtrado"' in html
     assert 'id="panel-descargar-seleccionados"' in html
     assert 'id="panel-seleccionados-count"' in html
+    assert 'id="panel-evento-detalle"' in html
+    assert 'id="panel-evento-contenido"' in html
+    assert 'id="panel-cerrar-evento"' in html
     assert 'data-job-id=' in html
     assert '"slab_lon"' in html
     assert '"lat"' in html

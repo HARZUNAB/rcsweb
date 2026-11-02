@@ -481,7 +481,9 @@ def _dibujar_miniatura(eventos: list[dict], perfil) -> bytes:
         )
 
     if topo_p is not None and len(topo_p):
-        eje.set_xlim(0, float(max(topo_p)))
+        maximo_x = float(max(topo_p))
+        margen_x = max(10.0, maximo_x * 0.03)
+        eje.set_xlim(-margen_x, maximo_x + margen_x)
     maximo = max(profundidades + [100.0]) * 1.08
     eje.set_ylim(maximo, -5)
     eje.set_xticks([])

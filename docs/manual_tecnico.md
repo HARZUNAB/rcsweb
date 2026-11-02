@@ -718,6 +718,11 @@ El detalle de un grupo reutiliza el parcial `app/templates/_mapa_detalle.html` y
 `app/static/js/mapa_detalle.js`, igual que Resultados y Catálogos. La vista
 general de Paneles mantiene el mapa liviano de `app/static/js/paneles.js`.
 
+En la vista general, el detalle del evento seleccionado se dibuja en
+`#panel-evento-detalle`, debajo de los mini mapas. La vista de detalle mantiene
+el panel lateral derecho. Los ejes de ambos perfiles agregan margen sobre el
+rango real para que los eventos profundos no queden recortados.
+
 Todos los detalles usan una columna de mapas de 7/12 y un panel de evento de
 5/12. El panel reemplaza a la viñeta flotante. En modo offline,
 `app/static/js/regiones_mapa.js` dibuja el contorno nacional y las divisiones

@@ -460,6 +460,17 @@
     }
   }
 
+  function rangoConMargen(minimo, maximo, margenMinimo, porcentaje) {
+    if (minimo === undefined || maximo === undefined) {
+      return undefined;
+    }
+    const margen = Math.max(
+      margenMinimo,
+      Math.abs(maximo - minimo) * porcentaje
+    );
+    return [minimo - margen, maximo + margen];
+  }
+
   function dibujarPerfilCompleto(datos) {
     const eventos = (datos.eventos || []).filter(function (evento) {
       return evento.along_km !== null && evento.along_km !== undefined &&
@@ -568,12 +579,12 @@
       margin: { l: 60, r: 15, t: 15, b: 45 },
       xaxis: {
         title: "Distancia a lo largo del perfil (km)",
-        range: xMin !== undefined ? [xMin, xMax] : undefined,
+        range: rangoConMargen(xMin, xMax, 10, 0.03),
         zeroline: false,
       },
       yaxis: {
         title: "Elevación / Profundidad (km)",
-        range: yMin !== undefined ? [yMin, yMax] : undefined,
+        range: rangoConMargen(yMin, yMax, 8, 0.08),
         zeroline: true,
       },
       shapes: [{
@@ -588,6 +599,7 @@
       showlegend: false,
       paper_bgcolor: "#ffffff",
       plot_bgcolor: "#ffffff",
+      uirevision: datos.id || "perfil",
     };
     window.Plotly.newPlot(perfil, trazas, layout, {
       responsive: true,

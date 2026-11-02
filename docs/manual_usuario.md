@@ -175,6 +175,8 @@ perfil, por territorio.
 - **Ver** abre el detalle del grupo con el mismo mapa interactivo de Resultados
   y Catálogos: planta, perfil, selector online/offline, listado de eventos y
   botones para abrir o descargar el PNG.
+- Al hacer clic en un evento de la planta o del perfil, el detalle aparece en un
+  cuadro pequeño justo debajo de ambos mini mapas, sin tapar la interfaz.
 - **Planta del grupo**: muestra los eventos y las divisiones regionales de
   Chile. Use **Centrar** para volver al encuadre del grupo después de hacer
   zoom o desplazar.

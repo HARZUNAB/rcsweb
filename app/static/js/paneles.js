@@ -30,6 +30,8 @@
   const historicoCheckbox = document.getElementById("panel-historico");
   const historicoEstado = document.getElementById("panel-historico-estado");
   const historicoTexto = document.getElementById("panel-historico-texto");
+  const detalleEventoEl = document.getElementById("panel-evento-contenido");
+  const cerrarEventoEl = document.getElementById("panel-cerrar-evento");
   const urlHistorico = perfilEl
     ? perfilEl.dataset.urlHistorico || ""
     : "";
@@ -236,12 +238,15 @@
     if (window.RCSVineta) {
       window.RCSVineta.ocultar();
     }
+    if (detalleEventoEl) {
+      detalleEventoEl.innerHTML =
+        '<div class="small text-secondary">' +
+        "Haga clic en un evento del mapa o del perfil para ver su detalle." +
+        "</div>";
+    }
   }
 
-  function mostrarVineta(evento, ancla) {
-    if (!window.RCSVineta) {
-      return;
-    }
+  function htmlEvento(evento) {
     const tipo = evento.tipo_observacion
       ? ETIQUETAS_TIPO[evento.tipo_observacion] || evento.tipo_observacion
       : "—";
@@ -260,7 +265,6 @@
       " · " +
       esc(etiquetaFuente(evento.fuente)) +
       "</div>" +
-      '<div class="fw-semibold mb-2">Evento seleccionado</div>' +
       '<dl class="row mb-0 small g-0">' +
       '<dt class="col-5 text-secondary fw-normal">Magnitud</dt>' +
       '<dd class="col-7">' +
@@ -309,11 +313,26 @@
         esc(evento.url) +
         '">Ver detalle</a>';
     }
-    window.RCSVineta.mostrar(html, {
-      ancla: ancla,
-      evitar: [mapaEl, perfilEl].filter(Boolean),
-      preferir: gruposEl,
-    });
+    return html;
+  }
+
+  function mostrarVineta(evento, ancla) {
+    const html = htmlEvento(evento);
+    if (detalleEventoEl) {
+      detalleEventoEl.innerHTML = html;
+      return;
+    }
+    if (!window.RCSVineta) {
+      return;
+    }
+    window.RCSVineta.mostrar(
+      '<div class="fw-semibold mb-2">Evento seleccionado</div>' + html,
+      {
+        ancla: ancla,
+        evitar: [mapaEl, perfilEl].filter(Boolean),
+        preferir: gruposEl,
+      }
+    );
   }
 
   function renderEventos() {
@@ -1055,6 +1074,17 @@
       });
   }
 
+  function rangoConMargen(minimo, maximo, margenMinimo, porcentaje) {
+    if (minimo === undefined || maximo === undefined) {
+      return undefined;
+    }
+    const margen = Math.max(
+      margenMinimo,
+      Math.abs(maximo - minimo) * porcentaje
+    );
+    return [minimo - margen, maximo + margen];
+  }
+
   function renderPerfil() {
     if (!perfilEl) {
       return;
@@ -1233,12 +1263,12 @@
       margin: { l: 55, r: 15, t: 15, b: 45 },
       xaxis: {
         title: "Distancia a lo largo del perfil (km)",
-        range: xMin !== undefined ? [xMin, xMax] : undefined,
+        range: rangoConMargen(xMin, xMax, 10, 0.03),
         zeroline: false,
       },
       yaxis: {
         title: "Elevación / Profundidad (km)",
-        range: yMin !== undefined ? [yMin, yMax] : undefined,
+        range: rangoConMargen(yMin, yMax, 8, 0.08),
         zeroline: true,
       },
       showlegend: false,
@@ -1484,6 +1514,9 @@
       dibujarMapa();
       renderPerfil();
     });
+  }
+  if (cerrarEventoEl) {
+    cerrarEventoEl.addEventListener("click", limpiarEvento);
   }
   document.addEventListener("rcs:vineta-cerrada", limpiarEvento);
 
