@@ -169,9 +169,10 @@ Más abajo está el perfil de subducción.
   publicada (Eventquery); en **Repetidos** es la fila que abrió el detalle. En
   eventos únicos no se muestra la distancia, porque no hay otra solución con la
   cual comparar.
-- En **No actualizados**, al seleccionar el evento publicado de Eventquery, el
-  panel muestra **Analista probable** con todos los autores deducidos de las
-  soluciones locales. El evento local conserva su **Analista** real.
+- En **No actualizados**, al seleccionar el evento publicado de Eventquery en
+  la planta o en el perfil, el panel muestra **Analista probable** con todos los
+  autores deducidos de las soluciones locales. El evento local conserva su
+  **Analista** real.
 - **Abrir PNG** y **Descargar PNG** generan una imagen del mapa.
 - El PNG incluye un encabezado con una fila por evento: fecha y hora, magnitud,
   profundidad, coordenadas, analista y estado en la otra fuente, separados por

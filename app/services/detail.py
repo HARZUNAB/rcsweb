@@ -219,7 +219,7 @@ def _texto(valor) -> str:
     return "" if valor is None else str(valor).strip()
 
 
-def _punto(
+def _solucion(
     fuente: str,
     fecha,
     lat,
@@ -234,6 +234,7 @@ def _punto(
     percibido="",
     analista_etiqueta="Analista",
 ) -> dict | None:
+    """Solución canónica del detalle, compartida por planta y perfil."""
     latitud = _a_numero(lat)
     longitud = _a_numero(lon)
     if latitud is None or longitud is None:
@@ -241,15 +242,9 @@ def _punto(
     # El color ya no identifica a la fuente: sigue la paleta del proyecto base.
     # ``rol`` distingue local/publicado y ``percibido`` el rojo de Eventquery.
     codigo = fuente if fuente in COLORES_FUENTE else "publicado"
-    estilo = colores.estilo_punto(
-        codigo, {"rol": rol, "percibido": percibido, "sospechoso": False}
-    )
     return {
         "fuente": codigo,
         "etiqueta": ETIQUETAS_FUENTE[codigo],
-        "color": estilo["color"],
-        "borde": estilo["borde"],
-        "borde_ancho": estilo["borde_ancho"],
         "rol": rol,
         "percibido": _texto(percibido),
         "fecha": _texto(fecha),
@@ -265,7 +260,7 @@ def _punto(
     }
 
 
-def puntos_mapa(
+def construir_soluciones(
     tabla: str,
     fila: dict,
     opcion: str,
@@ -273,10 +268,9 @@ def puntos_mapa(
     indice: int | None = None,
     analista_publicado: str = "",
 ) -> list[dict]:
-    """Puntos del detalle para el mapa interactivo."""
-    puntos = []
+    """Soluciones del detalle con fuente, rol y analista ya resueltos."""
     if tabla == "no_actualizados":
-        local = _punto(
+        local = _solucion(
             opcion,
             fila.get("fecha_local"),
             fila.get("lat_local"),
@@ -287,7 +281,7 @@ def puntos_mapa(
             fila.get("analista", ""),
             rol="local",
         )
-        publicado = _punto(
+        publicado = _solucion(
             "eventquery",
             fila.get("fecha_eventquery"),
             fila.get("lat_eventquery"),
@@ -295,21 +289,34 @@ def puntos_mapa(
             fila.get("prof_eventquery"),
             fila.get("mag_eventquery"),
             fila.get("tipo_mag_eventquery"),
-            rol="publicado",
             analista=analista_publicado,
+            rol="publicado",
             analista_etiqueta="Analista probable",
         )
-        puntos.extend(p for p in (local, publicado) if p is not None)
-        # En No actualizados la referencia es la solución publicada. La local
-        # solo se usa si la publicada no tiene coordenadas válidas.
-        referencia = publicado or local or (puntos[0] if puntos else None)
-    elif tabla == "repetidos":
-        fuente = opcion.split("_", 1)[0]
+        return [s for s in (local, publicado) if s is not None]
+
+    if tabla == "repetidos":
+        fuente = opcion.split("_", 1)[0] if opcion else ""
         if fuente == "publica":
             fuente = "eventquery"
+        soluciones = []
         for item in grupo or []:
             datos = item.get("fila", {})
-            punto = _punto(
+            analista = datos.get("analista", "")
+            analista_etiqueta = "Analista"
+            if fuente == "eventquery":
+                partes = []
+                for clave, etiqueta in (
+                    ("analista_seiscomp", "SeisComp"),
+                    ("analista_seisan", "Seisan"),
+                ):
+                    valor = _texto(datos.get(clave))
+                    if valor:
+                        partes.append(f"{etiqueta}: {valor}")
+                if partes:
+                    analista = "; ".join(partes)
+                    analista_etiqueta = "Analista probable"
+            solucion = _solucion(
                 fuente,
                 datos.get("fecha_hora"),
                 datos.get("latitud"),
@@ -317,53 +324,93 @@ def puntos_mapa(
                 datos.get("prof"),
                 datos.get("mag"),
                 datos.get("tipomag"),
-                datos.get("analista", ""),
+                analista,
                 fila=item.get("_fila"),
+                rol="seleccionado" if item.get("_fila") == indice else None,
                 percibido=datos.get("percibido", ""),
+                analista_etiqueta=analista_etiqueta,
             )
-            if punto is not None:
-                puntos.append(punto)
-        referencia = next((p for p in puntos if p.get("fila") == indice), None)
-        if referencia is None and puntos:
-            referencia = puntos[0]
-    else:
-        analista = fila.get("Analista probable") or fila.get("Analista", "")
-        punto = _punto(
-            opcion,
-            fila.get("Fecha_Hora"),
-            fila.get("Latitud"),
-            fila.get("Longitud"),
-            fila.get("Prof."),
-            fila.get("Mag."),
-            fila.get("Tipo_mag."),
-            analista,
-            fila.get("Estado", ""),
-            percibido=fila.get("Percep.", ""),
-            analista_etiqueta=(
-                "Analista probable"
-                if fila.get("Analista probable")
-                else "Analista"
-            ),
-        )
-        if punto is not None:
-            puntos.append(punto)
-        referencia = punto
+            if solucion is not None:
+                soluciones.append(solucion)
+        return soluciones
 
-    comparacion = len(puntos) > 1
-    for punto in puntos:
-        punto["comparacion"] = comparacion
-        punto["referencia"] = bool(
-            comparacion and referencia is not None and punto is referencia
+    analista = fila.get("Analista probable") or fila.get("Analista", "")
+    solucion = _solucion(
+        opcion,
+        fila.get("Fecha_Hora"),
+        fila.get("Latitud"),
+        fila.get("Longitud"),
+        fila.get("Prof."),
+        fila.get("Mag."),
+        fila.get("Tipo_mag."),
+        analista,
+        fila.get("Estado", ""),
+        percibido=fila.get("Percep.", ""),
+        analista_etiqueta=(
+            "Analista probable" if fila.get("Analista probable") else "Analista"
+        ),
+    )
+    return [solucion] if solucion is not None else []
+
+
+def puntos_mapa(
+    tabla: str,
+    fila: dict,
+    opcion: str,
+    grupo=None,
+    indice: int | None = None,
+    analista_publicado: str = "",
+) -> list[dict]:
+    """Puntos del detalle para el mapa interactivo."""
+    soluciones = construir_soluciones(
+        tabla,
+        fila,
+        opcion,
+        grupo=grupo,
+        indice=indice,
+        analista_publicado=analista_publicado,
+    )
+    if not soluciones:
+        return []
+
+    if tabla == "no_actualizados":
+        # En No actualizados la referencia es la solución publicada. La local
+        # solo se usa si la publicada no tiene coordenadas válidas.
+        referencia = next(
+            (s for s in soluciones if s.get("rol") == "publicado"),
+            soluciones[0],
         )
-        if referencia is not None:
-            punto["dist_km"] = distancia_km(
-                referencia.get("lat"),
-                referencia.get("lon"),
-                punto.get("lat"),
-                punto.get("lon"),
-            )
-            if punto["dist_km"] is not None:
-                punto["dist_km"] = round(punto["dist_km"], 1)
+    elif tabla == "repetidos":
+        referencia = next(
+            (s for s in soluciones if s.get("fila") == indice),
+            soluciones[0],
+        )
+    else:
+        referencia = soluciones[0]
+
+    comparacion = len(soluciones) > 1
+    puntos = []
+    for solucion in soluciones:
+        estilo = colores.estilo_punto(
+            solucion["fuente"],
+            {
+                "rol": solucion.get("rol"),
+                "percibido": solucion.get("percibido", ""),
+                "sospechoso": False,
+            },
+        )
+        punto = {**solucion, **estilo}
+        punto["comparacion"] = comparacion
+        punto["referencia"] = bool(comparacion and solucion is referencia)
+        punto["dist_km"] = distancia_km(
+            referencia.get("lat"),
+            referencia.get("lon"),
+            solucion.get("lat"),
+            solucion.get("lon"),
+        )
+        if punto["dist_km"] is not None:
+            punto["dist_km"] = round(punto["dist_km"], 1)
+        puntos.append(punto)
     return puntos
 
 
@@ -579,6 +626,7 @@ __all__ = [
     "CAMPOS_REPETIDO",
     "clave_evento",
     "construir_detalle",
+    "construir_soluciones",
     "distancia_km",
     "grupo_repetidos",
     "leer_fila",

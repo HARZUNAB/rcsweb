@@ -763,7 +763,14 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         (punto["frontera"] for punto in puntos if punto["frontera"] != "—"),
         "—",
     )
-    eventos_clasificados, perfil_obj = clasificar_eventos(tabla, archivo, filas, fila)
+    eventos_clasificados, perfil_obj = clasificar_eventos(
+        tabla,
+        archivo,
+        filas,
+        fila,
+        opcion=opcion,
+        analista_publicado=analista_publicado,
+    )
     marcar_sospechosos(puntos, eventos_clasificados)
     perfil_datos = perfil_desde_eventos(eventos_clasificados, perfil_obj, opcion, tabla)
     for punto in puntos:

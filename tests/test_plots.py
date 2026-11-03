@@ -62,6 +62,102 @@ def test_eventos_no_publicados_y_no_actualizados():
     assert [evento["rol"] for evento in eventos] == ["local", "publicado"]
 
 
+def test_eventos_no_actualizados_propagan_analista_probable():
+    fila = {
+        "fecha_local": "2026-10-01 00:00:00",
+        "lat_local": "-30.0",
+        "lon_local": "-71.0",
+        "prof_local": "10.0",
+        "mag_local": "3.0",
+        "tipo_mag_local": "ML",
+        "analista": "beto",
+        "fecha_eventquery": "2026-10-01 00:00:00",
+        "lat_eventquery": "-30.1",
+        "lon_eventquery": "-71.1",
+        "prof_eventquery": "12.0",
+        "mag_eventquery": "3.1",
+        "tipo_mag_eventquery": "ML",
+    }
+
+    eventos = plots._eventos(
+        "no_actualizados",
+        "no_actualizados_seisan.csv",
+        [fila],
+        0,
+        opcion="seisan",
+        analista_publicado="SeisComp: cris; Seisan: beto",
+    )
+
+    assert eventos[0]["analista"] == "beto"
+    assert eventos[0]["analista_etiqueta"] == "Analista"
+    assert eventos[1]["analista"] == "SeisComp: cris; Seisan: beto"
+    assert eventos[1]["analista_etiqueta"] == "Analista probable"
+
+    for posicion, evento in enumerate(eventos):
+        evento["along_km"] = float(posicion * 10)
+    datos = plots.perfil_desde_eventos(
+        eventos,
+        {"id": "P1", "slab": {}},
+        "seisan",
+        "no_actualizados",
+    )
+
+    assert datos["eventos"][0]["analista_etiqueta"] == "Analista"
+    assert datos["eventos"][1]["analista_etiqueta"] == "Analista probable"
+    assert datos["eventos"][1]["analista"] == "SeisComp: cris; Seisan: beto"
+
+
+def test_eventos_catalogo_eventquery_usa_analista_probable():
+    fila = {
+        "Fecha_Hora": "2026-10-01 00:00:00",
+        "Latitud": "-30.0",
+        "Longitud": "-71.0",
+        "Prof.": "10.0",
+        "Mag.": "3.0",
+        "Tipo_mag.": "ML",
+        "Analista probable": "SeisComp: cris; Seisan: beto",
+        "Percep.": "",
+    }
+
+    eventos = plots._eventos(
+        "catalogos",
+        "catalogo_eventquery.csv",
+        [fila],
+        0,
+        opcion="eventquery",
+    )
+
+    assert len(eventos) == 1
+    assert eventos[0]["analista"] == "SeisComp: cris; Seisan: beto"
+    assert eventos[0]["analista_etiqueta"] == "Analista probable"
+
+
+def test_eventos_repetidos_publicados_combinan_analistas():
+    fila = {
+        "fecha_hora": "2026-10-01 00:00:00",
+        "latitud": "-30.0",
+        "longitud": "-71.0",
+        "prof": "10.0",
+        "mag": "3.0",
+        "tipomag": "ML",
+        "analista_seisan": "beto",
+        "analista_seiscomp": "cris",
+        "percibido": "",
+    }
+
+    eventos = plots._eventos(
+        "repetidos",
+        "repetidos_publica_amplio.csv",
+        [fila],
+        0,
+        opcion="publica_amplio",
+    )
+
+    assert len(eventos) == 1
+    assert eventos[0]["analista"] == "SeisComp: cris; Seisan: beto"
+    assert eventos[0]["analista_etiqueta"] == "Analista probable"
+
+
 def test_ruta_cache_no_permite_salir(tmp_path):
     with pytest.raises(ValueError):
         plots._ruta_cache(tmp_path, "miniaturas", "no_publicados", "../fuera.csv", 0)
@@ -167,7 +263,7 @@ def test_clasificar_eventos_marca_sospechosos_y_residuo(monkeypatch):
             "perp_km": 3.0,
         },
     ]
-    monkeypatch.setattr(plots, "_eventos", lambda *args: eventos)
+    monkeypatch.setattr(plots, "_eventos", lambda *args, **kwargs: eventos)
     monkeypatch.setattr(plots, "_perfiles", lambda: [{"id": "P1"}])
     monkeypatch.setattr(
         plots,
@@ -234,7 +330,7 @@ def test_perfil_mapa_incluye_topo_slab_y_frontera(monkeypatch):
         },
     ]
 
-    monkeypatch.setattr(plots, "_eventos", lambda *args: eventos)
+    monkeypatch.setattr(plots, "_eventos", lambda *args, **kwargs: eventos)
     monkeypatch.setattr(plots, "_perfiles", lambda: [{"id": "P1"}])
     monkeypatch.setattr(
         plots,
@@ -274,7 +370,7 @@ def test_perfil_mapa_sin_perfil_devuelve_none(monkeypatch):
     monkeypatch.setattr(
         plots,
         "_eventos",
-        lambda *args: [{"rol": "local", "latitud": -30, "longitud": -71}],
+        lambda *args, **kwargs: [{"rol": "local", "latitud": -30, "longitud": -71}],
     )
     monkeypatch.setattr(plots, "_perfiles", lambda: [])
     monkeypatch.setattr(plots, "_asignar", lambda filas, perfiles: (filas, None))

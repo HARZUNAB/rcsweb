@@ -31,6 +31,7 @@ from .borders import texto_frontera_coords  # noqa: E402
 from .detail import (  # noqa: E402
     COLORES_FUENTE,
     ETIQUETAS_FUENTE,
+    construir_soluciones,
     distancia_km,
     grupo_repetidos,
 )
@@ -82,105 +83,45 @@ def _numero(valor):
         return None
 
 
-def _evento_con_claves(
-    fila: dict,
-    claves: dict,
-    rol: str | None = None,
-    percibido: str = "",
-) -> dict:
-    return {
-        "rol": rol,
-        "percibido": percibido,
-        "fecha hora": fila.get(claves["fecha"], ""),
-        "latitud": _numero(fila.get(claves["lat"])),
-        "longitud": _numero(fila.get(claves["lon"])),
-        "prof": _numero(fila.get(claves["prof"])),
-        "magnitud": fila.get(claves["mag"], ""),
-        "tipo": fila.get(claves["tipo"], ""),
-        "analista": fila.get(claves.get("analista", ""), ""),
-    }
-
-
-def _eventos(tabla: str, archivo: str, filas: list[dict], indice: int) -> list[dict]:
+def _eventos(
+    tabla: str,
+    archivo: str,
+    filas: list[dict],
+    indice: int,
+    opcion: str = "",
+    analista_publicado: str = "",
+) -> list[dict]:
+    """Adapta las soluciones canónicas al modelo interno de los mapas."""
     if indice < 0 or indice >= len(filas):
         return []
     fila = filas[indice]
-
-    if tabla == "no_actualizados":
-        eventos = [
-            _evento_con_claves(
-                fila,
-                {
-                    "fecha": "fecha_local",
-                    "lat": "lat_local",
-                    "lon": "lon_local",
-                    "prof": "prof_local",
-                    "mag": "mag_local",
-                    "tipo": "tipo_mag_local",
-                    "analista": "analista",
-                },
-                rol="local",
-            ),
-            _evento_con_claves(
-                fila,
-                {
-                    "fecha": "fecha_eventquery",
-                    "lat": "lat_eventquery",
-                    "lon": "lon_eventquery",
-                    "prof": "prof_eventquery",
-                    "mag": "mag_eventquery",
-                    "tipo": "tipo_mag_eventquery",
-                },
-                rol="publicado",
-            ),
-        ]
-        return [evento for evento in eventos if evento["latitud"] is not None]
-
-    if tabla in ("no_publicados", "catalogos"):
-        evento = _evento_con_claves(
-            fila,
-            {
-                "fecha": "Fecha_Hora",
-                "lat": "Latitud",
-                "lon": "Longitud",
-                "prof": "Prof.",
-                "mag": "Mag.",
-                "tipo": "Tipo_mag.",
-                "analista": "Analista",
-            },
-            rol="local",
-            percibido=fila.get("Percep.", ""),
-        )
-        return [evento] if evento["latitud"] is not None else []
-
-    grupo = grupo_repetidos(filas, indice, archivo)
-    if not grupo:
-        return []
-    grupo.sort(key=lambda item: 0 if item.get("_fila") == indice else 1)
-    eventos = []
-    for item in grupo:
-        evento = _evento_con_claves(
-            item["fila"],
-            {
-                "fecha": "fecha_hora",
-                "lat": "latitud",
-                "lon": "longitud",
-                "prof": "prof",
-                "mag": "mag",
-                "tipo": "tipomag",
-                "analista": "analista",
-            },
-            rol="seleccionado" if item.get("_fila") == indice else None,
-            percibido=item["fila"].get("percibido", ""),
-        )
-        if evento["latitud"] is None:
-            continue
-        if not evento["analista"]:
-            evento["analista"] = (
-                item["fila"].get("analista_seisan") or item["fila"].get("analista_seiscomp") or ""
-            )
-        eventos.append(evento)
-    return eventos
+    grupo = grupo_repetidos(filas, indice, archivo) if tabla == "repetidos" else None
+    if grupo:
+        grupo.sort(key=lambda item: 0 if item.get("_fila") == indice else 1)
+    soluciones = construir_soluciones(
+        tabla,
+        fila,
+        opcion,
+        grupo=grupo,
+        indice=indice,
+        analista_publicado=analista_publicado,
+    )
+    return [
+        {
+            "rol": solucion["rol"]
+            or ("local" if tabla in ("no_publicados", "catalogos") else None),
+            "percibido": solucion["percibido"],
+            "fecha hora": solucion["fecha"],
+            "latitud": solucion["lat"],
+            "longitud": solucion["lon"],
+            "prof": solucion["prof"],
+            "magnitud": solucion["mag"],
+            "tipo": solucion["tipo"],
+            "analista": solucion["analista"],
+            "analista_etiqueta": solucion["analista_etiqueta"],
+        }
+        for solucion in soluciones
+    ]
 
 
 def _asignar(eventos: list[dict], perfiles):
@@ -315,10 +256,22 @@ def _es_sospechoso(evento: dict) -> bool:
 
 
 def clasificar_eventos(
-    tabla: str, archivo: str, filas: list[dict], indice: int
+    tabla: str,
+    archivo: str,
+    filas: list[dict],
+    indice: int,
+    opcion: str = "",
+    analista_publicado: str = "",
 ) -> tuple[list[dict], dict | None]:
     """Eventos con perfil, residuo al slab y clasificación de sospechoso."""
-    eventos = _eventos(tabla, archivo, filas, indice)
+    eventos = _eventos(
+        tabla,
+        archivo,
+        filas,
+        indice,
+        opcion=opcion,
+        analista_publicado=analista_publicado,
+    )
     if not eventos:
         return [], None
     try:
@@ -402,6 +355,9 @@ def perfil_desde_eventos(eventos: list[dict], perfil, opcion: str, tabla: str):
                 "mag": evento.get("magnitud", ""),
                 "tipo": evento.get("tipo", ""),
                 "analista": evento.get("analista", ""),
+                "analista_etiqueta": evento.get(
+                    "analista_etiqueta", "Analista"
+                ),
                 "frontera": texto_frontera_coords(lat, lon),
                 "sospechoso": bool(evento.get("sospechoso")),
                 "residuo_km": evento.get("residuo_km"),
@@ -425,7 +381,9 @@ def perfil_mapa(
     tabla: str, archivo: str, filas: list[dict], indice: int, opcion: str
 ) -> dict | None:
     """Perfil con topografía, slab y eventos para el detalle interactivo."""
-    eventos, perfil = clasificar_eventos(tabla, archivo, filas, indice)
+    eventos, perfil = clasificar_eventos(
+        tabla, archivo, filas, indice, opcion=opcion
+    )
     return perfil_desde_eventos(eventos, perfil, opcion, tabla)
 
 
@@ -956,7 +914,7 @@ def generar_mapa(
     destino = _ruta_cache(
         workspace, "mapas", tabla, archivo, indice, sufijo="_resumen2"
     )
-    eventos = _eventos(tabla, archivo, filas, indice)
+    eventos = _eventos(tabla, archivo, filas, indice, opcion=opcion)
     return _renderizar_core(
         workspace,
         destino,

@@ -351,7 +351,7 @@ def test_detalle_marca_evento_sospechoso(client, login, monkeypatch):
     job = _job_con_tabla(login)
     monkeypatch.setattr(
         "app.blueprints.results.clasificar_eventos",
-        lambda *args: (
+        lambda *args, **kwargs: (
             [
                 {
                     "latitud": -30.0,

@@ -894,6 +894,12 @@ muestra «0 km (referencia)» en ese punto y la distancia en los demás. En even
 únicos no muestra la fila. En el encabezado, `construir_detalle()` expone
 `dist_km` solo para `no_actualizados` y `repetidos`.
 
+Las soluciones del detalle se construyen una sola vez en
+`construir_soluciones()` (`app/services/detail.py`). `puntos_mapa()` y
+`perfil_desde_eventos()` consumen ese modelo, de modo que la planta y el perfil
+no pueden mostrar analistas distintos. `plots._eventos()` solo adapta los
+nombres de campo al modelo interno de los mapas.
+
 En `no_actualizados`, el punto publicado recibe `analista_publicado`, calculado
 con `texto_analista_probable()` a partir de `atribucion_seisan.csv` y
 `atribucion_seiscomp.csv`. El panel lo muestra como «Analista probable» y
