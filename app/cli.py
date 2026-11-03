@@ -30,6 +30,7 @@ def register_cli(app: Flask) -> None:
     app.cli.add_command(seed_admin)
     app.cli.add_command(create_user)
     app.cli.add_command(set_role)
+    app.cli.add_command(set_analyst_code)
     app.cli.add_command(reset_password)
     app.cli.add_command(list_users)
     app.cli.add_command(delete_job)
@@ -43,7 +44,7 @@ def _crear_admin() -> None:
         db.select(User).filter_by(username=username)
     ).scalar_one_or_none()
     if existente is None:
-        admin = User(username=username, role="admin")
+        admin = User(username=username, role="admin", analyst_code="admin")
         admin.set_password(password)
         db.session.add(admin)
         db.session.commit()
@@ -97,11 +98,25 @@ def seed_admin() -> None:
     default="analista",
     show_default=True,
 )
+@click.option("--analyst-code", default="", help="Código corto de analista.")
+@click.option("--analyst-aliases", default="", help="Alias separados por coma.")
 @with_appcontext
-def create_user(username: str, password: str, role: str) -> None:
+def create_user(
+    username: str,
+    password: str,
+    role: str,
+    analyst_code: str,
+    analyst_aliases: str,
+) -> None:
     """Crea un usuario nuevo."""
     try:
-        user = crear_usuario(username, password, role)
+        user = crear_usuario(
+            username,
+            password,
+            role,
+            analyst_code=analyst_code,
+            analyst_aliases=analyst_aliases,
+        )
     except UsuarioError as exc:
         raise click.ClickException(str(exc)) from exc
     registrar(
@@ -138,6 +153,39 @@ def set_role(username: str, role: str) -> None:
     click.echo(
         f"Usuario '{user.username}' ahora tiene rol "
         f"'{ETIQUETAS_ROL.get(user.role, user.role)}'."
+    )
+
+
+@click.command("set-analyst-code")
+@click.argument("username")
+@click.argument("analyst_code")
+@click.option("--aliases", default="", help="Alias separados por coma.")
+@with_appcontext
+def set_analyst_code(username: str, analyst_code: str, aliases: str) -> None:
+    """Asigna el código corto de analista a un usuario."""
+    user = db.session.execute(
+        db.select(User).filter_by(username=username)
+    ).scalar_one_or_none()
+    if user is None:
+        raise click.ClickException(f"No existe el usuario '{username}'.")
+    try:
+        actualizar_usuario(
+            user,
+            user.role,
+            user.active,
+            analyst_code=analyst_code,
+            analyst_aliases=aliases,
+        )
+    except UsuarioError as exc:
+        raise click.ClickException(str(exc)) from exc
+    registrar(
+        "user.update",
+        entity=user.username,
+        meta={"codigo_analista": user.analyst_code, "origen": "cli"},
+    )
+    click.echo(
+        f"Usuario '{user.username}' tiene código de analista "
+        f"'{user.analyst_code}'."
     )
 
 

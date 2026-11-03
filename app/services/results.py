@@ -690,6 +690,8 @@ def _leer_filtrar_ordenar(
     filtros: dict[str, str] | None = None,
     sort: str = "",
     direccion: str = "asc",
+    predicado=None,
+    columnas_ocultas_busqueda: set[str] | None = None,
 ) -> tuple[list[str], list[dict], bool]:
     """Columnas visibles, filas filtradas/ordenadas y si el archivo existe."""
     raiz = workspace.resolve()
@@ -709,24 +711,38 @@ def _leer_filtrar_ordenar(
     }
     for indice, fila in enumerate(filas):
         fila["_fila"] = indice
+    if predicado is not None:
+        filas = [fila for fila in filas if predicado(fila)]
     claves = _claves_frontera(columnas)
     if claves:
         borders.anotar_filas(filas, *claves)
         _insertar_frontera(columnas)
 
+    ocultas = columnas_ocultas_busqueda or set()
     termino = _normalizar(q.strip())
     if termino:
         filas = [
             fila
             for fila in filas
-            if termino in _normalizar(" ".join(str(v) for v in fila.values()))
+            if termino
+            in _normalizar(
+                " ".join(
+                    str(valor)
+                    for clave, valor in fila.items()
+                    if clave not in ocultas and clave != "_fila"
+                )
+            )
         ]
 
     filtros = {
         columna: str(patron).strip()
         for columna, patron in (filtros or {}).items()
-        if columna in columnas and str(patron).strip()
+        if columna in columnas
+        and columna not in ocultas
+        and str(patron).strip()
     }
+    if sort in ocultas:
+        sort = ""
     if filtros:
         filas = [
             fila
@@ -789,6 +805,8 @@ def leer_tabla(
     direccion: str = "asc",
     page: int = 1,
     per_page: int = PER_PAGE,
+    predicado=None,
+    columnas_ocultas_busqueda: set[str] | None = None,
 ) -> dict:
     columnas, filas, existe, numericas, total_archivo = _leer_filtrar_ordenar(
         workspace,
@@ -797,6 +815,8 @@ def leer_tabla(
         filtros=filtros,
         sort=sort,
         direccion=direccion,
+        predicado=predicado,
+        columnas_ocultas_busqueda=columnas_ocultas_busqueda,
     )
     if not existe:
         return {
@@ -840,6 +860,31 @@ def leer_tabla(
     }
 
 
+def leer_todo(
+    workspace: Path,
+    archivo: str,
+    *,
+    q: str = "",
+    filtros: dict[str, str] | None = None,
+    sort: str = "",
+    direccion: str = "asc",
+    predicado=None,
+    columnas_ocultas_busqueda: set[str] | None = None,
+) -> tuple[list[str], list[dict]]:
+    """Columnas visibles y todas las filas filtradas, sin paginar."""
+    columnas, filas, existe, _numericas, _total = _leer_filtrar_ordenar(
+        workspace,
+        archivo,
+        q=q,
+        filtros=filtros,
+        sort=sort,
+        direccion=direccion,
+        predicado=predicado,
+        columnas_ocultas_busqueda=columnas_ocultas_busqueda,
+    )
+    return (columnas, filas) if existe else ([], [])
+
+
 def exportar_filas(columnas: list[str], filas: list[dict]) -> bytes:
     """CSV con BOM para Excel a partir de columnas y filas ya resueltas."""
     buffer = io.StringIO()
@@ -859,6 +904,7 @@ def exportar_csv(
     filtros: dict[str, str] | None = None,
     sort: str = "",
     direccion: str = "asc",
+    predicado=None,
 ) -> tuple[bytes, int]:
     """CSV filtrado completo (todas las páginas), con BOM para Excel."""
     columnas, filas, existe, _numericas, _total = _leer_filtrar_ordenar(
@@ -868,6 +914,7 @@ def exportar_csv(
         filtros=filtros,
         sort=sort,
         direccion=direccion,
+        predicado=predicado,
     )
     if not existe:
         return b"", 0
@@ -878,6 +925,8 @@ def exportar_seleccionados(
     workspace: Path,
     archivo: str,
     filas_ids: list[int],
+    *,
+    predicado=None,
 ) -> tuple[bytes, int]:
     """CSV de las filas marcadas, sin aplicar filtros.
 
@@ -891,6 +940,7 @@ def exportar_seleccionados(
         filtros={},
         sort="",
         direccion="asc",
+        predicado=predicado,
     )
     if not existe:
         return b"", 0

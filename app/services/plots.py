@@ -124,6 +124,24 @@ def _eventos(
     ]
 
 
+def eventos_catalogo(
+    archivo: str, filas: list[dict], opcion: str
+) -> list[dict]:
+    """Eventos de un catálogo completo, con perfil cuando corresponde."""
+    eventos = []
+    for fila in filas:
+        eventos.extend(
+            _eventos("catalogos", archivo, [fila], 0, opcion=opcion)
+        )
+    if not eventos:
+        return []
+    try:
+        eventos, _perfil = _asignar(eventos, _perfiles())
+    except Exception:
+        current_app.logger.exception("No se pudieron asignar perfiles al catálogo")
+    return eventos
+
+
 def _asignar(eventos: list[dict], perfiles):
     if not perfiles:
         return eventos, None

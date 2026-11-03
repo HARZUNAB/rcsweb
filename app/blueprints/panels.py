@@ -338,7 +338,9 @@ def index(job_id: str):
     if dataset not in claves:
         abort(404)
 
-    datos_completos = panels.cargar(workspace, dataset)
+    datos_completos = panels.filtrar_por_analista(
+        panels.cargar(workspace, dataset), current_user
+    )
     tipo = request.args.get("tipo", "")
     fuente = request.args.get("fuente", "")
     if dataset == "observaciones":
@@ -477,6 +479,7 @@ def grupo_mapa(job_id: str, dataset: str, grupo: str, ident: str):
     if grupo not in ("perfil", "territorio"):
         abort(404)
     ctx = _leer_panel(job, dataset)
+    ctx["datos"] = panels.filtrar_por_analista(ctx["datos"], current_user)
     detalle = panels.grupo_eventos(ctx["datos"], grupo, ident)
     if detalle is None:
         abort(404)
@@ -525,6 +528,7 @@ def grupo(job_id: str, dataset: str, grupo: str, ident: str):
     if grupo not in ("perfil", "territorio"):
         abort(404)
     ctx = _leer_panel(job, dataset)
+    ctx["datos"] = panels.filtrar_por_analista(ctx["datos"], current_user)
     detalle = panels.grupo_eventos(ctx["datos"], grupo, ident)
     if detalle is None:
         abort(404)

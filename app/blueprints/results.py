@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import zipfile
 from io import BytesIO
 
 from flask import (
@@ -19,7 +22,13 @@ from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..models import Job
 from ..security import permiso_requerido, puede_ver_trabajo
-from ..services import colores
+from ..services import catalog_export, colores
+from ..services.analysts import (
+    CAMPOS_ANALISTA,
+    codigos_usuario,
+    evento_visible,
+    usuario_restringido,
+)
 from ..services.attribution import indices_atribucion, texto_analista_probable
 from ..services.audit import registrar
 from ..services.borders import mapa_fila, texto_frontera_coords
@@ -326,6 +335,19 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
     q = request.args.get("q", "").strip()
     sort = request.args.get("sort", "").strip()
     filtros = _filtros()
+    restringido = usuario_restringido(current_user)
+    catalogo_restringido = restringido and tabla == "catalogos"
+    if catalogo_restringido and not codigos_usuario(current_user):
+        abort(403)
+    ocultas = CAMPOS_ANALISTA if catalogo_restringido else None
+    if ocultas:
+        filtros = {
+            clave: valor
+            for clave, valor in filtros.items()
+            if clave not in ocultas
+        }
+        if sort in ocultas:
+            sort = ""
 
     tabla_datos = leer_tabla(
         ruta_workspace(job.id),
@@ -335,10 +357,22 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
         sort=sort,
         direccion=direccion,
         page=page,
+        predicado=(
+            (lambda fila: evento_visible(fila, current_user))
+            if restringido and not catalogo_restringido
+            else None
+        ),
+        columnas_ocultas_busqueda=ocultas,
     )
     filtros = tabla_datos["filtros"]
     tabla_datos["rangos"] = _rangos_de_filtros(filtros)
     columnas = [(columna, titulo_columna(columna)) for columna in tabla_datos["columnas"]]
+    if catalogo_restringido:
+        columnas = [
+            (columna, titulo)
+            for columna, titulo in columnas
+            if columna not in CAMPOS_ANALISTA
+        ]
     claves_mapa = claves_frontera(tabla_datos["columnas"])
     if tabla == "repetidos":
         fuente_mapa = opcion.split("_", 1)[0]
@@ -469,6 +503,17 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
             fila=fila,
         )
 
+    def url_catalogo() -> str:
+        return url_for(
+            "results.catalogo",
+            job_id=job.id,
+            opcion=opcion,
+            q=tabla_datos["q"],
+            sort=tabla_datos["sort"],
+            dir=tabla_datos["direccion"],
+            **_filtros_query(),
+        )
+
     volver = url_for("jobs.detalle", job_id=job.id)
     titulo_opcion = dict(opciones)[opcion]
 
@@ -516,6 +561,9 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
         url_exportar_seleccionados=url_exportar_seleccionados,
         url_detalle=url_detalle,
         url_miniatura=url_miniatura,
+        url_catalogo=url_catalogo,
+        restringido=restringido,
+        catalogo_restringido=catalogo_restringido,
     )
 
 
@@ -547,11 +595,232 @@ def catalogos(job_id: str):
     return _render_tabla(job_id, "catalogos", request.args.get("catalogo") or "")
 
 
+def _filtros_catalogo() -> dict[str, str]:
+    filtros = _filtros()
+    if usuario_restringido(current_user):
+        filtros = {
+            clave: valor
+            for clave, valor in filtros.items()
+            if clave not in CAMPOS_ANALISTA
+        }
+    return filtros
+
+
+def _params_catalogo(job_id: str, opcion: str) -> dict:
+    params = {"job_id": job_id, "opcion": opcion}
+    for clave in ("q", "sort", "dir"):
+        valor = request.args.get(clave, "").strip()
+        if valor:
+            params[clave] = valor
+    for clave, valor in _filtros_catalogo().items():
+        params[f"f_{clave}"] = valor
+    return params
+
+
+def _params_lista_catalogo(job_id: str, opcion: str) -> dict:
+    params = {"job_id": job_id, "catalogo": opcion}
+    for clave in ("q", "sort", "dir"):
+        valor = request.args.get(clave, "").strip()
+        if valor:
+            params[clave] = valor
+    for clave, valor in _filtros_catalogo().items():
+        params[f"f_{clave}"] = valor
+    return params
+
+
+def _datos_catalogo(job: Job, opcion: str) -> tuple[str, str, dict, dict]:
+    if usuario_restringido(current_user) and not codigos_usuario(current_user):
+        abort(403)
+    opciones = _opciones("catalogos", job)
+    titulos = dict(opciones)
+    if opcion not in titulos:
+        abort(404)
+    archivo = _archivo_tabla("catalogos", opcion, job)
+    if not archivo:
+        abort(404)
+    direccion = request.args.get("dir", "asc")
+    if direccion not in ("asc", "desc"):
+        direccion = "asc"
+    filtros = _filtros_catalogo()
+    q = request.args.get("q", "").strip()
+    sort = request.args.get("sort", "").strip()
+    datos = catalog_export.preparar_catalogo(
+        ruta_workspace(job.id),
+        archivo,
+        opcion,
+        q=q,
+        filtros=filtros,
+        sort=sort,
+        direccion=direccion,
+        ocultar_analista=usuario_restringido(current_user),
+    )
+    cache_key = hashlib.sha1(
+        json.dumps(
+            {
+                "job": job.id,
+                "opcion": opcion,
+                "q": q,
+                "filtros": filtros,
+                "sort": sort,
+                "direccion": direccion,
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    texto_filtros = "Con filtros aplicados" if q or filtros else "Sin filtros"
+    resumen = catalog_export.resumen_mapa(
+        titulos[opcion], datos["total"], texto_filtros, job.id
+    )
+    return archivo, titulos[opcion], datos, {
+        "cache_key": cache_key,
+        "resumen": resumen,
+    }
+
+
+@results_bp.get("/jobs/<job_id>/resultados/catalogos/<opcion>/catalogo")
+@login_required
+@permiso_requerido("catalogos.ver")
+def catalogo(job_id: str, opcion: str):
+    """Vista previa del catálogo sanitizado, sus mapas y descargas."""
+    job = _job(job_id)
+    _archivo, titulo, datos, extra = _datos_catalogo(job, opcion)
+    params = _params_catalogo(job.id, opcion)
+    return render_template(
+        "results/catalogo.html",
+        job=job,
+        opcion=opcion,
+        titulo=titulo,
+        datos=datos,
+        url_csv=url_for("results.catalogo_csv", **params),
+        url_planta=url_for("results.catalogo_planta", **params),
+        url_zip=url_for("results.catalogo_zip", **params),
+        url_volver=url_for(
+            "results.catalogos", **_params_lista_catalogo(job.id, opcion)
+        ),
+        url_perfil=lambda perfil_id: url_for(
+            "results.catalogo_perfil",
+            perfil_id=perfil_id,
+            **params,
+        ),
+    )
+
+
+@results_bp.get("/jobs/<job_id>/resultados/catalogos/<opcion>/catalogo.csv")
+@login_required
+@permiso_requerido("catalogos.ver")
+def catalogo_csv(job_id: str, opcion: str):
+    job = _job(job_id)
+    _archivo, titulo, datos, _extra = _datos_catalogo(job, opcion)
+    datos_csv = catalog_export.csv_catalogo(datos)
+    nombre = f"catalogo_{opcion}_{job.inicio14[:8]}_{job.fin14[:8]}.csv"
+    registrar(
+        "download",
+        entity=nombre,
+        meta={"catalogo": opcion, "filas": datos["total"]},
+    )
+    return send_file(
+        BytesIO(datos_csv),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=nombre,
+    )
+
+
+@results_bp.get("/jobs/<job_id>/resultados/catalogos/<opcion>/catalogo/planta.png")
+@login_required
+@permiso_requerido("catalogos.ver")
+def catalogo_planta(job_id: str, opcion: str):
+    job = _job(job_id)
+    _archivo, _titulo, datos, extra = _datos_catalogo(job, opcion)
+    png = catalog_export.mapa_planta(
+        ruta_workspace(job.id),
+        datos,
+        opcion,
+        cache_key=extra["cache_key"],
+        resumen=extra["resumen"],
+    )
+    if not png:
+        abort(404)
+    return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
+
+
+@results_bp.get(
+    "/jobs/<job_id>/resultados/catalogos/<opcion>/catalogo/perfil/<perfil_id>.png"
+)
+@login_required
+@permiso_requerido("catalogos.ver")
+def catalogo_perfil(job_id: str, opcion: str, perfil_id: str):
+    job = _job(job_id)
+    _archivo, _titulo, datos, extra = _datos_catalogo(job, opcion)
+    if perfil_id not in datos["perfiles"]:
+        abort(404)
+    png = catalog_export.mapa_perfil(
+        ruta_workspace(job.id),
+        datos,
+        opcion,
+        perfil_id,
+        cache_key=extra["cache_key"],
+        resumen=extra["resumen"],
+    )
+    if not png:
+        abort(404)
+    return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
+
+
+@results_bp.get("/jobs/<job_id>/resultados/catalogos/<opcion>/catalogo.zip")
+@login_required
+@permiso_requerido("catalogos.ver")
+def catalogo_zip(job_id: str, opcion: str):
+    job = _job(job_id)
+    _archivo, _titulo, datos, extra = _datos_catalogo(job, opcion)
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archivo_zip:
+        archivo_zip.writestr(
+            "catalogo.csv", catalog_export.csv_catalogo(datos)
+        )
+        planta = catalog_export.mapa_planta(
+            ruta_workspace(job.id),
+            datos,
+            opcion,
+            cache_key=extra["cache_key"],
+            resumen=extra["resumen"],
+        )
+        if planta:
+            archivo_zip.writestr("planta.png", planta)
+        for perfil_id in datos["perfiles"]:
+            png = catalog_export.mapa_perfil(
+                ruta_workspace(job.id),
+                datos,
+                opcion,
+                perfil_id,
+                cache_key=extra["cache_key"],
+                resumen=extra["resumen"],
+            )
+            if png:
+                archivo_zip.writestr(f"perfil_{perfil_id}.png", png)
+    buffer.seek(0)
+    nombre = f"catalogo_{opcion}_{job.inicio14[:8]}_{job.fin14[:8]}.zip"
+    registrar(
+        "download",
+        entity=nombre,
+        meta={"catalogo": opcion, "filas": datos["total"]},
+    )
+    return send_file(
+        buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=nombre,
+    )
+
+
 @results_bp.get("/jobs/<job_id>/resultados/<tabla>/exportar")
 @login_required
 @permiso_requerido("resultados.exportar")
 def exportar(job_id: str, tabla: str):
     job = _job(job_id)
+    if tabla == "catalogos" and usuario_restringido(current_user):
+        abort(403)
     config, _opciones, opcion = _opcion_valida(tabla, job)
     archivo = _archivo_tabla(tabla, opcion, job)
     if not archivo:
@@ -569,6 +838,11 @@ def exportar(job_id: str, tabla: str):
         filtros={} if todo else _filtros(),
         sort="" if todo else request.args.get("sort", "").strip(),
         direccion="asc" if todo else direccion,
+        predicado=(
+            (lambda fila: evento_visible(fila, current_user))
+            if usuario_restringido(current_user) and tabla != "catalogos"
+            else None
+        ),
     )
     if not datos:
         abort(404)
@@ -600,6 +874,8 @@ def exportar(job_id: str, tabla: str):
 def exportar_seleccionados(job_id: str, tabla: str):
     """Descarga solo las filas marcadas, aunque estén ocultas por el filtro."""
     job = _job(job_id)
+    if tabla == "catalogos" and usuario_restringido(current_user):
+        abort(403)
     _config, _opciones, opcion = _opcion_valida(tabla, job)
     archivo = _archivo_tabla(tabla, opcion, job)
     if not archivo:
@@ -614,7 +890,14 @@ def exportar_seleccionados(job_id: str, tabla: str):
         abort(400)
 
     datos, total = exportar_seleccionados_csv(
-        ruta_workspace(job.id), archivo, filas_ids
+        ruta_workspace(job.id),
+        archivo,
+        filas_ids,
+        predicado=(
+            (lambda fila: evento_visible(fila, current_user))
+            if usuario_restringido(current_user) and tabla != "catalogos"
+            else None
+        ),
     )
     if not datos or not total:
         abort(404)
@@ -658,6 +941,9 @@ def miniatura(job_id: str, tabla: str, opcion: str, fila: int):
     _columnas, filas = leido
     if fila < 0 or fila >= len(filas):
         abort(404)
+    if usuario_restringido(current_user):
+        if tabla == "catalogos" or not evento_visible(filas[fila], current_user):
+            abort(403)
     png = generar_miniatura(ruta_workspace(job.id), tabla, archivo, filas, fila)
     return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
 
@@ -680,6 +966,9 @@ def mapa(job_id: str, tabla: str, opcion: str, fila: int):
     _columnas, filas = leido
     if fila < 0 or fila >= len(filas):
         abort(404)
+    if usuario_restringido(current_user):
+        if tabla == "catalogos" or not evento_visible(filas[fila], current_user):
+            abort(403)
     titulo_opcion = next(
         (titulo for clave, titulo in _opciones(tabla, job) if clave == opcion),
         opcion,
@@ -728,6 +1017,11 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         abort(404)
 
     contexto = construir_detalle(tabla, archivo, filas, fila)
+    if usuario_restringido(current_user):
+        if tabla == "catalogos" or not evento_visible(
+            contexto["fila"], current_user
+        ):
+            abort(403)
     parametro = PARAMETROS[tabla]
     volver = request.args.get("volver", "")
     if not volver.startswith("/") or volver.startswith("//"):

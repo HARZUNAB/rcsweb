@@ -181,6 +181,8 @@ lógicas del catálogo canónico.
 | `username` | String(80) | No | UNIQUE | Nombre de acceso |
 | `password_hash` | String(255) | No | — | Hash de la contraseña |
 | `role` | String(32) | No | — | `admin`, `supervisor`, `analista` o `consulta` |
+| `analyst_code` | String(80) | Sí | — | Código corto de analista |
+| `analyst_aliases` | Text | Sí | — | Alias separados por coma o punto y coma |
 | `active` | Boolean | No | — | Cuenta habilitada |
 | `created_at` | DateTime(tz) | No | — | Fecha de creación |
 
@@ -452,6 +454,7 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `b7e4c1a9d2f3` | Nombre visible de archivos de catálogo |
 | `c2a8f5d7e901` | Progreso por archivo de solicitud |
 | `d4f7a1c9e502` | Marca de trabajo eliminado en la solicitud |
+| `e5a1c2b3d604` | Código corto y alias de analista en usuarios |
 
 Para consultar o aplicar migraciones:
 
@@ -819,7 +822,36 @@ La pantalla **Usuarios** está disponible solo para administradores:
 - restablecer contraseña.
 
 No permite dejar el sistema sin administradores activos. El detalle de cada
-usuario permite cambiar rol/estado y restablecer la clave.
+usuario permite cambiar rol/estado, código corto de analista, alias y
+restablecer la clave.
+
+#### Restricción por código de analista
+
+Los roles `analista` y `consulta` se filtran por `users.analyst_code` y
+`users.analyst_aliases`. `app/services/analysts.py` normaliza mayúsculas,
+acentos, espacios y puntuación, y compara por igualdad o por prefijo de al menos
+tres caracteres. Si un nombre coincide con dos usuarios, no se muestra y se
+registra una advertencia.
+
+El filtro se aplica en:
+
+- tablas de Resultados, antes de paginar, contar y exportar;
+- detalle, miniatura y mapa PNG de eventos;
+- Paneles, sus grupos, conteos y PNG;
+- exportaciones de Resultados.
+
+En Catálogos, `analista` y `consulta` ven todas las fuentes y usan los filtros,
+pero la tabla oculta las columnas de analista, no permite detalle, miniaturas ni
+Web, y solo ofrece **Descargar catálogo**. El resto de las descargas queda
+bloqueada también por URL.
+
+`Descargar catálogo` usa `app/services/catalog_export.py`: genera un CSV
+sanitizado, una planta con todas las soluciones y un PNG por perfil disponible.
+El CSV contiene fecha y hora, coordenadas, profundidad, magnitud, tipo de
+magnitud y referencia geográfica cuando existe; nunca incluye al analista.
+
+Administrador y supervisor no se filtran. Sin código asignado, un analista o
+consulta no accede a eventos, incluido Catálogos.
 
 ### Comandos
 
@@ -827,7 +859,10 @@ usuario permite cambiar rol/estado y restablecer la clave.
 sudo docker compose exec web flask --app app list-users
 sudo docker compose exec web flask --app app set-role <usuario> <rol>
 sudo docker compose exec web flask --app app reset-password <usuario>
-sudo docker compose exec web flask --app app create-user <usuario> --role analista
+sudo docker compose exec web flask --app app create-user <usuario> --role analista \
+  --analyst-code Jere --analyst-aliases "JereV,jerez"
+sudo docker compose exec web flask --app app set-analyst-code gjerez Jere \
+  --aliases "JereV,jerez"
 ```
 
 Roles válidos: `admin`, `supervisor`, `analista`, `consulta`.

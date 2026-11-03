@@ -247,7 +247,11 @@ def test_admin_crea_usuario_y_cambia_rol(client, usuarios):
 
     respuesta = client.post(
         f"/admin/usuarios/{creado.id}/rol",
-        data={"role": "consulta", "active": "y"},
+        data={
+            "role": "consulta",
+            "active": "y",
+            "analyst_code": "Nuevo",
+        },
     )
     assert respuesta.status_code == 302
     assert db.session.get(User, creado.id).role == "consulta"
@@ -264,6 +268,46 @@ def test_admin_crea_usuario_y_cambia_rol(client, usuarios):
 
     _login(client, "nuevo", "otraclave123")
     assert client.get("/").status_code == 200
+
+
+def test_admin_exige_codigo_a_analista(client, usuarios):
+    _login(client, "tester")
+    respuesta = client.post(
+        "/admin/usuarios/crear",
+        data={
+            "username": "sin-codigo",
+            "role": "analista",
+            "password": "clave12345",
+            "confirm_password": "clave12345",
+            "active": "y",
+        },
+        follow_redirects=True,
+    )
+
+    assert respuesta.status_code == 200
+    assert "código de analista" in respuesta.get_data(as_text=True).lower()
+    assert (
+        db.session.execute(
+            db.select(User).filter_by(username="sin-codigo")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+def test_cli_asigna_codigo_de_analista(app, usuarios):
+    runner = app.test_cli_runner()
+
+    resultado = runner.invoke(
+        args=["set-analyst-code", "consulta", "Cons", "--aliases", "Consu"]
+    )
+
+    assert resultado.exit_code == 0, resultado.output
+    db.session.expire_all()
+    consulta = db.session.execute(
+        db.select(User).filter_by(username="consulta")
+    ).scalar_one()
+    assert consulta.analyst_code == "Cons"
+    assert consulta.analyst_aliases == "Consu"
 
 
 def test_no_se_puede_dejar_sin_administradores(client, usuarios):

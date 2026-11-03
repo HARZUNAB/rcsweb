@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Catálogo {{ titulo }} · Trabajo {{ job.id[:8] }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="text-secondary small text-uppercase mb-1">
+      <a class="text-reset text-decoration-none" href="{{ url_volver }}">
+        Catálogos
+      </a>
+      · {{ titulo }}
+    </div>
+    <h1 class="h3 mb-1">Catálogo {{ titulo }}</h1>
+    <p class="text-secondary mb-0">
+      {{ datos.total }} evento{{ '' if datos.total == 1 else 's' }} ·
+      {{ datos.perfiles|length }} perfil{{ '' if datos.perfiles|length == 1 else 'es' }}
+      con mapas disponibles.
+    </p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_volver }}">
+      Volver a Catálogos
+    </a>
+    <a class="btn btn-outline-primary" href="{{ url_csv }}">
+      Descargar CSV
+    </a>
+    <a class="btn btn-primary" href="{{ url_zip }}">
+      Descargar ZIP
+    </a>
+  </div>
+</div>
+
+{% if datos.total == 0 %}
+<div class="alert alert-warning">
+  No hay eventos para los filtros actuales.
+</div>
+{% else %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <h2 class="h6 text-uppercase text-secondary mb-0">Planta del catálogo</h2>
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_planta }}">
+        Descargar PNG
+      </a>
+    </div>
+    <img class="img-fluid border rounded" src="{{ url_planta }}"
+         alt="Mapa de planta del catálogo {{ titulo }}" loading="lazy">
+  </div>
+</div>
+
+{% if datos.perfiles %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-3">Perfiles disponibles</h2>
+    <div class="row g-3">
+      {% for perfil_id in datos.perfiles %}
+      <div class="col-12 col-xl-6">
+        <div class="border rounded p-2 h-100">
+          <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+            <span class="fw-semibold">{{ perfil_id }}</span>
+            <a class="btn btn-sm btn-outline-primary"
+               href="{{ url_perfil(perfil_id) }}">Descargar PNG</a>
+          </div>
+          <img class="img-fluid" src="{{ url_perfil(perfil_id) }}"
+               alt="Mapa del perfil {{ perfil_id }}" loading="lazy">
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-secondary">
+  El catálogo no tiene perfiles asignados. Solo se genera la planta.
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -34,6 +34,22 @@
           <div class="invalid-feedback d-block">{{ error }}</div>
         {% endfor %}
       </div>
+      <div class="col-12 col-md-3">
+        {{ form.analyst_code.label(class="form-label") }}
+        {{ form.analyst_code(class="form-control", autocomplete="off",
+                              placeholder="Ej: Jere") }}
+        {% for error in form.analyst_code.errors %}
+          <div class="invalid-feedback d-block">{{ error }}</div>
+        {% endfor %}
+      </div>
+      <div class="col-12 col-md-4">
+        {{ form.analyst_aliases.label(class="form-label") }}
+        {{ form.analyst_aliases(class="form-control", autocomplete="off",
+                                 placeholder="Ej: JereV, jerez") }}
+        {% for error in form.analyst_aliases.errors %}
+          <div class="invalid-feedback d-block">{{ error }}</div>
+        {% endfor %}
+      </div>
       <div class="col-12 col-md-5">
         {{ form.password.label(class="form-label") }}
         {{ form.password(class="form-control", autocomplete="new-password") }}
@@ -67,6 +83,7 @@
       <thead class="table-light">
         <tr>
           <th>Usuario</th>
+          <th>Código analista</th>
           <th>Rol</th>
           <th>Estado</th>
           <th class="d-none d-md-table-cell">Creado</th>
@@ -80,6 +97,12 @@
             <span class="fw-semibold">{{ item.username }}</span>
             {% if item.id == current_user.id %}
               <span class="badge text-bg-light text-dark ms-1">usted</span>
+            {% endif %}
+          </td>
+          <td>
+            {{ item.analyst_code or '—' }}
+            {% if item.analyst_aliases %}
+              <div class="small text-secondary">{{ item.analyst_aliases }}</div>
             {% endif %}
           </td>
           <td>{{ etiquetas.get(item.role, item.role) }}</td>

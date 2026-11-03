@@ -31,6 +31,19 @@ El **analista** y la **consulta** solo ven los trabajos que crearon. El
 administrador y el supervisor ven todos. La columna **Creador** del panel y la
 línea «por …» del detalle identifican al autor.
 
+Cada usuario tiene un **código corto de analista** y, opcionalmente, alias. El
+código no tiene que coincidir con el nombre de usuario de la app. Por ejemplo,
+el usuario `gjerez` puede tener código `Jere` y alias `JereV, jerez`.
+
+En Resultados y Paneles, el analista solo ve los eventos cuyo campo de analista
+coincide con su código o alias. La comparación ignora mayúsculas, acentos y
+espacios, y tolera variantes por prefijo de al menos tres caracteres, como
+`Jere` con `Jerez` o `JereV`. Si un nombre coincide con dos usuarios, no se
+muestra y queda para revisión del administrador.
+
+Sin código corto asignado, el analista o la consulta no ven eventos. El
+administrador y el supervisor no se filtran por este código.
+
 ## Panel de trabajos
 
 Al ingresar verá el resumen de trabajos y la lista de los más recientes.
@@ -241,16 +254,28 @@ Desde el detalle del trabajo puede abrir los catálogos procesados:
 **Eventquery**, **Seisan** y **SeisComp**.
 
 - Las columnas y filtros funcionan como en los resultados.
-- Las **miniaturas del perfil** se cargan con el interruptor o con **Ver
-  miniaturas**, igual que en No publicados y No actualizados. Funciona para
-  Eventquery, SeisComp y Seisan.
+- **Administrador y supervisor** mantienen el acceso completo: columnas de
+  analista, **Web**, **Ver**, **Ver miniaturas**, descargas completas y el nuevo
+  **Descargar catálogo**.
+- **Analista y consulta** ven todas las fuentes y usan los filtros, pero no ven
+  las columnas **Analista** ni **Analista probable**, y no pueden abrir **Web**,
+  **Ver** ni **Ver miniaturas**. Tampoco pueden usar las descargas completas.
+  Su única descarga es **Descargar catálogo**.
+- **Descargar catálogo** abre una vista previa con el mapa de planta del
+  catálogo filtrado y un mapa por cada perfil disponible. Permite descargar:
+  - `catalogo.csv`, con fecha y hora, latitud, longitud, profundidad, magnitud,
+    tipo de magnitud y referencia geográfica si la fuente la tiene;
+  - `planta.png`;
+  - `perfil_<id>.png` por cada perfil;
+  - un ZIP con todo.
+  El CSV no incluye el nombre del analista.
+- Los eventos sin perfil aparecen solo en la planta. Si el catálogo no tiene
+  perfiles, solo se genera la planta.
 - **Eventquery** incluye **Percibido** y **Analista probable**, calculado
   cruzando la solución publicada con SeisComp y Seisan. Si más de una fuente
   aporta una solución, se muestran todos los autores, por ejemplo
   `SeisComp: cris; Seisan: beto`. El dato es una deducción, no un campo del
   catálogo original de Eventquery.
-- **Web** abre el catálogo diario de sismologia.cl para la fecha del evento.
-- **Ver** abre el detalle del evento.
 
 ## Usuarios y perfil
 

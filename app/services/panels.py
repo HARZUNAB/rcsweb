@@ -21,6 +21,7 @@ from pathlib import Path
 
 from ..domain.catalogs import manifest as fuentes_manifest
 from . import colores, plots, ubicacion
+from .analysts import evento_visible, usuario_restringido
 from .results import cargar_indice
 
 # Cajas de referencia. Insular se ajustó a las islas oceánicas chilenas
@@ -582,6 +583,21 @@ def filtrar(datos: dict, tipo: str | None = None, fuente: str | None = None) -> 
     filtrado["eventos"] = eventos
     filtrado["filtro_tipo"] = tipo
     filtrado["filtro_fuente"] = fuente
+    return filtrado
+
+
+def filtrar_por_analista(datos: dict, usuario) -> dict:
+    """Copia del panel con solo los eventos visibles para el analista."""
+    if not usuario_restringido(usuario):
+        return datos
+    eventos = [
+        evento
+        for evento in datos.get("eventos", [])
+        if evento_visible(evento, usuario)
+    ]
+    filtrado = dict(datos)
+    filtrado.update(_resumir(eventos))
+    filtrado["eventos"] = eventos
     return filtrado
 
 

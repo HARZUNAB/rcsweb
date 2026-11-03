@@ -33,6 +33,22 @@
               <div class="invalid-feedback d-block">{{ error }}</div>
             {% endfor %}
           </div>
+          <div class="mb-3">
+            {{ rol_form.analyst_code.label(class="form-label") }}
+            {{ rol_form.analyst_code(class="form-control", autocomplete="off",
+                                     placeholder="Ej: Jere") }}
+            {% for error in rol_form.analyst_code.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+          <div class="mb-3">
+            {{ rol_form.analyst_aliases.label(class="form-label") }}
+            {{ rol_form.analyst_aliases(class="form-control", autocomplete="off",
+                                        placeholder="Ej: JereV, jerez") }}
+            {% for error in rol_form.analyst_aliases.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
           <div class="form-check form-switch mb-3">
             {{ rol_form.active(class="form-check-input") }}
             {{ rol_form.active.label(class="form-check-label") }}

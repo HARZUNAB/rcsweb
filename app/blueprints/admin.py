@@ -131,6 +131,8 @@ def crear_usuario_web():
                 form.password.data,
                 form.role.data,
                 active=form.active.data,
+                analyst_code=form.analyst_code.data or "",
+                analyst_aliases=form.analyst_aliases.data or "",
             )
         except UsuarioError as exc:
             flash(str(exc), "danger")
@@ -138,7 +140,11 @@ def crear_usuario_web():
             registrar(
                 "user.create",
                 entity=usuario.username,
-                meta={"rol": usuario.role, "activo": usuario.active},
+                meta={
+                    "rol": usuario.role,
+                    "activo": usuario.active,
+                    "codigo_analista": usuario.analyst_code,
+                },
             )
             flash(f"Usuario '{usuario.username}' creado.", "success")
             return redirect(url_for("admin.usuarios"))
@@ -178,7 +184,13 @@ def actualizar_usuario_web(user_id: int):
         return redirect(url_for("admin.usuario", user_id=objetivo.id))
 
     try:
-        actualizar_usuario(objetivo, form.role.data, form.active.data)
+        actualizar_usuario(
+            objetivo,
+            form.role.data,
+            form.active.data,
+            analyst_code=form.analyst_code.data or "",
+            analyst_aliases=form.analyst_aliases.data or "",
+        )
     except UsuarioError as exc:
         flash(str(exc), "danger")
         return redirect(url_for("admin.usuario", user_id=objetivo.id))
@@ -186,7 +198,11 @@ def actualizar_usuario_web(user_id: int):
     registrar(
         "user.update",
         entity=objetivo.username,
-        meta={"rol": objetivo.role, "activo": objetivo.active},
+        meta={
+            "rol": objetivo.role,
+            "activo": objetivo.active,
+            "codigo_analista": objetivo.analyst_code,
+        },
     )
     flash(f"Usuario '{objetivo.username}' actualizado.", "success")
     return redirect(url_for("admin.usuario", user_id=objetivo.id))

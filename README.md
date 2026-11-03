@@ -199,13 +199,22 @@ make clean                # detener y borrar volúmenes
 - **Administrador**: acceso total.
 - **Supervisor**: toda la operación y la auditoría; no administra cuentas ni
   restablece contraseñas.
-- **Analista**: operación diaria; solo cancela, elimina o reintenta lo que creó.
-- **Consulta**: solo lectura; no crea, descarga ni exporta.
+- **Analista**: operación diaria; solo cancela, elimina o reintenta lo que creó
+  y solo ve eventos asociados a su código corto de analista.
+- **Consulta**: solo lectura; no crea, descarga ni exporta. Por ahora se filtra
+  por código de analista igual que el analista.
 
 Cada trabajo guarda su creador. El **analista** y la **consulta** solo ven sus
 propios trabajos; el **administrador** y el **supervisor** ven todos. La columna
 **Creador** del panel y la línea «por …» del detalle identifican al autor. Las
 solicitudes de catálogos siguen la misma regla de propiedad.
+
+Cada usuario tiene `analyst_code` y alias opcionales. En Resultados y Paneles,
+analista y consulta solo ven eventos cuyo analista coincide con su código,
+ignorando mayúsculas, acentos y espacios, y tolerando prefijos de al menos tres
+caracteres. Sin código asignado no ven eventos. En Catálogos ven todas las
+fuentes y datos, pero sin columnas de analista, sin detalle/miniaturas/Web y con
+una única descarga sanitizada: **Descargar catálogo**.
 
 Los permisos se aplican en el servidor. Ocultar un botón no reemplaza el
 control: un acceso directo sin permiso responde **403**. Si una cuenta se
@@ -225,7 +234,10 @@ desactiva, su sesión se cierra en la siguiente petición.
 docker compose exec web flask --app app list-users
 docker compose exec web flask --app app set-role <usuario> <rol>
 docker compose exec web flask --app app reset-password <usuario>
-docker compose exec web flask --app app create-user <usuario> --role analista
+docker compose exec web flask --app app create-user <usuario> --role analista \
+  --analyst-code Jere --analyst-aliases "JereV,jerez"
+docker compose exec web flask --app app set-analyst-code gjerez Jere \
+  --aliases "JereV,jerez"
 ```
 
 ## Dónde se guardan los trabajos
@@ -461,7 +473,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **305 tests**.
+runner de solo lectura. Total actual: **325 tests**.
 
 ## Filtros y exportación
 
@@ -590,15 +602,20 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   la planta y el perfil, sin necesidad de hacer clic en cada fila. Al abrir
   **Ver** y volver, se conserva seleccionado el mismo perfil o territorio.
 - **Catálogos**: el detalle del trabajo tiene un menú con los catálogos de
-  entrada disponibles (Eventquery, Seisan, SeisComp). Cada uno abre un listado
-  con las mismas prestaciones que las tablas de resultados: búsqueda, filtros,
-  orden, paginación, exportación, ficha de ubicación, miniaturas a pedido y
-  enlace al catálogo diario de sismologia.cl. El catálogo **Eventquery** agrega
-  la columna **«Analista probable»**, deducida cruzando cada evento publicado con
-  las soluciones locales de SeisComp y Seisan; se muestran ambas fuentes cuando
-  aportan (`SeisComp: …; Seisan: …`). En **No actualizados**, el punto publicado
-  muestra ese mismo texto como «Analista probable» tanto en la planta como en el
-  perfil, mientras el punto local conserva su «Analista» real.
+  entrada disponibles (Eventquery, Seisan, SeisComp). Administrador y supervisor
+  mantienen el listado completo, columnas de analista, Web, Ver, miniaturas y
+  descargas. Analista y consulta ven todas las fuentes y filtros, pero sin
+  columnas de analista, sin Web/Ver/miniaturas y solo con **Descargar catálogo**.
+  Esa descarga abre una vista previa con el CSV sanitizado, la planta de todo el
+  catálogo y un PNG por perfil disponible, además de un ZIP con todo. El CSV
+  contiene fecha y hora, coordenadas, profundidad, magnitud, tipo de magnitud y
+  referencia geográfica cuando existe; no incluye al analista. El catálogo
+  **Eventquery** agrega la columna **«Analista probable»**, deducida cruzando
+  cada evento publicado con las soluciones locales de SeisComp y Seisan; se
+  muestran ambas fuentes cuando aportan (`SeisComp: …; Seisan: …`). En **No
+  actualizados**, el punto publicado muestra ese mismo texto como «Analista
+  probable» tanto en la planta como en el perfil, mientras el punto local
+  conserva su «Analista» real.
 - El primer acceso a un panel calcula la asignación de perfiles y la deja en
   `workspace/<job>/paneles/`; las visitas siguientes usan esa caché.
 

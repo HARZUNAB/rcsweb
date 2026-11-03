@@ -88,6 +88,7 @@
                  aria-label="Buscar" style="min-width: 240px;">
           <button class="btn btn-sm btn-outline-secondary" type="submit">Aplicar</button>
           <a class="btn btn-sm btn-outline-secondary" href="{{ url_tab(opcion) }}">Limpiar</a>
+          {% if not catalogo_restringido %}
           <div class="form-check form-switch d-flex align-items-center mb-0"
                title="Mostrar u ocultar las miniaturas del perfil y el mini mapa">
             <input class="form-check-input mt-0" type="checkbox" role="switch"
@@ -96,7 +97,13 @@
               Miniaturas
             </label>
           </div>
-          {% if puede('resultados.exportar') %}
+          {% endif %}
+          {% if clave == 'catalogos' %}
+          <a class="btn btn-sm btn-primary" href="{{ url_catalogo() }}">
+            Descargar catálogo
+          </a>
+          {% endif %}
+          {% if puede('resultados.exportar') and not catalogo_restringido %}
           <a class="btn btn-sm btn-outline-secondary" href="{{ url_exportar_todo() }}">
             Descargar todo
           </a>
@@ -130,7 +137,7 @@
           <thead class="table-light">
             <tr>
               <th class="text-nowrap">
-                {% if puede('resultados.exportar') %}
+                {% if puede('resultados.exportar') and not catalogo_restringido %}
                 <input class="form-check-input me-1" type="checkbox"
                        data-seleccionar-todos
                        aria-label="Seleccionar todos los eventos de esta página">
@@ -147,7 +154,9 @@
                 </a>
               </th>
               {% endfor %}
+              {% if not catalogo_restringido %}
               <th class="text-end">Detalle</th>
+              {% endif %}
             </tr>
             <tr class="fila-filtros">
               <th></th>
@@ -162,7 +171,9 @@
                        aria-label="Filtrar {{ titulo }}">
               </th>
               {% endfor %}
+              {% if not catalogo_restringido %}
               <th></th>
+              {% endif %}
             </tr>
           </thead>
           <tbody>
@@ -180,7 +191,7 @@
               {% set url_web = url_catalogo_dia(fecha_evento) %}
               <td class="celda-ubicacion">
                 <div class="d-flex align-items-start gap-2">
-                  {% if puede('resultados.exportar') %}
+                  {% if puede('resultados.exportar') and not catalogo_restringido %}
                   <input class="form-check-input seleccion-evento mt-1"
                          type="checkbox"
                          value="{{ fila.get('_fila') }}"
@@ -214,6 +225,7 @@
                   </span>
                 {% endif %}
 
+                {% if not catalogo_restringido %}
                 <div class="miniaturas-fila" data-miniaturas-fila>
                   <img class="miniatura-perfil"
                        data-src="{{ url_miniatura(fila.get('_fila')) }}"
@@ -238,6 +250,7 @@
                         data-toggle-miniaturas-fila aria-expanded="false">
                   Ver miniaturas
                 </button>
+                {% endif %}
                   </div>
                 </div>
               </td>
@@ -250,6 +263,7 @@
                 {% endif %}
               </td>
               {% endfor %}
+              {% if not catalogo_restringido %}
               <td class="text-end text-nowrap">
                 {% if url_web %}
                 <a class="btn btn-sm btn-outline-secondary"
@@ -259,6 +273,7 @@
                 <a class="btn btn-sm btn-outline-primary"
                    href="{{ url_detalle(fila.get('_fila')) }}">Ver</a>
               </td>
+              {% endif %}
             </tr>
             {% endfor %}
           </tbody>

@@ -177,6 +177,14 @@ class UsuarioForm(FlaskForm):
         choices=[(rol, ETIQUETAS_ROL[rol]) for rol in ROLES_VALIDOS],
         default="analista",
     )
+    analyst_code = StringField(
+        "Código de analista",
+        validators=[Optional(), Length(max=80)],
+    )
+    analyst_aliases = StringField(
+        "Alias de analista",
+        validators=[Optional(), Length(max=255)],
+    )
     password = PasswordField(
         "Contraseña",
         validators=[DataRequired(), Length(min=8, max=128)],
@@ -193,10 +201,18 @@ class UsuarioForm(FlaskForm):
 
 
 class RolUsuarioForm(FlaskForm):
-    """Cambio de rol y estado de un usuario."""
+    """Cambio de rol, estado y código de analista de un usuario."""
 
     role = SelectField(
         "Rol", choices=[(rol, ETIQUETAS_ROL[rol]) for rol in ROLES_VALIDOS]
+    )
+    analyst_code = StringField(
+        "Código de analista",
+        validators=[Optional(), Length(max=80)],
+    )
+    analyst_aliases = StringField(
+        "Alias de analista",
+        validators=[Optional(), Length(max=255)],
     )
     active = BooleanField("Activo")
     submit = SubmitField("Guardar cambios")
