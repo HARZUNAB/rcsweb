@@ -103,12 +103,26 @@ def _quitar_sospechosos(figura) -> None:
             texto.set_visible(False)
 
 
-def _ajustar_localidades(figura, modo: str) -> None:
-    """Deja solo la localidad más cercana y la mantiene dentro del mapa.
+def _es_punto_localidad(linea) -> bool:
+    """True para el punto negro que dibuja el core por cada localidad."""
+    try:
+        xdata, ydata = linea.get_data()
+        return (
+            str(linea.get_marker()).lower() in ("o", "circle")
+            and linea.get_markersize() <= 4
+            and len(xdata) == 1
+            and len(ydata) == 1
+        )
+    except Exception:
+        return False
 
-    El mapa de Otros incluye la costa chilena como referencia. Mostrar todos
-    los nombres de localidades llena la imagen de etiquetas; basta con la más
-    cercana al punto de contexto para orientar al usuario.
+
+def _ajustar_localidades(figura, modo: str, eventos=None) -> None:
+    """Deja solo la localidad más cercana al sismo y oculta el resto.
+
+    El mapa de Otros incluye la costa chilena como referencia. Para no llenar
+    la imagen de nombres y puntos, se conserva únicamente la localidad más
+    cercana a los eventos ploteados.
     """
     if modo == "perfil" or not figura.axes:
         return
@@ -120,20 +134,44 @@ def _ajustar_localidades(figura, modo: str) -> None:
     ymin, ymax = ax.get_ylim()
     ancho = xmax - xmin
     alto = ymax - ymin
-    if _contexto is not None:
-        ref_lat, ref_lon = _contexto
-    else:
-        ref_lon = (xmin + xmax) / 2
-        ref_lat = (ymin + ymax) / 2
+
+    referencias = []
+    for evento in eventos or []:
+        try:
+            referencias.append(
+                (float(evento["longitud"]), float(evento["latitud"]))
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+    if not referencias:
+        if _contexto is not None:
+            ref_lat, ref_lon = _contexto
+            referencias = [(ref_lon, ref_lat)]
+        else:
+            referencias = [((xmin + xmax) / 2, (ymin + ymax) / 2)]
 
     def _distancia(texto) -> float:
-        lon, lat = texto.get_position()
-        return (lon - ref_lon) ** 2 + (lat - ref_lat) ** 2
+        x, y = texto.get_position()
+        return min((x - lon) ** 2 + (y - lat) ** 2 for lon, lat in referencias)
 
     cercano = min(textos, key=_distancia)
     for texto in textos:
         if texto is not cercano:
             texto.set_visible(False)
+
+    origen = cercano.get_position()
+    puntos = [linea for linea in ax.lines if _es_punto_localidad(linea)]
+    if puntos:
+        def _distancia_punto(linea) -> float:
+            xdata, ydata = linea.get_data()
+            return (float(xdata[0]) - origen[0]) ** 2 + (
+                float(ydata[0]) - origen[1]
+            ) ** 2
+
+        punto = min(puntos, key=_distancia_punto)
+        for linea in puntos:
+            if linea is not punto:
+                linea.set_visible(False)
 
     x, y = cercano.get_position()
     if x > xmax - ancho * 0.12:
@@ -230,7 +268,7 @@ def main() -> int:
         _leyenda_catalogo(figura, items, modo)
         if not datos.get("sospechosos", True):
             _quitar_sospechosos(figura)
-        _ajustar_localidades(figura, modo)
+        _ajustar_localidades(figura, modo, datos.get("eventos"))
     elif not datos.get("leyenda", True):
         _quitar_leyendas(figura)
     if modo == "perfil" and figura.axes:

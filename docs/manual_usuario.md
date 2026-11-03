@@ -286,7 +286,7 @@ aplicación.
   Otros cuando superan el radio de influencia según la magnitud: 200 km para
   M<4, 300 km para M4, 400 km para M5 y 500 km para M6 o más. El mapa de Otros
   incluye la costa o islas chilenas más cercanas para orientar la vista y
-  muestra solo el nombre de la localidad más cercana.
+  muestra solo el nombre y el punto de la localidad más cercana a los sismos.
 - Cada perfil se asigna por cercanía individual del evento. Los eventos sin
   perfil aparecen solo en las plantas. Si el catálogo no tiene perfiles, solo
   se generan las plantas.

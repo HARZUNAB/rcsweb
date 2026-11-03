@@ -885,8 +885,8 @@ recibe un `contexto` con el punto más cercano de Chile continental para incluir
 la costa como referencia. La extensión se amplía en latitud para limitar la
 proporción ancho/alto a 2:1, de modo que el mapa de Otros muestre más contexto
 hacia el norte y el sur. De las localidades que dibuja el core se conserva solo
-la etiqueta más cercana al punto de contexto; el resto se oculta para no llenar
-el mapa de nombres. El resto de los mapas de la aplicación conserva su
+la etiqueta y el punto de la más cercana a los sismos ploteados; las demás
+etiquetas y puntos negros se ocultan para no llenar el mapa. El resto de los mapas de la aplicación conserva su
 leyenda, sus anillos de sospechoso y su orden habitual.
 
 Se generan dos PNG por perfil: `perfil_<id>.png` (solo perfil) y
