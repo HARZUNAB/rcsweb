@@ -674,7 +674,10 @@ Las columnas de comparación deben usar nombres genéricos:
 - `analista`;
 - atribución de analistas por fuente, sin nombres de fuente en el código.
 
-La app leerá el rol de referencia y las fuentes locales desde el manifiesto, no
+Los mapas de catálogo incluyen en el encabezado el resultado de
+`_texto_filtros_catalogo(q, filtros)`: búsqueda de texto y cada filtro de
+columna con su título y valor. La app leerá el rol de referencia y las fuentes
+locales desde el manifiesto, no
 desde el nombre de las columnas.
 
 **Estado de esta versión:** los resultados actuales todavía usan columnas

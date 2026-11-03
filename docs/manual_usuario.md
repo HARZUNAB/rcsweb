@@ -279,7 +279,8 @@ aplicación.
   - un ZIP con todo lo seleccionado.
   El CSV no incluye el nombre del analista. Los mapas de esta vista llevan una
   leyenda mínima: amarillo para no percibidos y rojo solo si hay percibidos.
-  Los eventos percibidos se dibujan sobre los no percibidos.
+  Los eventos percibidos se dibujan sobre los no percibidos. El encabezado del
+  PNG muestra los filtros aplicados, incluida la búsqueda de texto.
 - La planta se separa en **Chile continental**, **territorio insular**,
   **territorio antártico** y **Otros**. Los eventos fuera de Chile pasan a
   Otros cuando superan el radio de influencia según la magnitud: 200 km para

@@ -372,3 +372,41 @@ def test_catalogo_zip_respeta_opciones(app, client, monkeypatch):
         "perfil_P001.png",
         "perfil_P001_planta.png",
     }
+
+
+def test_catalogo_mapa_muestra_filtros_aplicados(app, client, monkeypatch):
+    ana = _usuario("ana", "ana")
+    job = _preparar(app, ana)
+    _login(client, "ana")
+    from app.services import catalog_export
+    from app.services.workspace import ruta_workspace
+
+    datos = catalog_export.preparar_catalogo(
+        ruta_workspace(job.id),
+        "resultados/catalogo_seisan.csv",
+        "seisan",
+        q="Valparaiso",
+        filtros={"Mag.": ">=3"},
+    )
+    clave = datos["plantas"][0]["clave"]
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+    capturado = {}
+
+    def falso(*args, **kwargs):
+        capturado.update(kwargs)
+        return png
+
+    monkeypatch.setattr(
+        "app.services.catalog_export.mapa_planta", falso
+    )
+
+    respuesta = client.get(
+        f"/jobs/{job.id}/resultados/catalogos/seisan/catalogo/planta/{clave}.png",
+        query_string={"f_Mag.": ">=3", "q": "Valparaiso"},
+    )
+
+    assert respuesta.status_code == 200
+    subtitulo = " ".join(capturado["resumen"]["subtitulo"])
+    assert "Filtros aplicados" in subtitulo
+    assert "Mag. >= 3" in subtitulo
+    assert "Valparaiso" in subtitulo

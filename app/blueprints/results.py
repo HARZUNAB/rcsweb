@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import zipfile
 from io import BytesIO
 
@@ -653,6 +654,21 @@ def _params_lista_catalogo(job_id: str, opcion: str) -> dict:
     return params
 
 
+def _texto_filtros_catalogo(q: str, filtros: dict[str, str]) -> str:
+    """Texto legible de los filtros que se aplican al catálogo y sus mapas."""
+    if not q and not filtros:
+        return "Sin filtros"
+    partes = []
+    if q:
+        partes.append(f'Búsqueda: "{q}"')
+    for clave, valor in filtros.items():
+        titulo = titulo_columna(clave)
+        mostrado = str(valor).replace("..", " a ")
+        mostrado = re.sub(r"^(>=|<=|>|<|=)\s*", r"\1 ", mostrado)
+        partes.append(f"{titulo} {mostrado}".strip())
+    return "Filtros aplicados: " + " · ".join(partes)
+
+
 def _datos_catalogo(job: Job, opcion: str) -> tuple[str, str, dict, dict]:
     if usuario_restringido(current_user) and not codigos_usuario(current_user):
         abort(403)
@@ -693,7 +709,7 @@ def _datos_catalogo(job: Job, opcion: str) -> tuple[str, str, dict, dict]:
             ensure_ascii=False,
         ).encode("utf-8")
     ).hexdigest()
-    texto_filtros = "Con filtros aplicados" if q or filtros else "Sin filtros"
+    texto_filtros = _texto_filtros_catalogo(q, filtros)
     resumen = catalog_export.resumen_mapa(
         titulos[opcion], datos["total"], texto_filtros, job.id
     )
