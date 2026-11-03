@@ -535,12 +535,12 @@ Campos principales:
 | `label` | Nombre visible para el usuario |
 | `description` | Texto opcional para identificar el catálogo |
 | `role` | `reference` para la fuente de comparación; `local` para las fuentes locales |
-| `visible_in_observaciones` | Si aparece en los filtros de Observaciones |
+| `visible_in_observaciones` | Si aparece en los filtros de Resultados |
 | `priority` | Prioridad cuando hay varias fuentes locales |
 | `catalog_file` | Ruta del catálogo canónico JSONL |
 | `capabilities` | Datos que aporta la fuente |
 
-La app debe usar `role=local` para los filtros de Observaciones y excluir
+La app debe usar `role=local` para los filtros de Resultados y excluir
 `role=reference`. No debe comparar el texto `eventquery`, `seisan` o
 `seiscomp`.
 

@@ -184,7 +184,7 @@ def validar() -> tuple[Fuente, ...]:
             )
         if fuente.es_referencia and fuente.visible_in_observaciones:
             errores.append(
-                f"La fuente de referencia {etiqueta} no puede aparecer en Observaciones."
+                f"La fuente de referencia {etiqueta} no puede aparecer en Resultados."
             )
         if fuente.stored_filename and (
             "/" in fuente.stored_filename or "\\" in fuente.stored_filename

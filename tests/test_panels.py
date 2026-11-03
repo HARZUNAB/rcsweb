@@ -150,7 +150,7 @@ def test_ruta_paneles_renderiza_el_resumen(client, login, monkeypatch):
     assert respuesta.status_code == 200
     html = respuesta.get_data(as_text=True)
     assert "Contexto sismotectónico" in html
-    assert "Observaciones" in html
+    assert "Resultados" in html
     assert "P001" in html
     assert "No publicado" in html
     assert "panel-mapa" in html
@@ -606,7 +606,7 @@ def test_resumen_grupo_png_identifica_fuente_filtros_y_conteos():
     resumen = panels.resumen_grupo_png(
         detalle,
         dataset="observaciones",
-        dataset_titulo="Observaciones",
+        dataset_titulo="Resultados",
         tipo_titulo="No publicados",
         fuente_titulo="Seisan",
         job_id="job1",
@@ -614,7 +614,7 @@ def test_resumen_grupo_png_identifica_fuente_filtros_y_conteos():
 
     assert resumen["filas"] == []
     assert resumen["titulo"] == "Perfil P001 · 1 evento"
-    assert "Observaciones · Fuente: Seisan · Tipo: No publicados" in resumen["subtitulo"]
+    assert "Resultados · Fuente: Seisan · Tipo: No publicados" in resumen["subtitulo"]
     assert (
         "No publicados: 3 | No actualizados: 2 | Repetidos: 1 | "
         "Sospechosos: 4"

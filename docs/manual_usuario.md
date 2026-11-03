@@ -75,7 +75,7 @@ para descargar los archivos.
 5. Envíe la solicitud.
 
 La fuente de referencia se descarga siempre como catálogo de referencia; no es
-una fuente local de Observaciones.
+una fuente local de Resultados.
 
 La contraseña SSH se usa solo para la descarga y no se guarda.
 

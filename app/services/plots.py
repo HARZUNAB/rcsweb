@@ -882,7 +882,7 @@ def _datos_fuente(fuente: str) -> tuple[str, str]:
     if definicion is not None:
         adapter = obtener_adaptador(definicion.format)
         return adapter.render_fuente or definicion.label, definicion.label
-    return fuente, (fuente or "Observaciones").capitalize()
+    return fuente, (fuente or "Resultados").capitalize()
 
 
 def _renderizar_core(

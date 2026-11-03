@@ -573,7 +573,7 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
 ## Paneles y catálogos
 
 - **Paneles**: cada trabajo tiene una vista de contexto sismotectónico. Los
-  catálogos de entrada y el conjunto **Observaciones** (No publicados +
+  catálogos de entrada y el conjunto **Resultados** (No publicados +
   No actualizados + Repetidos) se agrupan por perfil de subducción usando
   `asigna_perfiles` del core. Los eventos sin perfil se clasifican con la
   geografía precisa de `ubicacion.py`: **Nacional** (Chile continental, costa y
@@ -585,11 +585,11 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   cualquiera de las dos vistas, sus datos se previsualizan en la tarjeta inferior;
   al hacer clic la selección queda fija, se resalta en ambas y se puede abrir el
   detalle completo (planta y perfil interactivos) en una pestaña nueva.
-- **Observaciones**: los informes de repetidos se deduplican por evento (fuente
+- **Resultados**: los informes de repetidos se deduplican por evento (fuente
   + fecha + coordenadas + profundidad), de modo que un evento que aparece en
   `amplio`, `estricto` y `excluidos` se cuenta una sola vez. Los filtros se
-  presentan como una tabla con la **fuente** arriba (Todas, SeisComp, Seisan,
-  Eventquery) y el **tipo** debajo (Todos, No publicados, No actualizados,
+  presentan como una tabla con la **fuente** arriba (Todas y las fuentes del
+  manifiesto) y el **tipo** debajo (Todos, No publicados, No actualizados,
   Repetidos), con conteos cruzados y una línea «Filtro: …». Se aplican a los
   grupos, la planta, el perfil y el listado. La planta y el perfil muestran el
   mismo conteo de eventos del grupo seleccionado. Todas las pestañas están

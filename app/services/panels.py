@@ -522,7 +522,7 @@ def cargar(workspace: Path, dataset: str) -> dict:
         catalogo = dataset.split("_", 1)[1]
         titulo, eventos = _eventos_catalogo(workspace, catalogo)
     elif dataset == "observaciones":
-        titulo = "Observaciones"
+        titulo = "Resultados"
         eventos = (
             _eventos_no_publicados(workspace)
             + _eventos_no_actualizados(workspace)
@@ -782,8 +782,8 @@ def datasets_disponibles(workspace: Path) -> list[dict]:
         opciones.append(
             {
                 "clave": "observaciones",
-                "titulo": "Observaciones",
-                "grupo": "Observaciones",
+                "titulo": "Resultados",
+                "grupo": "Resultados",
             }
         )
     for definicion in fuentes_manifest.fuentes():
