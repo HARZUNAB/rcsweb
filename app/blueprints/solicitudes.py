@@ -63,6 +63,48 @@ def _job_de(solicitud: CatalogRequest) -> Job | None:
     ).scalar_one_or_none()
 
 
+def _estado_inicial(solicitud: CatalogRequest) -> dict:
+    """Estado de la descarga o de la solicitud."""
+    estados = {
+        "done": ("Terminada", "success", False),
+        "running": ("Descargando", "primary", True),
+        "queued": ("En cola", "warning", False),
+        "partial": ("Parcial", "warning", False),
+        "failed": ("Fallida", "danger", False),
+    }
+    texto, clase, activa = estados.get(
+        solicitud.status, (solicitud.status, "secondary", False)
+    )
+    return {"texto": texto, "clase": clase, "activa": activa}
+
+
+def _estado_final(solicitud: CatalogRequest, tiene_job: bool) -> dict:
+    """Qué ocurrió con el trabajo generado por la solicitud."""
+    if tiene_job:
+        return {
+            "texto": "Trabajo vigente",
+            "clase": "success",
+            "detalle": "El trabajo asociado sigue disponible.",
+        }
+    if solicitud.job_deleted_at is not None:
+        return {
+            "texto": "Trabajo eliminado",
+            "clase": "warning",
+            "detalle": "El trabajo asociado fue eliminado.",
+        }
+    if solicitud.status in ("queued", "running"):
+        return {
+            "texto": "Preparando trabajo",
+            "clase": "secondary",
+            "detalle": "La solicitud todavía no generó un trabajo.",
+        }
+    return {
+        "texto": "Sin trabajo",
+        "clase": "secondary",
+        "detalle": "La solicitud no generó un trabajo.",
+    }
+
+
 def _puede_reintentar(solicitud: CatalogRequest) -> bool:
     if solicitud.status not in ("failed", "partial"):
         return False
@@ -87,6 +129,21 @@ def lista():
     solicitudes = (
         db.session.execute(consulta.limit(50)).scalars().all()
     )
+    ids = [solicitud.id for solicitud in solicitudes]
+    con_job = set()
+    if ids:
+        con_job = set(
+            db.session.execute(
+                db.select(Job.catalog_request_id).where(
+                    Job.catalog_request_id.in_(ids)
+                )
+            ).scalars()
+        )
+    for solicitud in solicitudes:
+        solicitud.estado_inicial = _estado_inicial(solicitud)
+        solicitud.estado_final = _estado_final(
+            solicitud, solicitud.id in con_job
+        )
     return render_template("solicitudes/list.html", solicitudes=solicitudes)
 
 
@@ -300,10 +357,13 @@ def _iso_utc(valor) -> str:
 
 def _contexto(request_id: str) -> dict:
     solicitud = _solicitud(request_id)
+    job = _job_de(solicitud)
     return {
         "solicitud": solicitud,
-        "job": _job_de(solicitud),
+        "job": job,
         "job_deleted": solicitud.job_deleted_at is not None,
+        "estado_inicial": _estado_inicial(solicitud),
+        "estado_final": _estado_final(solicitud, job is not None),
         "log": log_solicitud(solicitud.id),
         "etiquetas": fuentes_manifest.etiquetas(),
         "form_reintento": ReintentarForm(),

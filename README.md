@@ -238,8 +238,10 @@ docker compose exec web flask --app app create-user <usuario> --role analista
   `workspace/<job_id>/` (montado como `/workspace` en los contenedores). Ahí
   quedan catálogos, resultados, mapas, miniaturas y registros. Al eliminar el
   trabajo se borran su registro y su carpeta; la auditoría se conserva. Si el
-  trabajo provenía de una solicitud, la solicitud queda en el historial con la
-  marca **Trabajo eliminado** y su fecha.
+  trabajo provenía de una solicitud, la solicitud queda en el historial. El
+  listado muestra **Estado inicial** (descarga) y **Estado final** (Trabajo
+  vigente, Trabajo eliminado, Preparando trabajo o Sin trabajo), además de la
+  fecha de eliminación en la columna **Eliminado**.
 - Para inspeccionar el volumen de PostgreSQL:
   `sudo docker volume inspect rcsweb_pgdata`.
 
@@ -459,7 +461,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **303 tests**.
+runner de solo lectura. Total actual: **305 tests**.
 
 ## Filtros y exportación
 

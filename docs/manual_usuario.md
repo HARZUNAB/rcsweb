@@ -75,10 +75,21 @@ catálogo tiene su propio **porcentaje de avance**. Si el catálogo informa
 etapas internas, el porcentaje avanza con ellas; si no, se mantiene el estado
 de descarga y el reloj.
 
-Si el trabajo generado por la solicitud se elimina, la solicitud se conserva en
-el historial con el aviso **Trabajo eliminado** y la fecha de eliminación. El
-estado de descarga sigue siendo **Terminada**, porque la descarga sí se completó;
-el aviso indica que ya no existe el trabajo asociado.
+El listado muestra **Estado inicial** y **Estado final**:
+
+- **Estado inicial**: la descarga o solicitud, por ejemplo Terminada, Fallida,
+  Parcial, En cola o Descargando.
+- **Estado final**:
+  - **Trabajo vigente**: el trabajo asociado existe y se puede consultar.
+  - **Trabajo eliminado**: el trabajo existió, pero fue eliminado.
+  - **Preparando trabajo**: la solicitud está en curso y todavía no generó el
+    trabajo.
+  - **Sin trabajo**: la solicitud no generó un trabajo.
+
+La columna **Eliminado** muestra la fecha en que se eliminó el trabajo, o `—`
+si sigue vigente. El estado de descarga puede seguir siendo **Terminada**,
+porque la descarga sí se completó; el estado final indica qué pasó con el
+trabajo asociado.
 
 ![Descarga en curso](img/descarga.png)
 

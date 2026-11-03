@@ -23,9 +23,11 @@
         <tr>
           <th>Período</th>
           <th>Servidor</th>
-          <th>Estado</th>
+          <th>Estado inicial</th>
+          <th>Estado final</th>
           <th class="d-none d-md-table-cell">Paso</th>
           <th class="text-end">Creada</th>
+          <th class="text-end">Eliminado</th>
           <th class="text-end"></th>
         </tr>
       </thead>
@@ -40,35 +42,32 @@
             {{ solicitud.remote_user }}@{{ solicitud.server }}
           </td>
           <td>
-            {% if solicitud.status == 'done' %}
-              <span class="badge text-bg-success">Terminada</span>
-            {% elif solicitud.status == 'running' %}
-              <span class="badge text-bg-primary estado-trabajando d-inline-flex align-items-center gap-1"
+            {% set inicial = solicitud.estado_inicial %}
+            {% if inicial.activa %}
+              <span class="badge text-bg-{{ inicial.clase }} estado-trabajando d-inline-flex align-items-center gap-1"
                     role="status">
                 <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                Descargando
+                {{ inicial.texto }}
               </span>
-            {% elif solicitud.status == 'queued' %}
-              <span class="badge text-bg-warning">En cola</span>
-            {% elif solicitud.status == 'partial' %}
-              <span class="badge text-bg-warning">Parcial</span>
-            {% elif solicitud.status == 'failed' %}
-              <span class="badge text-bg-danger">Fallida</span>
             {% else %}
-              <span class="badge text-bg-secondary">{{ solicitud.status }}</span>
+              <span class="badge text-bg-{{ inicial.clase }}">{{ inicial.texto }}</span>
             {% endif %}
-            {% if solicitud.job_deleted_at %}
-              <span class="badge text-bg-warning text-dark d-block mt-1"
-                    title="El trabajo generado fue eliminado">
-                Trabajo eliminado
-              </span>
-            {% endif %}
+          </td>
+          <td>
+            {% set final = solicitud.estado_final %}
+            <span class="badge text-bg-{{ final.clase }}"
+                  title="{{ final.detalle }}">{{ final.texto }}</span>
           </td>
           <td class="d-none d-md-table-cell small text-secondary">
             {{ solicitud.current_step or '—' }}
           </td>
           <td class="text-end small text-secondary">
             {{ solicitud.created_at.strftime('%Y-%m-%d %H:%M') }}
+          </td>
+          <td class="text-end small text-secondary">
+            {% if solicitud.job_deleted_at %}
+              {{ solicitud.job_deleted_at.strftime('%Y-%m-%d %H:%M') }}
+            {% else %}—{% endif %}
           </td>
           <td class="text-end">
             <a class="btn btn-sm btn-outline-primary"
@@ -79,7 +78,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="6" class="text-center text-secondary py-5">
+          <td colspan="8" class="text-center text-secondary py-5">
             No hay solicitudes todavía.
           </td>
         </tr>

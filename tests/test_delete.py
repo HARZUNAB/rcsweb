@@ -60,21 +60,25 @@ def test_eliminar_trabajo_borra_db_archivos_y_audita(client, login):
     assert auditoria.meta["estado"] == "done"
 
 
-def test_eliminar_trabajo_marca_solicitud(client, login):
-    login()
-    usuario = _usuario()
+def _solicitud(status="done"):
     solicitud = CatalogRequest(
         id=nuevo_uuid(),
         mode="ssh",
         period_start=datetime(2026, 10, 1, tzinfo=UTC),
         period_end=datetime(2026, 10, 31, 23, 59, 59, tzinfo=UTC),
-        status="done",
-        requested_by_id=usuario.id,
+        status=status,
+        requested_by_id=_usuario().id,
         server="10.54.217.9",
         remote_user="sysopr",
     )
     db.session.add(solicitud)
     db.session.commit()
+    return solicitud
+
+
+def test_eliminar_trabajo_marca_solicitud(client, login):
+    login()
+    solicitud = _solicitud()
     job, _workspace = _job()
     job.catalog_request_id = solicitud.id
     db.session.commit()
@@ -85,13 +89,46 @@ def test_eliminar_trabajo_marca_solicitud(client, login):
     db.session.expire_all()
     solicitud = db.session.get(CatalogRequest, solicitud.id)
     assert solicitud.job_deleted_at is not None
+    fecha = solicitud.job_deleted_at.strftime("%Y-%m-%d %H:%M")
 
     detalle = client.get(f"/solicitudes/{solicitud.id}").get_data(as_text=True)
+    assert "Estado inicial" in detalle
+    assert "Estado final" in detalle
     assert "Trabajo eliminado" in detalle
     assert "fue eliminado" in detalle
+    assert f"Eliminado el {fecha}" in detalle
 
     lista = client.get("/solicitudes/").get_data(as_text=True)
+    assert "Estado inicial" in lista
+    assert "Estado final" in lista
     assert "Trabajo eliminado" in lista
+    assert fecha in lista
+
+
+def test_solicitud_con_trabajo_vigente(client, login):
+    login()
+    solicitud = _solicitud()
+    job, _workspace = _job()
+    job.catalog_request_id = solicitud.id
+    db.session.commit()
+
+    detalle = client.get(f"/solicitudes/{solicitud.id}").get_data(as_text=True)
+    assert "Trabajo vigente" in detalle
+    assert "Eliminado el" not in detalle
+
+    lista = client.get("/solicitudes/").get_data(as_text=True)
+    assert "Trabajo vigente" in lista
+
+
+def test_solicitud_sin_trabajo(client, login):
+    login()
+    solicitud = _solicitud(status="failed")
+
+    detalle = client.get(f"/solicitudes/{solicitud.id}").get_data(as_text=True)
+    assert "Sin trabajo" in detalle
+
+    lista = client.get("/solicitudes/").get_data(as_text=True)
+    assert "Sin trabajo" in lista
 
 
 def test_no_elimina_trabajo_activo(client, login):

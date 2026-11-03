@@ -158,8 +158,14 @@ supervisores.
 
 Al eliminar un trabajo con `catalog_request_id`, `eliminar_trabajo()` marca
 `catalog_requests.job_deleted_at` antes de borrar el trabajo. La solicitud se
-conserva como historial y la interfaz muestra «Trabajo eliminado». Si se crea un
-trabajo nuevo desde la misma solicitud, `acquisition` limpia esa marca.
+conserva como historial. Si se crea un trabajo nuevo desde la misma solicitud,
+`acquisition` limpia esa marca.
+
+En la interfaz, `_estado_inicial()` traduce el estado de descarga y
+`_estado_final()` decide entre «Trabajo vigente», «Trabajo eliminado»,
+«Preparando trabajo» y «Sin trabajo». El listado y el detalle muestran ambos
+estados por separado; la fecha de `job_deleted_at` aparece en la columna
+**Eliminado** y en el detalle.
 
 `catalog_events`, `stations`, `arrivals` y `waveform_availability` no tienen
 claves foráneas hacia `job_sources`: `source_id` y `event_id` son claves

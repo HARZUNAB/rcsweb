@@ -21,28 +21,32 @@
         {% endif %}
       </div>
     </div>
-    <div class="d-flex align-items-center gap-2">
-      {% if solicitud.status == 'done' %}
-        <span class="badge text-bg-success">Terminada</span>
-      {% elif solicitud.status == 'running' %}
-        <span class="badge text-bg-primary estado-trabajando d-inline-flex align-items-center gap-1"
-              role="status">
-          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-          Descargando
-        </span>
-      {% elif solicitud.status == 'queued' %}
-        <span class="badge text-bg-warning">En cola</span>
-      {% elif solicitud.status == 'partial' %}
-        <span class="badge text-bg-warning">Parcial</span>
-      {% elif solicitud.status == 'failed' %}
-        <span class="badge text-bg-danger">Fallida</span>
-      {% else %}
-        <span class="badge text-bg-secondary">{{ solicitud.status }}</span>
-      {% endif %}
-      {% if job_deleted %}
-        <span class="badge text-bg-warning text-dark">Trabajo eliminado</span>
-      {% endif %}
-      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('solicitudes.lista') }}">
+    <div class="d-flex flex-wrap align-items-start gap-3">
+      <div>
+        <div class="text-secondary small text-uppercase">Estado inicial</div>
+        {% set inicial = estado_inicial %}
+        {% if inicial.activa %}
+          <span class="badge text-bg-{{ inicial.clase }} estado-trabajando d-inline-flex align-items-center gap-1"
+                role="status">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            {{ inicial.texto }}
+          </span>
+        {% else %}
+          <span class="badge text-bg-{{ inicial.clase }}">{{ inicial.texto }}</span>
+        {% endif %}
+      </div>
+      <div>
+        <div class="text-secondary small text-uppercase">Estado final</div>
+        <span class="badge text-bg-{{ estado_final.clase }}"
+              title="{{ estado_final.detalle }}">{{ estado_final.texto }}</span>
+        {% if solicitud.job_deleted_at %}
+          <div class="small text-secondary mt-1">
+            Eliminado el {{ solicitud.job_deleted_at.strftime('%Y-%m-%d %H:%M') }}
+          </div>
+        {% endif %}
+      </div>
+      <a class="btn btn-sm btn-outline-secondary ms-auto"
+         href="{{ url_for('solicitudes.lista') }}">
         Volver
       </a>
     </div>
