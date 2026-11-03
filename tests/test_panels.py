@@ -663,6 +663,40 @@ def test_indice_paneles_agrega_columna_ver(client, login, monkeypatch):
     assert "fuente=seisan" in html
 
 
+def test_indice_paneles_preselecciona_grupo(client, login, monkeypatch):
+    job = _panel_con_perfil_y_territorio(monkeypatch)
+    login()
+
+    html = client.get(
+        f"/jobs/{job.id}/paneles",
+        query_string={
+            "dataset": "observaciones",
+            "grupo": "perfil",
+            "ident": "P001",
+        },
+    ).get_data(as_text=True)
+
+    assert 'data-grupo-inicial="perfil"' in html
+    assert 'data-ident-inicial="P001"' in html
+
+
+def test_indice_paneles_ignora_grupo_inexistente(client, login, monkeypatch):
+    job = _panel_con_perfil_y_territorio(monkeypatch)
+    login()
+
+    html = client.get(
+        f"/jobs/{job.id}/paneles",
+        query_string={
+            "dataset": "observaciones",
+            "grupo": "perfil",
+            "ident": "P999",
+        },
+    ).get_data(as_text=True)
+
+    assert 'data-grupo-inicial=""' in html
+    assert 'data-ident-inicial=""' in html
+
+
 def test_ruta_detalle_grupo_perfil(client, login, monkeypatch):
     job = _panel_con_perfil_y_territorio(monkeypatch)
     login()
@@ -685,6 +719,8 @@ def test_ruta_detalle_grupo_perfil(client, login, monkeypatch):
     assert "data-url-regiones" in html
     assert "paneles.js" not in html
     assert 'id="grupo-descargar-csv"' in html
+    assert "grupo=perfil" in html
+    assert "ident=P001" in html
 
 
 def test_ruta_detalle_grupo_territorio_sin_perfil(client, login, monkeypatch):
@@ -704,6 +740,8 @@ def test_ruta_detalle_grupo_territorio_sin_perfil(client, login, monkeypatch):
     assert "mapa_detalle.js" in html
     assert 'id="detalle-evento-panel"' in html
     assert "paneles.js" not in html
+    assert "grupo=territorio" in html
+    assert "ident=Otros" in html
 
 
 def test_ruta_detalle_grupo_inexistente(client, login, monkeypatch):

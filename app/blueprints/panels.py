@@ -35,12 +35,23 @@ TIPOS_PLURAL = {
 }
 
 
-def _url_panel(job_id: str, dataset: str, tipo: str = "", fuente: str = "") -> str:
+def _url_panel(
+    job_id: str,
+    dataset: str,
+    tipo: str = "",
+    fuente: str = "",
+    grupo: str = "",
+    ident: str = "",
+) -> str:
     parametros = {"job_id": job_id, "dataset": dataset}
     if tipo:
         parametros["tipo"] = tipo
     if fuente:
         parametros["fuente"] = fuente
+    if grupo:
+        parametros["grupo"] = grupo
+    if ident:
+        parametros["ident"] = ident
     return url_for("panels.index", **parametros)
 
 
@@ -351,6 +362,18 @@ def index(job_id: str):
 
     datos = panels.filtrar(datos_completos, tipo or None, fuente or None)
 
+    grupo_inicial = request.args.get("grupo", "")
+    ident_inicial = request.args.get("ident", "")
+    if grupo_inicial == "perfil":
+        validos = {perfil["id"] for perfil in datos["perfiles"]}
+    elif grupo_inicial == "territorio":
+        validos = {territorio["nombre"] for territorio in datos["territorios"]}
+    else:
+        validos = set()
+    if ident_inicial not in validos:
+        grupo_inicial = ""
+        ident_inicial = ""
+
     total_todos = sum(resumen_conteos["tipos"].values())
     if fuente:
         total_todos_fuente = resumen_conteos["fuentes_todos"].get(fuente, 0)
@@ -438,6 +461,8 @@ def index(job_id: str):
         # "No hay eventos" queda a la vista junto al filtro seleccionado.
         scroll_listado=bool((tipo or fuente) and datos["total"]),
         volver=volver,
+        grupo_inicial=grupo_inicial,
+        ident_inicial=ident_inicial,
     )
 
 
@@ -504,7 +529,14 @@ def grupo(job_id: str, dataset: str, grupo: str, ident: str):
     if detalle is None:
         abort(404)
 
-    volver = _url_panel(job.id, ctx["dataset"], ctx["tipo"], ctx["fuente"])
+    volver = _url_panel(
+        job.id,
+        ctx["dataset"],
+        ctx["tipo"],
+        ctx["fuente"],
+        grupo=grupo,
+        ident=ident,
+    )
     eventos_vista = _eventos_vista(job, detalle["eventos"], volver)
     datos_vista = {
         "total": len(detalle["eventos"]),

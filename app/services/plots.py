@@ -190,12 +190,13 @@ def _ruta_cache(
     sufijo: str = "",
 ) -> Path:
     raiz = workspace.resolve()
-    nombre = Path(archivo).name
-    if nombre != archivo:
+    relativa = Path(archivo)
+    if relativa.is_absolute() or ".." in relativa.parts or not relativa.parts:
         raise ValueError("nombre de archivo inválido")
-    base = (raiz / "plots" / carpeta / tabla / Path(nombre).stem).resolve()
+    base = (raiz / "plots" / carpeta / tabla / relativa).resolve()
     if not base.is_relative_to(raiz):
         raise ValueError("ruta fuera del workspace")
+    base = base.with_suffix("")
     base.mkdir(parents=True, exist_ok=True)
     return base / f"{indice}{sufijo}.png"
 

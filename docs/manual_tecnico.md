@@ -853,7 +853,14 @@ de root.
 6. La interfaz lee esos archivos para las tablas, miniaturas, mapas y paneles.
 
 El proyecto base se monta en solo lectura y no se modifica. Las miniaturas,
-mapas y paneles se cachean en el workspace.
+mapas y paneles se cachean en el workspace. `plots._ruta_cache()` conserva la
+ruta relativa del archivo de resultados y rechaza rutas absolutas o con `..`.
+Así los catálogos usan, por ejemplo,
+`plots/miniaturas/catalogos/resultados/catalogo_eventquery/0.png`.
+
+En Paneles, el enlace de vuelta del detalle incluye `grupo` e `ident`. El índice
+valida que el grupo exista en el conjunto filtrado y lo preselecciona al cargar;
+si ya no existe, vuelve al primer perfil o territorio.
 
 Los PNG de evento llevan un encabezado con una fila por evento: fecha, magnitud,
 profundidad, coordenadas, analista, frontera y estado en la otra fuente. En los

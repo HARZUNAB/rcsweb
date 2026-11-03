@@ -315,7 +315,8 @@ Seisan. El trabajo de demostración conserva sus resultados.
   de la fila; así el listado carga liviano. Al abrirlas, el perfil y el mini
   mapa de planta se muestran lado a lado; la primera columna se ensancha solo
   lo necesario y los parámetros conservan su ancho (la tabla sigue con scroll
-  horizontal).
+  horizontal). También funcionan en los listados de Catálogos, incluido
+  Eventquery.
 - **Detalle interactivo**: planta y perfil con zoom. Online usa Leaflet con
   OpenStreetMap; offline usa Plotly con TopoJSON local (`world_110m.json` y
   `world_50m.json`). Los eventos se colorean por fuente, hay leyenda y al pasar
@@ -456,7 +457,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **298 tests**.
+runner de solo lectura. Total actual: **302 tests**.
 
 ## Filtros y exportación
 
@@ -582,7 +583,8 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   también hay enlaces «Ir al listado» y «Volver a los paneles». Los paneles de
   catálogo no muestran estas pestañas porque ya corresponden a una sola fuente. En la lista de grupos, las
   flechas **↑/↓** recorren perfiles y territorios y actualizan automáticamente
-  la planta y el perfil, sin necesidad de hacer clic en cada fila.
+  la planta y el perfil, sin necesidad de hacer clic en cada fila. Al abrir
+  **Ver** y volver, se conserva seleccionado el mismo perfil o territorio.
 - **Catálogos**: el detalle del trabajo tiene un menú con los catálogos de
   entrada disponibles (Eventquery, Seisan, SeisComp). Cada uno abre un listado
   con las mismas prestaciones que las tablas de resultados: búsqueda, filtros,

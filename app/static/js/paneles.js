@@ -1602,9 +1602,19 @@
   // Al cambiar el ancho de la tarjeta se vuelve a proyectar la capa regional.
   window.addEventListener("resize", programarOverlay);
 
-  if (datos.perfiles && datos.perfiles.length) {
+  const grupoInicial = gruposEl ? gruposEl.dataset.grupoInicial || "" : "";
+  const identInicial = gruposEl ? gruposEl.dataset.identInicial || "" : "";
+  if (grupoInicial && identInicial) {
+    seleccionarGrupo(grupoInicial, identInicial);
+  } else if (datos.perfiles && datos.perfiles.length) {
     seleccionarGrupo("perfil", datos.perfiles[0].id);
   } else if (datos.territorios && datos.territorios.length) {
     seleccionarGrupo("territorio", datos.territorios[0].nombre);
+  }
+  const filaActiva = gruposEl
+    ? gruposEl.querySelector(".fila-panel.table-active")
+    : null;
+  if (filaActiva) {
+    filaActiva.scrollIntoView({ block: "nearest" });
   }
 })();

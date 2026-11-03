@@ -143,7 +143,9 @@
 {% endif %}
 
 <div class="row g-3">
-  <div class="col-12 col-xl-5" id="panel-grupos">
+  <div class="col-12 col-xl-5" id="panel-grupos"
+       data-grupo-inicial="{{ grupo_inicial|default('') }}"
+       data-ident-inicial="{{ ident_inicial|default('') }}">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
         <h2 class="h6 text-uppercase text-secondary mb-3">Grupos</h2>

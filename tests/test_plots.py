@@ -163,6 +163,61 @@ def test_ruta_cache_no_permite_salir(tmp_path):
         plots._ruta_cache(tmp_path, "miniaturas", "no_publicados", "../fuera.csv", 0)
 
 
+def test_ruta_cache_permite_ruta_anidada(tmp_path):
+    ruta = plots._ruta_cache(
+        tmp_path,
+        "miniaturas",
+        "catalogos",
+        "resultados/catalogo_eventquery.csv",
+        3,
+    )
+
+    assert ruta.name == "3.png"
+    assert ruta.parent.name == "catalogo_eventquery"
+    assert "resultados" in ruta.parts
+    assert ruta.parent.is_dir()
+
+
+def test_generar_miniatura_catalogo_usa_ruta_anidada(app, tmp_path, monkeypatch):
+    app.config["RCS_CORE_PATH"] = tmp_path / "core"
+    workspace = tmp_path / "ws"
+    (workspace / "plots").mkdir(parents=True)
+    filas = [
+        {
+            "Fecha_Hora": "2026-10-01 00:00:00",
+            "Latitud": "-30.0",
+            "Longitud": "-71.0",
+            "Prof.": "10.0",
+            "Mag.": "3.0",
+            "Tipo_mag.": "ML",
+            "Analista": "ana",
+        }
+    ]
+    monkeypatch.setattr(plots, "_dibujar_miniatura", lambda eventos, perfil: PNG)
+    monkeypatch.setattr(plots, "_perfiles", lambda: [])
+
+    with app.app_context():
+        png = plots.generar_miniatura(
+            workspace,
+            "catalogos",
+            "resultados/catalogo_eventquery.csv",
+            filas,
+            0,
+        )
+
+    destino = (
+        workspace
+        / "plots"
+        / "miniaturas"
+        / "catalogos"
+        / "resultados"
+        / "catalogo_eventquery"
+        / "0.png"
+    )
+    assert png == PNG
+    assert destino.is_file()
+
+
 def test_placeholder_es_png():
     datos = plots._placeholder("Sin perfil", ancho=260, alto=110)
     assert datos.startswith(b"\x89PNG\r\n\x1a\n")

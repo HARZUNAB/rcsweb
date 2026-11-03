@@ -199,6 +199,8 @@ perfil, por territorio.
 - **Ver** abre el detalle del grupo con el mismo mapa interactivo de Resultados
   y Catálogos: planta, perfil, selector online/offline, listado de eventos y
   botones para abrir o descargar el PNG.
+- Al volver desde el detalle, se conserva seleccionado el mismo perfil o
+  territorio que estaba viendo.
 - Al pasar el cursor por un evento de la planta o del perfil, el detalle se
   previsualiza en el cuadro ubicado justo debajo de ambos mini mapas. Al hacer
   clic, la selección queda fija. El cuadro no tapa la interfaz ni los eventos
@@ -223,6 +225,9 @@ Desde el detalle del trabajo puede abrir los catálogos procesados:
 **Eventquery**, **Seisan** y **SeisComp**.
 
 - Las columnas y filtros funcionan como en los resultados.
+- Las **miniaturas del perfil** se cargan con el interruptor o con **Ver
+  miniaturas**, igual que en No publicados y No actualizados. Funciona para
+  Eventquery, SeisComp y Seisan.
 - **Eventquery** incluye **Percibido** y **Analista probable**, calculado
   cruzando la solución publicada con SeisComp y Seisan. Si más de una fuente
   aporta una solución, se muestran todos los autores, por ejemplo
