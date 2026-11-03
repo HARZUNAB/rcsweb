@@ -20,6 +20,7 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
+from matplotlib.transforms import Bbox  # noqa: E402
 
 CORE = os.environ.get("RCS_CORE_PATH", "/opt/rcs-core")
 if CORE not in sys.path:
@@ -190,7 +191,7 @@ def _ajustar_localidades(figura, modo: str, eventos=None) -> None:
     cercano.set_fontsize(8)
     cercano.set_clip_on(True)
 
-def _leyenda_catalogo(figura, items: list[dict], modo: str) -> None:
+def _leyenda_catalogo(figura, items: list[dict], modo: str):
     handles = [
         Line2D(
             [0],
@@ -207,17 +208,20 @@ def _leyenda_catalogo(figura, items: list[dict], modo: str) -> None:
         if item.get("etiqueta")
     ]
     if not handles:
-        return
+        return None
     if modo == "perfil" and figura.axes:
-        figura.axes[-1].legend(
+        perfil = figura.axes[-1]
+        posicion = perfil.get_position()
+        centro = posicion.x0 + posicion.width / 2
+        return figura.legend(
             handles=handles,
-            loc="lower right",
-            fontsize=7,
-            framealpha=0.9,
-            ncol=1,
+            loc="lower center",
+            bbox_to_anchor=(centro, 0.02),
+            ncol=len(handles),
+            fontsize=8,
+            frameon=False,
         )
-        return
-    figura.legend(
+    return figura.legend(
         handles=handles,
         loc="lower center",
         bbox_to_anchor=(0.5, 0.01),
@@ -263,19 +267,29 @@ def main() -> int:
         plotear.abrir_eventos(datos["eventos"], fuente)
     figura = plt.gcf()
     items = datos.get("leyenda_items")
+    leyenda = None
     if items is not None:
         _quitar_leyendas(figura)
-        _leyenda_catalogo(figura, items, modo)
+        leyenda = _leyenda_catalogo(figura, items, modo)
         if not datos.get("sospechosos", True):
             _quitar_sospechosos(figura)
         _ajustar_localidades(figura, modo, datos.get("eventos"))
     elif not datos.get("leyenda", True):
         _quitar_leyendas(figura)
     if modo == "perfil" and figura.axes:
+        figura.canvas.draw()
         perfil = figura.axes[-1]
         bbox = perfil.get_window_extent().transformed(
             figura.dpi_scale_trans.inverted()
         )
+        if leyenda is not None:
+            try:
+                bbox_leyenda = leyenda.get_window_extent(
+                    figura.canvas.get_renderer()
+                ).transformed(figura.dpi_scale_trans.inverted())
+                bbox = Bbox.union([bbox, bbox_leyenda])
+            except Exception:
+                pass
         figura.savefig(sys.argv[1], dpi=110, bbox_inches=bbox)
     else:
         figura.savefig(sys.argv[1], dpi=110, bbox_inches="tight")

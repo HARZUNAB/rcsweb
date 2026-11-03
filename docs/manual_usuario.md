@@ -280,6 +280,8 @@ aplicación.
   - un ZIP con todo lo seleccionado.
   El CSV no incluye el nombre del analista. Los mapas de esta vista llevan una
   leyenda mínima: amarillo para no percibidos y rojo solo si hay percibidos.
+  En el mapa de solo perfil, la leyenda queda debajo del gráfico para no tapar
+  los eventos.
   Los eventos percibidos se dibujan sobre los no percibidos. El encabezado del
   PNG muestra los filtros aplicados, incluida la búsqueda de texto.
 - La planta se separa en **Chile continental**, **territorio insular**,

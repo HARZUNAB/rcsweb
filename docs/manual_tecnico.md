@@ -891,7 +891,8 @@ leyenda, sus anillos de sospechoso y su orden habitual.
 
 Se generan dos PNG por perfil: `perfil_<id>.png` (solo perfil) y
 `perfil_<id>_planta.png` (perfil + planta), ambos solo con los eventos de ese
-perfil. El CSV contiene fecha y hora, coordenadas, profundidad, magnitud, tipo
+perfil. En el PNG de solo perfil la leyenda se dibuja debajo del panel y se
+incluye en el recorte final, fuera del área donde se plotean los eventos. El CSV contiene fecha y hora, coordenadas, profundidad, magnitud, tipo
 de magnitud y referencia geográfica cuando existe; nunca incluye al analista.
 
 Administrador y supervisor no se filtran. Sin código asignado, un analista o
