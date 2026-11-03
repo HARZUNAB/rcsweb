@@ -325,8 +325,8 @@ Seisan. El trabajo de demostración conserva sus resultados.
   pantallas angostas el panel pasa debajo de los mapas. La planta abre con una
   vista regional: si el evento o el grupo están muy concentrados, se usa un
   mínimo de 8° de longitud × 3° de latitud y se limita el zoom inicial a 7.
-  En `No actualizados` se ven la solución local y la publicada; en `Repetidos`
-  se ve el grupo completo.
+  En `No actualizados` se ven la solución local y la publicada, y la publicada
+  es la referencia; en `Repetidos` se ve el grupo completo.
 - **Colores y leyendas**: se usa la paleta del proyecto base: amarillo para
   sismos registrados o no percibidos, rojo para Eventquery percibido, anillo
   blanco/negro para la solución publicada, borde violeta para sospechosos, aro
@@ -336,8 +336,9 @@ Seisan. El trabajo de demostración conserva sus resultados.
   la selección queda fija y se resalta en planta y perfil.
 - **Distancia entre soluciones**: cuando el grupo tiene más de una solución, el
   panel muestra la separación respecto del evento de referencia. El punto de
-  referencia aparece como «0 km (referencia)». En eventos únicos no se muestra,
-  porque no hay otra solución con la cual comparar.
+  referencia aparece como «0 km (referencia)». En `No actualizados` la
+  referencia es la solución publicada (Eventquery); en eventos únicos no se
+  muestra, porque no hay otra solución con la cual comparar.
 - **Sismicidad histórica en paneles**: la casilla «Sismicidad histórica
   (perfil)» carga la serie del perfil seleccionado bajo demanda, la cachea y la
   dibuja detrás de topografía, slab y eventos. Se mantiene al cambiar de perfil
@@ -455,7 +456,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **292 tests**.
+runner de solo lectura. Total actual: **293 tests**.
 
 ## Filtros y exportación
 

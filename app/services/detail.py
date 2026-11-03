@@ -291,7 +291,9 @@ def puntos_mapa(
             rol="publicado",
         )
         puntos.extend(p for p in (local, publicado) if p is not None)
-        referencia = local or (puntos[0] if puntos else None)
+        # En No actualizados la referencia es la solución publicada. La local
+        # solo se usa si la publicada no tiene coordenadas válidas.
+        referencia = publicado or local or (puntos[0] if puntos else None)
     elif tabla == "repetidos":
         fuente = opcion.split("_", 1)[0]
         if fuente == "publica":

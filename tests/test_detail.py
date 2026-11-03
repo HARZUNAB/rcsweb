@@ -45,12 +45,28 @@ def test_puntos_mapa_no_actualizados():
 
     assert len(puntos) == 2
     assert {p["fuente"] for p in puntos} == {"seisan", "eventquery"}
-    assert puntos[0]["dist_km"] == 0.0
+    assert puntos[0]["fuente"] == "seisan"
+    assert puntos[0]["dist_km"] == 0.1
     assert puntos[0]["comparacion"] is True
-    assert puntos[0]["referencia"] is True
+    assert puntos[0]["referencia"] is False
+    assert puntos[1]["fuente"] == "eventquery"
+    assert puntos[1]["dist_km"] == 0.0
     assert puntos[1]["comparacion"] is True
-    assert puntos[1]["referencia"] is False
+    assert puntos[1]["referencia"] is True
     assert all(p["color"].startswith("#") for p in puntos)
+
+
+def test_puntos_mapa_no_actualizados_sin_publicado_usa_local():
+    fila = _fila_no_actualizada()
+    fila["lat_eventquery"] = ""
+    fila["lon_eventquery"] = ""
+
+    puntos = puntos_mapa("no_actualizados", fila, "seisan")
+
+    assert len(puntos) == 1
+    assert puntos[0]["fuente"] == "seisan"
+    assert puntos[0]["comparacion"] is False
+    assert puntos[0]["referencia"] is False
 
 
 def test_puntos_mapa_repetidos_referencia_en_cero():
