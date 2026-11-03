@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -84,6 +85,70 @@ def _quitar_leyendas(figura) -> None:
             leyenda_eje.remove()
     for leyenda_figura in list(figura.legends):
         leyenda_figura.remove()
+
+
+def _quitar_sospechosos(figura) -> None:
+    """Quita «0 sospechosos» de los textos del resumen en mapas de catálogo."""
+    patron = re.compile(r"\s*[·\-]?\s*0\s+sospechosos?", re.IGNORECASE)
+    textos = list(figura.texts)
+    for eje in figura.axes:
+        textos.extend(eje.texts)
+    for texto in textos:
+        actual = texto.get_text()
+        if "sospechos" not in actual.lower():
+            continue
+        nuevo = re.sub(r"\s{2,}", " ", patron.sub("", actual)).strip(" ·")
+        texto.set_text(nuevo)
+        if not nuevo:
+            texto.set_visible(False)
+
+
+def _ajustar_localidades(figura, modo: str) -> None:
+    """Mantiene los nombres de localidades dentro y separados en el mapa."""
+    if modo == "perfil" or not figura.axes:
+        return
+    ax = figura.axes[0]
+    textos = list(ax.texts)
+    if not textos:
+        return
+    xmin, xmax = ax.get_xlim()
+    ymin, ymax = ax.get_ylim()
+    ancho = xmax - xmin
+    alto = ymax - ymin
+
+    try:
+        from adjustText import adjust_text
+
+        adjust_text(
+            textos,
+            ax=ax,
+            expand=(1.05, 1.15),
+            min_arrow_len=0,
+            iter_lim=40,
+            arrowprops=dict(
+                arrowstyle="-", color="black", lw=0.4, alpha=0.55
+            ),
+        )
+    except Exception:
+        pass
+
+    for texto in textos:
+        x, y = texto.get_position()
+        if x > xmax - ancho * 0.12:
+            texto.set_ha("right")
+            x = xmax - ancho * 0.02
+        elif x < xmin + ancho * 0.12:
+            texto.set_ha("left")
+            x = xmin + ancho * 0.02
+        if y > ymax - alto * 0.08:
+            texto.set_va("top")
+            y = ymax - alto * 0.02
+        elif y < ymin + alto * 0.08:
+            texto.set_va("bottom")
+            y = ymin + alto * 0.02
+        texto.set_position((x, y))
+        texto.set_fontsize(7)
+        texto.set_clip_on(True)
 
 
 def _leyenda_catalogo(figura, items: list[dict], modo: str) -> None:
@@ -162,6 +227,9 @@ def main() -> int:
     if items is not None:
         _quitar_leyendas(figura)
         _leyenda_catalogo(figura, items, modo)
+        if not datos.get("sospechosos", True):
+            _quitar_sospechosos(figura)
+        _ajustar_localidades(figura, modo)
     elif not datos.get("leyenda", True):
         _quitar_leyendas(figura)
     if modo == "perfil" and figura.axes:
