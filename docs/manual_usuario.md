@@ -262,15 +262,20 @@ Desde el detalle del trabajo puede abrir los catálogos procesados:
   **Ver** ni **Ver miniaturas**. Tampoco pueden usar las descargas completas.
   Su única descarga es **Descargar catálogo**.
 - **Descargar catálogo** abre una vista previa con mapas de planta por
-  territorio y dos variantes por perfil. Permite descargar:
+  territorio y dos variantes por perfil. **Ningún mapa se genera al abrir la
+  página**: use **Ver** para abrirlo en un modal con indicador de actividad, o
+  **Descargar** para obtener solo ese PNG. El panel **Generar todos los mapas**
+  permite incluir o no las plantas y elegir las variantes de perfil antes de
+  descargar el ZIP. Permite obtener:
   - `catalogo.csv`, con fecha y hora, latitud, longitud, profundidad, magnitud,
     tipo de magnitud y referencia geográfica si la fuente la tiene;
   - `planta_nacional.png`, `planta_insular.png`, `planta_antartico.png` y
     `planta_otros.png`, cada uno solo si tiene eventos;
   - `perfil_<id>.png` (solo perfil) y `perfil_<id>_planta.png` (perfil + planta)
     por cada perfil;
-  - un ZIP con todo.
-  El CSV no incluye el nombre del analista.
+  - un ZIP con todo lo seleccionado.
+  El CSV no incluye el nombre del analista. Los mapas de esta vista no llevan
+  leyenda y los eventos percibidos se dibujan sobre los no percibidos.
 - La planta se separa en **Chile continental**, **territorio insular**,
   **territorio antártico** y **Otros**. Los eventos fuera de Chile pasan a
   Otros cuando superan el radio de influencia según la magnitud: 200 km para

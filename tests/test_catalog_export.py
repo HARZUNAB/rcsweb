@@ -102,3 +102,121 @@ def test_evento_insular_conserva_su_territorio(monkeypatch):
     evento = {"territorio": "Insular", "lat": 0.0, "lon": 0.0, "mag": "3.0"}
 
     assert catalog_export._categoria_planta(evento) == "Insular"
+
+
+def test_orden_para_mapa_deja_los_percibidos_al_final():
+    eventos = [
+        {"id": 1, "percibido": "S"},
+        {"id": 2, "percibido": "N"},
+        {"id": 3},
+        {"id": 4, "percibido": "s"},
+    ]
+
+    ordenados = catalog_export._orden_para_mapa(eventos)
+
+    assert [evento["id"] for evento in ordenados] == [2, 3, 1, 4]
+
+
+def test_mapa_planta_sin_leyenda_y_con_percibidos_al_final(
+    monkeypatch, tmp_path
+):
+    llamadas = []
+
+    def falso(*args, **kwargs):
+        llamadas.append((args, kwargs))
+        return b"png"
+
+    monkeypatch.setattr(catalog_export.plots, "generar_mapa_grupo", falso)
+    planta = {
+        "clave": "nacional",
+        "titulo": "Chile continental",
+        "territorio": "Nacional",
+        "eventos": [
+            {"id": 1, "percibido": "S"},
+            {"id": 2, "percibido": "N"},
+        ],
+        "total": 2,
+    }
+
+    catalog_export.mapa_planta(
+        tmp_path,
+        planta,
+        "seisan",
+        cache_key="clave",
+        resumen={},
+    )
+
+    args, kwargs = llamadas[0]
+    assert kwargs["leyenda"] is False
+    assert kwargs["sospechosos"] is False
+    assert [evento["id"] for evento in args[1]] == [2, 1]
+    assert catalog_export.VERSION_MAPAS in args[4]
+
+
+def test_mapa_perfil_sin_leyenda_y_con_percibidos_al_final(
+    monkeypatch, tmp_path
+):
+    llamadas = []
+
+    def falso(*args, **kwargs):
+        llamadas.append((args, kwargs))
+        return b"png"
+
+    monkeypatch.setattr(catalog_export.plots, "generar_mapa_grupo", falso)
+    datos = {
+        "eventos": [
+            {"perfil": "P001", "percibido": "S"},
+            {"perfil": "P001", "percibido": "N"},
+            {"perfil": "P002", "percibido": "N"},
+        ]
+    }
+
+    catalog_export.mapa_perfil(
+        tmp_path,
+        datos,
+        "seisan",
+        "P001",
+        cache_key="clave",
+        resumen={},
+        modo="perfil",
+    )
+
+    args, kwargs = llamadas[0]
+    assert kwargs["leyenda"] is False
+    assert kwargs["sospechosos"] is False
+    assert [evento["percibido"] for evento in args[1]] == ["N", "S"]
+    assert catalog_export.VERSION_MAPAS in args[4]
+
+
+def test_preparar_catalogo_usa_cache_por_archivo(monkeypatch, tmp_path):
+    catalog_export.limpiar_cache()
+    columnas = ["Fecha_Hora", "Latitud", "Longitud", "Prof.", "Mag.", "Tipo_mag."]
+    filas = [
+        {
+            "Fecha_Hora": "2026-10-01 00:00:00",
+            "Latitud": "-30.0",
+            "Longitud": "-71.0",
+            "Prof.": "10.0",
+            "Mag.": "3.0",
+            "Tipo_mag.": "ML",
+        }
+    ]
+    llamadas = []
+
+    def leer(*args, **kwargs):
+        llamadas.append(args)
+        return columnas, filas
+
+    monkeypatch.setattr(catalog_export, "leer_todo", leer)
+    monkeypatch.setattr(
+        catalog_export.plots, "eventos_catalogo", lambda *args: []
+    )
+    monkeypatch.setattr(
+        catalog_export.panels, "categorizar_territorio", lambda _e: None
+    )
+
+    primero = catalog_export.preparar_catalogo(tmp_path, "catalogo.csv", "seisan")
+    segundo = catalog_export.preparar_catalogo(tmp_path, "catalogo.csv", "seisan")
+
+    assert primero is segundo
+    assert len(llamadas) == 1

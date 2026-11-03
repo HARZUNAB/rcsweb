@@ -77,6 +77,14 @@ def main() -> int:
         return 2
     datos = json.load(sys.stdin)
     modo = datos.get("modo")
+    if not datos.get("sospechosos", True):
+        # Los mapas de catálogo solo distinguen percibidos y no percibidos.
+        try:
+            import sismicidad  # type: ignore
+
+            sismicidad.es_sospechoso = lambda _evento: False
+        except Exception:
+            pass
     if modo == "planta":
         plotear.plotear_planta(
             datos["eventos"],
@@ -90,6 +98,13 @@ def main() -> int:
     else:
         plotear.abrir_eventos(datos["eventos"], datos["fuente"])
     figura = plt.gcf()
+    if not datos.get("leyenda", True):
+        for eje in figura.axes:
+            leyenda_eje = eje.get_legend()
+            if leyenda_eje is not None:
+                leyenda_eje.remove()
+        for leyenda_figura in list(figura.legends):
+            leyenda_figura.remove()
     if modo == "perfil" and figura.axes:
         perfil = figura.axes[-1]
         bbox = perfil.get_window_extent().transformed(

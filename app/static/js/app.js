@@ -248,6 +248,13 @@
     if (enlace.hasAttribute("download")) {
       return false;
     }
+    if (
+      enlace.dataset.url ||
+      enlace.classList.contains("js-mapa-ver") ||
+      enlace.classList.contains("js-mapa-descargar")
+    ) {
+      return false;
+    }
     if (enlace.target && enlace.target !== "_self") {
       return false;
     }
@@ -316,6 +323,9 @@
     }
     const accion = formulario.getAttribute("action") || "";
     if (accion.includes("/exportar")) {
+      return;
+    }
+    if (formulario.dataset.url || formulario.id === "catalogo-zip") {
       return;
     }
     mostrar();

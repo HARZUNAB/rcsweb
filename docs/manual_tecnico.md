@@ -859,6 +859,20 @@ magnitud: 200 km para M<4, 300 para M4, 400 para M5 y 500 para M6 o más.
 - `auto`: planta + perfil;
 - `perfil`: recorta el panel derecho del renderizador.
 
+Los mapas de catálogo se solicitan a demanda desde
+`app/static/js/catalogo_mapas.js`: la vista previa no contiene imágenes y cada
+botón pide el PNG, muestra un indicador de actividad y lo presenta en un modal.
+El ZIP recibe `plantas=0|1` y `perfiles=solo|con_planta|ambos` para incluir solo
+lo seleccionado. `catalog_export` cachea el catálogo preparado por archivo y
+parámetros, y los PNG quedan cacheados en el workspace.
+
+Para estos mapas se pasa `leyenda=False`, `sospechosos=False` y se ordenan los
+eventos con `_orden_para_mapa()`: los no percibidos se dibujan primero y los
+percibidos al final, de modo que quedan encima. La paleta sigue siendo la del
+core: rojo para percibidos de Eventquery y amarillo para el resto. El resto de
+los mapas de la aplicación conserva su leyenda, sus anillos de sospechoso y su
+orden habitual.
+
 Se generan dos PNG por perfil: `perfil_<id>.png` (solo perfil) y
 `perfil_<id>_planta.png` (perfil + planta), ambos solo con los eventos de ese
 perfil. El CSV contiene fecha y hora, coordenadas, profundidad, magnitud, tipo

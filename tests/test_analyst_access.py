@@ -285,3 +285,88 @@ def test_catalogo_analista_no_accede_al_detalle_ni_exportacion_completa(app, cli
         f"/jobs/{job.id}/resultados/catalogos/exportar",
         query_string={"catalogo": "seisan", "todo": "1"},
     ).status_code == 403
+
+
+def test_catalogo_no_genera_mapas_al_cargar_la_pagina(app, client):
+    ana = _usuario("ana", "ana")
+    job = _preparar(app, ana)
+    _login(client, "ana")
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/catalogos/seisan/catalogo"
+    ).get_data(as_text=True)
+
+    assert 'src="/jobs' not in html
+    assert "js-mapa-ver" in html
+    assert "js-mapa-descargar" in html
+    assert "catalogo_mapas.js" in html
+    assert "catalogo-actividad" in html
+
+
+def test_catalogo_zip_respeta_opciones(app, client, monkeypatch):
+    ana = _usuario("ana", "ana")
+    job = _preparar(app, ana)
+    _login(client, "ana")
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+    datos = {
+        "total": 2,
+        "campos": ["Fecha y hora"],
+        "filas": [{"Fecha y hora": "2026-10-01 00:00:00"}],
+        "eventos": [{"perfil": "P001"}],
+        "perfiles": ["P001"],
+        "perfiles_total": {"P001": 1},
+        "plantas": [
+            {
+                "clave": "nacional",
+                "titulo": "Chile continental",
+                "territorio": "Nacional",
+                "eventos": [{}],
+                "total": 1,
+            }
+        ],
+    }
+    extra = {
+        "cache_key": "clave",
+        "resumen": {},
+        "filtros_texto": "Sin filtros",
+    }
+    monkeypatch.setattr(
+        "app.blueprints.results._datos_catalogo",
+        lambda *_args, **_kwargs: ("archivo.csv", "Seisan", datos, extra),
+    )
+    monkeypatch.setattr(
+        "app.services.catalog_export.mapa_planta",
+        lambda *args, **kwargs: png,
+    )
+    monkeypatch.setattr(
+        "app.services.catalog_export.mapa_perfil",
+        lambda *args, **kwargs: png,
+    )
+
+    import io
+    import zipfile
+
+    def nombres(query):
+        respuesta = client.get(
+            f"/jobs/{job.id}/resultados/catalogos/seisan/catalogo.zip",
+            query_string=query,
+        )
+        assert respuesta.status_code == 200
+        with zipfile.ZipFile(io.BytesIO(respuesta.data)) as archivo:
+            return set(archivo.namelist())
+
+    assert nombres({"plantas": "0", "perfiles": "solo"}) == {
+        "catalogo.csv",
+        "perfil_P001.png",
+    }
+    assert nombres({"plantas": "1", "perfiles": "con_planta"}) == {
+        "catalogo.csv",
+        "planta_nacional.png",
+        "perfil_P001_planta.png",
+    }
+    assert nombres({"plantas": "1", "perfiles": "ambos"}) == {
+        "catalogo.csv",
+        "planta_nacional.png",
+        "perfil_P001.png",
+        "perfil_P001_planta.png",
+    }

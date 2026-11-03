@@ -26,9 +26,6 @@
     <a class="btn btn-outline-primary" href="{{ url_csv }}">
       Descargar CSV
     </a>
-    <a class="btn btn-primary" href="{{ url_zip }}">
-      Descargar ZIP
-    </a>
   </div>
 </div>
 
@@ -37,51 +34,138 @@
   No hay eventos para los filtros actuales.
 </div>
 {% else %}
-{% for planta in datos.plantas %}
-<div class="card border-0 shadow-sm mb-3">
+<div id="catalogo-actividad" class="alert alert-info d-none d-flex align-items-center gap-2 sticky-top shadow-sm"
+     role="status" aria-live="polite">
+  <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+  <span id="catalogo-actividad-texto">Generando mapas…</span>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
   <div class="card-body">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-      <div>
-        <h2 class="h6 text-uppercase text-secondary mb-0">{{ planta.titulo }}</h2>
-        <div class="small text-secondary">{{ planta.total }} evento{{ '' if planta.total == 1 else 's' }}</div>
+    <h2 class="h6 text-uppercase text-secondary mb-3">Generar todos los mapas</h2>
+    <form id="catalogo-zip" class="row g-3 align-items-end"
+          data-url="{{ url_zip }}"
+          data-nombre="catalogo_{{ opcion }}.zip"
+          data-total-plantas="{{ datos.plantas|length }}"
+          data-total-perfiles="{{ datos.perfiles|length }}">
+      <div class="col-12 col-lg-4">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="zip-plantas" checked>
+          <label class="form-check-label" for="zip-plantas">
+            Incluir mapas de planta
+            <span class="text-secondary">({{ datos.plantas|length }})</span>
+          </label>
+        </div>
       </div>
-      <a class="btn btn-sm btn-outline-primary" href="{{ url_planta(planta.clave) }}">
-        Descargar PNG
-      </a>
-    </div>
-    <img class="img-fluid border rounded" src="{{ url_planta(planta.clave) }}"
-         alt="Mapa de planta {{ planta.titulo }}" loading="lazy">
+      <div class="col-12 col-lg-5">
+        <div class="text-secondary small text-uppercase mb-1">Perfiles</div>
+        <div class="d-flex flex-wrap gap-3">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="perfiles"
+                   id="zip-perfil-solo" value="solo">
+            <label class="form-check-label" for="zip-perfil-solo">Solo perfil</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="perfiles"
+                   id="zip-perfil-planta" value="con_planta">
+            <label class="form-check-label" for="zip-perfil-planta">Perfil + planta</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="perfiles"
+                   id="zip-perfil-ambos" value="ambos" checked>
+            <label class="form-check-label" for="zip-perfil-ambos">Ambas variantes</label>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-3 text-lg-end">
+        <button class="btn btn-primary" type="submit" id="zip-boton">
+          Descargar ZIP
+        </button>
+      </div>
+    </form>
+    <p class="small text-secondary mb-0 mt-2">
+      El ZIP siempre incluye el CSV. Los PNG se generan solo al solicitarlos y
+      la primera generación puede tardar varios minutos; después quedan en
+      caché.
+    </p>
   </div>
 </div>
-{% endfor %}
 
-{% if datos.perfiles %}
-<div class="card border-0 shadow-sm">
-  <div class="card-body">
-    <h2 class="h6 text-uppercase text-secondary mb-3">Perfiles disponibles</h2>
-    {% for perfil_id in datos.perfiles %}
-    <div class="border rounded p-3 mb-3">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <span class="fw-semibold">Perfil {{ perfil_id }}</span>
-        <div class="d-flex flex-wrap gap-2">
-          <a class="btn btn-sm btn-outline-primary"
-             href="{{ url_perfil(perfil_id, 'perfil') }}">Descargar solo perfil</a>
-          <a class="btn btn-sm btn-outline-secondary"
-             href="{{ url_perfil(perfil_id, 'auto') }}">Descargar perfil + planta</a>
+<h2 class="h6 text-uppercase text-secondary mb-3">Mapas de planta</h2>
+<div class="row g-3 mb-4">
+  {% for planta in datos.plantas %}
+  <div class="col-12 col-md-6 col-xl-4">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body d-flex flex-column">
+        <h3 class="h6 mb-1">{{ planta.titulo }}</h3>
+        <p class="small text-secondary mb-3">
+          {{ planta.total }} evento{{ '' if planta.total == 1 else 's' }}
+        </p>
+        <div class="d-flex flex-wrap gap-2 mt-auto">
+          <a class="btn btn-sm btn-outline-primary js-mapa-ver"
+             href="{{ url_planta(planta.clave) }}"
+             data-url="{{ url_planta(planta.clave) }}"
+             data-titulo="Planta · {{ planta.titulo }}"
+             data-nombre="planta_{{ planta.clave }}.png">
+            Ver mapa
+          </a>
+          <a class="btn btn-sm btn-outline-secondary js-mapa-descargar"
+             href="{{ url_planta(planta.clave) }}"
+             download="planta_{{ planta.clave }}.png"
+             data-url="{{ url_planta(planta.clave) }}"
+             data-nombre="planta_{{ planta.clave }}.png">
+            Descargar PNG
+          </a>
         </div>
       </div>
-      <div class="row g-3">
-        <div class="col-12 col-xl-6">
-          <div class="small text-secondary mb-1">Solo perfil</div>
-          <img class="img-fluid border rounded"
-               src="{{ url_perfil(perfil_id, 'perfil') }}"
-               alt="Perfil {{ perfil_id }}" loading="lazy">
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if datos.perfiles %}
+<h2 class="h6 text-uppercase text-secondary mb-3">Perfiles</h2>
+<div class="card border-0 shadow-sm">
+  <div class="list-group list-group-flush">
+    {% for perfil_id in datos.perfiles %}
+    <div class="list-group-item py-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <span class="fw-semibold">Perfil {{ perfil_id }}</span>
+          <span class="text-secondary small ms-2">
+            {{ datos.perfiles_total.get(perfil_id, 0) }}
+            evento{{ '' if datos.perfiles_total.get(perfil_id, 0) == 1 else 's' }}
+          </span>
         </div>
-        <div class="col-12 col-xl-6">
-          <div class="small text-secondary mb-1">Perfil + planta</div>
-          <img class="img-fluid border rounded"
-               src="{{ url_perfil(perfil_id, 'auto') }}"
-               alt="Perfil {{ perfil_id }} con planta" loading="lazy">
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-sm btn-outline-primary js-mapa-ver"
+             href="{{ url_perfil(perfil_id, 'perfil') }}"
+             data-url="{{ url_perfil(perfil_id, 'perfil') }}"
+             data-titulo="Perfil {{ perfil_id }} · solo perfil"
+             data-nombre="perfil_{{ perfil_id }}.png">
+            Ver solo perfil
+          </a>
+          <a class="btn btn-sm btn-outline-primary js-mapa-ver"
+             href="{{ url_perfil(perfil_id, 'auto') }}"
+             data-url="{{ url_perfil(perfil_id, 'auto') }}"
+             data-titulo="Perfil {{ perfil_id }} · perfil + planta"
+             data-nombre="perfil_{{ perfil_id }}_planta.png">
+            Ver perfil + planta
+          </a>
+          <a class="btn btn-sm btn-outline-secondary js-mapa-descargar"
+             href="{{ url_perfil(perfil_id, 'perfil') }}"
+             download="perfil_{{ perfil_id }}.png"
+             data-url="{{ url_perfil(perfil_id, 'perfil') }}"
+             data-nombre="perfil_{{ perfil_id }}.png">
+            Descargar solo perfil
+          </a>
+          <a class="btn btn-sm btn-outline-secondary js-mapa-descargar"
+             href="{{ url_perfil(perfil_id, 'auto') }}"
+             download="perfil_{{ perfil_id }}_planta.png"
+             data-url="{{ url_perfil(perfil_id, 'auto') }}"
+             data-nombre="perfil_{{ perfil_id }}_planta.png">
+            Descargar perfil + planta
+          </a>
         </div>
       </div>
     </div>
@@ -93,5 +177,41 @@
   El catálogo no tiene perfiles asignados. Solo se generan los mapas de planta.
 </div>
 {% endif %}
+
+<div class="modal fade" id="modalMapaCatalogo" tabindex="-1"
+     aria-labelledby="modal-mapa-titulo" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="h5 modal-title" id="modal-mapa-titulo">Mapa del catálogo</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-mapa-cargando" class="text-center py-5">
+          <div class="spinner-border text-primary mb-3" role="status"
+               aria-hidden="true"></div>
+          <p class="mb-0 fw-semibold">Generando mapa…</p>
+          <p class="small text-secondary mb-0">
+            La primera generación puede tardar; después queda en caché.
+          </p>
+        </div>
+        <div id="modal-mapa-error" class="alert alert-danger d-none" role="alert"></div>
+        <img id="modal-mapa-imagen" class="img-fluid border rounded d-none"
+             alt="Mapa del catálogo">
+      </div>
+      <div class="modal-footer">
+        <a id="modal-mapa-descargar" class="btn btn-primary disabled"
+           href="#" download aria-disabled="true">Descargar PNG</a>
+        <button type="button" class="btn btn-outline-secondary"
+                data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/catalogo_mapas.js') }}"></script>
 {% endblock %}

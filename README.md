@@ -473,7 +473,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **332 tests**.
+runner de solo lectura. Total actual: **338 tests**.
 
 ## Filtros y exportación
 
@@ -607,15 +607,21 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   descargas. Analista y consulta ven todas las fuentes y filtros, pero sin
   columnas de analista, sin Web/Ver/miniaturas y solo con **Descargar catálogo**.
   Esa descarga abre una vista previa con el CSV sanitizado, mapas de planta por
-  territorio y dos variantes por perfil, además de un ZIP con todo. Las plantas
-  se separan en Chile continental, territorio insular, territorio antártico y
-  Otros; cada una se genera solo si tiene eventos. Los eventos fuera de Chile
-  se envían a Otros cuando superan un radio de influencia según la magnitud
-  (200 km para M<4, 300 para M4, 400 para M5 y 500 para M6 o más). Cada perfil
-  ofrece `perfil_<id>.png` (solo perfil) y `perfil_<id>_planta.png` (perfil y
-  planta), con solo los eventos asignados a ese perfil. El CSV contiene fecha y
-  hora, coordenadas, profundidad, magnitud, tipo de magnitud y referencia
-  geográfica cuando existe; no incluye al analista. El catálogo
+  territorio y dos variantes por perfil. **Los mapas no se generan al abrir la
+  página**: aparecen solo al presionar **Ver** o **Descargar**, con un indicador
+  de actividad y un modal con la imagen. El panel **Generar todos los mapas**
+  permite elegir si se incluyen las plantas y qué variantes de perfil se desean
+  (solo perfil, perfil + planta o ambas) antes de descargar el ZIP. Esas
+  imágenes no llevan leyenda y dibujan los eventos percibidos al final, de modo
+  que quedan sobre los no percibidos. Las plantas se separan en Chile
+  continental, territorio insular, territorio antártico y Otros; cada una se
+  genera solo si tiene eventos. Los eventos fuera de Chile se envían a Otros
+  cuando superan un radio de influencia según la magnitud (200 km para M<4, 300
+  para M4, 400 para M5 y 500 para M6 o más). Cada perfil ofrece
+  `perfil_<id>.png` (solo perfil) y `perfil_<id>_planta.png` (perfil y planta),
+  con solo los eventos asignados a ese perfil. El CSV contiene fecha y hora,
+  coordenadas, profundidad, magnitud, tipo de magnitud y referencia geográfica
+  cuando existe; no incluye al analista. El catálogo
   **Eventquery** agrega la columna **«Analista probable»**, deducida cruzando
   cada evento publicado con las soluciones locales de SeisComp y Seisan; se
   muestran ambas fuentes cuando aportan (`SeisComp: …; Seisan: …`). En **No

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from . import panels, plots, ubicacion
@@ -14,6 +15,12 @@ PLANTAS = (
     ("antartico", "Territorio antártico", "Antártico"),
     ("otros", "Otros", None),
 )
+
+VERSION_MAPAS = "catalogo-v3"
+
+_CACHE: dict[tuple, dict] = {}
+_CACHE_LOCK = threading.Lock()
+_CACHE_MAXIMO = 16
 
 CAMPOS_CATALOGO = (
     ("Fecha_Hora", "Fecha y hora"),
@@ -82,7 +89,84 @@ def preparar_catalogo(
     direccion: str = "asc",
     ocultar_analista: bool = False,
 ) -> dict:
-    """CSV sanitizado, eventos y perfiles del catálogo filtrado."""
+    """CSV sanitizado, eventos y perfiles del catálogo filtrado (con caché)."""
+    clave = _clave_cache(
+        workspace,
+        archivo,
+        opcion,
+        q=q,
+        filtros=filtros,
+        sort=sort,
+        direccion=direccion,
+        ocultar_analista=ocultar_analista,
+    )
+    with _CACHE_LOCK:
+        guardado = _CACHE.get(clave)
+    if guardado is not None:
+        return guardado
+    datos = _preparar_catalogo(
+        workspace,
+        archivo,
+        opcion,
+        q=q,
+        filtros=filtros,
+        sort=sort,
+        direccion=direccion,
+        ocultar_analista=ocultar_analista,
+    )
+    with _CACHE_LOCK:
+        if len(_CACHE) >= _CACHE_MAXIMO:
+            _CACHE.clear()
+        _CACHE[clave] = datos
+    return datos
+
+
+def _clave_cache(
+    workspace: Path,
+    archivo: str,
+    opcion: str,
+    *,
+    q: str,
+    filtros: dict[str, str] | None,
+    sort: str,
+    direccion: str,
+    ocultar_analista: bool,
+) -> tuple:
+    ruta = workspace / archivo
+    try:
+        estado = ruta.stat()
+        firma = (estado.st_mtime_ns, estado.st_size)
+    except OSError:
+        firma = None
+    return (
+        str(ruta),
+        firma,
+        opcion,
+        q,
+        tuple(sorted((filtros or {}).items())),
+        sort,
+        direccion,
+        ocultar_analista,
+    )
+
+
+def limpiar_cache() -> None:
+    """Vacía la caché de catálogos preparados (útil en pruebas)."""
+    with _CACHE_LOCK:
+        _CACHE.clear()
+
+
+def _preparar_catalogo(
+    workspace: Path,
+    archivo: str,
+    opcion: str,
+    *,
+    q: str = "",
+    filtros: dict[str, str] | None = None,
+    sort: str = "",
+    direccion: str = "asc",
+    ocultar_analista: bool = False,
+) -> dict:
     ocultas = CAMPOS_ANALISTA if ocultar_analista else None
     filtros_limpios = {
         clave: valor
@@ -119,6 +203,14 @@ def preparar_catalogo(
             if evento.get("perfil")
         }
     )
+    perfiles_total = {
+        perfil_id: sum(
+            1
+            for evento in eventos
+            if evento.get("perfil") == perfil_id
+        )
+        for perfil_id in perfiles
+    }
     plantas = []
     for clave, titulo, territorio in PLANTAS:
         categoria = "Otros" if territorio is None else territorio
@@ -142,6 +234,7 @@ def preparar_catalogo(
         "filas": salida,
         "eventos": eventos,
         "perfiles": perfiles,
+        "perfiles_total": perfiles_total,
         "plantas": plantas,
         "total": len(salida),
     }
@@ -172,6 +265,18 @@ def resumen_mapa(
     }
 
 
+def _orden_para_mapa(eventos: list[dict]) -> list[dict]:
+    """Deja los percibidos al final para que se dibujen sobre los demás."""
+    return sorted(
+        eventos,
+        key=lambda evento: (
+            1
+            if str(evento.get("percibido", "")).strip().upper() == "S"
+            else 0
+        ),
+    )
+
+
 def mapa_planta(
     workspace: Path,
     planta: dict,
@@ -184,12 +289,14 @@ def mapa_planta(
         return None
     return plots.generar_mapa_grupo(
         workspace,
-        planta["eventos"],
+        _orden_para_mapa(planta["eventos"]),
         opcion,
         resumen,
-        cache_key + "|planta|" + planta["clave"],
+        VERSION_MAPAS + "|" + cache_key + "|planta|" + planta["clave"],
         modo="planta",
         territorio=planta["territorio"],
+        leyenda=False,
+        sospechosos=False,
     )
 
 
@@ -212,16 +319,20 @@ def mapa_perfil(
         return None
     return plots.generar_mapa_grupo(
         workspace,
-        eventos,
+        _orden_para_mapa(eventos),
         opcion,
         resumen,
-        cache_key + "|perfil|" + perfil_id + "|" + modo,
+        VERSION_MAPAS + "|" + cache_key + "|perfil|" + perfil_id + "|" + modo,
         modo=modo,
+        leyenda=False,
+        sospechosos=False,
     )
 
 
 __all__ = [
     "CAMPOS_CATALOGO",
+    "PLANTAS",
+    "VERSION_MAPAS",
     "csv_catalogo",
     "mapa_perfil",
     "mapa_planta",

@@ -847,31 +847,46 @@ def catalogo_perfil(job_id: str, opcion: str, perfil_id: str):
     return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
 
 
+def _opciones_zip() -> tuple[bool, str]:
+    """Opciones del ZIP: mapas de planta y variante de perfiles."""
+    incluir_plantas = request.args.get("plantas", "1") not in (
+        "0",
+        "false",
+        "no",
+    )
+    perfiles = request.args.get("perfiles", "ambos")
+    if perfiles not in ("solo", "con_planta", "ambos"):
+        perfiles = "ambos"
+    return incluir_plantas, perfiles
+
+
 @results_bp.get("/jobs/<job_id>/resultados/catalogos/<opcion>/catalogo.zip")
 @login_required
 @permiso_requerido("catalogos.ver")
 def catalogo_zip(job_id: str, opcion: str):
     job = _job(job_id)
     _archivo, titulo, datos, extra = _datos_catalogo(job, opcion)
+    incluir_plantas, variante = _opciones_zip()
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archivo_zip:
         archivo_zip.writestr(
             "catalogo.csv", catalog_export.csv_catalogo(datos)
         )
-        for planta in datos["plantas"]:
-            png = catalog_export.mapa_planta(
-                ruta_workspace(job.id),
-                planta,
-                opcion,
-                cache_key=extra["cache_key"],
-                resumen=_resumen_planta(
-                    titulo, planta, extra["filtros_texto"], job.id
-                ),
-            )
-            if png:
-                archivo_zip.writestr(
-                    f"planta_{planta['clave']}.png", png
+        if incluir_plantas:
+            for planta in datos["plantas"]:
+                png = catalog_export.mapa_planta(
+                    ruta_workspace(job.id),
+                    planta,
+                    opcion,
+                    cache_key=extra["cache_key"],
+                    resumen=_resumen_planta(
+                        titulo, planta, extra["filtros_texto"], job.id
+                    ),
                 )
+                if png:
+                    archivo_zip.writestr(
+                        f"planta_{planta['clave']}.png", png
+                    )
         for perfil_id in datos["perfiles"]:
             eventos = [
                 evento
@@ -885,30 +900,34 @@ def catalogo_zip(job_id: str, opcion: str):
                 job.id,
                 mapa=f"Perfil {perfil_id}",
             )
-            solo = catalog_export.mapa_perfil(
-                ruta_workspace(job.id),
-                datos,
-                opcion,
-                perfil_id,
-                cache_key=extra["cache_key"],
-                resumen=resumen,
-                modo="perfil",
-            )
-            if solo:
-                archivo_zip.writestr(f"perfil_{perfil_id}.png", solo)
-            contexto = catalog_export.mapa_perfil(
-                ruta_workspace(job.id),
-                datos,
-                opcion,
-                perfil_id,
-                cache_key=extra["cache_key"],
-                resumen=resumen,
-                modo="auto",
-            )
-            if contexto:
-                archivo_zip.writestr(
-                    f"perfil_{perfil_id}_planta.png", contexto
+            if variante in ("solo", "ambos"):
+                solo = catalog_export.mapa_perfil(
+                    ruta_workspace(job.id),
+                    datos,
+                    opcion,
+                    perfil_id,
+                    cache_key=extra["cache_key"],
+                    resumen=resumen,
+                    modo="perfil",
                 )
+                if solo:
+                    archivo_zip.writestr(
+                        f"perfil_{perfil_id}.png", solo
+                    )
+            if variante in ("con_planta", "ambos"):
+                contexto = catalog_export.mapa_perfil(
+                    ruta_workspace(job.id),
+                    datos,
+                    opcion,
+                    perfil_id,
+                    cache_key=extra["cache_key"],
+                    resumen=resumen,
+                    modo="auto",
+                )
+                if contexto:
+                    archivo_zip.writestr(
+                        f"perfil_{perfil_id}_planta.png", contexto
+                    )
     buffer.seek(0)
     nombre = f"catalogo_{opcion}_{job.inicio14[:8]}_{job.fin14[:8]}.zip"
     registrar(

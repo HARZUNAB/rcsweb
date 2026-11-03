@@ -875,6 +875,8 @@ def _renderizar_core(
     resumen: dict | None,
     modo: str = "auto",
     territorio: str | None = None,
+    leyenda: bool = True,
+    sospechosos: bool = True,
 ) -> bytes:
     """Ejecuta el renderizador del core y compone el encabezado."""
     if destino.is_file():
@@ -908,6 +910,8 @@ def _renderizar_core(
                         "fuente": fuente,
                         "modo": modo,
                         "territorio": territorio,
+                        "leyenda": leyenda,
+                        "sospechosos": sospechosos,
                     },
                     ensure_ascii=False,
                 ),
@@ -969,6 +973,8 @@ def generar_mapa_grupo(
     cache_key: str,
     modo: str = "auto",
     territorio: str | None = None,
+    leyenda: bool = True,
+    sospechosos: bool = True,
 ) -> bytes:
     """Mapa de un grupo de Paneles, sin listado de eventos en el PNG.
 
@@ -987,4 +993,6 @@ def generar_mapa_grupo(
         resumen,
         modo=modo,
         territorio=territorio,
+        leyenda=leyenda,
+        sospechosos=sospechosos,
     )
