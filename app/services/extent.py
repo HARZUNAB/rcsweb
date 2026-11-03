@@ -45,17 +45,40 @@ def extender_extent(
     punto: tuple[float, float],
     margen_lon: float = 2.0,
     margen_lat: float = 1.5,
+    aspecto_maximo: float | None = 2.0,
 ) -> tuple[float, float, float, float]:
     """Amplía ``(lon_min, lon_max, lat_min, lat_max)`` para incluir un punto.
 
     Se usa en el mapa de Otros para mostrar la costa o islas chilenas más
     cercanas como referencia, sin recortar los eventos del catálogo.
+
+    ``aspecto_maximo`` evita que el mapa quede demasiado ancho y delgado:
+    cuando el ancho supera esa proporción respecto del alto, se amplía la
+    latitud simétricamente alrededor del centro. Así el mapa de Otros muestra
+    más contexto hacia el norte y el sur de Chile.
     """
     lon_min, lon_max, lat_min, lat_max = extent
     lat, lon = punto
-    return (
-        min(lon_min, lon - margen_lon),
-        max(lon_max, lon + margen_lon),
-        min(lat_min, lat - margen_lat),
-        max(lat_max, lat + margen_lat),
-    )
+    lon_min = min(lon_min, lon - margen_lon)
+    lon_max = max(lon_max, lon + margen_lon)
+    lat_min = min(lat_min, lat - margen_lat)
+    lat_max = max(lat_max, lat + margen_lat)
+
+    if aspecto_maximo and aspecto_maximo > 0:
+        ancho = lon_max - lon_min
+        alto = lat_max - lat_min
+        if ancho / max(alto, 1e-9) > aspecto_maximo:
+            alto_objetivo = ancho / aspecto_maximo
+            centro = (lat_min + lat_max) / 2
+            nuevo_min = centro - alto_objetivo / 2
+            nuevo_max = centro + alto_objetivo / 2
+            if nuevo_min < -90:
+                nuevo_max += -90 - nuevo_min
+                nuevo_min = -90.0
+            if nuevo_max > 90:
+                nuevo_min -= nuevo_max - 90
+                nuevo_max = 90.0
+            lat_min = max(-90.0, nuevo_min)
+            lat_max = min(90.0, nuevo_max)
+
+    return lon_min, lon_max, lat_min, lat_max

@@ -70,7 +70,7 @@ def _extent_con_contexto(
         margen_adicional = margen
     extent = _extent_original(eventos, perfil, territorio, margen_adicional)
     if _contexto is not None and extent is not None and extender_extent is not None:
-        extent = extender_extent(extent, _contexto)
+        extent = extender_extent(extent, _contexto, aspecto_maximo=2.0)
     return extent
 
 

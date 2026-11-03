@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.services import catalog_export
 
 
@@ -269,9 +271,10 @@ def test_extender_extent_incluye_punto_y_margen():
 
     extent = (-98.0, -95.0, -38.0, -36.0)
 
-    assert extender_extent(extent, (-36.5, -73.0)) == (
-        -98.0,
-        -71.0,
-        -38.0,
-        -35.0,
+    lon_min, lon_max, lat_min, lat_max = extender_extent(
+        extent, (-36.5, -73.0)
     )
+
+    assert (lon_min, lon_max) == (-98.0, -71.0)
+    assert lat_max - lat_min == pytest.approx(27.0 / 2.0)
+    assert (lat_min + lat_max) / 2 == pytest.approx(-36.5)
