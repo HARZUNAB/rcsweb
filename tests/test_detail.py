@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 from datetime import UTC, datetime
 
 from app.extensions import db
@@ -41,7 +43,12 @@ def _fila_no_actualizada():
 def test_puntos_mapa_no_actualizados():
     fila = _fila_no_actualizada()
     contexto = construir_detalle("no_actualizados", "no_actualizados_seisan.csv", [fila], 0)
-    puntos = puntos_mapa("no_actualizados", contexto["fila"], "seisan")
+    puntos = puntos_mapa(
+        "no_actualizados",
+        contexto["fila"],
+        "seisan",
+        analista_publicado="SeisComp: cris; Seisan: beto",
+    )
 
     assert len(puntos) == 2
     assert {p["fuente"] for p in puntos} == {"seisan", "eventquery"}
@@ -49,10 +56,14 @@ def test_puntos_mapa_no_actualizados():
     assert puntos[0]["dist_km"] == 0.1
     assert puntos[0]["comparacion"] is True
     assert puntos[0]["referencia"] is False
+    assert puntos[0]["analista"] == "beto"
+    assert puntos[0]["analista_etiqueta"] == "Analista"
     assert puntos[1]["fuente"] == "eventquery"
     assert puntos[1]["dist_km"] == 0.0
     assert puntos[1]["comparacion"] is True
     assert puntos[1]["referencia"] is True
+    assert puntos[1]["analista"] == "SeisComp: cris; Seisan: beto"
+    assert puntos[1]["analista_etiqueta"] == "Analista probable"
     assert all(p["color"].startswith("#") for p in puntos)
 
 
@@ -113,6 +124,25 @@ def test_puntos_mapa_evento_unico_sin_comparacion():
     assert puntos[0]["comparacion"] is False
     assert puntos[0]["referencia"] is False
     assert puntos[0]["dist_km"] == 0.0
+
+
+def test_puntos_mapa_catalogo_eventquery_usa_analista_probable():
+    fila = {
+        "Fecha_Hora": "2026-10-01 00:00:00",
+        "Latitud": "-30.0",
+        "Longitud": "-71.0",
+        "Prof.": "10.0",
+        "Mag.": "2.5",
+        "Tipo_mag.": "ML",
+        "Analista probable": "SeisComp: cris; Seisan: beto",
+        "Percep.": "",
+    }
+
+    puntos = puntos_mapa("catalogos", fila, "eventquery")
+
+    assert len(puntos) == 1
+    assert puntos[0]["analista"] == "SeisComp: cris; Seisan: beto"
+    assert puntos[0]["analista_etiqueta"] == "Analista probable"
 
 
 def test_distancia_del_encabezado_solo_en_tablas_comparadas():
@@ -218,6 +248,67 @@ def test_ruta_detalle_renderiza(app, client, login, tmp_path):
     assert "Alta" in html
 
     assert client.get(f"/jobs/{job.id}/resultados/no_actualizados/seisan/99").status_code == 404
+
+
+def test_detalle_no_actualizados_publicado_muestra_analista_probable(
+    app, client, login, tmp_path
+):
+    login()
+    job = Job(
+        id=nuevo_uuid(),
+        period_start=datetime(2026, 10, 1, tzinfo=UTC),
+        period_end=datetime(2026, 10, 31, tzinfo=UTC),
+        status="done",
+    )
+    db.session.add(job)
+    db.session.commit()
+    workspace = crear_workspace(job.id)
+    (workspace / "resultados").mkdir(parents=True, exist_ok=True)
+    columnas = (
+        "fecha_local,lat_local,lon_local,prof_local,mag_local,tipo_mag_local,"
+        "fecha_eventquery,lat_eventquery,lon_eventquery,prof_eventquery,"
+        "mag_eventquery,tipo_mag_eventquery,analista,dt_seg,dlat,dlon,dist_km,"
+        "publicacion_probable,revision,revision_orden,discrepancias\n"
+    )
+    valores = (
+        "2026-10-03  15:53:56,-29.519,-72.594,30.0,2.8,ML,"
+        "2026-10-03 15:53:56,-29.520,-72.594,31.0,3.0,ML,beto,"
+        "1.0,-0.001,0.0,0.1,Esta fuente,Alta,1,lat, prof, mag\n"
+    )
+    (workspace / "resultados" / "no_actualizados_seisan.csv").write_text(
+        columnas + valores, encoding="utf-8"
+    )
+    (workspace / "datos").mkdir(parents=True, exist_ok=True)
+    for fuente, analista in (("seiscomp", "cris"), ("seisan", "beto")):
+        (
+            workspace / "datos" / f"atribucion_{fuente}.csv"
+        ).write_text(
+            "fecha_eventquery,lat_eventquery,lon_eventquery,analista,"
+            "dt_seg,fuente\n"
+            f"2026-10-03 15:53:56,-29.520,-72.594,{analista},0.0,{fuente}\n",
+            encoding="utf-8",
+        )
+
+    respuesta = client.get(
+        f"/jobs/{job.id}/resultados/no_actualizados/seisan/0",
+        query_string={"mapa": "offline"},
+    )
+
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    datos = json.loads(
+        re.search(
+            r'<script type="application/json" id="mapa-datos">(.*?)</script>',
+            html,
+            re.S,
+        ).group(1)
+    )
+    publicado = next(p for p in datos if p["rol"] == "publicado")
+    local = next(p for p in datos if p["rol"] == "local")
+    assert publicado["analista"] == "SeisComp: cris; Seisan: beto"
+    assert publicado["analista_etiqueta"] == "Analista probable"
+    assert local["analista"] == "beto"
+    assert local["analista_etiqueta"] == "Analista"
 
 
 def test_clave_evento_empareja_mapa_y_perfil():

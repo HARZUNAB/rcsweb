@@ -96,7 +96,7 @@
       ["Profundidad", valor(punto.prof, " km")],
       ["Magnitud", valor(punto.mag)],
       ["Tipo mag.", valor(punto.tipo)],
-      ["Analista", valor(punto.analista)],
+      [punto.analista_etiqueta || "Analista", valor(punto.analista)],
     ];
     if (punto.comparacion) {
       filas.push([

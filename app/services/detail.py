@@ -232,6 +232,7 @@ def _punto(
     fila=None,
     rol=None,
     percibido="",
+    analista_etiqueta="Analista",
 ) -> dict | None:
     latitud = _a_numero(lat)
     longitud = _a_numero(lon)
@@ -258,13 +259,19 @@ def _punto(
         "mag": _texto(mag),
         "tipo": _texto(tipo),
         "analista": _texto(analista),
+        "analista_etiqueta": _texto(analista_etiqueta) or "Analista",
         "estado": _texto(estado),
         "fila": fila,
     }
 
 
 def puntos_mapa(
-    tabla: str, fila: dict, opcion: str, grupo=None, indice: int | None = None
+    tabla: str,
+    fila: dict,
+    opcion: str,
+    grupo=None,
+    indice: int | None = None,
+    analista_publicado: str = "",
 ) -> list[dict]:
     """Puntos del detalle para el mapa interactivo."""
     puntos = []
@@ -289,6 +296,8 @@ def puntos_mapa(
             fila.get("mag_eventquery"),
             fila.get("tipo_mag_eventquery"),
             rol="publicado",
+            analista=analista_publicado,
+            analista_etiqueta="Analista probable",
         )
         puntos.extend(p for p in (local, publicado) if p is not None)
         # En No actualizados la referencia es la solución publicada. La local
@@ -318,6 +327,7 @@ def puntos_mapa(
         if referencia is None and puntos:
             referencia = puntos[0]
     else:
+        analista = fila.get("Analista probable") or fila.get("Analista", "")
         punto = _punto(
             opcion,
             fila.get("Fecha_Hora"),
@@ -326,9 +336,14 @@ def puntos_mapa(
             fila.get("Prof."),
             fila.get("Mag."),
             fila.get("Tipo_mag."),
-            fila.get("Analista", ""),
+            analista,
             fila.get("Estado", ""),
             percibido=fila.get("Percep.", ""),
+            analista_etiqueta=(
+                "Analista probable"
+                if fila.get("Analista probable")
+                else "Analista"
+            ),
         )
         if punto is not None:
             puntos.append(punto)

@@ -894,6 +894,12 @@ muestra «0 km (referencia)» en ese punto y la distancia en los demás. En even
 únicos no muestra la fila. En el encabezado, `construir_detalle()` expone
 `dist_km` solo para `no_actualizados` y `repetidos`.
 
+En `no_actualizados`, el punto publicado recibe `analista_publicado`, calculado
+con `texto_analista_probable()` a partir de `atribucion_seisan.csv` y
+`atribucion_seiscomp.csv`. El panel lo muestra como «Analista probable» y
+conserva todos los autores; el punto local conserva «Analista». En Catálogos, el
+punto de Eventquery usa la columna «Analista probable» del catálogo enriquecido.
+
 Todos los detalles usan una columna de mapas de 7/12 y un panel de evento de
 5/12. El panel reemplaza a la viñeta flotante. En modo offline,
 `app/static/js/regiones_mapa.js` dibuja el contorno nacional y las divisiones

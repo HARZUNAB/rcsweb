@@ -456,7 +456,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **293 tests**.
+runner de solo lectura. Total actual: **295 tests**.
 
 ## Filtros y exportación
 
@@ -590,7 +590,9 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   enlace al catálogo diario de sismologia.cl. El catálogo **Eventquery** agrega
   la columna **«Analista probable»**, deducida cruzando cada evento publicado con
   las soluciones locales de SeisComp y Seisan; se muestran ambas fuentes cuando
-  aportan (`SeisComp: …; Seisan: …`).
+  aportan (`SeisComp: …; Seisan: …`). En **No actualizados**, el punto publicado
+  del mapa muestra ese mismo texto como «Analista probable», mientras el punto
+  local conserva su «Analista» real.
 - El primer acceso a un panel calcula la asignación de perfiles y la deja en
   `workspace/<job>/paneles/`; las visitas siguientes usan esa caché.
 

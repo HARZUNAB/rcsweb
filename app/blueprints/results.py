@@ -20,6 +20,7 @@ from ..extensions import db
 from ..models import Job
 from ..security import permiso_requerido, puede_ver_trabajo
 from ..services import colores
+from ..services.attribution import indices_atribucion, texto_analista_probable
 from ..services.audit import registrar
 from ..services.borders import mapa_fila, texto_frontera_coords
 from ..services.detail import (
@@ -731,7 +732,22 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
     volver = request.args.get("volver", "")
     if not volver.startswith("/") or volver.startswith("//"):
         volver = url_for(ENDPOINTS[tabla], job_id=job.id, **{parametro: opcion})
-    puntos = puntos_mapa(tabla, contexto["fila"], opcion, contexto.get("grupo"), indice=fila)
+    analista_publicado = ""
+    if tabla == "no_actualizados":
+        analista_publicado = texto_analista_probable(
+            indices_atribucion(ruta_workspace(job.id)),
+            contexto["fila"].get("fecha_eventquery"),
+            contexto["fila"].get("lat_eventquery"),
+            contexto["fila"].get("lon_eventquery"),
+        )
+    puntos = puntos_mapa(
+        tabla,
+        contexto["fila"],
+        opcion,
+        contexto.get("grupo"),
+        indice=fila,
+        analista_publicado=analista_publicado,
+    )
     for punto in puntos:
         punto["frontera"] = texto_frontera_coords(punto["lat"], punto["lon"])
         if punto.get("fila") is not None:

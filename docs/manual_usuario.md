@@ -169,6 +169,9 @@ Más abajo está el perfil de subducción.
   publicada (Eventquery); en **Repetidos** es la fila que abrió el detalle. En
   eventos únicos no se muestra la distancia, porque no hay otra solución con la
   cual comparar.
+- En **No actualizados**, al seleccionar el evento publicado de Eventquery, el
+  panel muestra **Analista probable** con todos los autores deducidos de las
+  soluciones locales. El evento local conserva su **Analista** real.
 - **Abrir PNG** y **Descargar PNG** generan una imagen del mapa.
 - El PNG incluye un encabezado con una fila por evento: fecha y hora, magnitud,
   profundidad, coordenadas, analista y estado en la otra fuente, separados por
@@ -220,7 +223,10 @@ Desde el detalle del trabajo puede abrir los catálogos procesados:
 
 - Las columnas y filtros funcionan como en los resultados.
 - **Eventquery** incluye **Percibido** y **Analista probable**, calculado
-  cruzando la solución publicada con SeisComp y Seisan.
+  cruzando la solución publicada con SeisComp y Seisan. Si más de una fuente
+  aporta una solución, se muestran todos los autores, por ejemplo
+  `SeisComp: cris; Seisan: beto`. El dato es una deducción, no un campo del
+  catálogo original de Eventquery.
 - **Web** abre el catálogo diario de sismologia.cl para la fecha del evento.
 - **Ver** abre el detalle del evento.
 
