@@ -156,6 +156,11 @@ supervisores.
 | `arrivals.job_id` | `jobs` | N:1 | `CASCADE` |
 | `waveform_availability.job_id` | `jobs` | N:1 | `CASCADE` |
 
+Al eliminar un trabajo con `catalog_request_id`, `eliminar_trabajo()` marca
+`catalog_requests.job_deleted_at` antes de borrar el trabajo. La solicitud se
+conserva como historial y la interfaz muestra «Trabajo eliminado». Si se crea un
+trabajo nuevo desde la misma solicitud, `acquisition` limpia esa marca.
+
 `catalog_events`, `stations`, `arrivals` y `waveform_availability` no tienen
 claves foráneas hacia `job_sources`: `source_id` y `event_id` son claves
 lógicas del catálogo canónico.
@@ -203,6 +208,7 @@ lógicas del catálogo canónico.
 | `created_at` | DateTime(tz) | No | IDX | Fecha de creación |
 | `started_at` | DateTime(tz) | Sí | — | Inicio de ejecución |
 | `finished_at` | DateTime(tz) | Sí | — | Fin de ejecución |
+| `job_deleted_at` | DateTime(tz) | Sí | — | Fecha en que se eliminó el trabajo asociado |
 | `error` | Text | Sí | — | Error, si corresponde |
 
 ##### `catalog_request_files`
@@ -439,6 +445,7 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `9f1c2a7b4d10` | Alias visibles sin mecanismo de origen |
 | `b7e4c1a9d2f3` | Nombre visible de archivos de catálogo |
 | `c2a8f5d7e901` | Progreso por archivo de solicitud |
+| `d4f7a1c9e502` | Marca de trabajo eliminado en la solicitud |
 
 Para consultar o aplicar migraciones:
 

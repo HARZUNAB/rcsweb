@@ -39,6 +39,9 @@
       {% else %}
         <span class="badge text-bg-secondary">{{ solicitud.status }}</span>
       {% endif %}
+      {% if job_deleted %}
+        <span class="badge text-bg-warning text-dark">Trabajo eliminado</span>
+      {% endif %}
       <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('solicitudes.lista') }}">
         Volver
       </a>
@@ -85,6 +88,16 @@
           <span>Trabajo creado correctamente.</span>
           <a class="btn btn-sm btn-outline-success"
              href="{{ url_for('jobs.detalle', job_id=job.id) }}">Ver trabajo</a>
+        </div>
+      {% elif job_deleted %}
+        <div class="alert alert-warning small mt-3 mb-0">
+          El trabajo generado por esta solicitud fue eliminado. La solicitud y sus
+          catálogos se conservan como historial.
+          {% if solicitud.job_deleted_at %}
+            <span class="text-secondary">
+              Eliminado el {{ solicitud.job_deleted_at.strftime('%Y-%m-%d %H:%M') }}.
+            </span>
+          {% endif %}
         </div>
       {% endif %}
     </div>

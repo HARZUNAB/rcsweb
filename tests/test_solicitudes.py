@@ -426,6 +426,8 @@ def test_detalle_muestra_indicador_de_descarga(client, login, app):
 
 def test_ejecutar_solicitud_crea_job(app, monkeypatch):
     solicitud = _solicitud(app)
+    solicitud.job_deleted_at = datetime.now(UTC)
+    db.session.commit()
     encolados = []
     monkeypatch.setattr(
         "app.services.acquisition._cargar_traer_catalogos",
@@ -443,6 +445,7 @@ def test_ejecutar_solicitud_crea_job(app, monkeypatch):
     solicitud = db.session.get(CatalogRequest, solicitud.id)
     assert solicitud.status == "done"
     assert solicitud.progress == 100
+    assert solicitud.job_deleted_at is None
     job = db.session.execute(db.select(Job)).scalar_one()
     assert job.origin == "ssh"
     assert job.catalog_request_id == solicitud.id

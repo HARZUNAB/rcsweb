@@ -303,6 +303,7 @@ def _contexto(request_id: str) -> dict:
     return {
         "solicitud": solicitud,
         "job": _job_de(solicitud),
+        "job_deleted": solicitud.job_deleted_at is not None,
         "log": log_solicitud(solicitud.id),
         "etiquetas": fuentes_manifest.etiquetas(),
         "form_reintento": ReintentarForm(),

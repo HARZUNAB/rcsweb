@@ -57,6 +57,12 @@
             {% else %}
               <span class="badge text-bg-secondary">{{ solicitud.status }}</span>
             {% endif %}
+            {% if solicitud.job_deleted_at %}
+              <span class="badge text-bg-warning text-dark d-block mt-1"
+                    title="El trabajo generado fue eliminado">
+                Trabajo eliminado
+              </span>
+            {% endif %}
           </td>
           <td class="d-none d-md-table-cell small text-secondary">
             {{ solicitud.current_step or '—' }}

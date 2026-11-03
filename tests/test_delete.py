@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.extensions import db
-from app.models import AuditLog, Job, JobFile, User, nuevo_uuid
+from app.models import AuditLog, CatalogRequest, Job, JobFile, User, nuevo_uuid
 from app.services.jobs import JobNoEliminable, eliminar_trabajo
 from app.services.workspace import crear_workspace
 
@@ -58,6 +58,40 @@ def test_eliminar_trabajo_borra_db_archivos_y_audita(client, login):
     ).scalar_one()
     assert auditoria.meta["origen"] == "web"
     assert auditoria.meta["estado"] == "done"
+
+
+def test_eliminar_trabajo_marca_solicitud(client, login):
+    login()
+    usuario = _usuario()
+    solicitud = CatalogRequest(
+        id=nuevo_uuid(),
+        mode="ssh",
+        period_start=datetime(2026, 10, 1, tzinfo=UTC),
+        period_end=datetime(2026, 10, 31, 23, 59, 59, tzinfo=UTC),
+        status="done",
+        requested_by_id=usuario.id,
+        server="10.54.217.9",
+        remote_user="sysopr",
+    )
+    db.session.add(solicitud)
+    db.session.commit()
+    job, _workspace = _job()
+    job.catalog_request_id = solicitud.id
+    db.session.commit()
+
+    respuesta = client.post(f"/jobs/{job.id}/eliminar")
+
+    assert respuesta.status_code == 302
+    db.session.expire_all()
+    solicitud = db.session.get(CatalogRequest, solicitud.id)
+    assert solicitud.job_deleted_at is not None
+
+    detalle = client.get(f"/solicitudes/{solicitud.id}").get_data(as_text=True)
+    assert "Trabajo eliminado" in detalle
+    assert "fue eliminado" in detalle
+
+    lista = client.get("/solicitudes/").get_data(as_text=True)
+    assert "Trabajo eliminado" in lista
 
 
 def test_no_elimina_trabajo_activo(client, login):

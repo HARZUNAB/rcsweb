@@ -75,6 +75,11 @@ catálogo tiene su propio **porcentaje de avance**. Si el catálogo informa
 etapas internas, el porcentaje avanza con ellas; si no, se mantiene el estado
 de descarga y el reloj.
 
+Si el trabajo generado por la solicitud se elimina, la solicitud se conserva en
+el historial con el aviso **Trabajo eliminado** y la fecha de eliminación. El
+estado de descarga sigue siendo **Terminada**, porque la descarga sí se completó;
+el aviso indica que ya no existe el trabajo asociado.
+
 ![Descarga en curso](img/descarga.png)
 
 ### Subir catálogos

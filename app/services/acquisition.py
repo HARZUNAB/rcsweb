@@ -236,6 +236,7 @@ def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
         station_radius_km=request.station_radius_km,
         created_by_id=request.requested_by_id,
     )
+    request.job_deleted_at = None
     db.session.add(job)
     db.session.commit()
     job_workspace = crear_workspace(job.id)

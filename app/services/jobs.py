@@ -7,7 +7,7 @@ import shutil
 from flask import current_app
 
 from ..extensions import db
-from ..models import Job
+from ..models import CatalogRequest, Job, utcnow
 from ..security import alcance_total
 from .audit import registrar
 from .workspace import ruta_workspace
@@ -47,6 +47,10 @@ def eliminar_trabajo(job: Job, *, origen: str = "web", user_id: int | None = Non
         user_id=user_id or job.created_by_id,
         commit=False,
     )
+    if job.catalog_request_id:
+        solicitud = db.session.get(CatalogRequest, job.catalog_request_id)
+        if solicitud is not None:
+            solicitud.job_deleted_at = utcnow()
     db.session.delete(job)
     db.session.commit()
 
