@@ -268,7 +268,8 @@ aplicación.
   **Descargar** para obtener solo ese PNG. El panel **Generar todos los mapas**
   permite incluir o no las plantas y elegir las variantes de perfil antes de
   descargar el ZIP. La interfaz indica cuántos PNG se incluirán y ofrece
-  **Seleccionar todo**. Permite obtener:
+  **Seleccionar todo**, que marca las plantas y las dos variantes de perfil.
+  Permite obtener:
   - `catalogo.csv`, con fecha y hora, latitud, longitud, profundidad, magnitud,
     tipo de magnitud y referencia geográfica si la fuente la tiene;
   - `planta_nacional.png`, `planta_insular.png`, `planta_antartico.png` y

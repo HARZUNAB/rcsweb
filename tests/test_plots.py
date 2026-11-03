@@ -9,7 +9,7 @@ import pytest
 
 from app.extensions import db
 from app.models import Job, nuevo_uuid
-from app.services import plots
+from app.services import colores, plots
 from app.services.extent import (
     MARGEN_MAXIMO,
     MARGEN_MINIMO,
@@ -131,6 +131,30 @@ def test_eventos_catalogo_eventquery_usa_analista_probable():
     assert len(eventos) == 1
     assert eventos[0]["analista"] == "SeisComp: cris; Seisan: beto"
     assert eventos[0]["analista_etiqueta"] == "Analista probable"
+
+
+def test_evento_catalogo_percibido_no_se_marca_como_local():
+    fila = {
+        "Fecha_Hora": "2026-10-01 00:00:00",
+        "Latitud": "-30.0",
+        "Longitud": "-71.0",
+        "Prof.": "10.0",
+        "Mag.": "3.0",
+        "Tipo_mag.": "ML",
+        "Percep.": "S",
+    }
+
+    eventos = plots._eventos(
+        "catalogos",
+        "catalogo_eventquery.csv",
+        [fila],
+        0,
+        opcion="eventquery",
+    )
+
+    assert eventos[0]["rol"] is None
+    assert eventos[0]["percibido"] == "S"
+    assert colores.color_relleno("eventquery", eventos[0]) == colores.COLOR_PERCIBIDO
 
 
 def test_eventos_repetidos_publicados_combinan_analistas():

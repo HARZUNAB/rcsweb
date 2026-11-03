@@ -17,7 +17,7 @@ PLANTAS = (
     ("otros", "Otros", None),
 )
 
-VERSION_MAPAS = "catalogo-v5"
+VERSION_MAPAS = "catalogo-v7"
 
 _CACHE: dict[tuple, dict] = {}
 _CACHE_LOCK = threading.Lock()

@@ -110,7 +110,7 @@ def _eventos(
     return [
         {
             "rol": solucion["rol"]
-            or ("local" if tabla in ("no_publicados", "catalogos") else None),
+            or ("local" if tabla == "no_publicados" else None),
             "percibido": solucion["percibido"],
             "fecha hora": solucion["fecha"],
             "latitud": solucion["lat"],

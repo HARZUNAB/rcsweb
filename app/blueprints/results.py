@@ -628,7 +628,11 @@ def _filtros_catalogo() -> dict[str, str]:
 
 
 def _params_catalogo(job_id: str, opcion: str) -> dict:
-    params = {"job_id": job_id, "opcion": opcion}
+    params = {
+        "job_id": job_id,
+        "opcion": opcion,
+        "v": catalog_export.VERSION_MAPAS,
+    }
     for clave in ("q", "sort", "dir"):
         valor = request.args.get(clave, "").strip()
         if valor:
@@ -736,6 +740,7 @@ def catalogo(job_id: str, opcion: str):
         opcion=opcion,
         titulo=titulo,
         datos=datos,
+        version_mapas=catalog_export.VERSION_MAPAS,
         url_csv=url_for("results.catalogo_csv", **params),
         url_planta=lambda clave: url_for(
             "results.catalogo_planta_territorio",
@@ -798,7 +803,7 @@ def catalogo_planta_territorio(job_id: str, opcion: str, clave: str):
     )
     if not png:
         abort(404)
-    return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
+    return send_file(BytesIO(png), mimetype="image/png", max_age=0)
 
 
 @results_bp.get("/jobs/<job_id>/resultados/catalogos/<opcion>/catalogo/planta.png")
@@ -822,7 +827,7 @@ def catalogo_planta(job_id: str, opcion: str):
     )
     if not png:
         abort(404)
-    return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
+    return send_file(BytesIO(png), mimetype="image/png", max_age=0)
 
 
 @results_bp.get(
@@ -865,7 +870,7 @@ def catalogo_perfil(job_id: str, opcion: str, perfil_id: str):
     )
     if not png:
         abort(404)
-    return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
+    return send_file(BytesIO(png), mimetype="image/png", max_age=0)
 
 
 def _opciones_zip() -> tuple[bool, str]:

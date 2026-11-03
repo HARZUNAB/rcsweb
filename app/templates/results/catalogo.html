@@ -86,6 +86,10 @@
                 id="zip-todo">
           Seleccionar todo
         </button>
+        <span id="zip-todo-estado" class="small text-success d-none"
+              role="status" aria-live="polite">
+          Todo seleccionado
+        </span>
         <button class="btn btn-primary" type="submit" id="zip-boton">
           Descargar ZIP
         </button>
@@ -227,5 +231,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/catalogo_mapas.js') }}"></script>
+<script src="{{ url_for('static', filename='js/catalogo_mapas.js', v=version_mapas) }}"></script>
 {% endblock %}

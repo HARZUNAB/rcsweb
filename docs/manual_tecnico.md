@@ -866,7 +866,10 @@ Los mapas de catálogo se solicitan a demanda desde
 botón pide el PNG, muestra un indicador de actividad y lo presenta en un modal.
 El ZIP recibe `plantas=0|1` y `perfiles=solo|con_planta|ambos` para incluir solo
 lo seleccionado. `catalog_export` cachea el catálogo preparado por archivo y
-parámetros, y los PNG quedan cacheados en el workspace.
+parámetros, y los PNG quedan cacheados en el workspace. Las URLs de mapas
+incluyen `v=<VERSION_MAPAS>`, los PNG de catálogo se envían con `max_age=0` y
+`catalogo_mapas.js` usa `cache: "no-store"` para que el navegador no muestre una
+imagen anterior.
 
 Para estos mapas se pasa `sospechosos=False`, `leyenda_items` y se ordenan los
 eventos con `_orden_para_mapa()`: los no percibidos se dibujan primero y los

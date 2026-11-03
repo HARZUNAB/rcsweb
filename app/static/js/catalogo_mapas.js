@@ -58,6 +58,7 @@
     const respuesta = await fetch(url, {
       headers: { Accept: tipo },
       credentials: "same-origin",
+      cache: "no-store",
     });
     if (!respuesta.ok) {
       throw new Error("El servidor respondió con error " + respuesta.status + ".");
@@ -277,6 +278,8 @@
       });
 
     const botonTodo = document.getElementById("zip-todo");
+    const estadoTodo = document.getElementById("zip-todo-estado");
+    let temporizadorTodo = null;
     if (botonTodo) {
       botonTodo.addEventListener("click", function () {
         const plantas = document.getElementById("zip-plantas");
@@ -288,6 +291,21 @@
           ambos.checked = true;
         }
         actualizarResumen();
+        botonTodo.classList.remove("btn-outline-secondary");
+        botonTodo.classList.add("btn-success");
+        botonTodo.textContent = "Todo seleccionado";
+        if (estadoTodo) {
+          estadoTodo.classList.remove("d-none");
+        }
+        window.clearTimeout(temporizadorTodo);
+        temporizadorTodo = window.setTimeout(function () {
+          botonTodo.classList.remove("btn-success");
+          botonTodo.classList.add("btn-outline-secondary");
+          botonTodo.textContent = "Seleccionar todo";
+          if (estadoTodo) {
+            estadoTodo.classList.add("d-none");
+          }
+        }, 2200);
       });
     }
 

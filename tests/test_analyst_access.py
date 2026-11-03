@@ -188,8 +188,10 @@ def test_catalogo_nuevo_csv_sanitizado_y_sin_analista(app, client):
         f"/jobs/{job.id}/resultados/catalogos/seisan/catalogo"
     )
     assert preview.status_code == 200
-    assert "Descargar CSV" in preview.get_data(as_text=True)
-    assert "Descargar ZIP" in preview.get_data(as_text=True)
+    html = preview.get_data(as_text=True)
+    assert "Descargar CSV" in html
+    assert "Descargar ZIP" in html
+    assert "v=catalogo-v7" in html
 
     respuesta = client.get(
         f"/jobs/{job.id}/resultados/catalogos/seisan/catalogo.csv"
