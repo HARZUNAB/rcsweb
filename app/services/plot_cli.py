@@ -104,52 +104,53 @@ def _quitar_sospechosos(figura) -> None:
 
 
 def _ajustar_localidades(figura, modo: str) -> None:
-    """Mantiene los nombres de localidades dentro y separados en el mapa."""
+    """Deja solo la localidad más cercana y la mantiene dentro del mapa.
+
+    El mapa de Otros incluye la costa chilena como referencia. Mostrar todos
+    los nombres de localidades llena la imagen de etiquetas; basta con la más
+    cercana al punto de contexto para orientar al usuario.
+    """
     if modo == "perfil" or not figura.axes:
         return
     ax = figura.axes[0]
-    textos = list(ax.texts)
+    textos = [texto for texto in ax.texts if texto.get_text().strip()]
     if not textos:
         return
     xmin, xmax = ax.get_xlim()
     ymin, ymax = ax.get_ylim()
     ancho = xmax - xmin
     alto = ymax - ymin
+    if _contexto is not None:
+        ref_lat, ref_lon = _contexto
+    else:
+        ref_lon = (xmin + xmax) / 2
+        ref_lat = (ymin + ymax) / 2
 
-    try:
-        from adjustText import adjust_text
+    def _distancia(texto) -> float:
+        lon, lat = texto.get_position()
+        return (lon - ref_lon) ** 2 + (lat - ref_lat) ** 2
 
-        adjust_text(
-            textos,
-            ax=ax,
-            expand=(1.05, 1.15),
-            min_arrow_len=0,
-            iter_lim=40,
-            arrowprops=dict(
-                arrowstyle="-", color="black", lw=0.4, alpha=0.55
-            ),
-        )
-    except Exception:
-        pass
-
+    cercano = min(textos, key=_distancia)
     for texto in textos:
-        x, y = texto.get_position()
-        if x > xmax - ancho * 0.12:
-            texto.set_ha("right")
-            x = xmax - ancho * 0.02
-        elif x < xmin + ancho * 0.12:
-            texto.set_ha("left")
-            x = xmin + ancho * 0.02
-        if y > ymax - alto * 0.08:
-            texto.set_va("top")
-            y = ymax - alto * 0.02
-        elif y < ymin + alto * 0.08:
-            texto.set_va("bottom")
-            y = ymin + alto * 0.02
-        texto.set_position((x, y))
-        texto.set_fontsize(7)
-        texto.set_clip_on(True)
+        if texto is not cercano:
+            texto.set_visible(False)
 
+    x, y = cercano.get_position()
+    if x > xmax - ancho * 0.12:
+        cercano.set_ha("right")
+        x = xmax - ancho * 0.02
+    elif x < xmin + ancho * 0.12:
+        cercano.set_ha("left")
+        x = xmin + ancho * 0.02
+    if y > ymax - alto * 0.08:
+        cercano.set_va("top")
+        y = ymax - alto * 0.02
+    elif y < ymin + alto * 0.08:
+        cercano.set_va("bottom")
+        y = ymin + alto * 0.02
+    cercano.set_position((x, y))
+    cercano.set_fontsize(8)
+    cercano.set_clip_on(True)
 
 def _leyenda_catalogo(figura, items: list[dict], modo: str) -> None:
     handles = [

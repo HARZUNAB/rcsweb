@@ -620,7 +620,8 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   genera solo si tiene eventos. Los eventos fuera de Chile se envían a Otros
   cuando superan un radio de influencia según la magnitud (200 km para M<4, 300
   para M4, 400 para M5 y 500 para M6 o más). El mapa de Otros incluye la costa
-  o islas chilenas más cercanas como referencia. Cada perfil ofrece
+  o islas chilenas más cercanas como referencia y muestra solo el nombre de la
+  localidad más cercana. Cada perfil ofrece
   `perfil_<id>.png` (solo perfil) y `perfil_<id>_planta.png` (perfil y planta),
   con solo los eventos asignados a ese perfil. El CSV contiene fecha y hora,
   coordenadas, profundidad, magnitud, tipo de magnitud y referencia geográfica
