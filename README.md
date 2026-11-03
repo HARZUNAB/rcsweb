@@ -623,7 +623,9 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   o islas chilenas más cercanas como referencia y muestra solo el nombre y el
   punto de la localidad más cercana a los sismos. Cada perfil ofrece
   `perfil_<id>.png` (solo perfil) y `perfil_<id>_planta.png` (perfil y planta),
-  con solo los eventos asignados a ese perfil. El CSV contiene fecha y hora,
+  con solo los eventos asignados a ese perfil. Los botones de cada perfil se
+  agrupan en **Ver** y **Descargar**, con las variantes **Planta/perfil** y
+  **Perfil**. El CSV contiene fecha y hora,
   coordenadas, profundidad, magnitud, tipo de magnitud y referencia geográfica
   cuando existe; no incluye al analista. El catálogo
   **Eventquery** agrega la columna **«Analista probable»**, deducida cruzando

@@ -155,35 +155,47 @@
             evento{{ '' if datos.perfiles_total.get(perfil_id, 0) == 1 else 's' }}
           </span>
         </div>
-        <div class="d-flex flex-wrap gap-2">
-          <a class="btn btn-sm btn-outline-primary js-mapa-ver"
-             href="{{ url_perfil(perfil_id, 'perfil') }}"
-             data-url="{{ url_perfil(perfil_id, 'perfil') }}"
-             data-titulo="Perfil {{ perfil_id }} · solo perfil"
-             data-nombre="perfil_{{ perfil_id }}.png">
-            Ver solo perfil
-          </a>
-          <a class="btn btn-sm btn-outline-primary js-mapa-ver"
-             href="{{ url_perfil(perfil_id, 'auto') }}"
-             data-url="{{ url_perfil(perfil_id, 'auto') }}"
-             data-titulo="Perfil {{ perfil_id }} · perfil + planta"
-             data-nombre="perfil_{{ perfil_id }}_planta.png">
-            Ver perfil + planta
-          </a>
-          <a class="btn btn-sm btn-outline-secondary js-mapa-descargar"
-             href="{{ url_perfil(perfil_id, 'perfil') }}"
-             download="perfil_{{ perfil_id }}.png"
-             data-url="{{ url_perfil(perfil_id, 'perfil') }}"
-             data-nombre="perfil_{{ perfil_id }}.png">
-            Descargar solo perfil
-          </a>
-          <a class="btn btn-sm btn-outline-secondary js-mapa-descargar"
-             href="{{ url_perfil(perfil_id, 'auto') }}"
-             download="perfil_{{ perfil_id }}_planta.png"
-             data-url="{{ url_perfil(perfil_id, 'auto') }}"
-             data-nombre="perfil_{{ perfil_id }}_planta.png">
-            Descargar perfil + planta
-          </a>
+        <div class="d-flex flex-column align-items-sm-end gap-2">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="small text-secondary">Ver</span>
+            <div class="btn-group btn-group-sm" role="group">
+              <a class="btn btn-outline-primary js-mapa-ver"
+                 href="{{ url_perfil(perfil_id, 'auto') }}"
+                 data-url="{{ url_perfil(perfil_id, 'auto') }}"
+                 data-titulo="Perfil {{ perfil_id }} · planta/perfil"
+                 data-nombre="perfil_{{ perfil_id }}_planta.png"
+                 title="Ver perfil con la planta de contexto">
+                Planta/perfil
+              </a>
+              <a class="btn btn-outline-primary js-mapa-ver"
+                 href="{{ url_perfil(perfil_id, 'perfil') }}"
+                 data-url="{{ url_perfil(perfil_id, 'perfil') }}"
+                 data-titulo="Perfil {{ perfil_id }} · perfil"
+                 data-nombre="perfil_{{ perfil_id }}.png"
+                 title="Ver solo el perfil">
+                Perfil
+              </a>
+            </div>
+          </div>
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="small text-secondary">Descargar</span>
+            <div class="btn-group btn-group-sm" role="group">
+              <a class="btn btn-outline-secondary js-mapa-descargar"
+                 href="{{ url_perfil(perfil_id, 'auto') }}"
+                 download="perfil_{{ perfil_id }}_planta.png"
+                 data-url="{{ url_perfil(perfil_id, 'auto') }}"
+                 data-nombre="perfil_{{ perfil_id }}_planta.png">
+                Planta/perfil
+              </a>
+              <a class="btn btn-outline-secondary js-mapa-descargar"
+                 href="{{ url_perfil(perfil_id, 'perfil') }}"
+                 download="perfil_{{ perfil_id }}.png"
+                 data-url="{{ url_perfil(perfil_id, 'perfil') }}"
+                 data-nombre="perfil_{{ perfil_id }}.png">
+                Perfil
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>

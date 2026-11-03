@@ -275,7 +275,8 @@ aplicación.
   - `planta_nacional.png`, `planta_insular.png`, `planta_antartico.png` y
     `planta_otros.png`, cada uno solo si tiene eventos;
   - `perfil_<id>.png` (solo perfil) y `perfil_<id>_planta.png` (perfil + planta)
-    por cada perfil;
+    por cada perfil, agrupados en **Ver** y **Descargar** con las dos variantes
+    **Planta/perfil** y **Perfil**;
   - un ZIP con todo lo seleccionado.
   El CSV no incluye el nombre del analista. Los mapas de esta vista llevan una
   leyenda mínima: amarillo para no percibidos y rojo solo si hay percibidos.
