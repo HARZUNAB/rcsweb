@@ -448,6 +448,21 @@ flask --app app db history
 flask --app app db upgrade
 ```
 
+En Docker:
+
+```bash
+make migrate    # aplica migraciones pendientes
+make up         # aplica migraciones y levanta web, worker, db y redis
+make restart    # reinicia web y worker
+```
+
+`make up` ejecuta `make migrate` antes de levantar los servicios. El comando
+`flask db upgrade` del contenedor `web` corre al arrancar, pero el recargador de
+Flask no lo repite cuando cambia el código. Si se actualiza el repositorio sin
+reiniciar, hay que ejecutar `make migrate` y luego reiniciar `web` y `worker`.
+El `worker` depende de que `web` esté saludable para no procesar solicitudes con
+un esquema incompleto.
+
 Las pruebas usan SQLite en memoria (`TestConfig`), por lo que no reproducen
 todas las diferencias de PostgreSQL. La base de producción es PostgreSQL 16.
 

@@ -1,12 +1,13 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 
-.PHONY: help up down logs ps shell test lint fmt init-db ping-db restore-csn clean
+.PHONY: help up down restart logs ps shell test lint fmt init-db migrate ping-db restore-csn clean
 
 help:
 	@echo "Objetivos disponibles:"
-	@echo "  make up          Levanta web, worker, db y redis"
+	@echo "  make up          Aplica migraciones y levanta web, worker, db y redis"
 	@echo "  make down        Detiene los servicios (conserva datos)"
+	@echo "  make restart     Reinicia web y worker"
 	@echo "  make logs        Sigue los logs de todos los servicios"
 	@echo "  make ps          Estado de los servicios"
 	@echo "  make shell       Shell dentro del contenedor web"
@@ -19,11 +20,14 @@ help:
 	@echo "  make restore-csn Restaura el dump csn_test (etapa 6a)"
 	@echo "  make clean       Baja servicios y borra volúmenes"
 
-up:
+up: migrate
 	$(COMPOSE) up -d --build
 
 down:
 	$(COMPOSE) down
+
+restart:
+	$(COMPOSE) restart web worker
 
 logs:
 	$(COMPOSE) logs -f
@@ -47,12 +51,12 @@ venv:
 	python3.12 -m venv .venv
 	.venv/bin/pip install -e ".[dev]"
 
-init-db:
-	$(COMPOSE) exec web flask --app app db upgrade
-	$(COMPOSE) exec web flask --app app seed-admin
+init-db: migrate
+	$(COMPOSE) run --rm --no-deps web flask --app app seed-admin
 
 migrate:
-	$(COMPOSE) exec web flask --app app db upgrade
+	$(COMPOSE) up -d --wait db redis
+	$(COMPOSE) run --rm --no-deps web flask --app app db upgrade
 
 ping-db:
 	$(COMPOSE) exec db psql -U $${POSTGRES_USER:-rcs} -d $${POSTGRES_DB:-rcs} -c "SELECT 1;"

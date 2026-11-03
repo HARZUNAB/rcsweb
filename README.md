@@ -280,9 +280,28 @@ servidor al crear el trabajo.
 El esquema se administra con **Alembic / Flask-Migrate**:
 
 ```bash
-make migrate    # flask db upgrade
-make init-db    # db upgrade + seed-admin
+make migrate    # aplica las migraciones pendientes
+make init-db    # aplica migraciones y crea el administrador
+make up         # aplica migraciones y levanta web, worker, db y redis
+make restart    # reinicia web y worker
 ```
+
+`make up` ejecuta `make migrate` antes de levantar los servicios. Así, después
+de actualizar el código con una migración nueva, no es necesario recordar el
+`db upgrade` por separado.
+
+El contenedor `web` también ejecuta `flask db upgrade` al arrancar, pero el
+recargador de Flask no repite ese comando cuando cambia el código. Por eso, si
+actualiza el repositorio sin reiniciar los contenedores, ejecute:
+
+```bash
+make migrate
+docker compose restart web worker
+```
+
+Si aparece un error del tipo `column ... does not exist`, la base quedó en una
+revisión anterior. Aplique `make migrate` y reinicie `web` y `worker` antes de
+volver a crear solicitudes.
 
 Los trabajos existentes se migraron con `job_sources` inferidas desde
 `job_files`: la fuente local principal es SeisComp si estaba presente; si no,
