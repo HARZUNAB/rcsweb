@@ -158,7 +158,11 @@ Más abajo está el perfil de subducción.
 
 - **Sismicidad histórica (perfil)** agrega los sismos históricos en gris.
 - El perfil conserva su escala al activar o desactivar la casilla.
-- Al pasar el mouse por un evento se resalta también en la otra vista.
+- Al pasar el mouse por un evento, sus parámetros aparecen en el panel fijo y
+  no se dibuja una etiqueta sobre los eventos vecinos. El clic fija la selección
+  y resalta el evento en ambas vistas.
+- El cursor del perfil se mantiene como puntero normal; el arrastre sigue
+  permitiendo acercar una zona.
 - **Abrir PNG** y **Descargar PNG** generan una imagen del mapa.
 - El PNG incluye un encabezado con una fila por evento: fecha y hora, magnitud,
   profundidad, coordenadas, analista y estado en la otra fuente, separados por
@@ -185,8 +189,10 @@ perfil, por territorio.
 - **Ver** abre el detalle del grupo con el mismo mapa interactivo de Resultados
   y Catálogos: planta, perfil, selector online/offline, listado de eventos y
   botones para abrir o descargar el PNG.
-- Al hacer clic en un evento de la planta o del perfil, el detalle aparece en un
-  cuadro pequeño justo debajo de ambos mini mapas, sin tapar la interfaz.
+- Al pasar el cursor por un evento de la planta o del perfil, el detalle se
+  previsualiza en el cuadro ubicado justo debajo de ambos mini mapas. Al hacer
+  clic, la selección queda fija. El cuadro no tapa la interfaz ni los eventos
+  vecinos.
 - **Planta del grupo**: muestra los eventos y las divisiones regionales de
   Chile. Use **Centrar** para volver al encuadre del grupo después de hacer
   zoom o desplazar.

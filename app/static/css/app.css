@@ -198,6 +198,14 @@ footer {
   background: #fff;
 }
 
+/* Plotly deja el cursor de zoom (cruz) sobre el área del perfil. Al apuntar
+   eventos cercanos conviene un puntero normal; el arrastre sigue funcionando
+   y dibuja el rectángulo de zoom. */
+#panel-perfil .nsewdrag,
+#perfil-detalle .nsewdrag {
+  cursor: default !important;
+}
+
 #perfil-detalle {
   position: relative;
 }

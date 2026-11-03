@@ -863,6 +863,13 @@ En la vista general, el detalle del evento seleccionado se dibuja en
 el panel lateral derecho. Los ejes de ambos perfiles agregan margen sobre el
 rango real para que los eventos profundos no queden recortados.
 
+Los eventos usan `hoverinfo: "none"` en las trazas de Plotly. Así se mantienen
+los eventos `plotly_hover` y `plotly_unhover`, pero no se dibuja la etiqueta
+flotante que tapaba los marcadores vecinos. El hover actualiza el panel fijo; el
+clic fija la selección. Leaflet no usa `bindTooltip` por la misma razón. El
+cursor de zoom del perfil se anula con CSS sobre `.nsewdrag` para no mostrar una
+cruz al apuntar.
+
 Todos los detalles usan una columna de mapas de 7/12 y un panel de evento de
 5/12. El panel reemplaza a la viñeta flotante. En modo offline,
 `app/static/js/regiones_mapa.js` dibuja el contorno nacional y las divisiones

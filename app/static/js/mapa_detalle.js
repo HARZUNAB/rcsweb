@@ -21,6 +21,14 @@
     return;
   }
 
+  let seleccionado = null;
+  let temporizadorPrevio = null;
+  const TEXTO_SIN_SELECCION =
+    '<div class="small text-secondary">' +
+    "Pase el cursor por un evento para previsualizarlo; " +
+    "haga clic para fijarlo." +
+    "</div>";
+
   const perfilDatosEl = document.getElementById("perfil-datos");
   let perfilDatos = null;
   try {
@@ -128,6 +136,30 @@
       ancla: ancla,
       evitar: [contenedor, perfil].filter(Boolean),
     });
+  }
+
+  // El panel fijo recibe la vista previa sin abrir etiquetas flotantes que
+  // tapen los marcadores vecinos.
+  function mostrarPrevio(punto) {
+    if (!panelContenido || !punto) {
+      return;
+    }
+    window.clearTimeout(temporizadorPrevio);
+    temporizadorPrevio = null;
+    panelContenido.innerHTML = detalleHtml(punto);
+  }
+
+  function restaurarPrevio() {
+    if (!panelContenido) {
+      return;
+    }
+    window.clearTimeout(temporizadorPrevio);
+    temporizadorPrevio = window.setTimeout(function () {
+      temporizadorPrevio = null;
+      panelContenido.innerHTML = seleccionado
+        ? detalleHtml(seleccionado)
+        : TEXTO_SIN_SELECCION;
+    }, 60);
   }
 
   let plantaTipo = "plotly";
@@ -306,49 +338,6 @@
     return traza;
   }
 
-  // Hover sincronizado: al pasar por un punto se dispara el hover del mismo
-  // evento en el otro gráfico; el flag evita el bucle entre ambos.
-  let sincronizandoHover = false;
-
-  function hoverEn(plot, traza, indice, subplot) {
-    if (
-      !plot ||
-      !window.Plotly ||
-      !window.Plotly.Fx ||
-      !plot.data ||
-      traza === null ||
-      indice < 0
-    ) {
-      return;
-    }
-    sincronizandoHover = true;
-    window.Plotly.Fx.hover(
-      plot,
-      [{ curveNumber: traza, pointNumber: indice }],
-      subplot || "xy"
-    );
-    window.setTimeout(function () {
-      sincronizandoHover = false;
-    }, 0);
-  }
-
-  function quitarHover(plot) {
-    if (
-      !plot ||
-      !window.Plotly ||
-      !window.Plotly.Fx ||
-      !plot.data ||
-      sincronizandoHover
-    ) {
-      return;
-    }
-    sincronizandoHover = true;
-    window.Plotly.Fx.unhover(plot);
-    window.setTimeout(function () {
-      sincronizandoHover = false;
-    }, 0);
-  }
-
   function resaltarPlanta(indice) {
     if (plantaTipo === "leaflet") {
       marcadoresLeaflet.forEach(function (marcador, i) {
@@ -415,19 +404,22 @@
     if (!punto) {
       return;
     }
+    seleccionado = punto;
+    window.clearTimeout(temporizadorPrevio);
+    temporizadorPrevio = null;
     mostrarSeleccion(punto, ancla);
     resaltarPlanta(buscarIndice(puntos, punto));
     resaltarPerfil(buscarIndice(perfilEventos, punto));
   }
 
   function limpiarSeleccion() {
+    seleccionado = null;
+    window.clearTimeout(temporizadorPrevio);
+    temporizadorPrevio = null;
     resaltarPlanta(-1);
     resaltarPerfil(-1);
     if (panelContenido) {
-      panelContenido.innerHTML =
-        '<div class="small text-secondary">' +
-        "Haga clic en un evento del mapa o del perfil para ver sus parámetros." +
-        "</div>";
+      panelContenido.innerHTML = TEXTO_SIN_SELECCION;
     }
     if (window.RCSVineta) {
       window.RCSVineta.ocultar();
@@ -548,7 +540,7 @@
           }),
         },
       },
-      hovertemplate: "%{text}<extra></extra>",
+      hoverinfo: "none",
       name: "Eventos",
     });
     const superpuestosPerfil = trazaSuperpuestos(eventos, true);
@@ -616,31 +608,16 @@
         }
       });
       perfil.on("plotly_hover", function (evento) {
-        if (sincronizandoHover) {
-          return;
-        }
         const seleccion = evento.points[0];
         if (!seleccion || seleccion.curveNumber !== perfilTrazaIdx) {
           return;
         }
         const punto = seleccion.customdata;
-        if (!punto) {
-          return;
-        }
-        const indice = buscarIndice(puntos, punto);
-        if (plantaTipo === "leaflet") {
-          abrirTooltipMapa(indice);
-        } else {
-          hoverEn(contenedor, 0, indice, "geo");
+        if (punto) {
+          mostrarPrevio(punto);
         }
       });
-      perfil.on("plotly_unhover", function () {
-        if (plantaTipo === "leaflet") {
-          cerrarTooltipsMapa();
-        } else {
-          quitarHover(contenedor);
-        }
-      });
+      perfil.on("plotly_unhover", restaurarPrevio);
     });
   }
 
@@ -801,7 +778,7 @@
           }),
         },
       },
-      hovertemplate: "%{text}<extra></extra>",
+      hoverinfo: "none",
     };
     trazas.push(traza);
     const superpuestosMapa = trazaSuperpuestos(puntos, false);
@@ -865,39 +842,16 @@
         }
       });
       contenedor.on("plotly_hover", function (evento) {
-        if (sincronizandoHover) {
-          return;
-        }
         const seleccion = evento.points[0];
         if (!seleccion || seleccion.curveNumber !== 0) {
           return;
         }
         const punto = seleccion.customdata;
-        if (!punto) {
-          return;
+        if (punto) {
+          mostrarPrevio(punto);
         }
-        const indice = buscarIndice(perfilEventos, punto);
-        hoverEn(perfil, perfilTrazaIdx, indice, "xy");
       });
-      contenedor.on("plotly_unhover", function () {
-        quitarHover(perfil);
-      });
-    });
-  }
-
-  function abrirTooltipMapa(indice) {
-    marcadoresLeaflet.forEach(function (marcador, i) {
-      if (i === indice && marcador.openTooltip) {
-        marcador.openTooltip();
-      }
-    });
-  }
-
-  function cerrarTooltipsMapa() {
-    marcadoresLeaflet.forEach(function (marcador) {
-      if (marcador.closeTooltip) {
-        marcador.closeTooltip();
-      }
+      contenedor.on("plotly_unhover", restaurarPrevio);
     });
   }
 
@@ -965,21 +919,11 @@
         fillOpacity: 0.85,
         weight: borde.width,
       }).addTo(mapa);
-      // En Leaflet el hover muestra la identificación y sincroniza el perfil.
-      marcador.bindTooltip(punto.etiqueta + " · " + punto.fecha, {
-        sticky: true,
-        direction: "top",
-      });
+      // El hover actualiza el panel fijo, sin tooltip pegado al cursor.
       marcador.on("mouseover", function () {
-        if (sincronizandoHover) {
-          return;
-        }
-        const indice = buscarIndice(perfilEventos, punto);
-        hoverEn(perfil, perfilTrazaIdx, indice, "xy");
+        mostrarPrevio(punto);
       });
-      marcador.on("mouseout", function () {
-        quitarHover(perfil);
-      });
+      marcador.on("mouseout", restaurarPrevio);
       marcador.on("click", function (evento) {
         const original = evento.originalEvent;
         let ancla = null;

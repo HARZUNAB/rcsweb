@@ -1,6 +1,6 @@
 {% set hist_activo = historico_activo|default(false) %}
 {% set titulo = titulo_mapa|default('Mapa interactivo') %}
-{% set descripcion = descripcion_mapa|default('Planta y perfil. Haga clic en un evento de cualquiera de las dos vistas: se resalta en ambas y se muestran sus parámetros.') %}
+{% set descripcion = descripcion_mapa|default('Planta y perfil. Pase el cursor por un evento para previsualizarlo en el panel; haga clic para fijarlo y resaltarlo en ambas vistas.') %}
 {% set archivo_png = download_name|default('mapa.png') %}
 {% set texto_perfil_vacio = texto_sin_perfil|default('El evento no tiene perfil de subducción asignado.') %}
 <div class="card border-0 shadow-sm">
@@ -115,7 +115,8 @@
                     aria-label="Cerrar detalle"></button>
           </div>
           <div id="detalle-evento-contenido" class="small text-secondary">
-            Haga clic en un evento del mapa o del perfil para ver sus parámetros.
+            Pase el cursor por un evento para previsualizarlo; haga clic para
+            fijarlo y resaltarlo en ambas vistas.
           </div>
         </div>
       </div>

@@ -9,7 +9,7 @@ plataforma puede solicitar y descargar catálogos del servidor y obtener SeisCom
 desde PostgreSQL en solo lectura, combinando todas las bases. El radio de
 estaciones es editable por solicitud, con 400 km por defecto. Las fechas se
 ingresan como `dd/mm/aaaa` y el detalle del evento incluye mapas interactivos
-online/offline con zoom, colores por fuente y viñetas de parámetros.
+online/offline con zoom, colores por fuente y panel de parámetros.
 
 ## Documentación
 
@@ -299,12 +299,11 @@ Seisan. El trabajo de demostración conserva sus resultados.
   horizontal).
 - **Detalle interactivo**: planta y perfil con zoom. Online usa Leaflet con
   OpenStreetMap; offline usa Plotly con TopoJSON local (`world_110m.json` y
-  `world_50m.json`). Los eventos se colorean por fuente, hay leyenda y al hacer
-  clic se muestran sus parámetros en una viñeta flotante. **La selección es
-  compartida**: al elegir un evento en la planta o en el perfil se abre la misma
-  viñeta y el evento se resalta en ambas vistas; no se dibuja una línea vertical.
-  La viñeta busca una zona libre y no se superpone con la planta ni el perfil;
-  en pantallas angostas se muestra como hoja inferior. La planta abre con una
+  `world_50m.json`). Los eventos se colorean por fuente, hay leyenda y al pasar
+  el cursor sus parámetros se previsualizan en el panel fijo. Al hacer clic la
+  selección queda fija y el evento se resalta en ambas vistas; no se dibuja una
+  línea vertical ni una etiqueta flotante sobre los marcadores vecinos. En
+  pantallas angostas el panel pasa debajo de los mapas. La planta abre con una
   vista regional: si el evento o el grupo están muy concentrados, se usa un
   mínimo de 8° de longitud × 3° de latitud y se limita el zoom inicial a 7.
   En `No actualizados` se ven la solución local y la publicada; en `Repetidos`
@@ -333,7 +332,7 @@ Seisan. El trabajo de demostración conserva sus resultados.
 - **Sospechosos**: se reutiliza `sismicidad.es_sospechoso` del core. El evento
   conserva el color de su fuente y se marca con borde violeta `#7b1196` y la
   leyenda “Sospechoso (borde violeta)”.
-- **Frontera**: los listados y las viñetas muestran la distancia a la frontera
+- **Frontera**: los listados y el panel del evento muestran la distancia a la frontera
   chilena más cercana (Perú, Bolivia o Argentina), reutilizando `fronteras.py`.
   No se muestra dentro de Chile ni en mar chileno; en el mar solo se muestra
   para aguas peruanas, según la regla de la interfaz.
@@ -541,10 +540,10 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   reclamo) y **Otros** (otros países y alta mar). La vista muestra el resumen por
   perfil y, al seleccionar un grupo, la planta de sus eventos y el perfil
   topografía/slab **lado a lado**. Si el grupo no tiene perfil, el área del perfil
-  muestra **«Perfil no disponible»**. Al hacer clic en un evento de cualquiera de
-  las dos vistas se resalta en ambas, se muestra su viñeta flotante —ubicada
-  sobre la columna de grupos para no tapar los mapas— y se puede abrir el detalle
-  completo (planta y perfil interactivos) en una pestaña nueva.
+  muestra **«Perfil no disponible»**. Al pasar el cursor por un evento de
+  cualquiera de las dos vistas, sus datos se previsualizan en la tarjeta inferior;
+  al hacer clic la selección queda fija, se resalta en ambas y se puede abrir el
+  detalle completo (planta y perfil interactivos) en una pestaña nueva.
 - **Observaciones**: los informes de repetidos se deduplican por evento (fuente
   + fecha + coordenadas + profundidad), de modo que un evento que aparece en
   `amplio`, `estricto` y `excluidos` se cuenta una sola vez. Los filtros se

@@ -389,7 +389,7 @@ def test_repetidos_detalle_oculta_ver(client, login):
 
     assert "data-href=" in html
     assert ">Ver</a>" not in html
-    assert "Haga clic en un evento" in html
+    assert "Pase el cursor por un evento" in html
 
 
 def test_base_incluye_aviso_de_carga(client, login):

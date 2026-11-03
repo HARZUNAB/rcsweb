@@ -61,6 +61,7 @@
   const historicos = {};
   let mostrarHistorico = false;
   let cargandoHistorico = false;
+  let temporizadorPrevio = null;
   const CLAVE_HISTORICO = "rcs-paneles-historico";
 
   try {
@@ -222,6 +223,8 @@
       return;
     }
     estado.evento = evento;
+    window.clearTimeout(temporizadorPrevio);
+    temporizadorPrevio = null;
     mostrarVineta(evento, ancla);
     resaltarEventoMapa();
     resaltarEventoPerfil();
@@ -234,14 +237,47 @@
     renderPerfil();
   }
 
+  // El hover no dibuja una etiqueta sobre el mapa: actualiza el panel fijo
+  // para que se puedan seguir viendo y apuntando los eventos vecinos.
+  function mostrarPrevio(evento) {
+    if (!detalleEventoEl || !evento) {
+      return;
+    }
+    window.clearTimeout(temporizadorPrevio);
+    temporizadorPrevio = null;
+    detalleEventoEl.innerHTML = htmlEvento(evento);
+  }
+
+  function restaurarPrevio() {
+    if (!detalleEventoEl) {
+      return;
+    }
+    window.clearTimeout(temporizadorPrevio);
+    temporizadorPrevio = window.setTimeout(function () {
+      temporizadorPrevio = null;
+      if (estado.evento) {
+        detalleEventoEl.innerHTML = htmlEvento(estado.evento);
+      } else {
+        detalleEventoEl.innerHTML =
+          '<div class="small text-secondary">' +
+          "Pase el cursor por un evento para previsualizarlo; " +
+          "haga clic para fijarlo." +
+          "</div>";
+      }
+    }, 60);
+  }
+
   function cerrarVineta() {
+    window.clearTimeout(temporizadorPrevio);
+    temporizadorPrevio = null;
     if (window.RCSVineta) {
       window.RCSVineta.ocultar();
     }
     if (detalleEventoEl) {
       detalleEventoEl.innerHTML =
         '<div class="small text-secondary">' +
-        "Haga clic en un evento del mapa o del perfil para ver su detalle." +
+        "Pase el cursor por un evento para previsualizarlo; " +
+        "haga clic para fijarlo." +
         "</div>";
     }
   }
@@ -643,49 +679,6 @@
     return traza;
   }
 
-  // Hover sincronizado entre planta y perfil. El flag corta la recursión
-  // cuando Plotly dispara el hover programático en el otro gráfico.
-  let sincronizandoHover = false;
-
-  function hoverEn(plot, traza, indice, subplot) {
-    if (
-      !plot ||
-      !window.Plotly ||
-      !window.Plotly.Fx ||
-      !plot.data ||
-      traza === null ||
-      indice < 0
-    ) {
-      return;
-    }
-    sincronizandoHover = true;
-    window.Plotly.Fx.hover(
-      plot,
-      [{ curveNumber: traza, pointNumber: indice }],
-      subplot || "xy"
-    );
-    window.setTimeout(function () {
-      sincronizandoHover = false;
-    }, 0);
-  }
-
-  function quitarHover(plot) {
-    if (
-      !plot ||
-      !window.Plotly ||
-      !window.Plotly.Fx ||
-      !plot.data ||
-      sincronizandoHover
-    ) {
-      return;
-    }
-    sincronizandoHover = true;
-    window.Plotly.Fx.unhover(plot);
-    window.setTimeout(function () {
-      sincronizandoHover = false;
-    }, 0);
-  }
-
   // Contorno y divisiones regionales para la planta. Se cargan una sola vez
   // desde un JSON estático y se dibujan como trazas ocultas para que no
   // intervengan en el fitbounds que ajusta el mapa a los eventos del grupo.
@@ -946,7 +939,7 @@
           width: eventos.map(anchoEvento),
         },
       },
-      hovertemplate: "%{text}<extra></extra>",
+      hoverinfo: "none",
       name: "Eventos",
     });
     const superpuestosMapa = trazaSuperpuestos(eventos, false);
@@ -996,25 +989,16 @@
       mapaEl.on("plotly_relayout", programarOverlay);
       mapaEl.on("plotly_afterplot", programarOverlay);
       mapaEl.on("plotly_hover", function (evento) {
-        if (sincronizandoHover) {
-          return;
-        }
         const seleccion = evento.points[0];
         if (!seleccion || seleccion.curveNumber !== estado.trazaMapa) {
           return;
         }
         const punto = seleccion.customdata;
-        if (!punto) {
-          return;
+        if (punto) {
+          mostrarPrevio(punto);
         }
-        const indice = eventosPerfilFiltrados().findIndex(function (item) {
-          return item.id === punto.id;
-        });
-        hoverEn(perfilEl, estado.trazaPerfil, indice, "xy");
       });
-      mapaEl.on("plotly_unhover", function () {
-        quitarHover(perfilEl);
-      });
+      mapaEl.on("plotly_unhover", restaurarPrevio);
     }
   }
 
@@ -1220,7 +1204,7 @@
           width: eventos.map(anchoEvento),
         },
       },
-      hovertemplate: "%{text}<extra></extra>",
+      hoverinfo: "none",
       name: "Eventos",
     });
     const superpuestosPerfil = trazaSuperpuestos(eventos, true);
@@ -1295,25 +1279,16 @@
         }
       });
       perfilEl.on("plotly_hover", function (evento) {
-        if (sincronizandoHover) {
-          return;
-        }
         const seleccion = evento.points[0];
         if (!seleccion || seleccion.curveNumber !== estado.trazaPerfil) {
           return;
         }
         const punto = seleccion.customdata;
-        if (!punto) {
-          return;
+        if (punto) {
+          mostrarPrevio(punto);
         }
-        const indice = eventosVisibles().findIndex(function (item) {
-          return item.id === punto.id;
-        });
-        hoverEn(mapaEl, estado.trazaMapa, indice, "geo");
       });
-      perfilEl.on("plotly_unhover", function () {
-        quitarHover(mapaEl);
-      });
+      perfilEl.on("plotly_unhover", restaurarPrevio);
     }
   }
 
