@@ -332,8 +332,13 @@ def puntos_mapa(
             puntos.append(punto)
         referencia = punto
 
-    if referencia is not None:
-        for punto in puntos:
+    comparacion = len(puntos) > 1
+    for punto in puntos:
+        punto["comparacion"] = comparacion
+        punto["referencia"] = bool(
+            comparacion and referencia is not None and punto is referencia
+        )
+        if referencia is not None:
             punto["dist_km"] = distancia_km(
                 referencia.get("lat"),
                 referencia.get("lon"),
@@ -488,9 +493,16 @@ def clave_evento(punto: dict) -> str:
 
 def construir_detalle(tabla: str, archivo: str, filas: list[dict], indice: int) -> dict:
     fila = filas[indice]
+    # La distancia del encabezado solo tiene sentido cuando la tabla compara
+    # dos soluciones. En eventos únicos se evita mostrar un 0 que no aporta.
+    distancia = (
+        fila.get("dist_km", "")
+        if tabla in {"no_actualizados", "repetidos"}
+        else ""
+    )
     contexto = {
         "fila": fila,
-        "distancia": fila.get("dist_km", ""),
+        "distancia": distancia,
         "discrepancias": fila.get("discrepancias", ""),
         "revision": fila.get("revision", ""),
         "publicacion": fila.get("publicacion_probable", ""),

@@ -97,11 +97,20 @@
       ["Magnitud", valor(punto.mag)],
       ["Tipo mag.", valor(punto.tipo)],
       ["Analista", valor(punto.analista)],
-      ["Distancia", valor(punto.dist_km, " km")],
+    ];
+    if (punto.comparacion) {
+      filas.push([
+        "Distancia",
+        punto.referencia
+          ? "0 km (referencia)"
+          : valor(punto.dist_km, " km"),
+      ]);
+    }
+    filas.push(
       ["Frontera", valor(punto.frontera)],
       ["Sospechoso", punto.sospechoso ? "Sí" : ""],
       ["Estado", valor(punto.estado)],
-    ];
+    );
     let html = '<div class="small"><dl class="row mb-0 g-0">';
     filas.forEach(function (fila) {
       if (fila[1] === "—") {

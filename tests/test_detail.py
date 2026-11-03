@@ -46,6 +46,10 @@ def test_puntos_mapa_no_actualizados():
     assert len(puntos) == 2
     assert {p["fuente"] for p in puntos} == {"seisan", "eventquery"}
     assert puntos[0]["dist_km"] == 0.0
+    assert puntos[0]["comparacion"] is True
+    assert puntos[0]["referencia"] is True
+    assert puntos[1]["comparacion"] is True
+    assert puntos[1]["referencia"] is False
     assert all(p["color"].startswith("#") for p in puntos)
 
 
@@ -69,6 +73,38 @@ def test_puntos_mapa_repetidos_referencia_en_cero():
     assert len(puntos) == 2
     assert puntos[0]["dist_km"] == 0.0
     assert puntos[0]["fuente"] == "seiscomp"
+    assert puntos[0]["comparacion"] is True
+    assert puntos[0]["referencia"] is True
+    assert puntos[1]["comparacion"] is True
+    assert puntos[1]["referencia"] is False
+
+
+def test_puntos_mapa_evento_unico_sin_comparacion():
+    fila = {
+        "Fecha_Hora": "2026-10-26 20:39:24",
+        "Latitud": "-27.08",
+        "Longitud": "-71.81",
+        "Prof.": "42.1",
+        "Mag.": "3.7",
+        "Tipo_mag.": "MLv",
+        "Analista": "ana",
+        "Estado": "Revisado",
+        "Percep.": "",
+    }
+    puntos = puntos_mapa("no_publicados", fila, "eventquery")
+
+    assert len(puntos) == 1
+    assert puntos[0]["comparacion"] is False
+    assert puntos[0]["referencia"] is False
+    assert puntos[0]["dist_km"] == 0.0
+
+
+def test_distancia_del_encabezado_solo_en_tablas_comparadas():
+    fila = _fila_no_actualizada()
+    assert construir_detalle("no_actualizados", "x.csv", [fila], 0)["distancia"] == "0.1"
+
+    unica = {"Fecha_Hora": "2026-10-26 20:39:24", "dist_km": "0"}
+    assert construir_detalle("no_publicados", "x.csv", [unica], 0)["distancia"] == ""
 
 
 def test_comparaciones_y_deltas():

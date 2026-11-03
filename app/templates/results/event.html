@@ -29,7 +29,10 @@
         <span>Revisión: {{ badge_revision(revision) }}</span>
       {% endif %}
       {% if distancia %}
-        <span>Distancia: {{ distancia }} km</span>
+        <span>
+          Distancia{% if tabla == 'no_actualizados' %} local-publicada{% endif %}:
+          {{ distancia }} km
+        </span>
       {% endif %}
       {% if frontera_evento and frontera_evento != '—' %}
         <span>Frontera: {{ frontera_evento }}</span>

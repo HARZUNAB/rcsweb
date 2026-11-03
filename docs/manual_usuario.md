@@ -163,6 +163,10 @@ Más abajo está el perfil de subducción.
   y resalta el evento en ambas vistas.
 - El cursor del perfil se mantiene como puntero normal; el arrastre sigue
   permitiendo acercar una zona.
+- En grupos con más de una solución, **Distancia** indica la separación respecto
+  del evento de referencia. El punto de referencia se muestra como
+  «0 km (referencia)». En eventos únicos no se muestra la distancia, porque no
+  hay otra solución con la cual comparar.
 - **Abrir PNG** y **Descargar PNG** generan una imagen del mapa.
 - El PNG incluye un encabezado con una fila por evento: fecha y hora, magnitud,
   profundidad, coordenadas, analista y estado en la otra fuente, separados por

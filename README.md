@@ -331,9 +331,13 @@ Seisan. El trabajo de demostración conserva sus resultados.
   sismos registrados o no percibidos, rojo para Eventquery percibido, anillo
   blanco/negro para la solución publicada, borde violeta para sospechosos, aro
   azul marino para el seleccionado y aro magenta para soluciones superpuestas.
-- **Hover sincronizado**: al pasar el mouse por un evento de la planta se
-  muestra el mismo evento en el perfil, y viceversa, con fecha, hora y fuente.
-  También funciona entre Leaflet y el perfil.
+- **Hover y selección**: al pasar el cursor por un evento, sus parámetros se
+  previsualizan en el panel fijo sin tapar los marcadores vecinos. Al hacer clic,
+  la selección queda fija y se resalta en planta y perfil.
+- **Distancia entre soluciones**: cuando el grupo tiene más de una solución, el
+  panel muestra la separación respecto del evento de referencia. El punto de
+  referencia aparece como «0 km (referencia)». En eventos únicos no se muestra,
+  porque no hay otra solución con la cual comparar.
 - **Sismicidad histórica en paneles**: la casilla «Sismicidad histórica
   (perfil)» carga la serie del perfil seleccionado bajo demanda, la cachea y la
   dibuja detrás de topografía, slab y eventos. Se mantiene al cambiar de perfil
@@ -451,7 +455,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **290 tests**.
+runner de solo lectura. Total actual: **292 tests**.
 
 ## Filtros y exportación
 

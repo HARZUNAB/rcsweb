@@ -885,6 +885,13 @@ clic fija la selección. Leaflet no usa `bindTooltip` por la misma razón. El
 cursor de zoom del perfil se anula con CSS sobre `.nsewdrag` para no mostrar una
 cruz al apuntar.
 
+`puntos_mapa()` agrega `comparacion` y `referencia` a cada punto. `comparacion`
+es verdadero solo cuando hay más de una solución; `referencia` marca el punto
+desde el cual se calculan las distancias. El panel muestra «0 km (referencia)»
+en ese punto y la distancia en los demás. En eventos únicos no muestra la fila.
+En el encabezado, `construir_detalle()` expone `dist_km` solo para
+`no_actualizados` y `repetidos`.
+
 Todos los detalles usan una columna de mapas de 7/12 y un panel de evento de
 5/12. El panel reemplaza a la viñeta flotante. En modo offline,
 `app/static/js/regiones_mapa.js` dibuja el contorno nacional y las divisiones
