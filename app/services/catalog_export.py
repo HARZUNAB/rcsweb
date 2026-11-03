@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import plots
+from . import panels, plots, ubicacion
 from .analysts import CAMPOS_ANALISTA
 from .results import exportar_filas, leer_todo
+
+PLANTAS = (
+    ("nacional", "Chile continental", "Nacional"),
+    ("insular", "Territorio insular", "Insular"),
+    ("antartico", "Territorio antártico", "Antártico"),
+    ("otros", "Otros", None),
+)
 
 CAMPOS_CATALOGO = (
     ("Fecha_Hora", "Fecha y hora"),
@@ -36,6 +43,32 @@ def _valor(fila: dict, clave: str):
     if clave == "Referencia":
         return fila.get("Referencia") or fila.get("referencia", "")
     return fila.get(clave, "")
+
+
+def _radio_influencia(mag) -> float:
+    """Radio de influencia en km según magnitud."""
+    try:
+        valor = float(str(mag).strip())
+    except (TypeError, ValueError):
+        return 200.0
+    if valor < 4.0:
+        return 200.0
+    if valor < 5.0:
+        return 300.0
+    if valor < 6.0:
+        return 400.0
+    return 500.0
+
+
+def _categoria_planta(evento: dict) -> str:
+    territorio = evento.get("territorio") or "Otros"
+    if territorio != "Otros":
+        return territorio
+    distancia = ubicacion.distancia_chile_km(evento["lat"], evento["lon"])
+    radio = _radio_influencia(evento.get("mag"))
+    if distancia is None or distancia <= radio:
+        return "Nacional"
+    return "Otros"
 
 
 def preparar_catalogo(
@@ -73,6 +106,12 @@ def preparar_catalogo(
         for fila in filas
     ]
     eventos = plots.eventos_catalogo(archivo, filas, opcion)
+    for evento in eventos:
+        evento.setdefault("lat", evento.get("latitud"))
+        evento.setdefault("lon", evento.get("longitud"))
+    panels.categorizar_territorio(eventos)
+    for evento in eventos:
+        evento["territorio"] = _categoria_planta(evento)
     perfiles = sorted(
         {
             evento.get("perfil")
@@ -80,11 +119,30 @@ def preparar_catalogo(
             if evento.get("perfil")
         }
     )
+    plantas = []
+    for clave, titulo, territorio in PLANTAS:
+        categoria = "Otros" if territorio is None else territorio
+        eventos_planta = [
+            evento
+            for evento in eventos
+            if evento.get("territorio") == categoria
+        ]
+        if eventos_planta:
+            plantas.append(
+                {
+                    "clave": clave,
+                    "titulo": titulo,
+                    "territorio": territorio,
+                    "eventos": eventos_planta,
+                    "total": len(eventos_planta),
+                }
+            )
     return {
         "campos": [titulo for _clave, titulo in campos],
         "filas": salida,
         "eventos": eventos,
         "perfiles": perfiles,
+        "plantas": plantas,
         "total": len(salida),
     }
 
@@ -93,8 +151,16 @@ def csv_catalogo(datos: dict) -> bytes:
     return exportar_filas(datos["campos"], datos["filas"])
 
 
-def resumen_mapa(titulo: str, total: int, filtros: str, job_id: str) -> dict:
+def resumen_mapa(
+    titulo: str,
+    total: int,
+    filtros: str,
+    job_id: str,
+    mapa: str = "",
+) -> dict:
     subtitulo = [f"Fuente: {titulo}", f"Eventos: {total}"]
+    if mapa:
+        subtitulo.insert(0, f"Mapa: {mapa}")
     if filtros:
         subtitulo.append(filtros)
     return {
@@ -108,21 +174,22 @@ def resumen_mapa(titulo: str, total: int, filtros: str, job_id: str) -> dict:
 
 def mapa_planta(
     workspace: Path,
-    datos: dict,
+    planta: dict,
     opcion: str,
     *,
     cache_key: str,
     resumen: dict,
 ) -> bytes | None:
-    if not datos["eventos"]:
+    if not planta["eventos"]:
         return None
     return plots.generar_mapa_grupo(
         workspace,
-        datos["eventos"],
+        planta["eventos"],
         opcion,
         resumen,
-        cache_key + "|planta",
+        cache_key + "|planta|" + planta["clave"],
         modo="planta",
+        territorio=planta["territorio"],
     )
 
 
@@ -134,6 +201,7 @@ def mapa_perfil(
     *,
     cache_key: str,
     resumen: dict,
+    modo: str = "auto",
 ) -> bytes | None:
     eventos = [
         evento
@@ -147,8 +215,8 @@ def mapa_perfil(
         eventos,
         opcion,
         resumen,
-        cache_key + "|perfil|" + perfil_id,
-        modo="auto",
+        cache_key + "|perfil|" + perfil_id + "|" + modo,
+        modo=modo,
     )
 
 

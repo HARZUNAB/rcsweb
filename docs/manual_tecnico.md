@@ -845,10 +845,24 @@ pero la tabla oculta las columnas de analista, no permite detalle, miniaturas ni
 Web, y solo ofrece **Descargar catálogo**. El resto de las descargas queda
 bloqueada también por URL.
 
-`Descargar catálogo` usa `app/services/catalog_export.py`: genera un CSV
-sanitizado, una planta con todas las soluciones y un PNG por perfil disponible.
-El CSV contiene fecha y hora, coordenadas, profundidad, magnitud, tipo de
-magnitud y referencia geográfica cuando existe; nunca incluye al analista.
+`Descargar catálogo` usa `app/services/catalog_export.py`. Cada evento se asigna
+individualmente a su perfil más cercano con `asigna_perfiles.asignar_eventos`;
+no se usa el perfil de referencia del grupo. Luego se categoriza por territorio
+con `panels.categorizar_territorio` y se generan plantas separadas para
+`Nacional`, `Insular`, `Antártico` y `Otros`. Un evento en `Otros` pasa a
+`Nacional` si su distancia a Chile no supera el radio de influencia según la
+magnitud: 200 km para M<4, 300 para M4, 400 para M5 y 500 para M6 o más.
+
+`plot_cli.py` acepta `territorio` para encuadrar las plantas y `modo`:
+
+- `planta`: solo planta;
+- `auto`: planta + perfil;
+- `perfil`: recorta el panel derecho del renderizador.
+
+Se generan dos PNG por perfil: `perfil_<id>.png` (solo perfil) y
+`perfil_<id>_planta.png` (perfil + planta), ambos solo con los eventos de ese
+perfil. El CSV contiene fecha y hora, coordenadas, profundidad, magnitud, tipo
+de magnitud y referencia geográfica cuando existe; nunca incluye al analista.
 
 Administrador y supervisor no se filtran. Sin código asignado, un analista o
 consulta no accede a eventos, incluido Catálogos.

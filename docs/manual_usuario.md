@@ -261,16 +261,23 @@ Desde el detalle del trabajo puede abrir los catálogos procesados:
   las columnas **Analista** ni **Analista probable**, y no pueden abrir **Web**,
   **Ver** ni **Ver miniaturas**. Tampoco pueden usar las descargas completas.
   Su única descarga es **Descargar catálogo**.
-- **Descargar catálogo** abre una vista previa con el mapa de planta del
-  catálogo filtrado y un mapa por cada perfil disponible. Permite descargar:
+- **Descargar catálogo** abre una vista previa con mapas de planta por
+  territorio y dos variantes por perfil. Permite descargar:
   - `catalogo.csv`, con fecha y hora, latitud, longitud, profundidad, magnitud,
     tipo de magnitud y referencia geográfica si la fuente la tiene;
-  - `planta.png`;
-  - `perfil_<id>.png` por cada perfil;
+  - `planta_nacional.png`, `planta_insular.png`, `planta_antartico.png` y
+    `planta_otros.png`, cada uno solo si tiene eventos;
+  - `perfil_<id>.png` (solo perfil) y `perfil_<id>_planta.png` (perfil + planta)
+    por cada perfil;
   - un ZIP con todo.
   El CSV no incluye el nombre del analista.
-- Los eventos sin perfil aparecen solo en la planta. Si el catálogo no tiene
-  perfiles, solo se genera la planta.
+- La planta se separa en **Chile continental**, **territorio insular**,
+  **territorio antártico** y **Otros**. Los eventos fuera de Chile pasan a
+  Otros cuando superan el radio de influencia según la magnitud: 200 km para
+  M<4, 300 km para M4, 400 km para M5 y 500 km para M6 o más.
+- Cada perfil se asigna por cercanía individual del evento. Los eventos sin
+  perfil aparecen solo en las plantas. Si el catálogo no tiene perfiles, solo
+  se generan las plantas.
 - **Eventquery** incluye **Percibido** y **Analista probable**, calculado
   cruzando la solución publicada con SeisComp y Seisan. Si más de una fuente
   aporta una solución, se muestran todos los autores, por ejemplo

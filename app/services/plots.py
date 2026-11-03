@@ -135,10 +135,26 @@ def eventos_catalogo(
         )
     if not eventos:
         return []
+    for evento in eventos:
+        evento.setdefault("lat", evento.get("latitud"))
+        evento.setdefault("lon", evento.get("longitud"))
     try:
-        eventos, _perfil = _asignar(eventos, _perfiles())
+        perfiles = _perfiles()
     except Exception:
-        current_app.logger.exception("No se pudieron asignar perfiles al catálogo")
+        current_app.logger.warning(
+            "No se pudieron cargar los perfiles para el catálogo"
+        )
+        perfiles = []
+    if perfiles:
+        try:
+            _preparar_core()
+            import asigna_perfiles as ap  # type: ignore
+
+            ap.asignar_eventos(eventos, perfiles=perfiles)
+        except Exception:
+            current_app.logger.exception(
+                "No se pudieron asignar perfiles al catálogo"
+            )
     return eventos
 
 
@@ -858,6 +874,7 @@ def _renderizar_core(
     fuente: str,
     resumen: dict | None,
     modo: str = "auto",
+    territorio: str | None = None,
 ) -> bytes:
     """Ejecuta el renderizador del core y compone el encabezado."""
     if destino.is_file():
@@ -890,6 +907,7 @@ def _renderizar_core(
                         "eventos": eventos,
                         "fuente": fuente,
                         "modo": modo,
+                        "territorio": territorio,
                     },
                     ensure_ascii=False,
                 ),
@@ -950,6 +968,7 @@ def generar_mapa_grupo(
     resumen: dict | None,
     cache_key: str,
     modo: str = "auto",
+    territorio: str | None = None,
 ) -> bytes:
     """Mapa de un grupo de Paneles, sin listado de eventos en el PNG.
 
@@ -967,4 +986,5 @@ def generar_mapa_grupo(
         fuente,
         resumen,
         modo=modo,
+        territorio=territorio,
     )

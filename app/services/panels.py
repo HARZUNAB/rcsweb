@@ -350,6 +350,16 @@ def _territorio_evento(lat: float, lon: float) -> str:
     return "Otros"
 
 
+def territorio_evento(lat: float, lon: float) -> str:
+    """Territorio público de un evento: Nacional, Insular, Antártico u Otros."""
+    return _territorio_evento(lat, lon)
+
+
+def categorizar_territorio(eventos: list[dict]) -> dict[str, list[dict]]:
+    """Categoriza eventos por territorio y agrega ``territorio`` a cada uno."""
+    return _categorizar_territorio(eventos)
+
+
 def _categorizar_territorio(eventos: list[dict]) -> dict[str, list[dict]]:
     resultado = {nombre: [] for nombre in TERRITORIOS_ORDEN}
     for evento in eventos:

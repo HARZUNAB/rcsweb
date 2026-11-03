@@ -154,6 +154,17 @@ def _distancia_km(lat, lon, geometria):
     return metros / 1000.0
 
 
+def distancia_chile_km(lat, lon) -> float | None:
+    """Distancia en km al polígono de Chile, o None si no se puede calcular."""
+    try:
+        datos = _cargar_datos()
+        if datos is None:
+            return None
+        return _distancia_km(float(lat), float(lon), datos["chile"])
+    except Exception:
+        return None
+
+
 def _km_frontera(lat, lon):
     try:
         resultado = borders.frontera(lat, lon)

@@ -252,7 +252,7 @@ def test_catalogo_zip_incluye_csv_y_mapa(app, client, monkeypatch):
 
     with zipfile.ZipFile(io.BytesIO(respuesta.data)) as archivo:
         assert "catalogo.csv" in archivo.namelist()
-        assert "planta.png" in archivo.namelist()
+        assert "planta_nacional.png" in archivo.namelist()
         csv = archivo.read("catalogo.csv").decode("utf-8-sig")
         assert "ana" not in csv
         assert "beto" not in csv

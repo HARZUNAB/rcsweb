@@ -675,7 +675,30 @@ def _datos_catalogo(job: Job, opcion: str) -> tuple[str, str, dict, dict]:
     return archivo, titulos[opcion], datos, {
         "cache_key": cache_key,
         "resumen": resumen,
+        "filtros_texto": texto_filtros,
     }
+
+
+def _planta_catalogo(datos: dict, clave: str | None = None):
+    plantas = datos.get("plantas", [])
+    if clave:
+        return next((planta for planta in plantas if planta["clave"] == clave), None)
+    return next(
+        (planta for planta in plantas if planta["clave"] == "nacional"),
+        plantas[0] if plantas else None,
+    )
+
+
+def _resumen_planta(
+    titulo: str, planta: dict, filtros: str, job_id: str
+) -> dict:
+    return catalog_export.resumen_mapa(
+        titulo,
+        planta["total"],
+        filtros,
+        job_id,
+        mapa=planta["titulo"],
+    )
 
 
 @results_bp.get("/jobs/<job_id>/resultados/catalogos/<opcion>/catalogo")
@@ -693,14 +716,19 @@ def catalogo(job_id: str, opcion: str):
         titulo=titulo,
         datos=datos,
         url_csv=url_for("results.catalogo_csv", **params),
-        url_planta=url_for("results.catalogo_planta", **params),
+        url_planta=lambda clave: url_for(
+            "results.catalogo_planta_territorio",
+            clave=clave,
+            **params,
+        ),
         url_zip=url_for("results.catalogo_zip", **params),
         url_volver=url_for(
             "results.catalogos", **_params_lista_catalogo(job.id, opcion)
         ),
-        url_perfil=lambda perfil_id: url_for(
+        url_perfil=lambda perfil_id, modo: url_for(
             "results.catalogo_perfil",
             perfil_id=perfil_id,
+            modo=modo,
             **params,
         ),
     )
@@ -727,18 +755,49 @@ def catalogo_csv(job_id: str, opcion: str):
     )
 
 
+@results_bp.get(
+    "/jobs/<job_id>/resultados/catalogos/<opcion>/catalogo/planta/<clave>.png"
+)
+@login_required
+@permiso_requerido("catalogos.ver")
+def catalogo_planta_territorio(job_id: str, opcion: str, clave: str):
+    job = _job(job_id)
+    _archivo, titulo, datos, extra = _datos_catalogo(job, opcion)
+    planta = _planta_catalogo(datos, clave)
+    if planta is None:
+        abort(404)
+    png = catalog_export.mapa_planta(
+        ruta_workspace(job.id),
+        planta,
+        opcion,
+        cache_key=extra["cache_key"],
+        resumen=_resumen_planta(
+            titulo, planta, extra["filtros_texto"], job.id
+        ),
+    )
+    if not png:
+        abort(404)
+    return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
+
+
 @results_bp.get("/jobs/<job_id>/resultados/catalogos/<opcion>/catalogo/planta.png")
 @login_required
 @permiso_requerido("catalogos.ver")
 def catalogo_planta(job_id: str, opcion: str):
+    """Compatibilidad: planta nacional, o la primera disponible."""
     job = _job(job_id)
-    _archivo, _titulo, datos, extra = _datos_catalogo(job, opcion)
+    _archivo, titulo, datos, extra = _datos_catalogo(job, opcion)
+    planta = _planta_catalogo(datos)
+    if planta is None:
+        abort(404)
     png = catalog_export.mapa_planta(
         ruta_workspace(job.id),
-        datos,
+        planta,
         opcion,
         cache_key=extra["cache_key"],
-        resumen=extra["resumen"],
+        resumen=_resumen_planta(
+            titulo, planta, extra["filtros_texto"], job.id
+        ),
     )
     if not png:
         abort(404)
@@ -752,16 +811,36 @@ def catalogo_planta(job_id: str, opcion: str):
 @permiso_requerido("catalogos.ver")
 def catalogo_perfil(job_id: str, opcion: str, perfil_id: str):
     job = _job(job_id)
-    _archivo, _titulo, datos, extra = _datos_catalogo(job, opcion)
+    _archivo, titulo, datos, extra = _datos_catalogo(job, opcion)
     if perfil_id not in datos["perfiles"]:
         abort(404)
+    modo = request.args.get("modo", "auto")
+    if modo not in ("auto", "perfil"):
+        abort(404)
+    eventos = [
+        evento
+        for evento in datos["eventos"]
+        if evento.get("perfil") == perfil_id
+    ]
+    resumen = catalog_export.resumen_mapa(
+        titulo,
+        len(eventos),
+        extra["filtros_texto"],
+        job.id,
+        mapa=(
+            f"Perfil {perfil_id}"
+            if modo == "perfil"
+            else f"Perfil {perfil_id} + planta"
+        ),
+    )
     png = catalog_export.mapa_perfil(
         ruta_workspace(job.id),
         datos,
         opcion,
         perfil_id,
         cache_key=extra["cache_key"],
-        resumen=extra["resumen"],
+        resumen=resumen,
+        modo=modo,
     )
     if not png:
         abort(404)
@@ -773,32 +852,63 @@ def catalogo_perfil(job_id: str, opcion: str, perfil_id: str):
 @permiso_requerido("catalogos.ver")
 def catalogo_zip(job_id: str, opcion: str):
     job = _job(job_id)
-    _archivo, _titulo, datos, extra = _datos_catalogo(job, opcion)
+    _archivo, titulo, datos, extra = _datos_catalogo(job, opcion)
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archivo_zip:
         archivo_zip.writestr(
             "catalogo.csv", catalog_export.csv_catalogo(datos)
         )
-        planta = catalog_export.mapa_planta(
-            ruta_workspace(job.id),
-            datos,
-            opcion,
-            cache_key=extra["cache_key"],
-            resumen=extra["resumen"],
-        )
-        if planta:
-            archivo_zip.writestr("planta.png", planta)
+        for planta in datos["plantas"]:
+            png = catalog_export.mapa_planta(
+                ruta_workspace(job.id),
+                planta,
+                opcion,
+                cache_key=extra["cache_key"],
+                resumen=_resumen_planta(
+                    titulo, planta, extra["filtros_texto"], job.id
+                ),
+            )
+            if png:
+                archivo_zip.writestr(
+                    f"planta_{planta['clave']}.png", png
+                )
         for perfil_id in datos["perfiles"]:
-            png = catalog_export.mapa_perfil(
+            eventos = [
+                evento
+                for evento in datos["eventos"]
+                if evento.get("perfil") == perfil_id
+            ]
+            resumen = catalog_export.resumen_mapa(
+                titulo,
+                len(eventos),
+                extra["filtros_texto"],
+                job.id,
+                mapa=f"Perfil {perfil_id}",
+            )
+            solo = catalog_export.mapa_perfil(
                 ruta_workspace(job.id),
                 datos,
                 opcion,
                 perfil_id,
                 cache_key=extra["cache_key"],
-                resumen=extra["resumen"],
+                resumen=resumen,
+                modo="perfil",
             )
-            if png:
-                archivo_zip.writestr(f"perfil_{perfil_id}.png", png)
+            if solo:
+                archivo_zip.writestr(f"perfil_{perfil_id}.png", solo)
+            contexto = catalog_export.mapa_perfil(
+                ruta_workspace(job.id),
+                datos,
+                opcion,
+                perfil_id,
+                cache_key=extra["cache_key"],
+                resumen=resumen,
+                modo="auto",
+            )
+            if contexto:
+                archivo_zip.writestr(
+                    f"perfil_{perfil_id}_planta.png", contexto
+                )
     buffer.seek(0)
     nombre = f"catalogo_{opcion}_{job.inicio14[:8]}_{job.fin14[:8]}.zip"
     registrar(

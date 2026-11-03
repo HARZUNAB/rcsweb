@@ -76,10 +76,12 @@ def main() -> int:
         print("uso: plot_cli.py <salida.png>", file=sys.stderr)
         return 2
     datos = json.load(sys.stdin)
-    if datos.get("modo") == "planta":
+    modo = datos.get("modo")
+    if modo == "planta":
         plotear.plotear_planta(
             datos["eventos"],
             datos["fuente"],
+            territorio=datos.get("territorio"),
             mostrar_json=False,
             con_boton_detener=False,
             bloquear=False,
@@ -88,7 +90,14 @@ def main() -> int:
     else:
         plotear.abrir_eventos(datos["eventos"], datos["fuente"])
     figura = plt.gcf()
-    figura.savefig(sys.argv[1], dpi=110, bbox_inches="tight")
+    if modo == "perfil" and figura.axes:
+        perfil = figura.axes[-1]
+        bbox = perfil.get_window_extent().transformed(
+            figura.dpi_scale_trans.inverted()
+        )
+        figura.savefig(sys.argv[1], dpi=110, bbox_inches=bbox)
+    else:
+        figura.savefig(sys.argv[1], dpi=110, bbox_inches="tight")
     plt.close("all")
     return 0
 
