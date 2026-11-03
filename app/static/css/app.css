@@ -86,6 +86,26 @@ footer {
   --perfil-ancho: 150px;
 }
 
+.table {
+  --fila-hover: #f1f4f8;
+  --fila-activa: #e7f1ff;
+}
+
+/* Las filas activas o en hover no deben usar alfa: con columnas fijas el
+   contenido que se desplaza por debajo se transparenta en la columna de
+   acciones. */
+.table-hover > tbody > tr:hover > * {
+  background-color: var(--fila-hover) !important;
+}
+
+.table > tbody > tr.table-active > * {
+  background-color: var(--fila-activa) !important;
+}
+
+.table > tbody > tr:has(.seleccion-evento:checked) > * {
+  background-color: var(--fila-activa) !important;
+}
+
 .tabla-resultados.con-miniaturas,
 .tabla-resultados.con-miniaturas-fila {
   --perfil-ancho: 265px;
@@ -98,7 +118,9 @@ footer {
   z-index: 3;
   width: var(--perfil-ancho);
   min-width: var(--perfil-ancho);
-  background: var(--bs-body-bg);
+  background-color: #fff;
+  background-clip: padding-box;
+  isolation: isolate;
 }
 
 .tabla-resultados thead th:nth-child(2),
@@ -106,7 +128,9 @@ footer {
   position: sticky;
   left: var(--perfil-ancho);
   z-index: 3;
-  background: var(--bs-body-bg);
+  background-color: #fff;
+  background-clip: padding-box;
+  isolation: isolate;
   box-shadow: 6px 0 6px -6px rgba(0, 0, 0, 0.18);
 }
 
@@ -115,7 +139,9 @@ footer {
   position: sticky;
   right: 0;
   z-index: 3;
-  background: var(--bs-body-bg);
+  background-color: #fff;
+  background-clip: padding-box;
+  isolation: isolate;
   box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.18);
 }
 
@@ -129,7 +155,21 @@ footer {
 .tabla-resultados tbody tr:hover td:nth-child(1),
 .tabla-resultados tbody tr:hover td:nth-child(2),
 .tabla-resultados tbody tr:hover td:last-child {
-  background: var(--bs-table-hover-bg);
+  background-color: var(--fila-hover) !important;
+}
+
+.tabla-resultados tbody tr.table-active td:nth-child(1),
+.tabla-resultados tbody tr.table-active td:nth-child(2),
+.tabla-resultados tbody tr.table-active td:last-child,
+.tabla-resultados tbody tr:has(.seleccion-evento:checked) td:nth-child(1),
+.tabla-resultados tbody tr:has(.seleccion-evento:checked) td:nth-child(2),
+.tabla-resultados tbody tr:has(.seleccion-evento:checked) td:last-child {
+  background-color: var(--fila-activa) !important;
+}
+
+.tabla-resultados tbody td:last-child .btn {
+  position: relative;
+  z-index: 1;
 }
 
 
