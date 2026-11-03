@@ -975,6 +975,11 @@ diferencia en grados entre las soluciones. `app/services/plot_cli.py` intercepta
 `plotear._extent_planta_por_eventos` para aplicar ese margen sin modificar el
 core. El perfil conserva su escala.
 
+`plot_cli.py` carga `extent.py` directamente por ruta con `importlib`, porque el
+subproceso corre con `cwd` en el workspace y no debe depender de que el paquete
+`app` esté instalado o resuelto en `sys.path`. Si falla el renderizador, el PNG
+muestra «Mapa no disponible» y el traceback completo queda en el log de `web`.
+
 ## Operación y diagnóstico
 
 ### Estado de los servicios

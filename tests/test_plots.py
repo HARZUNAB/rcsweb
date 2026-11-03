@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -161,6 +162,14 @@ def test_eventos_repetidos_publicados_combinan_analistas():
 def test_ruta_cache_no_permite_salir(tmp_path):
     with pytest.raises(ValueError):
         plots._ruta_cache(tmp_path, "miniaturas", "no_publicados", "../fuera.csv", 0)
+
+
+def test_plot_cli_carga_extent_por_ruta():
+    ruta = Path(plots.__file__).with_name("plot_cli.py")
+    texto = ruta.read_text(encoding="utf-8")
+
+    assert "from app.services.extent" not in texto
+    assert 'with_name("extent.py")' in texto
 
 
 def test_ruta_cache_permite_ruta_anidada(tmp_path):

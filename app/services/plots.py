@@ -907,12 +907,12 @@ def _renderizar_core(
             destino.write_bytes(final)
             temporal.unlink(missing_ok=True)
             return final
-        except Exception as exc:
-            current_app.logger.warning("No se pudo generar el mapa: %s", exc)
+        except Exception:
+            current_app.logger.exception("No se pudo generar el mapa")
             # No se cachea el error: el próximo pedido puede reintentar.
             return _componer_resumen(
                 _placeholder(
-                    f"Mapa no disponible\n{str(exc)[:160]}",
+                    "Mapa no disponible\nRevise los logs del servicio web.",
                     ancho=1200,
                     alto=520,
                 ),

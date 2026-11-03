@@ -7,6 +7,7 @@ el PNG en el argumento 1.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import sys
@@ -36,12 +37,16 @@ gridliner.Gridliner._draw_gridliner = lambda self, renderer=None: None
 
 import plotear  # noqa: E402
 
-# El paquete de la app está instalado en el mismo entorno; se agrega la raíz
-# para poder reutilizar el cálculo del margen desde el subproceso.
-RAIZ_APP = Path(__file__).resolve().parents[2]
-if str(RAIZ_APP) not in sys.path:
-    sys.path.insert(0, str(RAIZ_APP))
-from app.services.extent import margen_planta_eventos  # noqa: E402
+# El subproceso corre con cwd en el workspace y no debe depender de que el
+# paquete ``app`` esté instalado o resuelto en sys.path. Se carga el módulo
+# hermano directamente por ruta.
+_ruta_extent = Path(__file__).with_name("extent.py")
+_spec_extent = importlib.util.spec_from_file_location("rcs_extent", _ruta_extent)
+if _spec_extent is None or _spec_extent.loader is None:
+    raise ImportError(f"No se pudo cargar {_ruta_extent}")
+_modulo_extent = importlib.util.module_from_spec(_spec_extent)
+_spec_extent.loader.exec_module(_modulo_extent)
+margen_planta_eventos = _modulo_extent.margen_planta_eventos
 
 plotear._mostrar_figura = lambda bloquear: None
 
