@@ -73,7 +73,7 @@ def test_renombrar_repetidos_de_seiscomp(tmp_path):
     for sufijo in ("amplio", "estricto"):
         (informes / f"rep_seisan_{sufijo}.txt").write_text("x\n", encoding="utf-8")
 
-    pipeline._renombrar_repetidos("seiscomp")(tmp_path)
+    pipeline._renombrar_repetidos("seiscomp", "seisan")(tmp_path)
 
     assert (informes / "rep_seiscomp_amplio.txt").is_file()
     assert (informes / "rep_seiscomp_estricto.txt").is_file()

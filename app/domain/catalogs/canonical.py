@@ -30,8 +30,18 @@ def escribir_desde_csv(
     source_id: str,
     formato: str,
     ruta_csv: Path,
+    *,
+    es_referencia: bool | None = None,
 ) -> Path:
-    """Convierte un CSV plano normalizado al catálogo canónico JSONL."""
+    """Convierte un CSV plano normalizado al catálogo canónico JSONL.
+
+    ``es_referencia`` decide si las soluciones se marcan como publicadas. Si no
+    se indica, se resuelve por el rol del formato en el registro.
+    """
+    if es_referencia is None:
+        from .registry import formato as _formato
+
+        es_referencia = _formato(formato).rol == "referencia"
     destino = ruta_canonica(workspace, source_id)
     destino.parent.mkdir(parents=True, exist_ok=True)
     with ruta_csv.open(encoding="utf-8-sig", newline="") as archivo:
@@ -49,9 +59,9 @@ def escribir_desde_csv(
                     magnitude_type=fila.get("Tipo_mag.", "") or "",
                     agency=source_id,
                     analyst=fila.get("Analista", "") or "",
-                    status="published" if formato == "eventquery" else "reported",
+                    status="published" if es_referencia else "reported",
                     is_preferred=True,
-                    is_published=formato == "eventquery",
+                    is_published=es_referencia,
                     raw=dict(fila),
                 )
                 salida.write(json.dumps(evento.to_dict(), ensure_ascii=False) + "\n")

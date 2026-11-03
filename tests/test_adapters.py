@@ -14,11 +14,14 @@ from app.domain.catalogs.schema import SCHEMA_VERSION
 
 
 def test_registro_de_formatos():
-    assert default_primary() == "seiscomp"
+    assert default_primary() == "local_export"
     assert formato("eventquery").rol == "referencia"
+    assert formato("eventquery").codigo == "referencia"
     assert formato("seiscomp").es_local
+    assert formato("seiscomp").codigo == "local_export"
     assert "inventario" in formato("seiscomp").capacidades
     assert "excluidos" in formato("seisan").capacidades
+    assert "percibidos" in formato("eventquery").capacidades
     assert SCHEMA_VERSION == "1.0"
 
 

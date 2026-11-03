@@ -15,7 +15,9 @@ def _verificar(workspace, nombre: str) -> None:
 
 
 class Adaptador(Base):
-    formato = "eventquery"
+    formato = "referencia"
+    tipo = "reference"
+    render_fuente = "eventquery"
 
     def pasos(self, job, eventquery: str) -> list[PasoPlan]:
         return [

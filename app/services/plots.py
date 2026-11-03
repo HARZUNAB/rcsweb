@@ -26,13 +26,14 @@ import matplotlib.pyplot as plt  # noqa: E402
 from flask import current_app  # noqa: E402
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
+from ..domain.catalogs import manifest as fuentes_manifest  # noqa: E402
+from ..domain.catalogs.registry import adaptador as obtener_adaptador  # noqa: E402
 from . import colores
 from .borders import texto_frontera_coords  # noqa: E402
 from .detail import (  # noqa: E402
-    COLORES_FUENTE,
-    ETIQUETAS_FUENTE,
     construir_soluciones,
     distancia_km,
+    etiqueta_fuente,
     grupo_repetidos,
 )
 
@@ -206,13 +207,15 @@ def _asignar(eventos: list[dict], perfiles):
 
 
 def _fuente(tabla: str, opcion: str) -> str:
+    """Id de la fuente para una tabla o grupo, sin nombres fijos."""
     if tabla in ("no_publicados", "no_actualizados", "catalogos"):
         return opcion
     if opcion.startswith("publica"):
-        return "eventquery"
-    if opcion.startswith("seiscomp"):
-        return "seiscomp"
-    return "seisan"
+        return fuentes_manifest.referencia().id
+    for definicion in fuentes_manifest.fuentes():
+        if opcion.startswith(f"{definicion.id}_"):
+            return definicion.id
+    return opcion.rsplit("_", 1)[0]
 
 
 def _ruta_cache(
@@ -355,13 +358,17 @@ def perfil_desde_eventos(eventos: list[dict], perfil, opcion: str, tabla: str):
         if along is None or profundidad is None:
             continue
         if tabla == "no_actualizados":
-            fuente = opcion if evento.get("rol") == "local" else "eventquery"
+            fuente = (
+                opcion
+                if evento.get("rol") == "local"
+                else fuentes_manifest.referencia().id
+            )
         elif tabla == "no_publicados":
             fuente = opcion
         else:
             fuente = _fuente(tabla, opcion)
         # Mismos colores que el detalle: rol local/publicado y percepción.
-        codigo = fuente if fuente in COLORES_FUENTE else "publicado"
+        codigo = fuente or "publicado"
         estilo = colores.estilo_punto(codigo, evento)
         lat = evento.get("latitud")
         lon = evento.get("longitud")
@@ -374,7 +381,7 @@ def perfil_desde_eventos(eventos: list[dict], perfil, opcion: str, tabla: str):
         puntos.append(
             {
                 "fuente": codigo,
-                "etiqueta": ETIQUETAS_FUENTE[codigo],
+                "etiqueta": etiqueta_fuente(codigo),
                 "color": estilo["color"],
                 "borde": estilo["borde"],
                 "borde_ancho": estilo["borde_ancho"],
@@ -571,7 +578,9 @@ def _fila_evento(
 
 
 def _analista_repetido(fila: dict) -> str:
-    for clave in ("analista", "analista_seisan", "analista_seiscomp"):
+    from .analysts import campos_analista
+
+    for clave in campos_analista():
         valor = str(fila.get(clave) or "").strip()
         if valor:
             return valor
@@ -867,6 +876,15 @@ def _componer_resumen(png: bytes, resumen: dict | None) -> bytes:
     return buffer.getvalue()
 
 
+def _datos_fuente(fuente: str) -> tuple[str, str]:
+    """(clave visual del core, etiqueta visible) para una fuente."""
+    definicion = fuentes_manifest.por_id(fuente)
+    if definicion is not None:
+        adapter = obtener_adaptador(definicion.format)
+        return adapter.render_fuente or definicion.label, definicion.label
+    return fuente, (fuente or "Observaciones").capitalize()
+
+
 def _renderizar_core(
     workspace: Path,
     destino: Path,
@@ -877,6 +895,8 @@ def _renderizar_core(
     territorio: str | None = None,
     leyenda: bool = True,
     sospechosos: bool = True,
+    leyenda_items: list[dict] | None = None,
+    contexto: tuple[float, float] | None = None,
 ) -> bytes:
     """Ejecuta el renderizador del core y compone el encabezado."""
     if destino.is_file():
@@ -901,17 +921,21 @@ def _renderizar_core(
                 parte for parte in (str(core), entorno.get("PYTHONPATH", "")) if parte
             )
 
+            fuente_render, etiqueta = _datos_fuente(fuente)
             temporal = destino.with_suffix(".tmp.png")
             proceso = subprocess.run(
                 [sys.executable, str(cli), str(temporal)],
                 input=json.dumps(
                     {
                         "eventos": eventos,
-                        "fuente": fuente,
+                        "fuente": fuente_render,
+                        "etiqueta_fuente": etiqueta,
                         "modo": modo,
                         "territorio": territorio,
                         "leyenda": leyenda,
                         "sospechosos": sospechosos,
+                        "leyenda_items": leyenda_items,
+                        "contexto": contexto,
                     },
                     ensure_ascii=False,
                 ),
@@ -975,6 +999,8 @@ def generar_mapa_grupo(
     territorio: str | None = None,
     leyenda: bool = True,
     sospechosos: bool = True,
+    leyenda_items: list[dict] | None = None,
+    contexto: tuple[float, float] | None = None,
 ) -> bytes:
     """Mapa de un grupo de Paneles, sin listado de eventos en el PNG.
 
@@ -983,7 +1009,14 @@ def generar_mapa_grupo(
     """
     base = workspace / "plots" / "paneles"
     base.mkdir(parents=True, exist_ok=True)
-    huella = hashlib.sha1(cache_key.encode("utf-8")).hexdigest()[:20]
+    huella = hashlib.sha1(
+        (
+            cache_key
+            + "|"
+            + _datos_fuente(fuente)[1]
+            + ("|contexto" if contexto else "")
+        ).encode("utf-8")
+    ).hexdigest()[:20]
     destino = base / f"{huella}.png"
     return _renderizar_core(
         workspace,
@@ -995,4 +1028,6 @@ def generar_mapa_grupo(
         territorio=territorio,
         leyenda=leyenda,
         sospechosos=sospechosos,
+        leyenda_items=leyenda_items,
+        contexto=contexto,
     )

@@ -1,12 +1,15 @@
 """Colores y estilos de eventos alineados con ``plotear.py`` del core.
 
 La clasificación es la del proyecto base: amarillo para sismos registrados o
-no percibidos, rojo para Eventquery percibido, aro blanco/negro para la
+no percibidos, rojo para una fuente que informa percepción, aro blanco/negro para la
 solución publicada, borde violeta para sospechosos, aro azul marino para el
 evento seleccionado y aro magenta para soluciones superpuestas.
 """
 
 from __future__ import annotations
+
+from ..domain.catalogs import manifest as fuentes_manifest
+from ..domain.catalogs import registry
 
 # Paleta del proyecto base (plotear.py). No se usan colores por fuente para
 # evitar que dos catálogos distintos se confundan: manda el rol y la percepción.
@@ -24,15 +27,43 @@ def _percibido(valor) -> bool:
     return str(valor or "").strip().upper() == "S"
 
 
+def _capacidades(fuente: str) -> frozenset[str]:
+    definicion = fuentes_manifest.por_id(fuente)
+    if definicion is not None:
+        return definicion.capacidades
+    try:
+        return registry.formato(fuente).capacidades
+    except ValueError:
+        return frozenset()
+
+
+def _es_referencia(fuente: str) -> bool:
+    definicion = fuentes_manifest.por_id(fuente)
+    if definicion is not None:
+        return definicion.es_referencia
+    try:
+        return registry.formato(fuente).rol == "referencia"
+    except ValueError:
+        return False
+
+
+def distingue_percibidos(fuente: str) -> bool:
+    """True si el formato de la fuente informa percepción de eventos."""
+    return "percibidos" in _capacidades(fuente)
+
+
 def color_relleno(fuente: str, evento: dict) -> str:
-    """Relleno del marcador según rol, fuente y percepción.
+    """Relleno del marcador según rol de la solución y percepción.
 
     La solución publicada se dibuja como anillo blanco con borde negro; el
-    resto usa amarillo, salvo Eventquery percibido, que va en rojo.
+    resto usa amarillo, salvo una fuente que informa percepción y un evento
+    percibido, que va en rojo.
     """
     if evento.get("rol") == "publicado":
         return "#ffffff"
-    if fuente == "eventquery" and _percibido(evento.get("percibido")):
+    if _percibido(evento.get("percibido")) and (
+        _es_referencia(fuente) or "percibidos" in _capacidades(fuente)
+    ):
         return COLOR_PERCIBIDO
     return COLOR_NO_PERCIBIDO
 

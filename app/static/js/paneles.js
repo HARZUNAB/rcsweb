@@ -93,12 +93,6 @@
     no_actualizado: "No actualizado",
     repetido: "Repetido",
   };
-  const ETIQUETAS_FUENTE = {
-    seiscomp: "SeisComp",
-    seisan: "Seisan",
-    eventquery: "Eventquery",
-  };
-
   function esc(valor) {
     return String(valor === null || valor === undefined ? "" : valor).replace(
       /[&<>"']/g,
@@ -114,8 +108,14 @@
     );
   }
 
-  function etiquetaFuente(fuente) {
-    return ETIQUETAS_FUENTE[fuente] || fuente || "";
+  function etiquetaFuente(evento) {
+    if (!evento) {
+      return "";
+    }
+    if (typeof evento === "string") {
+      return evento;
+    }
+    return evento.fuente_etiqueta || evento.fuente || "";
   }
 
   function eventosGrupo() {
@@ -147,12 +147,6 @@
     }
     if (evento.rol === "publicado") {
       return "#ffffff";
-    }
-    if (
-      evento.fuente === "eventquery" &&
-      String(evento.percibido || "").toUpperCase() === "S"
-    ) {
-      return "#c00000";
     }
     return "#ffff00";
   }
@@ -299,7 +293,7 @@
       " · " +
       esc(tipo) +
       " · " +
-      esc(etiquetaFuente(evento.fuente)) +
+      esc(etiquetaFuente(evento)) +
       "</div>" +
       '<dl class="row mb-0 small g-0">' +
       '<dt class="col-5 text-secondary fw-normal">Magnitud</dt>' +
@@ -324,9 +318,7 @@
     if (evento.analista) {
       html +=
         '<dt class="col-5 text-secondary fw-normal">' +
-        (evento.fuente === "eventquery"
-          ? "Analista probable"
-          : "Analista") +
+        (evento.es_referencia ? "Analista probable" : "Analista") +
         "</dt>" +
         '<dd class="col-7">' +
         esc(evento.analista) +
@@ -444,7 +436,7 @@
           "</td><td>" +
           tipo +
           "</td><td>" +
-          esc(etiquetaFuente(evento.fuente)) +
+          esc(etiquetaFuente(evento)) +
           '</td><td class="text-end">' +
           esc(evento.mag || "—") +
           '</td><td class="text-end">' +
@@ -544,7 +536,7 @@
         [
           evento.fecha || "",
           tipo,
-          etiquetaFuente(evento.fuente),
+          etiquetaFuente(evento),
           evento.analista || "",
           evento.mag || "",
           profundidad,
@@ -926,7 +918,7 @@
         return evento.lat;
       }),
       text: eventos.map(function (evento) {
-        return evento.fecha + " · " + etiquetaFuente(evento.fuente);
+        return evento.fecha + " · " + etiquetaFuente(evento);
       }),
       customdata: eventos,
       marker: {
@@ -1191,7 +1183,7 @@
         return -evento.prof;
       }),
       text: eventos.map(function (evento) {
-        return evento.fecha + " · " + etiquetaFuente(evento.fuente);
+        return evento.fecha + " · " + etiquetaFuente(evento);
       }),
       customdata: eventos,
       marker: {

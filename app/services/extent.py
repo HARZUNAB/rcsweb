@@ -38,3 +38,24 @@ def margen_planta_eventos(eventos) -> float | None:
 
     separacion = max(max(lons) - min(lons), max(lats) - min(lats))
     return min(MARGEN_MAXIMO, max(MARGEN_MINIMO, separacion * 0.5))
+
+
+def extender_extent(
+    extent: tuple[float, float, float, float],
+    punto: tuple[float, float],
+    margen_lon: float = 2.0,
+    margen_lat: float = 1.5,
+) -> tuple[float, float, float, float]:
+    """Amplía ``(lon_min, lon_max, lat_min, lat_max)`` para incluir un punto.
+
+    Se usa en el mapa de Otros para mostrar la costa o islas chilenas más
+    cercanas como referencia, sin recortar los eventos del catálogo.
+    """
+    lon_min, lon_max, lat_min, lat_max = extent
+    lat, lon = punto
+    return (
+        min(lon_min, lon - margen_lon),
+        max(lon_max, lon + margen_lon),
+        min(lat_min, lat - margen_lat),
+        max(lat_max, lat + margen_lat),
+    )

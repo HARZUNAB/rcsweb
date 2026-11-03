@@ -547,10 +547,12 @@ La app debe usar `role=local` para los filtros de Observaciones y excluir
 **Estado de esta versión:** la app carga el manifiesto desde
 `app/domain/catalogs/sources.json`, o desde la ruta indicada por
 `CATALOG_SOURCES_MANIFEST`. Los formularios de solicitud y carga, los filtros de
-Paneles, las pestañas de catálogos y la adquisición usan las fuentes del
-manifiesto. Los adaptadores del pipeline siguen indexados por `format`: una
-fuente nueva con un formato existente funciona sin tocar la app; un formato
-nuevo requiere su adaptador o preparación externa.
+Paneles, las pestañas de catálogos, Resultados, Detalle y la adquisición usan
+las fuentes del manifiesto. Los adaptadores del pipeline siguen indexados por
+`format`: una fuente nueva con un formato existente funciona sin tocar la app;
+un formato nuevo requiere su adaptador o preparación externa. Las claves
+internas del registro son `referencia`, `local_select` y `local_export`, con
+alias para los nombres históricos.
 
 El manifiesto se valida al arrancar. Debe tener exactamente una fuente con
 `role=reference`, al menos una fuente local, IDs únicos y seguros, formatos,
@@ -595,7 +597,7 @@ distinto puede declarar otras fuentes o cambiar sus nombres visibles.
 
 | Fuente | Entrada y normalización | Capacidades |
 |---|---|---|
-| Eventquery | `eventquery_<inicio>_<fin>.csv`; el adaptador usa `datos/new_2_<eventquery>.csv` como catálogo publicado de referencia | `eventos`, `origenes`, `magnitudes` |
+| Eventquery | `eventquery_<inicio>_<fin>.csv`; el adaptador usa `datos/new_2_<eventquery>.csv` como catálogo publicado de referencia | `eventos`, `origenes`, `magnitudes`, `percibidos` |
 | SeisComp | `seiscomp_<inicio>_<fin>.csv` → `datos/seiscomp_parametros.csv` | `eventos`, `origenes`, `magnitudes`, `arribos`, `inventario`, `disponibilidad_ondas` |
 | Seisan | `select.out` → `datos/salida_collect.csv` | `eventos`, `origenes`, `magnitudes`, `excluidos` |
 
@@ -866,12 +868,16 @@ El ZIP recibe `plantas=0|1` y `perfiles=solo|con_planta|ambos` para incluir solo
 lo seleccionado. `catalog_export` cachea el catálogo preparado por archivo y
 parámetros, y los PNG quedan cacheados en el workspace.
 
-Para estos mapas se pasa `leyenda=False`, `sospechosos=False` y se ordenan los
+Para estos mapas se pasa `sospechosos=False`, `leyenda_items` y se ordenan los
 eventos con `_orden_para_mapa()`: los no percibidos se dibujan primero y los
-percibidos al final, de modo que quedan encima. La paleta sigue siendo la del
-core: rojo para percibidos de Eventquery y amarillo para el resto. El resto de
-los mapas de la aplicación conserva su leyenda, sus anillos de sospechoso y su
-orden habitual.
+percibidos al final, de modo que quedan encima. La leyenda se arma con los
+eventos: amarillo para no percibidos (o «Sismo registrado» si la fuente no
+informa percepción) y rojo solo si hay percibidos. `plot_cli.py` recibe también
+la etiqueta visible del catálogo y la clave visual que espera el core; así una
+fuente renombrada conserva el color y muestra su nombre. El mapa de Otros
+recibe un `contexto` con el punto más cercano de Chile continental para incluir
+la costa como referencia. El resto de los mapas de la aplicación conserva su
+leyenda, sus anillos de sospechoso y su orden habitual.
 
 Se generan dos PNG por perfil: `perfil_<id>.png` (solo perfil) y
 `perfil_<id>_planta.png` (perfil + planta), ambos solo con los eventos de ese
@@ -880,6 +886,16 @@ de magnitud y referencia geográfica cuando existe; nunca incluye al analista.
 
 Administrador y supervisor no se filtran. Sin código asignado, un analista o
 consulta no accede a eventos, incluido Catálogos.
+
+### Fuentes definidas por el manifiesto
+
+Ninguna lógica de la aplicación identifica una fuente por su nombre. El
+manifiesto declara `id`, `label`, `role` y `format`; la app usa el rol
+(`reference`/`local`), las capacidades del formato y el adaptador. Los códigos
+internos del registro son `referencia`, `local_select` y `local_export`, con
+alias de compatibilidad para los manifiestos históricos. Los nombres de archivo
+intermedios que exige el core quedan encapsulados en cada adaptador. Las
+columnas `*_eventquery` son contrato de datos del core, no nombres visibles.
 
 ### Comandos
 

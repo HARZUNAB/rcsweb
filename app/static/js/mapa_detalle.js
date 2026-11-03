@@ -246,7 +246,7 @@
     return -1;
   }
 
-  // Paleta del proyecto base: amarillo local/no percibido, rojo Eventquery
+  // Paleta del proyecto base: amarillo local/no percibido, rojo si la fuente
   // percibido, blanco/negro para publicado, violeta para sospechoso.
   function colorPunto(punto) {
     if (punto.color) {
@@ -254,12 +254,6 @@
     }
     if (punto.rol === "publicado") {
       return "#ffffff";
-    }
-    if (
-      punto.fuente === "eventquery" &&
-      String(punto.percibido || "").toUpperCase() === "S"
-    ) {
-      return "#c00000";
     }
     return "#ffff00";
   }

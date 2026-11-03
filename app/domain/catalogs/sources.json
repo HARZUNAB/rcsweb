@@ -5,9 +5,11 @@
       "id": "eventquery",
       "label": "Eventquery",
       "role": "reference",
-      "format": "eventquery",
+      "format": "referencia",
       "description": "Catálogo público de referencia para las comparaciones.",
-      "accept": [".csv"],
+      "accept": [
+        ".csv"
+      ],
       "validator": "eventquery",
       "download_handler": "eventquery",
       "stored_filename": "",
@@ -20,9 +22,11 @@
       "id": "seiscomp",
       "label": "SeisComp",
       "role": "local",
-      "format": "seiscomp",
+      "format": "local_export",
       "description": "Exportación de soluciones locales de SeisComp.",
-      "accept": [".csv"],
+      "accept": [
+        ".csv"
+      ],
       "validator": "seiscomp",
       "download_handler": "seiscomp",
       "stored_filename": "",
@@ -35,9 +39,13 @@
       "id": "seisan",
       "label": "Seisan",
       "role": "local",
-      "format": "seisan",
+      "format": "local_select",
       "description": "Salida select.out de Seisan.",
-      "accept": [".out", ".txt", ".dat"],
+      "accept": [
+        ".out",
+        ".txt",
+        ".dat"
+      ],
       "validator": "seisan",
       "download_handler": "seisan",
       "stored_filename": "select.out",

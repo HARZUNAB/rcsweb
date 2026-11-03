@@ -6,6 +6,7 @@ import datetime
 import math
 from pathlib import Path
 
+from ..domain.catalogs import manifest as fuentes_manifest
 from . import colores
 from .results import _a_numero, leer_csv
 
@@ -27,7 +28,7 @@ CAMPOS_NO_PUBLICADO_OTRA = (
     ("Analista_otra", "Analista otra fuente"),
 )
 
-CAMPOS_REPETIDO = (
+CAMPOS_REPETIDO_BASE = (
     ("fecha_hora", "Fecha y hora"),
     ("latitud", "Latitud"),
     ("longitud", "Longitud"),
@@ -37,9 +38,15 @@ CAMPOS_REPETIDO = (
     ("referencia", "Referencia"),
     ("percibido", "Percibido"),
     ("analista", "Analista"),
-    ("analista_seisan", "Analista probable (Seisan)"),
-    ("analista_seiscomp", "Analista probable (SeisComp)"),
 )
+
+
+def campos_repetido() -> tuple[tuple[str, str], ...]:
+    extra = tuple(
+        (f"analista_{fuente.id}", f"Analista probable ({fuente.label})")
+        for fuente in fuentes_manifest.locales()
+    )
+    return CAMPOS_REPETIDO_BASE + extra
 
 
 def leer_filas(workspace: Path, archivo: str):
@@ -201,18 +208,31 @@ def grupo_repetidos(filas: list[dict], indice: int, archivo: str) -> list[dict]:
     return _grupo_repetidos(filas, indice, archivo)
 
 
-COLORES_FUENTE = {
-    "seiscomp": "#0d6efd",
-    "seisan": "#fd7e14",
-    "eventquery": "#198754",
-    "publicado": "#6c757d",
+COLORES_FORMATO = {
+    "referencia": "#198754",
+    "local_export": "#0d6efd",
+    "local_select": "#fd7e14",
 }
-ETIQUETAS_FUENTE = {
-    "seiscomp": "SeisComp",
-    "seisan": "Seisan",
-    "eventquery": "Eventquery",
-    "publicado": "Publicado",
-}
+
+
+def color_fuente(fuente: str) -> str:
+    if fuente in ("publicado", ""):
+        return "#6c757d"
+    definicion = fuentes_manifest.por_id(fuente)
+    if definicion is not None:
+        return COLORES_FORMATO.get(definicion.format, "#6c757d")
+    from ..domain.catalogs.registry import formato
+
+    try:
+        return COLORES_FORMATO.get(formato(fuente).codigo, "#6c757d")
+    except ValueError:
+        return "#6c757d"
+
+
+def etiqueta_fuente(fuente: str) -> str:
+    if fuente in ("publicado", ""):
+        return "Publicado"
+    return fuentes_manifest.etiqueta(fuente)
 
 
 def _texto(valor) -> str:
@@ -239,12 +259,11 @@ def _solucion(
     longitud = _a_numero(lon)
     if latitud is None or longitud is None:
         return None
-    # El color ya no identifica a la fuente: sigue la paleta del proyecto base.
-    # ``rol`` distingue local/publicado y ``percibido`` el rojo de Eventquery.
-    codigo = fuente if fuente in COLORES_FUENTE else "publicado"
+    # El color sigue la paleta base; la etiqueta sale del manifiesto.
+    codigo = fuente or "publicado"
     return {
         "fuente": codigo,
-        "etiqueta": ETIQUETAS_FUENTE[codigo],
+        "etiqueta": etiqueta_fuente(codigo),
         "rol": rol,
         "percibido": _texto(percibido),
         "fecha": _texto(fecha),
@@ -258,6 +277,15 @@ def _solucion(
         "estado": _texto(estado),
         "fila": fila,
     }
+
+
+def _fuente_de_repetidos(clave: str) -> str:
+    if clave.startswith("publica"):
+        return fuentes_manifest.referencia().id
+    for definicion in fuentes_manifest.fuentes():
+        if clave.startswith(f"{definicion.id}_"):
+            return definicion.id
+    return clave.split("_", 1)[0]
 
 
 def construir_soluciones(
@@ -282,7 +310,7 @@ def construir_soluciones(
             rol="local",
         )
         publicado = _solucion(
-            "eventquery",
+            fuentes_manifest.referencia().id,
             fila.get("fecha_eventquery"),
             fila.get("lat_eventquery"),
             fila.get("lon_eventquery"),
@@ -296,23 +324,18 @@ def construir_soluciones(
         return [s for s in (local, publicado) if s is not None]
 
     if tabla == "repetidos":
-        fuente = opcion.split("_", 1)[0] if opcion else ""
-        if fuente == "publica":
-            fuente = "eventquery"
+        fuente = _fuente_de_repetidos(opcion)
         soluciones = []
         for item in grupo or []:
             datos = item.get("fila", {})
             analista = datos.get("analista", "")
             analista_etiqueta = "Analista"
-            if fuente == "eventquery":
+            if fuentes_manifest.es_referencia(fuente):
                 partes = []
-                for clave, etiqueta in (
-                    ("analista_seiscomp", "SeisComp"),
-                    ("analista_seisan", "Seisan"),
-                ):
-                    valor = _texto(datos.get(clave))
+                for definicion in fuentes_manifest.locales():
+                    valor = _texto(datos.get(f"analista_{definicion.id}"))
                     if valor:
-                        partes.append(f"{etiqueta}: {valor}")
+                        partes.append(f"{definicion.label}: {valor}")
                 if partes:
                     analista = "; ".join(partes)
                     analista_etiqueta = "Analista probable"
@@ -447,13 +470,14 @@ def leyenda_detalle(
 ) -> list[dict]:
     """Ítems de leyenda con los colores del proyecto base.
 
-    Se arma con los roles presentes: local, publicado, Eventquery percibido o
+    Se arma con los roles presentes: local, publicado, percibido o
     no percibido. El aro de selección y el de superposición se agregan aparte.
     """
     items: list[dict] = []
     roles = {punto.get("rol") for punto in puntos if punto.get("rol")}
     if "publicado" in roles or "local" in roles:
-        etiqueta = ETIQUETAS_FUENTE.get(opcion, opcion)
+        clave = _fuente_de_repetidos(opcion) if tabla == "repetidos" else opcion
+        etiqueta = etiqueta_fuente(clave)
         items.append(
             {
                 "etiqueta": f"Evento {etiqueta}",
@@ -476,7 +500,9 @@ def leyenda_detalle(
             (punto.get("fuente") for punto in puntos if punto.get("fuente")),
             opcion,
         )
-        if fuente == "eventquery" or opcion == "eventquery":
+        if colores.distingue_percibidos(fuente) or colores.distingue_percibidos(
+            opcion
+        ):
             items.extend(
                 [
                     {
@@ -597,7 +623,7 @@ def construir_detalle(tabla: str, archivo: str, filas: list[dict], indice: int) 
     elif tabla == "repetidos":
         contexto["grupo"] = grupo_repetidos(filas, indice, archivo)
         contexto["campos_repetido"] = [
-            (clave, titulo) for clave, titulo in CAMPOS_REPETIDO if clave in fila
+            (clave, titulo) for clave, titulo in campos_repetido() if clave in fila
         ]
     else:
         contexto["campos_local"] = CAMPOS_NO_PUBLICADO_LOCAL
@@ -623,7 +649,7 @@ def distancia_km(lat1, lon1, lat2, lon2):
 __all__ = [
     "CAMPOS_NO_PUBLICADO_LOCAL",
     "CAMPOS_NO_PUBLICADO_OTRA",
-    "CAMPOS_REPETIDO",
+    "CAMPOS_REPETIDO_BASE",
     "clave_evento",
     "construir_detalle",
     "construir_soluciones",

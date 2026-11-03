@@ -165,6 +165,24 @@ def distancia_chile_km(lat, lon) -> float | None:
         return None
 
 
+def punto_cercano_chile(lat, lon) -> tuple[float, float] | None:
+    """Punto del polígono de Chile más cercano a una coordenada."""
+    try:
+        from shapely.geometry import Point
+        from shapely.ops import nearest_points
+
+        datos = _cargar_datos()
+        if datos is None:
+            return None
+        geometria = datos.get("continental") or datos["chile"]
+        cercano = nearest_points(
+            Point(float(lon), float(lat)), geometria
+        )[1]
+        return float(cercano.y), float(cercano.x)
+    except Exception:
+        return None
+
+
 def _km_frontera(lat, lon):
     try:
         resultado = borders.frontera(lat, lon)

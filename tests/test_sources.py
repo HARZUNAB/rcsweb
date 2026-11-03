@@ -19,7 +19,10 @@ FIN = datetime(2026, 10, 31)
 
 def test_registro_de_fuentes():
     assert default_primary() == "seiscomp"
-    assert [f.codigo for f in fuentes_locales()] == ["seiscomp", "seisan"]
+    assert [f.codigo for f in fuentes_locales()] == [
+        "local_export",
+        "local_select",
+    ]
     assert fuente("eventquery").rol == "referencia"
     assert not fuente("eventquery").es_local
 

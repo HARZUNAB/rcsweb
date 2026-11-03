@@ -19,8 +19,17 @@ from pathlib import Path
 
 from flask import current_app
 
+from ..domain.catalogs import manifest as fuentes_manifest
+from ..domain.catalogs.registry import ALIASES
 from . import borders
-from .sources import FUENTES, etiqueta, nombre_atribucion, nombre_no_publicados
+from .sources import (
+    adaptador as adaptador_fuente,
+)
+from .sources import (
+    etiqueta,
+    nombre_atribucion,
+    nombre_no_publicados,
+)
 
 # Informes de repetidos comunes a todas las fuentes locales.
 REP_PUBLICA = (
@@ -37,22 +46,23 @@ def rep_files(
     opciones = list(REP_PUBLICA)
     for fuente in fuentes:
         nombre = labels.get(fuente, etiqueta(fuente))
-        opciones.append(
-            (
-                f"{fuente}_amplio",
-                f"rep_{fuente}_amplio.txt",
-                f"{nombre} · amplio",
+        adapter = adaptador_fuente(fuente)
+        for sufijo in ("amplio", "estricto"):
+            opciones.append(
+                (
+                    f"{fuente}_{sufijo}",
+                    adapter.archivo_repetidos_final(fuente, sufijo),
+                    f"{nombre} · {sufijo}",
+                )
             )
-        )
-        opciones.append(
-            (
-                f"{fuente}_estricto",
-                f"rep_{fuente}_estricto.txt",
-                f"{nombre} · estricto",
+        if "excluidos" in adapter.capacidades:
+            opciones.append(
+                (
+                    f"{fuente}_exclu",
+                    adapter.archivo_repetidos_final(fuente, "exclu"),
+                    f"{nombre} · excluidos",
+                )
             )
-        )
-        if fuente == "seisan":
-            opciones.append(("seisan_exclu", "rep_seisan_exclu.txt", "Seisan · excluidos"))
     return tuple(opciones)
 
 
@@ -69,12 +79,13 @@ def rep_grupos(fuentes: list[str], labels: dict[str, str] | None = None) -> tupl
         }
     ]
     for fuente in fuentes:
+        adapter = adaptador_fuente(fuente)
         opciones = [
             (f"{fuente}_amplio", "Amplio"),
             (f"{fuente}_estricto", "Estricto"),
         ]
-        if fuente == "seisan":
-            opciones.append(("seisan_exclu", "Excluidos"))
+        if "excluidos" in adapter.capacidades:
+            opciones.append((f"{fuente}_exclu", "Excluidos"))
         grupos.append(
             {
                 "titulo": labels.get(fuente, etiqueta(fuente)),
@@ -127,7 +138,7 @@ TABLAS = {
             "catálogo público de eventquery."
         ),
         "tipo": "fuentes",
-        "opciones": [("seiscomp", "SeisComp"), ("seisan", "Seisan")],
+        "opciones": [],
         "archivo": "no_publicados_{clave}.csv",
     },
     "no_actualizados": {
@@ -137,16 +148,14 @@ TABLAS = {
             "a la precisión del flujo (coordenadas y 1 decimal)."
         ),
         "tipo": "fuentes",
-        "opciones": [("seiscomp", "SeisComp"), ("seisan", "Seisan")],
+        "opciones": [],
         "archivo": "no_actualizados_{clave}.csv",
     },
     "repetidos": {
         "titulo": "Repetidos",
         "descripcion": "Posibles eventos duplicados detectados por fuente.",
         "tipo": "opciones",
-        "opciones": [
-            (clave, titulo) for clave, _archivo, titulo in rep_files(["seisan", "seiscomp"])
-        ],
+        "opciones": [],
         "archivo": "repetidos_{clave}.csv",
     },
 }
@@ -302,10 +311,13 @@ def _clasificar_no_actualizados(
 
 
 def _agregar_analistas(workspace: Path, filas: list[dict]) -> list[str]:
-    """Agrega analista_seisan / analista_seiscomp a los repetidos publicados."""
+    """Agrega una columna ``analista_<id>`` por fuente local."""
     from .attribution import analistas_para_evento, cargar_atribucion
 
-    indices = {fuente: cargar_atribucion(workspace, fuente) for fuente in ("seisan", "seiscomp")}
+    indices = {
+        fuente.id: cargar_atribucion(workspace, fuente.id)
+        for fuente in fuentes_manifest.locales()
+    }
     if not any(indices.values()):
         return []
 
@@ -387,14 +399,11 @@ def _contar(ruta: Path) -> int:
     return len(filas)
 
 
-def _firma_eventquery(workspace: Path, ruta: Path) -> str:
-    """Huella del catálogo Eventquery y de las atribuciones que lo enriquecen."""
+def _firma_referencia(workspace: Path, ruta: Path) -> str:
+    """Huella del catálogo de referencia y de las atribuciones locales."""
     partes = []
-    for origen in (
-        ruta,
-        workspace / "datos" / "atribucion_seiscomp.csv",
-        workspace / "datos" / "atribucion_seisan.csv",
-    ):
+    atribuciones = sorted((workspace / "datos").glob("atribucion_*.csv"))
+    for origen in [ruta, *atribuciones]:
         try:
             estado = origen.stat()
             partes.append(f"{origen.name}:{estado.st_size}:{estado.st_mtime_ns}")
@@ -406,12 +415,14 @@ def _firma_eventquery(workspace: Path, ruta: Path) -> str:
 def construir_resultados(workspace: Path, fuentes: list[str] | None = None) -> dict:
     """Normaliza las salidas del pipeline en ``resultados/``.
 
-    ``fuentes`` son los códigos de las fuentes locales seleccionadas. Si no se
-    indica, se asume el comportamiento histórico (Seisan y SeisComp).
+    ``fuentes`` son los ids de las fuentes locales seleccionadas. Si no se
+    indica, se usan todas las fuentes locales del manifiesto.
     """
     if fuentes is None:
-        fuentes = ["seisan", "seiscomp"]
-    fuentes = [fuente for fuente in fuentes if fuente in FUENTES and FUENTES[fuente].es_local]
+        fuentes = [fuente.id for fuente in fuentes_manifest.locales()]
+    fuentes = [
+        fuente for fuente in fuentes if fuentes_manifest.es_local(fuente)
+    ]
 
     resultados = workspace / "resultados"
     resultados.mkdir(parents=True, exist_ok=True)
@@ -458,6 +469,14 @@ def construir_resultados(workspace: Path, fuentes: list[str] | None = None) -> d
 
     for clave, nombre, _titulo in rep_files(fuentes):
         origen = workspace / "informes" / nombre
+        if not origen.is_file() and not clave.startswith("publica"):
+            fuente, _, sufijo = clave.rpartition("_")
+            adapter = adaptador_fuente(fuente)
+            alterno = adapter.archivo_repetidos(fuente, sufijo)
+            if alterno != nombre:
+                candidato = workspace / "informes" / alterno
+                if candidato.is_file():
+                    origen = candidato
         if not origen.is_file():
             continue
         columnas, filas = _leer_repetidos(origen)
@@ -473,31 +492,29 @@ def construir_resultados(workspace: Path, fuentes: list[str] | None = None) -> d
             "columnas": columnas,
         }
 
-    catalogos = {
-        "seisan": workspace / "datos" / "salida_collect.csv",
-        "seiscomp": workspace / "datos" / "seiscomp_parametros.csv",
-    }
-    for clave in fuentes:
-        ruta = catalogos.get(clave)
-        if ruta is not None and ruta.is_file():
-            indice["catalogos"][clave] = {
+    for fuente in fuentes:
+        adapter = adaptador_fuente(fuente)
+        ruta = workspace / adapter.catalogo(None, "")
+        if ruta.is_file():
+            indice["catalogos"][fuente] = {
                 "archivo": str(ruta.relative_to(workspace)),
                 "filas": _contar(ruta),
             }
-    eventquery = sorted((workspace / "datos").glob("new_2_*.csv"))
-    if eventquery:
-        origen = eventquery[0]
+    referencia = fuentes_manifest.referencia()
+    candidatos = sorted((workspace / "datos").glob("new_2_*.csv"))
+    if candidatos:
+        origen = candidatos[0]
         from .attribution import enriquecer_eventquery
 
         columnas, filas = leer_csv(origen)
         columnas, filas = enriquecer_eventquery(workspace, columnas, filas)
-        destino = resultados / "catalogo_eventquery.csv"
+        destino = resultados / f"catalogo_{referencia.id}.csv"
         escribir_csv(destino, columnas, filas)
-        indice["catalogos"]["eventquery"] = {
-            "archivo": "resultados/catalogo_eventquery.csv",
+        indice["catalogos"][referencia.id] = {
+            "archivo": f"resultados/{destino.name}",
             "origen": str(origen.relative_to(workspace)),
             "filas": len(filas),
-            "firma": _firma_eventquery(workspace, origen),
+            "firma": _firma_referencia(workspace, origen),
         }
 
     (resultados / "indice.json").write_text(
@@ -516,9 +533,51 @@ def _escribir_indice(workspace: Path, indice: dict) -> None:
     temporal.replace(ruta)
 
 
-def _asegurar_catalogo_eventquery(workspace: Path, indice: dict) -> dict:
-    """Genera el catálogo Eventquery enriquecido para trabajos existentes."""
-    info = (indice.get("catalogos") or {}).get("eventquery")
+def _normalizar_indice(indice: dict) -> dict:
+    """Alias de compatibilidad entre ids actuales y claves históricas."""
+    catalogos = indice.setdefault("catalogos", {})
+    referencia = fuentes_manifest.referencia()
+    claves_ref = (referencia.format, _alias_formato(referencia.format))
+    for clave in claves_ref:
+        if referencia.id not in catalogos and clave in catalogos:
+            catalogos[referencia.id] = catalogos.pop(clave)
+    for definicion in fuentes_manifest.locales():
+        for clave in (definicion.format, _alias_formato(definicion.format)):
+            if definicion.id not in catalogos and clave in catalogos:
+                catalogos[definicion.id] = catalogos.pop(clave)
+        for sufijo in ("amplio", "estricto", "exclu"):
+            actual = f"{definicion.id}_{sufijo}"
+            for legado in (
+                f"{definicion.format}_{sufijo}",
+                f"{_alias_formato(definicion.format)}_{sufijo}",
+            ):
+                if (
+                    actual not in indice.setdefault("repetidos", {})
+                    and legado in indice["repetidos"]
+                ):
+                    indice["repetidos"][actual] = indice["repetidos"].pop(legado)
+    return indice
+
+
+def _alias_formato(formato: str) -> str:
+    for alias, clave in ALIASES.items():
+        if clave == formato:
+            return alias
+    return formato
+
+
+def _asegurar_catalogo_referencia(workspace: Path, indice: dict) -> dict:
+    """Genera o actualiza el catálogo enriquecido de la fuente de referencia."""
+    referencia = fuentes_manifest.referencia()
+    catalogos = indice.setdefault("catalogos", {})
+    info = catalogos.get(referencia.id)
+    if not info:
+        info = (
+            catalogos.get(_alias_formato(referencia.format))
+            or catalogos.get(referencia.format)
+        )
+        if info:
+            catalogos[referencia.id] = info
     if not info:
         return indice
     archivo_rel = info.get("archivo") or ""
@@ -530,23 +589,19 @@ def _asegurar_catalogo_eventquery(workspace: Path, indice: dict) -> dict:
     origen = workspace / origen_rel
     if not origen.is_file():
         return indice
-    firma = _firma_eventquery(workspace, origen)
-    destino = workspace / "resultados" / "catalogo_eventquery.csv"
-    if (
-        archivo_rel.startswith("resultados/")
-        and destino.is_file()
-        and info.get("firma") == firma
-    ):
+    firma = _firma_referencia(workspace, origen)
+    destino = workspace / "resultados" / f"catalogo_{referencia.id}.csv"
+    if archivo_rel.startswith("resultados/") and destino.is_file() and info.get("firma") == firma:
         return indice
 
     from .attribution import enriquecer_eventquery
 
     columnas, filas = leer_csv(origen)
     columnas, filas = enriquecer_eventquery(workspace, columnas, filas)
-    temporal = destino.with_name("catalogo_eventquery.tmp.csv")
+    temporal = destino.with_name(f"catalogo_{referencia.id}.tmp.csv")
     escribir_csv(temporal, columnas, filas)
     temporal.replace(destino)
-    info["archivo"] = "resultados/catalogo_eventquery.csv"
+    info["archivo"] = f"resultados/{destino.name}"
     info["origen"] = origen_rel
     info["filas"] = len(filas)
     info["firma"] = firma
@@ -556,23 +611,20 @@ def _asegurar_catalogo_eventquery(workspace: Path, indice: dict) -> dict:
 
 def cargar_indice(workspace: Path) -> dict:
     ruta = workspace / "resultados" / "indice.json"
+    vacio = {
+        "no_publicados": {},
+        "no_actualizados": {},
+        "repetidos": {},
+        "catalogos": {},
+    }
     if not ruta.is_file():
-        return {
-            "no_publicados": {},
-            "no_actualizados": {},
-            "repetidos": {},
-            "catalogos": {},
-        }
+        return vacio
     try:
         indice = json.loads(ruta.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {
-            "no_publicados": {},
-            "no_actualizados": {},
-            "repetidos": {},
-            "catalogos": {},
-        }
-    return _asegurar_catalogo_eventquery(workspace, indice)
+        return vacio
+    indice = _normalizar_indice(indice)
+    return _asegurar_catalogo_referencia(workspace, indice)
 
 
 # --------------------------------------------------------------------------- #

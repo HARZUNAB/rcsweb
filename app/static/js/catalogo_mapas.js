@@ -210,7 +210,7 @@
     const botonZip = document.getElementById("zip-boton");
     const textoBoton = botonZip ? botonZip.innerHTML : "";
 
-    function cantidadMapas() {
+    function resumenZip() {
       const plantas = document.getElementById("zip-plantas");
       const incluirPlantas = plantas && plantas.checked;
       const totalPlantas = Number(formZip.dataset.totalPlantas || 0);
@@ -220,14 +220,78 @@
       );
       let perfiles = 0;
       if (variante) {
-        if (variante.value === "ambos") {
-          perfiles = totalPerfiles * 2;
-        } else {
-          perfiles = totalPerfiles;
-        }
+        perfiles =
+          variante.value === "ambos" ? totalPerfiles * 2 : totalPerfiles;
       }
-      return (incluirPlantas ? totalPlantas : 0) + perfiles;
+      return {
+        plantas: incluirPlantas ? totalPlantas : 0,
+        perfiles: perfiles,
+      };
     }
+
+    function cantidadMapas() {
+      const resumen = resumenZip();
+      return resumen.plantas + resumen.perfiles;
+    }
+
+    function actualizarResumen() {
+      const resumenEl = document.getElementById("zip-resumen");
+      if (!resumenEl) {
+        return;
+      }
+      const resumen = resumenZip();
+      const total = resumen.plantas + resumen.perfiles;
+      if (!total) {
+        resumenEl.textContent = "El ZIP incluirá solo el CSV.";
+        return;
+      }
+      const partes = [];
+      if (resumen.plantas) {
+        partes.push(
+          resumen.plantas +
+            " mapa" +
+            (resumen.plantas === 1 ? "" : "s") +
+            " de planta"
+        );
+      }
+      if (resumen.perfiles) {
+        partes.push(
+          resumen.perfiles +
+            " mapa" +
+            (resumen.perfiles === 1 ? "" : "s") +
+            " de perfil"
+        );
+      }
+      resumenEl.textContent =
+        "El ZIP incluirá " +
+        partes.join(" y ") +
+        ": " +
+        total +
+        " PNG + catalogo.csv.";
+    }
+
+    formZip
+      .querySelectorAll('input[type="checkbox"], input[type="radio"]')
+      .forEach(function (control) {
+        control.addEventListener("change", actualizarResumen);
+      });
+
+    const botonTodo = document.getElementById("zip-todo");
+    if (botonTodo) {
+      botonTodo.addEventListener("click", function () {
+        const plantas = document.getElementById("zip-plantas");
+        const ambos = document.getElementById("zip-perfil-ambos");
+        if (plantas) {
+          plantas.checked = true;
+        }
+        if (ambos) {
+          ambos.checked = true;
+        }
+        actualizarResumen();
+      });
+    }
+
+    actualizarResumen();
 
     formZip.addEventListener("submit", async function (evento) {
       evento.preventDefault();

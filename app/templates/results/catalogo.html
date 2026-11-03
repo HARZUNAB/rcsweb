@@ -63,7 +63,9 @@
           <div class="form-check">
             <input class="form-check-input" type="radio" name="perfiles"
                    id="zip-perfil-solo" value="solo">
-            <label class="form-check-label" for="zip-perfil-solo">Solo perfil</label>
+            <label class="form-check-label" for="zip-perfil-solo">
+              Solo perfil <span class="text-secondary">(un PNG por perfil)</span>
+            </label>
           </div>
           <div class="form-check">
             <input class="form-check-input" type="radio" name="perfiles"
@@ -73,14 +75,26 @@
           <div class="form-check">
             <input class="form-check-input" type="radio" name="perfiles"
                    id="zip-perfil-ambos" value="ambos" checked>
-            <label class="form-check-label" for="zip-perfil-ambos">Ambas variantes</label>
+            <label class="form-check-label" for="zip-perfil-ambos">
+              Ambas variantes <span class="text-secondary">(dos PNG por perfil)</span>
+            </label>
           </div>
         </div>
       </div>
-      <div class="col-12 col-lg-3 text-lg-end">
+      <div class="col-12 col-lg-3 text-lg-end d-flex flex-column gap-2">
+        <button class="btn btn-outline-secondary btn-sm" type="button"
+                id="zip-todo">
+          Seleccionar todo
+        </button>
         <button class="btn btn-primary" type="submit" id="zip-boton">
           Descargar ZIP
         </button>
+      </div>
+      <div class="col-12">
+        <div id="zip-resumen" class="alert alert-light border small mb-0"
+             role="status" aria-live="polite">
+          Calculando contenido del ZIP…
+        </div>
       </div>
     </form>
     <p class="small text-secondary mb-0 mt-2">

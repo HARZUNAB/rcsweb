@@ -8,11 +8,6 @@
   'no_actualizado': 'No actualizado',
   'repetido': 'Repetido',
 } %}
-{% set etiquetas_fuente = {
-  'seiscomp': 'SeisComp',
-  'seisan': 'Seisan',
-  'eventquery': 'Eventquery',
-} %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
   <div>
     <div class="text-secondary small text-uppercase mb-1">
@@ -160,11 +155,7 @@
   if (!datosEl || !boton) {
     return;
   }
-  const etiquetasFuente = {
-    seiscomp: "SeisComp",
-    seisan: "Seisan",
-    eventquery: "Eventquery",
-  };
+  const etiquetasFuente = {{ (etiquetas_fuente|default({}))|tojson }};
   const etiquetasTipo = {
     no_publicado: "No publicado",
     no_actualizado: "No actualizado",

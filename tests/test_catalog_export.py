@@ -149,6 +149,10 @@ def test_mapa_planta_sin_leyenda_y_con_percibidos_al_final(
     args, kwargs = llamadas[0]
     assert kwargs["leyenda"] is False
     assert kwargs["sospechosos"] is False
+    assert [item["etiqueta"] for item in kwargs["leyenda_items"]] == [
+        "Sismo no percibido",
+        "Sismo percibido",
+    ]
     assert [evento["id"] for evento in args[1]] == [2, 1]
     assert catalog_export.VERSION_MAPAS in args[4]
 
@@ -184,6 +188,10 @@ def test_mapa_perfil_sin_leyenda_y_con_percibidos_al_final(
     args, kwargs = llamadas[0]
     assert kwargs["leyenda"] is False
     assert kwargs["sospechosos"] is False
+    assert [item["etiqueta"] for item in kwargs["leyenda_items"]] == [
+        "Sismo no percibido",
+        "Sismo percibido",
+    ]
     assert [evento["percibido"] for evento in args[1]] == ["N", "S"]
     assert catalog_export.VERSION_MAPAS in args[4]
 
@@ -220,3 +228,50 @@ def test_preparar_catalogo_usa_cache_por_archivo(monkeypatch, tmp_path):
 
     assert primero is segundo
     assert len(llamadas) == 1
+
+
+def test_mapa_otros_incluye_contexto_chileno(monkeypatch, tmp_path):
+    llamadas = []
+
+    def falso(*args, **kwargs):
+        llamadas.append((args, kwargs))
+        return b"png"
+
+    monkeypatch.setattr(catalog_export.plots, "generar_mapa_grupo", falso)
+    monkeypatch.setattr(
+        catalog_export.ubicacion,
+        "punto_cercano_chile",
+        lambda _lat, _lon: (-36.5, -73.0),
+    )
+    planta = {
+        "clave": "otros",
+        "titulo": "Otros",
+        "territorio": None,
+        "eventos": [{"id": 1, "lat": -37.0, "lon": -95.0, "percibido": "N"}],
+        "total": 1,
+    }
+
+    catalog_export.mapa_planta(
+        tmp_path,
+        planta,
+        "eventquery",
+        cache_key="clave",
+        resumen={},
+    )
+
+    args, kwargs = llamadas[0]
+    assert kwargs["contexto"] == (-36.5, -73.0)
+    assert "|ctx:-36.500,-73.000" in args[4]
+
+
+def test_extender_extent_incluye_punto_y_margen():
+    from app.services.extent import extender_extent
+
+    extent = (-98.0, -95.0, -38.0, -36.0)
+
+    assert extender_extent(extent, (-36.5, -73.0)) == (
+        -98.0,
+        -71.0,
+        -38.0,
+        -35.0,
+    )

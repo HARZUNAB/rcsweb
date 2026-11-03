@@ -15,8 +15,10 @@ def _verificar(workspace) -> None:
 
 
 class Adaptador(Base):
-    formato = "seiscomp"
+    formato = "local_export"
+    tipo = "export"
     prefijo = "seiscomp_"
+    prefijo_repetidos = "seiscomp"
     capacidades = frozenset(
         {
             "eventos",
@@ -39,5 +41,11 @@ class Adaptador(Base):
             )
         ]
 
-    def catalogo(self, job, eventquery: str) -> str:
+    def catalogo(self, job, referencia: str) -> str:
         return "datos/seiscomp_parametros.csv"
+
+    def archivo_no_publicados(self, source_id: str) -> str:
+        return "no_pub_desde_2_5_seiscomp_estricto.csv"
+
+    def archivo_no_actualizados(self, source_id: str) -> str:
+        return "no_act_seiscomp_estricto.txt"

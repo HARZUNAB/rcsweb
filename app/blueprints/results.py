@@ -24,7 +24,7 @@ from ..models import Job
 from ..security import permiso_requerido, puede_ver_trabajo
 from ..services import catalog_export, colores
 from ..services.analysts import (
-    CAMPOS_ANALISTA,
+    campos_analista,
     codigos_usuario,
     evento_visible,
     usuario_restringido,
@@ -106,8 +106,6 @@ TITULOS = {
     "tipomag": "Tipo mag.",
     "referencia": "Referencia",
     "percibido": "Percibido",
-    "analista_seisan": "Analista probable (Seisan)",
-    "analista_seiscomp": "Analista probable (SeisComp)",
 }
 TITULOS.update(dict(NO_ACT_COLUMNS))
 
@@ -304,6 +302,11 @@ def _opcion_valida(tabla: str, job: Job) -> tuple[dict, list[tuple[str, str]], s
 def titulo_columna(clave: str) -> str:
     if clave in TITULOS:
         return TITULOS[clave]
+    if clave.startswith("analista_"):
+        codigo = clave[len("analista_") :]
+        etiqueta = fuentes_manifest.etiqueta(codigo)
+        if etiqueta != codigo:
+            return f"Analista probable ({etiqueta})"
     return clave.replace("_", " ").strip().capitalize()
 
 
@@ -339,7 +342,7 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
     catalogo_restringido = restringido and tabla == "catalogos"
     if catalogo_restringido and not codigos_usuario(current_user):
         abort(403)
-    ocultas = CAMPOS_ANALISTA if catalogo_restringido else None
+    ocultas = campos_analista() if catalogo_restringido else None
     if ocultas:
         filtros = {
             clave: valor
@@ -371,15 +374,16 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
         columnas = [
             (columna, titulo)
             for columna, titulo in columnas
-            if columna not in CAMPOS_ANALISTA
+            if columna not in ocultas
         ]
     claves_mapa = claves_frontera(tabla_datos["columnas"])
     if tabla == "repetidos":
-        fuente_mapa = opcion.split("_", 1)[0]
+        fuente_mapa = _fuente_de_repetidos(opcion)
     else:
         fuente_mapa = opcion
-    if fuente_mapa == "publica":
-        fuente_mapa = "eventquery"
+    es_referencia = fuente_mapa == "publica" or fuentes_manifest.es_referencia(
+        fuente_mapa
+    )
     for fila in tabla_datos["filas"]:
         if claves_mapa:
             lat = fila.get(claves_mapa[0])
@@ -395,9 +399,9 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
             }
             fila["_ubicacion"] = None
         # El minimapa usa la misma paleta base que los mapas grandes.
-        if fuente_mapa == "eventquery":
+        if es_referencia:
             fila["_mapa_color"] = colores.color_relleno(
-                "eventquery",
+                fuente_mapa,
                 {
                     "percibido": fila.get("Percep.")
                     or fila.get("percibido")
@@ -567,18 +571,35 @@ def _render_tabla(job_id: str, tabla: str, opcion: str):
     )
 
 
+def _fuente_de_repetidos(clave: str) -> str:
+    if clave.startswith("publica"):
+        return fuentes_manifest.referencia().id
+    for definicion in fuentes_manifest.fuentes():
+        if clave.startswith(f"{definicion.id}_"):
+            return definicion.id
+    return clave.split("_", 1)[0]
+
+
 @results_bp.get("/jobs/<job_id>/resultados/no-publicados")
 @login_required
 @permiso_requerido("catalogos.ver")
 def no_publicados(job_id: str):
-    return _render_tabla(job_id, "no_publicados", request.args.get("fuente", "seiscomp"))
+    return _render_tabla(
+        job_id,
+        "no_publicados",
+        request.args.get("fuente") or fuentes_manifest.default_primary(),
+    )
 
 
 @results_bp.get("/jobs/<job_id>/resultados/no-actualizados")
 @login_required
 @permiso_requerido("catalogos.ver")
 def no_actualizados(job_id: str):
-    return _render_tabla(job_id, "no_actualizados", request.args.get("fuente", "seiscomp"))
+    return _render_tabla(
+        job_id,
+        "no_actualizados",
+        request.args.get("fuente") or fuentes_manifest.default_primary(),
+    )
 
 
 @results_bp.get("/jobs/<job_id>/resultados/repetidos")
@@ -601,7 +622,7 @@ def _filtros_catalogo() -> dict[str, str]:
         filtros = {
             clave: valor
             for clave, valor in filtros.items()
-            if clave not in CAMPOS_ANALISTA
+            if clave not in campos_analista()
         }
     return filtros
 

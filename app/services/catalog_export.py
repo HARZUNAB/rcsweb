@@ -6,7 +6,8 @@ import threading
 from pathlib import Path
 
 from . import panels, plots, ubicacion
-from .analysts import CAMPOS_ANALISTA
+from .analysts import campos_analista
+from .colores import COLOR_NO_PERCIBIDO, COLOR_PERCIBIDO
 from .results import exportar_filas, leer_todo
 
 PLANTAS = (
@@ -16,7 +17,7 @@ PLANTAS = (
     ("otros", "Otros", None),
 )
 
-VERSION_MAPAS = "catalogo-v3"
+VERSION_MAPAS = "catalogo-v5"
 
 _CACHE: dict[tuple, dict] = {}
 _CACHE_LOCK = threading.Lock()
@@ -167,7 +168,7 @@ def _preparar_catalogo(
     direccion: str = "asc",
     ocultar_analista: bool = False,
 ) -> dict:
-    ocultas = CAMPOS_ANALISTA if ocultar_analista else None
+    ocultas = campos_analista() if ocultar_analista else None
     filtros_limpios = {
         clave: valor
         for clave, valor in (filtros or {}).items()
@@ -277,6 +278,41 @@ def _orden_para_mapa(eventos: list[dict]) -> list[dict]:
     )
 
 
+def _leyenda_items(eventos: list[dict]) -> list[dict]:
+    """Leyenda mínima: solo las categorías presentes en el mapa."""
+    percibidos = sum(
+        1
+        for evento in eventos
+        if str(evento.get("percibido", "")).strip().upper() == "S"
+    )
+    total = len(eventos)
+    con_dato = any(str(evento.get("percibido", "")).strip() for evento in eventos)
+    items = []
+    if total > percibidos:
+        items.append(
+            {
+                "etiqueta": (
+                    "Sismo no percibido" if con_dato else "Sismo registrado"
+                ),
+                "color": COLOR_NO_PERCIBIDO,
+            }
+        )
+    if percibidos:
+        items.append(
+            {"etiqueta": "Sismo percibido", "color": COLOR_PERCIBIDO}
+        )
+    return items
+
+
+def _contexto_otros(eventos: list[dict]) -> tuple[float, float] | None:
+    """Punto de Chile más cercano al centro de los eventos de Otros."""
+    if not eventos:
+        return None
+    lat = sum(float(evento["lat"]) for evento in eventos) / len(eventos)
+    lon = sum(float(evento["lon"]) for evento in eventos) / len(eventos)
+    return ubicacion.punto_cercano_chile(lat, lon)
+
+
 def mapa_planta(
     workspace: Path,
     planta: dict,
@@ -287,16 +323,31 @@ def mapa_planta(
 ) -> bytes | None:
     if not planta["eventos"]:
         return None
+    contexto = (
+        _contexto_otros(planta["eventos"])
+        if planta["clave"] == "otros"
+        else None
+    )
+    sufijo_contexto = (
+        f"|ctx:{contexto[0]:.3f},{contexto[1]:.3f}" if contexto else ""
+    )
     return plots.generar_mapa_grupo(
         workspace,
         _orden_para_mapa(planta["eventos"]),
         opcion,
         resumen,
-        VERSION_MAPAS + "|" + cache_key + "|planta|" + planta["clave"],
+        VERSION_MAPAS
+        + "|"
+        + cache_key
+        + "|planta|"
+        + planta["clave"]
+        + sufijo_contexto,
         modo="planta",
         territorio=planta["territorio"],
         leyenda=False,
         sospechosos=False,
+        leyenda_items=_leyenda_items(planta["eventos"]),
+        contexto=contexto,
     )
 
 
@@ -326,6 +377,7 @@ def mapa_perfil(
         modo=modo,
         leyenda=False,
         sospechosos=False,
+        leyenda_items=_leyenda_items(eventos),
     )
 
 

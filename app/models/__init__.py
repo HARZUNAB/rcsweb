@@ -192,7 +192,7 @@ class JobFile(db.Model):
     __tablename__ = "job_files"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
-    kind: Mapped[str] = mapped_column(String(32))  # seisan | eventquery | seiscomp
+    kind: Mapped[str] = mapped_column(String(32))  # id de la fuente en el manifiesto
     original_name: Mapped[str] = mapped_column(String(255))
     stored_name: Mapped[str] = mapped_column(String(255))
     size: Mapped[int] = mapped_column(Integer, default=0)

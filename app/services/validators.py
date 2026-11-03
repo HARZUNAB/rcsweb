@@ -276,9 +276,9 @@ def validar_fuente(codigo: str, ruta: Path, periodo_inicio=None, periodo_fin=Non
 
     formato = fuente(codigo).codigo
     validadores = {
-        "eventquery": validar_eventquery,
-        "seisan": validar_seisan,
-        "seiscomp": validar_seiscomp,
+        "referencia": validar_eventquery,
+        "local_select": validar_seisan,
+        "local_export": validar_seiscomp,
     }
     validador = validadores.get(formato)
     if validador is None:

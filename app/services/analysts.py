@@ -7,6 +7,7 @@ import unicodedata
 
 from flask import current_app, g, has_request_context
 
+from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..models import User
 
@@ -15,15 +16,26 @@ CAMPOS_ANALISTA = (
     "Analista",
     "analista",
     "Analista probable",
-    "analista_seisan",
-    "analista_seiscomp",
     "Analista_otra",
     "analista_otra",
 )
-_PREFIJO_FUENTE = re.compile(
-    r"^\s*(seiscomp|seisan|eventquery|publicado|local)\s*:\s*",
-    re.IGNORECASE,
-)
+
+
+def campos_analista() -> tuple[str, ...]:
+    """Columnas de analista, incluidas las de cada fuente local del manifiesto."""
+    extra = tuple(
+        f"analista_{fuente.id}" for fuente in fuentes_manifest.locales()
+    )
+    return CAMPOS_ANALISTA + extra
+
+
+def _prefijo_fuente() -> re.Pattern[str]:
+    nombres = {"publicado", "local"}
+    for fuente in fuentes_manifest.fuentes():
+        nombres.add(fuente.id)
+        nombres.add(fuente.label)
+    patron = "|".join(re.escape(nombre) for nombre in sorted(nombres, key=len, reverse=True))
+    return re.compile(rf"^\s*(?:{patron})\s*:\s*", re.IGNORECASE)
 
 
 def normalizar_nombre(valor) -> str:
@@ -36,8 +48,9 @@ def normalizar_nombre(valor) -> str:
 
 def _nombres_texto(texto) -> list[str]:
     nombres = []
+    prefijo = _prefijo_fuente()
     for parte in re.split(r"[;,]", str(texto or "")):
-        limpio = _PREFIJO_FUENTE.sub("", parte)
+        limpio = prefijo.sub("", parte)
         normalizado = normalizar_nombre(limpio)
         if not normalizado or normalizado in {"sinnombre", "sin nombre"}:
             continue
@@ -49,7 +62,7 @@ def _nombres_texto(texto) -> list[str]:
 def nombres_de_fila(fila: dict) -> list[str]:
     """Nombres de analista presentes en una fila, sin importar la columna."""
     nombres = []
-    for clave in CAMPOS_ANALISTA:
+    for clave in campos_analista():
         for nombre in _nombres_texto(fila.get(clave, "")):
             if nombre not in nombres:
                 nombres.append(nombre)
@@ -159,6 +172,7 @@ def filtrar_filas(filas: list[dict], usuario) -> list[dict]:
 __all__ = [
     "CAMPOS_ANALISTA",
     "ROLES_RESTRINGIDOS",
+    "campos_analista",
     "codigos_usuario",
     "coincide",
     "evento_visible",

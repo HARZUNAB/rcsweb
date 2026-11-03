@@ -1,8 +1,8 @@
 """Atribución de analistas a eventos publicados.
 
 Espejo de la lógica de ``generajson._analistas_para_evento`` del proyecto base:
-cruza un evento del catálogo público con las soluciones locales de Seisan y
-SeisComp para deducir qué analista lo trabajó. Se usa para enriquecer los
+cruza un evento del catálogo de referencia con las soluciones locales para
+deducir qué analista lo trabajó. Se usa para enriquecer los
 informes de repetidos publicados.
 """
 
@@ -11,6 +11,8 @@ from __future__ import annotations
 import csv
 import math
 from pathlib import Path
+
+from ..domain.catalogs import manifest as fuentes_manifest
 
 RADIO_TIERRA_KM = 6371.0088
 
@@ -125,23 +127,21 @@ def analistas_para_evento(
             }
         )
 
+    principal = fuentes_manifest.default_primary()
     return sorted(
         por_fuente.values(),
-        key=lambda entrada: 0 if entrada["fuente"] == "seiscomp" else 1,
+        key=lambda entrada: (
+            0 if entrada["fuente"] == principal else 1,
+            fuentes_manifest.etiqueta(entrada["fuente"]),
+        ),
     )
 
 
-ETIQUETAS_FUENTE = {
-    "seiscomp": "SeisComp",
-    "seisan": "Seisan",
-}
-
-
 def indices_atribucion(workspace: Path) -> dict[str, dict[str, list[dict]]]:
-    """Índices de atribución de SeisComp y Seisan, para cargarlos una vez."""
+    """Índices de atribución de todas las fuentes locales del manifiesto."""
     return {
-        fuente: cargar_atribucion(workspace, fuente)
-        for fuente in ("seiscomp", "seisan")
+        fuente.id: cargar_atribucion(workspace, fuente.id)
+        for fuente in fuentes_manifest.locales()
     }
 
 
@@ -151,17 +151,17 @@ def texto_analista_probable(
     latitud,
     longitud,
 ) -> str:
-    """``SeisComp: nombre; Seisan: nombre`` para un evento publicado."""
+    """``Fuente: nombre; Fuente: nombre`` para un evento publicado."""
     partes = []
-    for fuente in ("seiscomp", "seisan"):
-        indice = indices.get(fuente)
+    for fuente in fuentes_manifest.locales():
+        indice = indices.get(fuente.id)
         if not indice:
             continue
         encontrados = analistas_para_evento(indice, fecha_hora, latitud, longitud)
         for entrada in encontrados or ():
             nombres = ", ".join(entrada.get("analistas") or [])
             if nombres:
-                partes.append(f"{ETIQUETAS_FUENTE[fuente]}: {nombres}")
+                partes.append(f"{fuente.label}: {nombres}")
     return "; ".join(partes)
 
 
@@ -170,7 +170,7 @@ def enriquecer_eventquery(
     columnas: list[str],
     filas: list[dict],
 ) -> tuple[list[str], list[dict]]:
-    """Agrega la columna «Analista probable» al catálogo de Eventquery."""
+    """Agrega la columna «Analista probable» al catálogo de referencia."""
     indices = indices_atribucion(workspace)
     if "Analista probable" not in columnas:
         columnas = list(columnas) + ["Analista probable"]

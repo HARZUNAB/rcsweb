@@ -147,6 +147,8 @@ def _eventos_vista(
                 "along_km": evento["along_km"],
                 "tipo_observacion": evento["tipo_observacion"],
                 "fuente": evento["fuente"],
+                "fuente_etiqueta": evento.get("fuente_etiqueta", ""),
+                "es_referencia": bool(evento.get("es_referencia")),
                 "percibido": evento.get("percibido", ""),
                 "color": evento.get("color", ""),
                 "mag": evento["mag"],
@@ -177,7 +179,7 @@ def _evento_core(evento: dict) -> dict:
 
 def _fuente_png(ctx: dict) -> str:
     if ctx["dataset"].startswith("catalogo_"):
-        return ctx["dataset"].split("_", 1)[1]
+        return ctx["dataset"].removeprefix("catalogo_")
     # Fuente mixta: se identifica como observaciones para no atribuir el grupo
     # completo a una sola fuente en el título del core.
     return "observaciones"
@@ -185,7 +187,7 @@ def _fuente_png(ctx: dict) -> str:
 
 def _fuente_titulo_png(ctx: dict) -> str:
     if ctx["dataset"].startswith("catalogo_"):
-        clave = ctx["dataset"].split("_", 1)[1]
+        clave = ctx["dataset"].removeprefix("catalogo_")
         return panels.etiqueta_fuente(clave)
     return _titulo_fuente(ctx["fuente"])
 
@@ -219,12 +221,7 @@ def _puntos_grupo(eventos: list[dict]) -> list[dict]:
     """Puntos del grupo con el mismo contrato que el mapa de Resultados."""
     puntos = []
     for evento in eventos:
-        fuente = evento.get("fuente") or "publicado"
-        codigo = (
-            fuente
-            if fuente in ("seiscomp", "seisan", "eventquery")
-            else "publicado"
-        )
+        codigo = evento.get("fuente") or "publicado"
         estilo = colores.estilo_punto(
             codigo,
             {
@@ -589,6 +586,7 @@ def grupo(job_id: str, dataset: str, grupo: str, ident: str):
         url_online=url_online,
         url_mapa=url_mapa,
         puede_exportar=True,
+        etiquetas_fuente=fuentes_manifest.etiquetas(),
         historico_activo=historico_activo,
         historico=historico,
         texto_sin_perfil="El grupo no tiene perfil de subducción asignado.",

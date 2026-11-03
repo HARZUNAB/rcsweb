@@ -106,6 +106,8 @@ def _evento(
         "tipo": _texto(fila.get(tipo)),
         "analista": _texto(fila.get(analista)),
         "fuente": fuente,
+        "fuente_etiqueta": etiqueta_fuente(fuente),
+        "es_referencia": fuentes_manifest.es_referencia(fuente),
         # Paleta base: amarillo local/no percibido y rojo Eventquery percibido.
         "percibido": percibido,
         "color": colores.color_relleno(
@@ -560,6 +562,8 @@ def cargar(workspace: Path, dataset: str) -> dict:
                 "tipo_observacion": evento.get("tipo_observacion"),
                 "sospechoso": bool(evento.get("sospechoso")),
                 "fuente": evento.get("fuente"),
+                "fuente_etiqueta": evento.get("fuente_etiqueta", ""),
+                "es_referencia": bool(evento.get("es_referencia")),
                 "percibido": evento.get("percibido", ""),
                 "color": evento.get("color", ""),
                 "revision": evento.get("revision"),

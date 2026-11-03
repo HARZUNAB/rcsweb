@@ -250,8 +250,9 @@ perfil, por territorio.
 
 ## Catálogos
 
-Desde el detalle del trabajo puede abrir los catálogos procesados:
-**Eventquery**, **Seisan** y **SeisComp**.
+Desde el detalle del trabajo puede abrir los catálogos procesados. Los nombres
+visibles provienen del manifiesto de fuentes y pueden cambiar sin modificar la
+aplicación.
 
 - Las columnas y filtros funcionan como en los resultados.
 - **Administrador y supervisor** mantienen el acceso completo: columnas de
@@ -266,7 +267,8 @@ Desde el detalle del trabajo puede abrir los catálogos procesados:
   página**: use **Ver** para abrirlo en un modal con indicador de actividad, o
   **Descargar** para obtener solo ese PNG. El panel **Generar todos los mapas**
   permite incluir o no las plantas y elegir las variantes de perfil antes de
-  descargar el ZIP. Permite obtener:
+  descargar el ZIP. La interfaz indica cuántos PNG se incluirán y ofrece
+  **Seleccionar todo**. Permite obtener:
   - `catalogo.csv`, con fecha y hora, latitud, longitud, profundidad, magnitud,
     tipo de magnitud y referencia geográfica si la fuente la tiene;
   - `planta_nacional.png`, `planta_insular.png`, `planta_antartico.png` y
@@ -274,17 +276,19 @@ Desde el detalle del trabajo puede abrir los catálogos procesados:
   - `perfil_<id>.png` (solo perfil) y `perfil_<id>_planta.png` (perfil + planta)
     por cada perfil;
   - un ZIP con todo lo seleccionado.
-  El CSV no incluye el nombre del analista. Los mapas de esta vista no llevan
-  leyenda y los eventos percibidos se dibujan sobre los no percibidos.
+  El CSV no incluye el nombre del analista. Los mapas de esta vista llevan una
+  leyenda mínima: amarillo para no percibidos y rojo solo si hay percibidos.
+  Los eventos percibidos se dibujan sobre los no percibidos.
 - La planta se separa en **Chile continental**, **territorio insular**,
   **territorio antártico** y **Otros**. Los eventos fuera de Chile pasan a
   Otros cuando superan el radio de influencia según la magnitud: 200 km para
-  M<4, 300 km para M4, 400 km para M5 y 500 km para M6 o más.
+  M<4, 300 km para M4, 400 km para M5 y 500 km para M6 o más. El mapa de Otros
+  incluye la costa o islas chilenas más cercanas para orientar la vista.
 - Cada perfil se asigna por cercanía individual del evento. Los eventos sin
   perfil aparecen solo en las plantas. Si el catálogo no tiene perfiles, solo
   se generan las plantas.
 - **Eventquery** incluye **Percibido** y **Analista probable**, calculado
-  cruzando la solución publicada con SeisComp y Seisan. Si más de una fuente
+  cruzando la solución publicada con las fuentes locales del manifiesto. Si más de una fuente
   aporta una solución, se muestran todos los autores, por ejemplo
   `SeisComp: cris; Seisan: beto`. El dato es una deducción, no un campo del
   catálogo original de Eventquery.

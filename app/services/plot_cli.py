@@ -18,6 +18,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
 
 CORE = os.environ.get("RCS_CORE_PATH", "/opt/rcs-core")
 if CORE not in sys.path:
@@ -47,6 +48,7 @@ if _spec_extent is None or _spec_extent.loader is None:
 _modulo_extent = importlib.util.module_from_spec(_spec_extent)
 _spec_extent.loader.exec_module(_modulo_extent)
 margen_planta_eventos = _modulo_extent.margen_planta_eventos
+extender_extent = getattr(_modulo_extent, "extender_extent", None)
 
 plotear._mostrar_figura = lambda bloquear: None
 
@@ -54,6 +56,7 @@ plotear._mostrar_figura = lambda bloquear: None
 # solo se muestra con vista regional; varias soluciones cercanas se acercan
 # para poder diferenciarlas.
 _extent_original = plotear._extent_planta_por_eventos
+_contexto: tuple[float, float] | None = None
 
 
 def _extent_con_contexto(
@@ -65,10 +68,59 @@ def _extent_con_contexto(
     margen = margen_planta_eventos(eventos)
     if margen is not None:
         margen_adicional = margen
-    return _extent_original(eventos, perfil, territorio, margen_adicional)
+    extent = _extent_original(eventos, perfil, territorio, margen_adicional)
+    if _contexto is not None and extent is not None and extender_extent is not None:
+        extent = extender_extent(extent, _contexto)
+    return extent
 
 
 plotear._extent_planta_por_eventos = _extent_con_contexto
+
+
+def _quitar_leyendas(figura) -> None:
+    for eje in figura.axes:
+        leyenda_eje = eje.get_legend()
+        if leyenda_eje is not None:
+            leyenda_eje.remove()
+    for leyenda_figura in list(figura.legends):
+        leyenda_figura.remove()
+
+
+def _leyenda_catalogo(figura, items: list[dict], modo: str) -> None:
+    handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor=item.get("color", "#ffff00"),
+            markeredgecolor="black",
+            markeredgewidth=1.0,
+            markersize=8,
+            label=item.get("etiqueta", ""),
+        )
+        for item in items
+        if item.get("etiqueta")
+    ]
+    if not handles:
+        return
+    if modo == "perfil" and figura.axes:
+        figura.axes[-1].legend(
+            handles=handles,
+            loc="lower right",
+            fontsize=7,
+            framealpha=0.9,
+            ncol=1,
+        )
+        return
+    figura.legend(
+        handles=handles,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 0.01),
+        ncol=len(handles),
+        fontsize=8,
+        frameon=False,
+    )
 
 
 def main() -> int:
@@ -76,7 +128,15 @@ def main() -> int:
         print("uso: plot_cli.py <salida.png>", file=sys.stderr)
         return 2
     datos = json.load(sys.stdin)
+    global _contexto
+    contexto = datos.get("contexto")
+    if contexto:
+        _contexto = (float(contexto[0]), float(contexto[1]))
     modo = datos.get("modo")
+    fuente = datos.get("fuente", "")
+    etiqueta_fuente = datos.get("etiqueta_fuente") or fuente
+    if fuente:
+        plotear._ETIQUETA_FUENTE[fuente] = etiqueta_fuente
     if not datos.get("sospechosos", True):
         # Los mapas de catálogo solo distinguen percibidos y no percibidos.
         try:
@@ -88,7 +148,7 @@ def main() -> int:
     if modo == "planta":
         plotear.plotear_planta(
             datos["eventos"],
-            datos["fuente"],
+            fuente,
             territorio=datos.get("territorio"),
             mostrar_json=False,
             con_boton_detener=False,
@@ -96,15 +156,14 @@ def main() -> int:
             delta_auto=False,
         )
     else:
-        plotear.abrir_eventos(datos["eventos"], datos["fuente"])
+        plotear.abrir_eventos(datos["eventos"], fuente)
     figura = plt.gcf()
-    if not datos.get("leyenda", True):
-        for eje in figura.axes:
-            leyenda_eje = eje.get_legend()
-            if leyenda_eje is not None:
-                leyenda_eje.remove()
-        for leyenda_figura in list(figura.legends):
-            leyenda_figura.remove()
+    items = datos.get("leyenda_items")
+    if items is not None:
+        _quitar_leyendas(figura)
+        _leyenda_catalogo(figura, items, modo)
+    elif not datos.get("leyenda", True):
+        _quitar_leyendas(figura)
     if modo == "perfil" and figura.axes:
         perfil = figura.axes[-1]
         bbox = perfil.get_window_extent().transformed(

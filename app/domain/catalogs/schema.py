@@ -19,6 +19,7 @@ CAPACIDADES = {
     "inventario",
     "disponibilidad_ondas",
     "excluidos",
+    "percibidos",
 }
 
 

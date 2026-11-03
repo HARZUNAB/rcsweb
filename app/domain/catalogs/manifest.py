@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from .registry import FORMATOS
+from .registry import existe as formato_existe
 
 RUTA_POR_DEFECTO = Path(__file__).with_name("sources.json")
 ID_VALIDO = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -155,7 +155,7 @@ def validar() -> tuple[Fuente, ...]:
             )
         if not fuente.label:
             errores.append(f"La fuente {etiqueta} no tiene label.")
-        if fuente.format not in FORMATOS:
+        if not formato_existe(fuente.format):
             errores.append(
                 f"La fuente {etiqueta} usa un formato desconocido: {fuente.format!r}."
             )
@@ -232,6 +232,27 @@ def etiquetas() -> dict[str, str]:
     return {fuente.id: fuente.label for fuente in cargar()}
 
 
+def formato_de(identificador: str) -> str:
+    """Clave interna del formato de una fuente, o el propio id si no existe."""
+    fuente = por_id(identificador)
+    return fuente.format if fuente is not None else identificador
+
+
+def capacidades(identificador: str) -> frozenset[str]:
+    fuente = por_id(identificador)
+    return fuente.capacidades if fuente is not None else frozenset()
+
+
+def es_referencia(identificador: str) -> bool:
+    fuente = por_id(identificador)
+    return bool(fuente and fuente.es_referencia)
+
+
+def es_local(identificador: str) -> bool:
+    fuente = por_id(identificador)
+    return bool(fuente and fuente.es_local)
+
+
 def etiqueta(identificador: str) -> str:
     fuente = por_id(identificador)
     return fuente.label if fuente else identificador
@@ -261,8 +282,12 @@ __all__ = [
     "cargar",
     "default_primary",
     "descargables",
+    "capacidades",
+    "es_local",
+    "es_referencia",
     "etiqueta",
     "etiquetas",
+    "formato_de",
     "fuentes",
     "locales",
     "opciones_locales",

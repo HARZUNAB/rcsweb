@@ -22,15 +22,9 @@
     if (!radios.length) {
       return;
     }
-    [
-      ["incluir_seiscomp", "seiscomp"],
-      ["incluir_seisan", "seisan"],
-    ].forEach(function (par) {
-      const check = form.querySelector("#" + par[0]);
-      if (!check) {
-        return;
-      }
-      const archivo = form.querySelector("#" + par[1]);
+    form.querySelectorAll('input[id^="incluir_"]').forEach(function (check) {
+      const destino = check.id.slice("incluir_".length);
+      const archivo = form.querySelector("#" + destino);
       if (archivo) {
         archivo.disabled = !check.checked;
         archivo.required = check.checked;

@@ -473,7 +473,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **338 tests**.
+runner de solo lectura. Total actual: **347 tests**.
 
 ## Filtros y exportación
 
@@ -602,7 +602,7 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   la planta y el perfil, sin necesidad de hacer clic en cada fila. Al abrir
   **Ver** y volver, se conserva seleccionado el mismo perfil o territorio.
 - **Catálogos**: el detalle del trabajo tiene un menú con los catálogos de
-  entrada disponibles (Eventquery, Seisan, SeisComp). Administrador y supervisor
+  entrada disponibles según el manifiesto de fuentes. Administrador y supervisor
   mantienen el listado completo, columnas de analista, Web, Ver, miniaturas y
   descargas. Analista y consulta ven todas las fuentes y filtros, pero sin
   columnas de analista, sin Web/Ver/miniaturas y solo con **Descargar catálogo**.
@@ -611,19 +611,22 @@ directorio de trabajo en `workspace/<job>`. No se modifica el código original.
   página**: aparecen solo al presionar **Ver** o **Descargar**, con un indicador
   de actividad y un modal con la imagen. El panel **Generar todos los mapas**
   permite elegir si se incluyen las plantas y qué variantes de perfil se desean
-  (solo perfil, perfil + planta o ambas) antes de descargar el ZIP. Esas
-  imágenes no llevan leyenda y dibujan los eventos percibidos al final, de modo
-  que quedan sobre los no percibidos. Las plantas se separan en Chile
+  (solo perfil, perfil + planta o ambas) antes de descargar el ZIP. La interfaz
+  muestra cuántos PNG incluirá y ofrece **Seleccionar todo**. Esas imágenes
+  llevan una leyenda mínima: amarillo para no percibidos y rojo solo si hay
+  percibidos; además dibujan los percibidos al final para que queden sobre los
+  no percibidos. Las plantas se separan en Chile
   continental, territorio insular, territorio antártico y Otros; cada una se
   genera solo si tiene eventos. Los eventos fuera de Chile se envían a Otros
   cuando superan un radio de influencia según la magnitud (200 km para M<4, 300
-  para M4, 400 para M5 y 500 para M6 o más). Cada perfil ofrece
+  para M4, 400 para M5 y 500 para M6 o más). El mapa de Otros incluye la costa
+  o islas chilenas más cercanas como referencia. Cada perfil ofrece
   `perfil_<id>.png` (solo perfil) y `perfil_<id>_planta.png` (perfil y planta),
   con solo los eventos asignados a ese perfil. El CSV contiene fecha y hora,
   coordenadas, profundidad, magnitud, tipo de magnitud y referencia geográfica
   cuando existe; no incluye al analista. El catálogo
   **Eventquery** agrega la columna **«Analista probable»**, deducida cruzando
-  cada evento publicado con las soluciones locales de SeisComp y Seisan; se
+  cada evento publicado con las soluciones locales del manifiesto; se
   muestran ambas fuentes cuando aportan (`SeisComp: …; Seisan: …`). En **No
   actualizados**, el punto publicado muestra ese mismo texto como «Analista
   probable» tanto en la planta como en el perfil, mientras el punto local

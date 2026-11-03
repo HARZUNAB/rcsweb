@@ -24,6 +24,7 @@ from pathlib import Path
 
 from flask import current_app
 
+from ..domain.catalogs import manifest as fuentes_manifest
 from ..domain.catalogs.canonical import escribir_desde_csv
 from ..domain.catalogs.registry import adaptador as obtener_adaptador
 from ..extensions import db
@@ -253,33 +254,21 @@ def _hay_csv_excluidos(workspace: Path) -> bool:
     return ruta.is_file() and ruta.stat().st_size > 0
 
 
-def _verificar_eventquery(workspace: Path, nombre: str) -> None:
-    ruta = workspace / "datos" / f"new_2_{nombre}"
-    if not ruta.is_file():
-        raise PipelineError("El catálogo de eventquery no tiene eventos válidos o no se pudo leer.")
-
-
-def _verificar_seisan(workspace: Path) -> None:
-    ruta = workspace / "datos" / "salida_collect.csv"
-    if not ruta.is_file():
-        raise PipelineError(
-            "El select.out no produjo eventos analizables. Revise el formato del archivo."
-        )
-
-
 def _fuentes_job(job: Job) -> list[tuple[str, str, str]]:
     """(source_id, formato, alias) de las fuentes locales, principal primero."""
     if job.sources:
+        referencia = fuentes_manifest.referencia().id
         locales = [
             (
                 source.kind,
-                source.format_efectivo,
+                fuentes_manifest.formato_de(source.kind)
+                or source.format_efectivo,
                 source.alias_mostrado,
                 source.priority,
                 source.role,
             )
             for source in job.sources
-            if source.kind != "eventquery"
+            if source.kind != referencia and fuentes_manifest.es_local(source.kind)
         ]
         locales.sort(
             key=lambda item: (
@@ -290,9 +279,13 @@ def _fuentes_job(job: Job) -> list[tuple[str, str, str]]:
         )
         return [(sid, fmt, alias) for sid, fmt, alias, _prioridad, _rol in locales]
     return [
-        (archivo.kind, archivo.kind, archivo.kind)
+        (
+            archivo.kind,
+            fuentes_manifest.formato_de(archivo.kind),
+            archivo.kind,
+        )
         for archivo in job.files
-        if archivo.kind in ("seisan", "seiscomp")
+        if fuentes_manifest.es_local(archivo.kind)
     ]
 
 
@@ -300,11 +293,25 @@ def _normalizar_fuentes(fuentes) -> list[tuple[str, str, str]]:
     if not fuentes:
         return []
     if isinstance(fuentes[0], str):
-        return [(codigo, codigo, codigo) for codigo in fuentes]
-    return list(fuentes)
+        return [
+            (codigo, fuentes_manifest.formato_de(codigo), codigo)
+            for codigo in fuentes
+        ]
+    return [
+        (sid, fuentes_manifest.formato_de(sid) or fmt, alias)
+        for sid, fmt, alias in fuentes
+    ]
 
 
-def _planes_a_pasos(adapter, source_id: str, formato: str, job: Job, eventquery: str) -> list[Paso]:
+def _planes_a_pasos(
+    adapter,
+    source_id: str,
+    formato: str,
+    job: Job,
+    eventquery: str,
+    *,
+    es_referencia: bool = False,
+) -> list[Paso]:
     planes = adapter.pasos(job, eventquery)
     pasos = []
     for indice, plan in enumerate(planes):
@@ -317,11 +324,18 @@ def _planes_a_pasos(adapter, source_id: str, formato: str, job: Job, eventquery:
                 _adapter=adapter,
                 _source_id=source_id,
                 _formato=formato,
+                _es_referencia=es_referencia,
             ) -> None:
                 if _post is not None:
                     _post(workspace)
                 ruta = Path(workspace) / _adapter.catalogo(job, eventquery)
-                escribir_desde_csv(Path(workspace), _source_id, _formato, ruta)
+                escribir_desde_csv(
+                    Path(workspace),
+                    _source_id,
+                    _formato,
+                    ruta,
+                    es_referencia=_es_referencia,
+                )
 
             post = _post
 
@@ -339,15 +353,28 @@ def _planes_a_pasos(adapter, source_id: str, formato: str, job: Job, eventquery:
     return pasos
 
 
-def _renombrar_repetidos(source: str):
-    """Si el único local es uno no-Seisan, repetidos.py etiqueta como 'seisan'."""
+def _renombrar_repetidos(source: str, prefijo_core: str | None = None):
+    """Renombra las salidas de repetidos al id real de la fuente."""
+    prefijo_core = prefijo_core or source
 
     def _renombrar(workspace: Path) -> None:
         informes = workspace / "informes"
         for sufijo in ("amplio", "estricto", "exclu"):
-            origen = informes / f"rep_seisan_{sufijo}.txt"
+            origen = informes / f"rep_{prefijo_core}_{sufijo}.txt"
             if origen.is_file():
-                origen.replace(informes / f"rep_{source}_{sufijo}.txt")
+                destino = informes / f"rep_{source}_{sufijo}.txt"
+                if origen != destino:
+                    origen.replace(destino)
+
+    return _renombrar
+
+
+def _renombrar_varias(renombres: list[tuple[str, str]]):
+    funciones = [_renombrar_repetidos(source, prefijo) for source, prefijo in renombres]
+
+    def _renombrar(workspace: Path) -> None:
+        for funcion in funciones:
+            funcion(workspace)
 
     return _renombrar
 
@@ -357,8 +384,14 @@ def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
     if not fuentes:
         raise PipelineError("El trabajo no tiene ninguna fuente local seleccionada.")
 
+    referencia = fuentes_manifest.referencia()
     pasos = _planes_a_pasos(
-        obtener_adaptador("eventquery"), "eventquery", "eventquery", job, eventquery
+        obtener_adaptador(referencia.format),
+        referencia.id,
+        referencia.format,
+        job,
+        eventquery,
+        es_referencia=True,
     )
     locales = []
     for source_id, formato, alias in fuentes:
@@ -367,8 +400,8 @@ def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
         locales.append((source_id, formato, alias, adapter))
 
     new2 = f"datos/new_2_{eventquery}"
-    for source_id, formato, alias, adapter in locales:
-        prefijo = "" if formato == "seisan" else (adapter.prefijo or f"{source_id}_")
+    for source_id, _formato, alias, adapter in locales:
+        prefijo = adapter.prefijo_salida(source_id)
         pasos.append(
             Paso(
                 f"comparar_{source_id}",
@@ -382,8 +415,8 @@ def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
             )
         )
 
-    formatos = {formato for _sid, formato, _alias, _adapter in locales}
-    if len(locales) == 2 and formatos == {"seisan", "seiscomp"}:
+    tipos = {adapter.tipo for _sid, _fmt, _alias, adapter in locales}
+    if len(locales) == 2 and tipos == {"select", "export"}:
         pasos.append(
             Paso(
                 "cruzar_no_publicados",
@@ -414,30 +447,52 @@ def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
             ]
         )
 
-    por_formato = {formato: item for item in locales for formato in [item[1]]}
-    seisan = por_formato.get("seisan")
-    seiscomp = por_formato.get("seiscomp")
-    post = None
-    if seisan and seiscomp:
+    por_tipo = {adapter.tipo: item for item in locales if adapter.tipo}
+    fuente_select = por_tipo.get("select")
+    fuente_export = por_tipo.get("export")
+    renombres: list[tuple[str, str]] = []
+    if fuente_select and fuente_export:
         args_repetidos = [
             new2,
-            seisan[3].catalogo(job, eventquery),
-            seiscomp[3].catalogo(job, eventquery),
+            fuente_select[3].catalogo(job, eventquery),
+            fuente_export[3].catalogo(job, eventquery),
         ]
-    elif seisan:
-        args_repetidos = [new2, seisan[3].catalogo(job, eventquery)]
-    elif seiscomp:
-        args_repetidos = [new2, seiscomp[3].catalogo(job, eventquery)]
-        post = _renombrar_repetidos("seiscomp")
+        renombres = [
+            (item[0], item[3].prefijo_repetidos or item[3].tipo)
+            for item in (fuente_select, fuente_export)
+            if item[0] != (item[3].prefijo_repetidos or item[3].tipo)
+        ]
+    elif fuente_select:
+        args_repetidos = [new2, fuente_select[3].catalogo(job, eventquery)]
+        prefijo = fuente_select[3].prefijo_repetidos or fuente_select[3].tipo
+        renombres = (
+            [(fuente_select[0], prefijo)]
+            if fuente_select[0] != prefijo
+            else []
+        )
+    elif fuente_export:
+        args_repetidos = [new2, fuente_export[3].catalogo(job, eventquery)]
+        prefijo = fuente_export[3].prefijo_repetidos_core
+        renombres = (
+            [(fuente_export[0], prefijo)]
+            if fuente_export[0] != prefijo
+            else []
+        )
     elif len(locales) == 1:
         source_id, _formato, _alias, adapter = locales[0]
         args_repetidos = [new2, adapter.catalogo(job, eventquery)]
-        post = _renombrar_repetidos(source_id)
+        prefijo = (
+            adapter.prefijo_repetidos_core
+            if adapter.tipo == "export"
+            else (adapter.prefijo_repetidos or adapter.tipo or source_id)
+        )
+        renombres = [(source_id, prefijo)] if source_id != prefijo else []
     else:
         raise PipelineError(
             "La detección de repetidos para más de dos fuentes locales "
             "todavía no está implementada."
         )
+    post = _renombrar_varias(renombres) if renombres else None
 
     pasos.append(
         Paso(
@@ -449,7 +504,6 @@ def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
         )
     )
     return pasos
-
 
 def _registrar_artefactos(job: Job, workspace: Path) -> None:
     for viejo in list(job.artifacts):
@@ -465,10 +519,11 @@ def _registrar_artefactos(job: Job, workspace: Path) -> None:
             if ruta.is_file() and ruta.name != "indice.json":
                 candidatos.append((tipo, ruta))
 
-    for clave, ruta in (
-        ("catalogo_seisan", workspace / "datos" / "salida_collect.csv"),
-        ("catalogo_seiscomp", workspace / "datos" / "seiscomp_parametros.csv"),
-    ):
+    referencia = fuentes_manifest.referencia()
+    nombre_ref = nombre_canonico(referencia.id, job.inicio14, job.fin14)
+    for definicion in fuentes_manifest.fuentes():
+        adapter = obtener_adaptador(definicion.format)
+        ruta = workspace / adapter.catalogo(job, nombre_ref)
         if ruta.is_file():
             candidatos.append(("catalogo", ruta))
     for ruta in sorted((workspace / "datos").glob("new_2_*.csv")):
@@ -557,7 +612,10 @@ def ejecutar_pipeline(job_id: str) -> dict:
         preparar_entradas(job)
         _log(job)
 
-        eventquery = nombre_canonico("eventquery", job.inicio14, job.fin14)
+        referencia = fuentes_manifest.referencia()
+        eventquery = nombre_canonico(
+            referencia.id, job.inicio14, job.fin14
+        )
         fuentes = _fuentes_job(job)
         pasos = _construir_pasos(job, eventquery, fuentes)
 
