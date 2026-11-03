@@ -58,7 +58,14 @@
             <span>{{ solicitud.current_step or 'Pendiente' }}</span>
           </div>
         </div>
-        <div class="fs-5 fw-semibold">{{ solicitud.progress }}%</div>
+        <div class="text-end">
+          <div class="fs-5 fw-semibold">{{ solicitud.progress }}%</div>
+          <div class="small text-secondary">
+            Tiempo: <span class="solicitud-tiempo"
+                         data-solicitud-inicio="{{ inicio_reloj }}"
+                         data-solicitud-fin="{{ fin_reloj }}">00:00:00</span>
+          </div>
+        </div>
       </div>
       <div class="progress" role="progressbar" aria-valuenow="{{ solicitud.progress }}"
            aria-valuemin="0" aria-valuemax="100" style="height: 10px;">
@@ -92,6 +99,7 @@
             <tr>
               <th>Catálogo</th>
               <th>Estado</th>
+              <th>Progreso</th>
               <th>Tamaño</th>
               <th>Detalle</th>
             </tr>
@@ -114,6 +122,18 @@
                 {% else %}
                   <span class="badge text-bg-light text-dark">Pendiente</span>
                 {% endif %}
+              </td>
+              <td style="min-width: 110px;">
+                {% set avance = archivo.progress or 0 %}
+                <div class="d-flex align-items-center gap-2">
+                  <div class="progress flex-grow-1" role="progressbar"
+                       aria-valuenow="{{ avance }}" aria-valuemin="0"
+                       aria-valuemax="100" style="height: 7px;">
+                    <div class="progress-bar {% if archivo.status == 'error' %}bg-danger{% elif archivo.status == 'ok' %}bg-success{% elif archivo.status == 'downloading' %}progress-bar-striped progress-bar-animated{% endif %}"
+                         style="width: {{ avance }}%"></div>
+                  </div>
+                  <span class="small text-secondary">{{ avance }}%</span>
+                </div>
               </td>
               <td class="small text-secondary">
                 {% if archivo.size %}{{ archivo.size|filesizeformat }}{% else %}—{% endif %}

@@ -290,6 +290,14 @@ def estado(request_id: str):
     return render_template("solicitudes/_page.html", **_contexto(request_id))
 
 
+def _iso_utc(valor) -> str:
+    if valor is None:
+        return ""
+    if valor.tzinfo is None:
+        valor = valor.replace(tzinfo=UTC)
+    return valor.astimezone(UTC).isoformat()
+
+
 def _contexto(request_id: str) -> dict:
     solicitud = _solicitud(request_id)
     return {
@@ -300,6 +308,8 @@ def _contexto(request_id: str) -> dict:
         "form_reintento": ReintentarForm(),
         "puede_reintentar": _puede_reintentar(solicitud),
         "activa": solicitud.status in ("queued", "running"),
+        "inicio_reloj": _iso_utc(solicitud.started_at or solicitud.created_at),
+        "fin_reloj": _iso_utc(solicitud.finished_at),
     }
 
 

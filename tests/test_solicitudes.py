@@ -16,6 +16,7 @@ from app.models import (
     User,
     nuevo_uuid,
 )
+from app.services import acquisition
 from app.services.acquisition import ejecutar_solicitud, preparar_workspace
 
 SAMPLES = __import__("pathlib").Path(__file__).resolve().parent.parent / "samples"
@@ -407,12 +408,17 @@ def test_detalle_muestra_indicador_de_descarga(client, login, app):
     solicitud = _solicitud(app, status="running")
     archivo = solicitud.files[0]
     archivo.status = "downloading"
+    archivo.progress = 42
     db.session.commit()
 
     html = client.get(f"/solicitudes/{solicitud.id}").get_data(as_text=True)
     assert "estado-trabajando" in html
     assert "spinner-border" in html
     assert "Descargando" in html
+    assert 'class="solicitud-tiempo"' in html
+    assert "data-solicitud-inicio=" in html
+    assert "Progreso" in html
+    assert "42%" in html
 
     lista = client.get("/solicitudes/").get_data(as_text=True)
     assert "estado-trabajando" in lista
@@ -593,3 +599,38 @@ def test_reintentar_solo_creador_o_admin(client, app, monkeypatch):
     respuesta = client.post(f"/solicitudes/{solicitud.id}/reintentar", data={"password": "x"})
 
     assert respuesta.status_code == 403
+
+
+def test_progreso_por_archivo_actualiza_el_total(app):
+    solicitud = _solicitud(app, status="running", fuentes=("eventquery", "seisan"))
+    archivos = {archivo.kind: archivo for archivo in solicitud.files}
+    solicitud.progress = 5
+
+    acquisition._progreso_archivo(
+        solicitud, archivos["eventquery"], 0.5
+    )
+
+    assert archivos["eventquery"].progress == 50
+    assert archivos["seisan"].progress == 0
+    assert solicitud.progress >= 25
+
+
+def test_progreso_por_archivo_no_retrocede(app):
+    solicitud = _solicitud(app, status="running", fuentes=("eventquery", "seisan"))
+    archivo = next(a for a in solicitud.files if a.kind == "eventquery")
+    archivo.progress = 70
+
+    acquisition._progreso_archivo(solicitud, archivo, 0.2)
+
+    assert archivo.progress == 70
+
+
+def test_reintentar_limpia_el_progreso(app):
+    solicitud = _solicitud(app, status="failed", fuentes=("eventquery", "seisan"))
+    for archivo in solicitud.files:
+        archivo.progress = 70
+    db.session.commit()
+
+    acquisition.reintentar_solicitud(solicitud.id, "secreto")
+
+    assert all(archivo.progress == 0 for archivo in solicitud.files)

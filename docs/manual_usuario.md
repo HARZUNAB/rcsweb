@@ -70,6 +70,11 @@ Mientras un catálogo se está descargando, el estado muestra un spinner y un
 pulso lento, y la página se actualiza cada 2 segundos. Así se distingue una
 descarga en curso de una pantalla detenida.
 
+La tarjeta de progreso también muestra el **tiempo transcurrido** y cada
+catálogo tiene su propio **porcentaje de avance**. Si el catálogo informa
+etapas internas, el porcentaje avanza con ellas; si no, se mantiene el estado
+de descarga y el reloj.
+
 ![Descarga en curso](img/descarga.png)
 
 ### Subir catálogos

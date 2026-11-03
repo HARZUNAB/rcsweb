@@ -117,6 +117,7 @@ class CatalogRequestFile(db.Model):
     kind: Mapped[str] = mapped_column(String(32))
     format: Mapped[str] = mapped_column(String(32), default="")
     display_name: Mapped[str | None] = mapped_column(String(80))
+    progress: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     stored_path: Mapped[str | None] = mapped_column(String(255))
     original_name: Mapped[str | None] = mapped_column(String(255))

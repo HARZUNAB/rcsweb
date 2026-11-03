@@ -3,3 +3,7 @@
 {% block content %}
 {% include "solicitudes/_page.html" %}
 {% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/solicitudes.js') }}"></script>
+{% endblock %}

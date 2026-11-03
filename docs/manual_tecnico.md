@@ -213,6 +213,8 @@ lógicas del catálogo canónico.
 | `request_id` | String(36) | No | FK → `catalog_requests.id`, IDX | Solicitud asociada |
 | `kind` | String(32) | No | — | Tipo de catálogo |
 | `format` | String(32) | No | — | Formato efectivo |
+| `display_name` | String(80) | Sí | — | Nombre visible del catálogo |
+| `progress` | Integer | No | — | Avance de la extracción, 0–100 |
 | `status` | String(20) | No | — | Estado del archivo |
 | `stored_path` | String(255) | Sí | — | Ruta de almacenamiento |
 | `original_name` | String(255) | Sí | — | Nombre original |
@@ -435,6 +437,8 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `7457da261ab1` | Fuente principal en solicitudes |
 | `ccd1bba64919` | Radio de estaciones |
 | `9f1c2a7b4d10` | Alias visibles sin mecanismo de origen |
+| `b7e4c1a9d2f3` | Nombre visible de archivos de catálogo |
+| `c2a8f5d7e901` | Progreso por archivo de solicitud |
 
 Para consultar o aplicar migraciones:
 
@@ -643,6 +647,17 @@ desde el nombre de las columnas.
 **Estado de esta versión:** los resultados actuales todavía usan columnas
 `*_eventquery` y atribuciones como `analista_seisan` / `analista_seiscomp`. El
 contrato genérico es el objetivo de la migración.
+
+#### Progreso de las descargas
+
+La solicitud conserva `started_at` y `finished_at` para calcular el tiempo
+transcurrido. Cada `CatalogRequestFile` conserva `progress` entre 0 y 100.
+
+Los handlers de descarga reciben un callback de progreso y lo llaman con una
+fracción entre 0 y 1. La app actualiza el progreso del archivo y calcula el
+progreso general como el promedio de los archivos de la solicitud. Si un
+handler no reporta fracciones, el archivo mantiene su estado y el reloj de la
+solicitud sigue avanzando.
 
 #### Qué se guarda en cada lugar
 

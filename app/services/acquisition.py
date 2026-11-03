@@ -159,6 +159,29 @@ def _progreso(request: CatalogRequest, base: int, ancho: int, fraccion: float) -
         db.session.commit()
 
 
+def _recalcular_progreso(request: CatalogRequest) -> None:
+    archivos = [archivo for archivo in request.files if archivo.progress is not None]
+    if not archivos:
+        return
+    total = sum(max(0, min(100, archivo.progress or 0)) for archivo in archivos)
+    request.progress = max(
+        request.progress or 0,
+        min(95, int(total / len(archivos))),
+    )
+    db.session.commit()
+
+
+def _progreso_archivo(
+    request: CatalogRequest, archivo: CatalogRequestFile, fraccion: float
+) -> None:
+    try:
+        valor = int(max(0.0, min(1.0, float(fraccion))) * 100)
+    except (TypeError, ValueError):
+        return
+    archivo.progress = max(archivo.progress or 0, valor)
+    _recalcular_progreso(request)
+
+
 def _guardar_archivo(
     request: CatalogRequest,
     kind: str,
@@ -313,6 +336,7 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
 
     for archivo in request.files:
         archivo.status = "pending"
+        archivo.progress = 0
     db.session.commit()
 
     try:
@@ -351,7 +375,9 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
                         conexion,
                         cwd=str(workspace),
                         log=log.escribir,
-                        progreso=lambda f: _progreso(request, 10, 30, f),
+                        progreso=lambda f, archivo=archivo: _progreso_archivo(
+                            request, archivo, f
+                        ),
                         forzar=True,
                     )
                 elif manejador == "seisan":
@@ -361,7 +387,9 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
                         conexion,
                         cwd=str(workspace),
                         log=log.escribir,
-                        progreso=lambda f: _progreso(request, 40, 25, f),
+                        progreso=lambda f, archivo=archivo: _progreso_archivo(
+                            request, archivo, f
+                        ),
                         forzar=True,
                     )
                 elif manejador == "seiscomp":
@@ -379,7 +407,9 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
                         radio_km=request.station_radius_km or 400,
                         log=log.escribir,
                         log_detalle=current_app.logger.info,
-                        progreso=lambda f: _progreso(request, 65, 25, f),
+                        progreso=lambda f, archivo=archivo: _progreso_archivo(
+                            request, archivo, f
+                        ),
                     )
                     ruta = salida
                 else:
@@ -388,6 +418,8 @@ def ejecutar_solicitud(request_id: str, password: str) -> dict:
                     )
 
                 _guardar_archivo(request, archivo.kind, Path(ruta), workspace)
+                archivo.progress = 100
+                _recalcular_progreso(request)
 
         request.current_step = "Validando catálogos"
         request.progress = 95
@@ -465,6 +497,7 @@ def reintentar_solicitud(request_id: str, password: str) -> dict:
     request.finished_at = None
     for archivo in request.files:
         archivo.status = "pending"
+        archivo.progress = 0
         archivo.message = None
     db.session.commit()
     return {"solicitud": request_id, "estado": "queued"}
