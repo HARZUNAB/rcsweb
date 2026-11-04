@@ -116,12 +116,19 @@ NO_ACT_COLUMNS = (
     ("dist_km", "Dist. (km)"),
     ("publicacion_probable", "Publicación probable"),
     ("revision", "Revisión"),
+    ("revision_motivo", "Motivo de revisión"),
     ("revision_orden", "Orden de revisión"),
     ("discrepancias", "Parámetros que difieren"),
 )
 
 # Columnas que se usan para ordenar pero no se muestran.
-COLUMNAS_OCULTAS = {"revision_orden", "_fila", "Frontera_km", "Frontera_pais"}
+COLUMNAS_OCULTAS = {
+    "revision_orden",
+    "revision_motivo",
+    "_fila",
+    "Frontera_km",
+    "Frontera_pais",
+}
 
 TABLAS = {
     "catalogos": {
@@ -298,15 +305,31 @@ def _clasificar_no_actualizados(
 ) -> None:
     """Agrega publicación probable y prioridad de revisión (cruce_noact)."""
     _preparar_core()
+    otra = next(
+        (definicion for definicion in fuentes_manifest.locales()
+         if definicion.id != fuente),
+        None,
+    )
+    otra_id = otra.id if otra is not None else None
+    catalogo_otra = None
+    if otra is not None:
+        adapter = adaptador_fuente(otra.id)
+        catalogo_otra = Path(adapter.catalogo(None, "")).name
     try:
         import cruce_noact  # type: ignore
 
-        filas_otras, motivo = cruce_noact.cargar_otra(str(workspace), fuente)
+        filas_otras, motivo = cruce_noact.cargar_otra(
+            str(workspace),
+            fuente,
+            otra=otra_id,
+            catalogo_otra=catalogo_otra,
+        )
         cruce_noact.anotar(filtradas, filas_crudas, filas_otras, fuente, motivo)
     except Exception:
         for fila in filtradas:
             fila.setdefault("publicacion_probable", "")
             fila.setdefault("revision", "")
+            fila.setdefault("revision_motivo", "")
             fila.setdefault("revision_orden", "")
 
 

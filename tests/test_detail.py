@@ -330,3 +330,55 @@ def test_clave_evento_empareja_mapa_y_perfil():
         {**punto_mapa, "fuente": "eventquery"}
     )
     assert clave_evento({}) == "|||"
+
+
+def test_detalle_no_evaluable_muestra_motivo_generico(app, client, login):
+    login()
+    job = Job(
+        id=nuevo_uuid(),
+        period_start=datetime(2026, 10, 1, tzinfo=UTC),
+        period_end=datetime(2026, 10, 31, tzinfo=UTC),
+        status="done",
+    )
+    db.session.add(job)
+    db.session.commit()
+    workspace = crear_workspace(job.id)
+    (workspace / "resultados").mkdir(parents=True, exist_ok=True)
+    columnas = (
+        "fecha_local,lat_local,lon_local,prof_local,mag_local,tipo_mag_local,"
+        "fecha_eventquery,lat_eventquery,lon_eventquery,prof_eventquery,"
+        "mag_eventquery,tipo_mag_eventquery,analista,dt_seg,dlat,dlon,dist_km,"
+        "publicacion_probable,revision,revision_motivo,revision_orden,"
+        "discrepancias\n"
+    )
+    valores = (
+        "2026-10-03 15:53:56,-29.519,-72.594,30.0,2.8,ML,"
+        "2026-10-03 15:53:56,-29.520,-72.594,31.0,3.0,ML,beto,"
+        "1.0,-0.001,0.0,0.1,No evaluable,—,"
+        "falta la atribución de otra fuente de datos,4,lat\n"
+    )
+    (workspace / "resultados" / "no_actualizados_seisan.csv").write_text(
+        columnas + valores, encoding="utf-8"
+    )
+
+    respuesta = client.get(
+        f"/jobs/{job.id}/resultados/no_actualizados/seisan/0"
+    )
+
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    assert "No evaluable:" in html
+    assert "falta la atribución de otra fuente de datos" in html
+
+
+def test_detalle_no_evaluable_sin_motivo_usa_texto_generico():
+    fila = _fila_no_actualizada()
+    fila["publicacion_probable"] = "No evaluable"
+
+    detalle = construir_detalle(
+        "no_actualizados", "no_actualizados_seisan.csv", [fila], 0
+    )
+
+    assert detalle["revision_motivo"] == (
+        "falta la atribución de otra fuente de datos"
+    )

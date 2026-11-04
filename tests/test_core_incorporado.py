@@ -28,3 +28,15 @@ def test_core_incorporado_incluye_scripts_del_pipeline():
         "cruza_nopub.py",
     ):
         assert (CORE / nombre).is_file(), f"Falta {nombre} en core/"
+
+
+def test_motivo_no_evaluable_no_nombra_fuentes(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(CORE))
+    import cruce_noact
+
+    filas, motivo = cruce_noact.cargar_otra(str(tmp_path), "seisan")
+
+    assert filas == []
+    assert motivo == "falta la atribución de otra fuente de datos"
+    assert "SeisComp" not in motivo
+    assert "Seisan" not in motivo

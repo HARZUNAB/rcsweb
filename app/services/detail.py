@@ -590,11 +590,16 @@ def construir_detalle(tabla: str, archivo: str, filas: list[dict], indice: int) 
         if tabla in {"no_actualizados", "repetidos"}
         else ""
     )
+    motivo = fila.get("revision_motivo", "")
+    if not motivo and fila.get("publicacion_probable") == "No evaluable":
+        # Resultados generados antes de incorporar la columna de motivo.
+        motivo = "falta la atribución de otra fuente de datos"
     contexto = {
         "fila": fila,
         "distancia": distancia,
         "discrepancias": fila.get("discrepancias", ""),
         "revision": fila.get("revision", ""),
+        "revision_motivo": motivo,
         "publicacion": fila.get("publicacion_probable", ""),
     }
 

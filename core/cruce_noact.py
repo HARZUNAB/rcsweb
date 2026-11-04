@@ -38,17 +38,13 @@ TOL_DUPLICADO_GRADOS = 1.0
 DIF_DIST_KM = 0.5
 DIF_DT_SEG = 0.5
 
-ETIQUETA_FUENTE = {"seisan": "Seisan", "seiscomp": "SeisComp"}
-
 FUENTES = {
     "seisan": {
         "otra": "seiscomp",
-        "etiqueta_otra": "SeisComp",
         "catalogo_otra": "seiscomp_parametros.csv",
     },
     "seiscomp": {
         "otra": "seisan",
-        "etiqueta_otra": "Seisan",
         "catalogo_otra": "salida_collect.csv",
     },
 }
@@ -223,8 +219,7 @@ def _resultado(publicacion, revision, motivo):
     }
 
 
-def _clasificar(tamano_duplicado, motivo, propias, otras, etiqueta_otra,
-                puntaje=_puntaje):
+def _clasificar(tamano_duplicado, motivo, propias, otras, puntaje=_puntaje):
     if tamano_duplicado > 1:
         return _resultado("Duplicado público", "Alta",
                           "eventquery repite el mismo sismo")
@@ -235,7 +230,7 @@ def _clasificar(tamano_duplicado, motivo, propias, otras, etiqueta_otra,
                           "sin candidato de esta fuente para el publicado")
     if not otras:
         return _resultado("Esta fuente", "Alta",
-                          "sin candidato de %s" % etiqueta_otra)
+                          "sin candidato de otra fuente de datos")
 
     mejor_propia = min(propias, key=puntaje)
     mejor_otra = min(otras, key=puntaje)
@@ -245,7 +240,7 @@ def _clasificar(tamano_duplicado, motivo, propias, otras, etiqueta_otra,
         return _resultado("Esta fuente", "Alta", "esta fuente está más cerca")
     if comparacion_fuentes > 0:
         return _resultado("Otra fuente", "Baja",
-                          "%s está más cerca" % etiqueta_otra)
+                          "otra fuente de datos está más cerca")
     return _resultado("Compartida", "Media",
                       "ambas fuentes están igual de cerca")
 
@@ -289,9 +284,6 @@ def anotar(filas, filas_propias, filas_otras, fuente, motivo=None):
     Antes se recorría la atribución completa por cada evento, lo que dominaba
     el tiempo de apertura del listado.
     """
-    etiqueta = ETIQUETA_FUENTE.get(fuente, fuente)
-    etiqueta_otra = FUENTES.get(fuente, {}).get(
-        "etiqueta_otra", "la otra fuente")
     clusters = {}
     for filas_fuente in (filas_propias, filas_otras):
         for clave, (grupo, tamano) in _clusters_publicados(
@@ -352,9 +344,9 @@ def anotar(filas, filas_propias, filas_otras, fuente, motivo=None):
         # todas las de la fuente para ese publicado, como antes.
         propias = propias_por_local.get(propia_local) or propias
 
-        fila.update(_clasificar(tamano, motivo, propias, otras,
-                                etiqueta_otra or etiqueta,
-                                puntaje=_puntaje_calculado))
+        fila.update(_clasificar(
+            tamano, motivo, propias, otras, puntaje=_puntaje_calculado
+        ))
         conteo[fila[CAMPO_REVISION]] = conteo.get(
             fila[CAMPO_REVISION], 0) + 1
     return conteo
@@ -373,27 +365,33 @@ def _vigente(ruta_atribucion, ruta_catalogo):
         return False
 
 
-def cargar_otra(cwd, fuente):
+def cargar_otra(cwd, fuente, otra=None, catalogo_otra=None):
     """
     Lee la atribución de la otra fuente y dice si se puede evaluar.
+
+    ``otra`` y ``catalogo_otra`` permiten indicar explícitamente la fuente y
+    el archivo del manifiesto. Si no se indican, se usan los valores históricos
+    de ``FUENTES`` para mantener compatibilidad.
 
     Devuelve (filas, motivo). Si falta la atribución, falta el catálogo de la
     otra fuente o la atribución es más vieja que ese catálogo, devuelve una
     lista vacía y el motivo para mostrarlo como «No evaluable».
     """
-    info = FUENTES.get(fuente)
-    if info is None:
-        return [], "fuente sin atribución de comparación"
+    info = FUENTES.get(fuente) or {}
+    otra = otra or info.get("otra")
+    catalogo_otra = catalogo_otra or info.get("catalogo_otra")
+    if not otra or not catalogo_otra:
+        return [], "falta la atribución de otra fuente de datos"
     ruta_atribucion = os.path.join(
-        cwd, "datos", "atribucion_%s.csv" % info["otra"])
-    ruta_catalogo = os.path.join(cwd, "datos", info["catalogo_otra"])
+        cwd, "datos", "atribucion_%s.csv" % otra)
+    ruta_catalogo = os.path.join(cwd, "datos", os.path.basename(catalogo_otra))
     if not os.path.isfile(ruta_atribucion):
-        return [], "falta la atribución de %s" % info["etiqueta_otra"]
+        return [], "falta la atribución de otra fuente de datos"
     if not rutas.csv_tiene_filas(ruta_catalogo):
-        return [], "sin datos de %s en la ventana" % info["etiqueta_otra"]
+        return [], "sin datos de otra fuente de datos en la ventana"
     if not _vigente(ruta_atribucion, ruta_catalogo):
-        return [], "atribución de %s desactualizada" % info["etiqueta_otra"]
+        return [], "atribución de otra fuente de datos desactualizada"
     try:
         return _leer_atribucion(ruta_atribucion), None
     except OSError:
-        return [], "no se pudo leer la atribución de %s" % info["etiqueta_otra"]
+        return [], "no se pudo leer la atribución de otra fuente de datos"

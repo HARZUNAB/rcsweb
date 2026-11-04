@@ -677,7 +677,9 @@ Las columnas de comparación deben usar nombres genéricos:
   `prof_referencia`, `mag_referencia`;
 - `fecha_local`, `lat_local`, `lon_local`, `prof_local`, `mag_local`;
 - `analista`;
-- atribución de analistas por fuente, sin nombres de fuente en el código.
+- atribución de analistas por fuente, sin nombres de fuente en el código;
+- motivo de la clasificación (`revision_motivo`), con mensajes genéricos como
+  «falta la atribución de otra fuente de datos».
 
 Los mapas de catálogo incluyen en el encabezado el resultado de
 `_texto_filtros_catalogo(q, filtros)`: búsqueda de texto y cada filtro de

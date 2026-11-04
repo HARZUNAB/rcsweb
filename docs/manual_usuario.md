@@ -202,6 +202,10 @@ Más abajo está el perfil de subducción.
   la planta o en el perfil, el panel muestra **Analista probable** con todos los
   autores deducidos de las soluciones locales. El evento local conserva su
   **Analista** real.
+- Si **Publicación probable** indica **No evaluable**, la ficha muestra el
+  motivo, por ejemplo: **No evaluable: falta la atribución de otra fuente de
+  datos**. Esto no invalida el evento: solo indica que no se pudo inferir la
+  prioridad de revisión comparando las fuentes.
 - **Abrir PNG** y **Descargar PNG** generan una imagen del mapa.
 - El PNG incluye un encabezado con una fila por evento: fecha y hora, magnitud,
   profundidad, coordenadas, analista y estado en la otra fuente, separados por
