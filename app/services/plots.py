@@ -909,13 +909,18 @@ def _renderizar_core(
         try:
             core = _preparar_core()
             if not core.is_dir():
-                raise ValueError("el core del proyecto no está montado")
+                raise ValueError("el core incorporado no está disponible")
             if not eventos:
                 raise ValueError("el grupo no tiene eventos con coordenadas")
 
             cli = Path(__file__).with_name("plot_cli.py")
             entorno = os.environ.copy()
             entorno["RCS_CORE_PATH"] = str(core)
+            entorno["RCS_CORE_DATA"] = str(
+                current_app.config.get(
+                    "RCS_CORE_DATA", core.parent / "core_data"
+                )
+            )
             entorno["MPLBACKEND"] = "Agg"
             entorno["PYTHONPATH"] = os.pathsep.join(
                 parte for parte in (str(core), entorno.get("PYTHONPATH", "")) if parte

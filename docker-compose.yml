@@ -51,8 +51,9 @@ services:
       - ./app:/app/app
       - ./tasks:/app/tasks
       - ./migrations:/app/migrations
+      - ./core:/app/core
+      - ./core_data:/app/core_data:ro
       - ./workspace:/workspace
-      - ${RCS_CORE_PATH_HOST}:/opt/rcs-core:ro
       - ${DATOS_PATH_HOST}:/data:ro
       - ${CARTOPY_DATA_DIR_HOST}:/data/cartopy:ro
     depends_on:
@@ -84,8 +85,9 @@ services:
       - ./app:/app/app
       - ./tasks:/app/tasks
       - ./migrations:/app/migrations
+      - ./core:/app/core
+      - ./core_data:/app/core_data:ro
       - ./workspace:/workspace
-      - ${RCS_CORE_PATH_HOST}:/opt/rcs-core:ro
       - ${DATOS_PATH_HOST}:/data:ro
       - ${CARTOPY_DATA_DIR_HOST}:/data/cartopy:ro
       - ${CARTOPY_DATA_DIR_HOST}:/data/cartopy:ro

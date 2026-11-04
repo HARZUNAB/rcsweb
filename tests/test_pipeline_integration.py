@@ -28,6 +28,7 @@ SAMPLES = RAIZ / "samples"
 
 def _buscar_core() -> Path | None:
     candidatos = [
+        RAIZ / "core",
         os.environ.get("RCS_CORE_PATH"),
         "/opt/rcs-core",
         str(Path.home() / "Desarrollo/revisacatalogosweb"),
@@ -42,15 +43,19 @@ def _buscar_core() -> Path | None:
 
 
 CORE = _buscar_core()
+CORE_DATA = RAIZ / "core_data"
 
 pytestmark = pytest.mark.skipif(
-    CORE is None or not (SAMPLES / "select.out").is_file(),
-    reason="requiere el proyecto base montado y el dataset de muestra",
+    CORE is None
+    or not (SAMPLES / "select.out").is_file()
+    or not (CORE_DATA / "grillas").is_dir(),
+    reason="requiere el core incorporado y el dataset de muestra",
 )
 
 
 def test_pipeline_completo_con_muestra(app, tmp_path):
     app.config["RCS_CORE_PATH"] = CORE
+    app.config["RCS_CORE_DATA"] = CORE_DATA
 
     with app.app_context():
         job = Job(
@@ -144,6 +149,7 @@ def test_pipeline_completo_con_muestra(app, tmp_path):
 
 def test_pipeline_solo_seiscomp(app, tmp_path):
     app.config["RCS_CORE_PATH"] = CORE
+    app.config["RCS_CORE_DATA"] = CORE_DATA
 
     with app.app_context():
         job = Job(

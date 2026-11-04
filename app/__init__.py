@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from flask import Flask, flash, redirect, render_template, request, url_for
 from flask_login import current_user, logout_user
 
@@ -15,6 +17,17 @@ from .security import etiqueta_rol, tiene_permiso
 def create_app(config_object: type | None = None) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config_object or Config)
+
+    cartopy_data = os.environ.get("CARTOPY_DATA_DIR")
+    if cartopy_data:
+        try:
+            import cartopy
+
+            cartopy.config["data_dir"] = cartopy_data
+        except Exception:
+            app.logger.warning(
+                "No se pudo configurar CARTOPY_DATA_DIR", exc_info=True
+            )
 
     try:
         validar_manifiesto()

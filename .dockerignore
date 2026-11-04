@@ -15,3 +15,5 @@ docs
 *.dump
 *.tif
 *.npy
+
+core_data

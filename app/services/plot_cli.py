@@ -22,7 +22,9 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 from matplotlib.transforms import Bbox  # noqa: E402
 
-CORE = os.environ.get("RCS_CORE_PATH", "/opt/rcs-core")
+CORE = os.environ.get("RCS_CORE_PATH") or str(
+    Path(__file__).resolve().parents[2] / "core"
+)
 if CORE not in sys.path:
     sys.path.insert(0, CORE)
 
@@ -54,7 +56,7 @@ extender_extent = getattr(_modulo_extent, "extender_extent", None)
 
 plotear._mostrar_figura = lambda bloquear: None
 
-# Ajuste de contexto de la planta sin modificar el proyecto base: un evento
+# Ajuste de contexto de la planta sin modificar el core: un evento
 # solo se muestra con vista regional; varias soluciones cercanas se acercan
 # para poder diferenciarlas.
 _extent_original = plotear._extent_planta_por_eventos

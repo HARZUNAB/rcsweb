@@ -22,6 +22,7 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY app ./app
+COPY core ./core
 COPY tasks ./tasks
 COPY migrations ./migrations
 

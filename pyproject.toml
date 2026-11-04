@@ -61,6 +61,8 @@ app = ["templates/**/*", "static/**/*", "domain/catalogs/*.json"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Código heredado del core: se mantiene tal como se incorporó.
+extend-exclude = ["core"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "W"]

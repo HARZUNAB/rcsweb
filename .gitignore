@@ -24,3 +24,5 @@ workspace/*
 .DS_Store
 .idea/
 .vscode/
+
+core_data/

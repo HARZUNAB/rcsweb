@@ -1,0 +1,4376 @@
+#!/usr/bin/env python3
+"""
+plotear.py
+==========
+Plotea eventos de subducción sobre sus perfiles y la vista en planta,
+usando matplotlib + cartopy (misma tecnología de mapasOPA/ploteo),
+con los perfiles detectados dinámicamente desde la carpeta "grillas".
+
+Uso:
+    python3 plotear.py <archivo_json> <fuente>
+
+    archivo_json : archivo JSON generado por generajson.py
+                   (eventos_seisan.json o eventos_eventquery.json)
+    fuente       : "seisan" | "eventquery"
+
+Cada archivo JSON contiene UNA lista con todos los eventos, cada uno con su
+campo "perfil" (id del perfil asignado o None si no corresponde a ninguno).
+Este script agrupa los eventos en memoria por perfil y abre un PANEL DE
+ANÁLISIS: una tabla resumen de todos los perfiles (con su mini-perfil) desde
+donde el usuario decide qué ver en detalle —abrir perfiles/mapas en paralelo,
+filtrar por sospechosos, ver los mapas de territorio (Nacional/Insular/
+Antártico) o restablecer la vista de inicio—. Sin backend interactivo cae al
+flujo secuencial: una ventana por perfil (planta a la izquierda, perfil a la
+derecha) y los eventos sin perfil solo sobre la planta.
+"""
+
+import os
+import sys
+import json
+import math
+import csv
+import textwrap
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from paths import DATA_DIR
+
+import numpy as np
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import cartopy.io.shapereader as shpreader
+from PIL import Image
+from adjustText import adjust_text
+
+import asigna_perfiles as ap
+import cruce_noact
+import fronteras
+import rutas
+import descargas
+
+Image.MAX_IMAGE_PIXELS = None  # desactiva el límite de seguridad de PIL
+
+
+# =========================================================================
+# REGISTRO (trazabilidad)
+# =========================================================================
+# La app registra su propio logger con fijar_logger() para que los mensajes de
+# este módulo queden en informes/app.log con hora (igual que el resto). Sin
+# logger (uso por línea de comandos) cae a consola con flush, así se ven aunque
+# la salida esté en buffer.
+_LOGGER = None
+
+
+def fijar_logger(fn):
+    """Registra el logger de la app (app.App._log) para la trazabilidad."""
+    global _LOGGER
+    _LOGGER = fn
+
+
+def _log(texto):
+    """Escribe una línea de trazabilidad por el logger de la app o consola."""
+    if _LOGGER is not None:
+        try:
+            _LOGGER(texto)
+            return
+        except Exception:
+            pass
+    try:
+        print("[plotear] %s" % texto, flush=True)
+    except Exception:
+        pass
+
+
+# =========================================================================
+# PARÁMETROS CONFIGURABLES (EDITAR SEGÚN SEA NECESARIO)
+# =========================================================================
+
+# FIG_SIZE: tamaño (pulgadas) de la figura que se abre por perfil.
+# La planta ocupa el subplot izquierdo y el perfil el derecho.
+FIG_SIZE = (15, 7)
+
+# FIG_SIZE_NACIONAL: tamaño (pulgadas) de la figura del mapa del Territorio
+# Nacional (Chile completo, largo y angosto). Se usa una figura vertical para
+# agrandar el mapa sin deformar su geografía (aspecto PlateCarree ~0.31).
+# Configurable: subir la altura agranda el mapa (limitado por la pantalla).
+FIG_SIZE_NACIONAL = (7.0, 13.0)
+
+# ANCHO_TEXTO_NACIONAL: caracteres máximos por línea del texto que va a la
+# izquierda del mapa Nacional (título + subtítulo). Se usa con textwrap.fill
+# para que el texto no se monte sobre el mapa. Configurable.
+ANCHO_TEXTO_NACIONAL = 30
+
+# DPI: resolución de la figura. A mayor DPI, mapas más nítidos (y algo más
+# lentos al dibujar). Default 100 (buen equilibrio pantalla).
+DPI = 100
+
+# PROF_MAX_KM: profundidad MÍNIMA (km) mostrada en el eje vertical del perfil
+# (piso). El eje va desde -prof_fondo (abajo) hasta ALT_MAR_KM (arriba), donde
+# prof_fondo = _prof_fondo_perfil(...) cubre el slab y los eventos del catálogo
+# con margen, de modo que los eventos/slab más profundos no queden recortados.
+PROF_MAX_KM = 250
+
+# ALT_MAR_KM: kilómetros positivos por encima del nivel del mar que se muestran
+# en la parte superior del perfil (para ver la topografía).
+ALT_MAR_KM = 15
+
+# MARGEN_PLANTA_GRADOS: margen en grados alrededor de la extensión del perfil
+# para recortar la imagen de planta desde el relieve (local o global).
+MARGEN_PLANTA_GRADOS = 0.6
+
+# MARGEN_MINI_MAPA_NACIONAL: margen en grados (latitud y longitud) de la vista
+# nacional que acompaña al listado de No publicados. Es amplio a propósito:
+# el objetivo es ubicar el evento respecto de todo el país, no hacer zoom.
+MARGEN_MINI_MAPA_NACIONAL = 3.0
+
+# ZOOM_MINI_MAPA_FACTOR: cuánto acerca/aleja cada paso de rueda o botón.
+# ZOOM_MINI_MAPA_MIN_GRADOS: extensión mínima para no perder la referencia.
+ZOOM_MINI_MAPA_FACTOR = 1.25
+ZOOM_MINI_MAPA_MIN_GRADOS = 0.1
+
+# RESOLUCION_RELIEVE_PLANTA: alto (px) al que se redimensiona el recorte de
+# relieve de la planta al proyectarlo. Controla la nitidez del fondo.
+# Configurable: bajar a ~400-500 acelera bastante el render del fondo del mapa
+# (el imshow) con una pérdida de nitidez apenas perceptible en pantalla;
+# subir hacia 900/1000 la mejora para exportar/ampliar a costa de velocidad.
+RESOLUCION_RELIEVE_PLANTA = 500
+
+# NIVEL COASTLINE/BORDES como en capturar.py:
+# NIVEL_GEO = "50m" coastlines y bordes de países.
+NIVEL_GEO = "50m"
+
+# COLOR_FRONTERA / GROSOR_FRONTERA / ESTILO_FRONTERA: estilo de las fronteras
+# internacionales (Chile-Argentina/Perú/Bolivia) en la planta. Línea sólida,
+# oscura y moderada para que se note sin recargar el mapa. Configurable.
+COLOR_FRONTERA = '#000000'
+GROSOR_FRONTERA = 1.2
+ESTILO_FRONTERA = '-'
+
+# COLOR_REGION / GROSOR_REGION / ESTILO_REGION: estilo de los límites internos
+# de las regiones de Chile en la planta. Más tenues que las fronteras pero
+# visibles, en línea segmentada. Configurable.
+COLOR_REGION = '#202020'
+GROSOR_REGION = 1.0
+ESTILO_REGION = '--'
+
+# COLOR_PERCIBIDO: color de relleno de los eventos percibidos (fuente
+# eventquery, campo percibido="S"). Puede ser nombre o código hexadecimal.
+COLOR_PERCIBIDO = "#c00000"
+
+# COLOR_NO_PERCIBIDO: color de relleno del resto de los eventos (no
+# percibidos o seisan).
+COLOR_NO_PERCIBIDO = "#ffff00"
+
+# COLOR_PUBLICADO: color del anillo del evento del catálogo publicado cuando se
+# compara contra la solución local (rol="publicado"; ver abrir_eventos). El local
+# usa COLOR_NO_PERCIBIDO. Es negro (no celeste) para que el anillo se distinga
+# sobre el azul del mar; el centro blanco del anillo lo sigue diferenciando.
+COLOR_PUBLICADO = "#000000"
+
+# COLOR_AGENCIA: color de cada agencia externa (EMSC/USGS/GFZ) en el panel de
+# «Comparar agencias». Se evitan el rojo (percibidos), el amarillo (no
+# percibidos) y el violeta (borde de sospechosos) para no confundir.
+COLOR_AGENCIA = {
+    "EMSC": "#2ca02c",
+    "USGS": "#ff7f0e",
+    "GFZ": "#17becf",
+}
+AGENCIA_ETIQUETA = {
+    "EMSC": "EMSC",
+    "USGS": "USGS (NEIC)",
+    "GFZ": "GFZ",
+}
+
+# COLOR_BORDE_SOSPECHOSO: color del borde de los eventos marcados como
+# posiblemente mal localizados (campo sospechoso=True de generajson.py).
+# El relleno conserva el color por fuente; el aro violeta (grueso) marca la
+# sospecha sin tapar esa información y sin atarse a una fuente.
+COLOR_BORDE_SOSPECHOSO = "#7b1196"
+GROSOR_BORDE_SOSPECHOSO = 3.0
+
+# COLOR_NEUTRO: relleno gris del ítem de leyenda del sospechoso. El aro violeta
+# es lo que define la sospecha, así que la muestra no se asocia a un relleno.
+COLOR_NEUTRO = "#bfbfbf"
+
+# COLOR_RESALTADO: color del anillo que indica el evento seleccionado con un
+# clic en el mapa (no se usa para clasificar eventos).
+COLOR_RESALTADO = "#000080"
+
+# COLOR_SUPERPUESTO: aro que marca soluciones superpuestas (dos fuentes en la
+# misma ubicación). Es la única marca extra para ese caso: no se agregan colores
+# ni formas por fuente.
+COLOR_SUPERPUESTO = "#ff00ff"
+
+# COLOR_SLAB: color de la línea del slab en el perfil.
+COLOR_SLAB = "black"
+
+# COLOR_TOPO: color de la línea de topografía/batimetría en el perfil.
+COLOR_TOPO = "black"
+
+# MAX_EVENTOS_ETIQUETA: si el perfil tiene menos/igual cantidad de eventos,
+# se muestran las etiquetas (id) junto a cada punto. Por encima del umbral
+# se omiten: con muchas etiquetas son ilegibles y adjust_text (cuadrático
+# en nº de textos) encarece mucho el ploteo.
+# Configurable: subirlo etiqueta perfiles más densos (a costa de velocidad);
+# bajarlo da mapas más rápidos y limpios.
+MAX_EVENTOS_ETIQUETA = 60
+
+# ITERACIONES_ADJUST_TEXT: iteraciones de adjust_text al acomodar etiquetas.
+# Con 1-2 iteraciones el acomodo es casi igual (el coste dominante está en
+# el primer pase) y el tiempo baja varios ordenes de magnitud.
+# Configurable: rango útil 1-3 (más iteraciones = mejor reparto, más lento).
+ITERACIONES_ADJUST_TEXT = 2
+
+# ASPECTO_PLANTA_GRADOS: proporción fija ancho/alto (en grados) de la vista en
+# planta, igual a la proporción de la caja del subplot (FIG_SIZE con 2 subplots
+# → ~2:1). Con una proporción constante, todos los mapas de planta se renderizan
+# con el MISMO tamaño en pantalla, sin deformación geográfica. La caja se
+# centra en los eventos del perfil (el slab puede recortarse en extremos sin
+# eventos). Configurable.
+ASPECTO_PLANTA_GRADOS = 2.0
+
+
+# =========================================================================
+# RUTAS (resueltas respecto a este archivo, no al CWD)
+# =========================================================================
+
+# ARCHIVO_TIF_GLOBAL: relieve global (Natural Earth) de respaldo para la
+# vista en planta, cuando el perfil queda fuera de la cobertura del recorte
+# local de Chile.
+ARCHIVO_TIF_GLOBAL = str(DATA_DIR / "NE2_LR_LC_SR_W_DR.tif")
+
+# ARCHIVO_TIF_LOCAL: relieve pre-recortado a Chile (alta resolución, mucho
+# más liviano y rápido). Se usa como prioridad; si no existe se usa el global.
+ARCHIVO_TIF_LOCAL = str(DATA_DIR / "relieve_chile.tif")
+
+# ARCHIVO_LOCALIDADES: archivo CSV con las localidades (ciudades/pueblos) y
+# sus coordenadas, usado para marcar pueblos cercanos en la planta.
+ARCHIVO_LOCALIDADES = str(DATA_DIR / "localidades.csv")
+
+# ARCHIVO_SISMICIDAD: catálogo de sismicidad histórica validada (solo
+# referencia: fondo contextual en los mapas y estadísticas locales de
+# clasificación en sismicidad.py). El catálogo jamás se clasifica.
+ARCHIVO_SISMICIDAD = str(DATA_DIR / "base_2020_2026.dat")
+
+# Parámetros visuales del fondo de sismicidad histórica (gris tenue uniforme).
+HIST_COLOR = "0.55"
+HIST_S = 8
+HIST_S_PERFIL = 8
+HIST_ALPHA = 0.35
+
+# HIST_MAX_PERP_PROF_KM: solo se proyectan al perfil los eventos históricos
+# dentro de esta distancia perpendicular (km) a la línea central del perfil,
+# para no saturar el gráfico con eventos lejanos de la franja.
+HIST_MAX_PERP_PROF_KM = 40.0
+
+# Histórico: etiqueta de leyenda para el fondo de sismicidad histórica.
+HIST_LABEL = "Sismicidad histórica 2020-2026"
+
+
+# Constantes de la proyección local del recorte relieve_chile.tif (igual que
+# en mapasOPA/ploteo/capturar.py).
+RELIEVE_LOCAL = ((-97.0, -53.0), (-62.0, -4.0))  # (lon_min, lon_max), (lat_min, lat_max)
+
+# Límites geográficos para los tres territorios de eventos sin perfil:
+# 1. Territorio Nacional Chileno: margen continental donde se definen los perfiles
+TERRITORIO_NACIONAL = ((-77.0, -66.0), (-56.0, -17.5))
+# 2. Territorio Insular Chileno: Isla de Pascua y alrededores (Pacifico oriental)
+TERRITORIO_INSULAR = ((-110.0, -72.0), (-45.0, -31.0))
+# 3. Territorio Antártico Chileno: reclamo antártico chileno (53°W-90°W, 53°S-South Pole)
+TERRITORIO_ANTARTICO = ((-76.0, -57.0), (-71.0, -53.0))
+
+# TERRITORIOS: índice por nombre de los límites de cada territorio. Mismo
+# formato que las constantes: (lon, lat) = ((lon_min, lon_max), (lat_min, lat_max)).
+TERRITORIOS = {
+    "Nacional": TERRITORIO_NACIONAL,
+    "Insular": TERRITORIO_INSULAR,
+    "Antártico": TERRITORIO_ANTARTICO,
+}
+
+
+def _cargar_relieve_planta(lon_min, lon_max, lat_min, lat_max):
+    """
+    Carga el recorte de relieve para la vista en planta.
+    Prioriza el recorte local de Chile; si el área pedida queda fuera de su
+    cobertura (o no existe), usa el relieve global NE2 como respaldo.
+    Devuelve (img_rgb_resized, proyeccion) o (None, motivo) si falla.
+    """
+    archivo = None
+    proyeccion = None
+
+    local = RELIEVE_LOCAL
+    (lon_min_r, lon_max_r), (lat_min_r, lat_max_r) = local
+    dentro_local = (lon_min >= lon_min_r and lon_max <= lon_max_r and
+                    lat_min >= lat_min_r and lat_max <= lat_max_r)
+
+    if dentro_local and os.path.isfile(ARCHIVO_TIF_LOCAL):
+        archivo = ARCHIVO_TIF_LOCAL
+        proyeccion = ("local",) + tuple(local[0]) + tuple(local[1])
+    elif os.path.isfile(ARCHIVO_TIF_GLOBAL):
+        archivo = ARCHIVO_TIF_GLOBAL
+        proyeccion = ("global",)
+
+    if archivo is None:
+        return None, "No se encontró ningún relieve (.tif) en el proyecto"
+
+    try:
+        base = Image.open(archivo)
+        w, h = base.size
+        if proyeccion[0] == "local":
+            _, lon_min_r, lon_max_r, lat_min_r, lat_max_r = proyeccion
+            x0 = int((lon_min - lon_min_r) / (lon_max_r - lon_min_r) * w)
+            x1 = int((lon_max - lon_min_r) / (lon_max_r - lon_min_r) * w)
+            y0 = int((lat_max_r - lat_max) / (lat_max_r - lat_min_r) * h)
+            y1 = int((lat_max_r - lat_min) / (lat_max_r - lat_min_r) * h)
+        else:
+            x0 = int((lon_min + 180.0) / 360.0 * w)
+            x1 = int((lon_max + 180.0) / 360.0 * w)
+            y0 = int((90.0 - lat_max) / 180.0 * h)
+            y1 = int((90.0 - lat_min) / 180.0 * h)
+        x0 = max(0, min(w - 1, x0))
+        x1 = max(x0 + 1, min(w, x1))
+        y0 = max(0, min(h - 1, y0))
+        y1 = max(y0 + 1, min(h, y1))
+        if x1 <= x0 or y1 <= y0:
+            raise ValueError("área fuera de la imagen")
+        crop = base.crop((x0, y0, x1, y1))
+        alto_deseado = RESOLUCION_RELIEVE_PLANTA
+        ancho_deseado = max(1, int(crop.width * alto_deseado / max(crop.height, 1)))
+        img = crop.resize((ancho_deseado, alto_deseado), Image.LANCZOS)
+        return img.convert("RGB"), proyeccion
+    except Exception as e:
+        return None, "No se pudo proyectar el relieve .tif: %s" % e
+
+
+def _color_evento(fuente, evento):
+    """
+    Color de RELLENO del evento según su rol (comparación local vs publicado),
+    la fuente y percibido. La sospecha (borde violeta) se maneja aparte.
+
+    Con 'rol' (comparación de un evento no actualizado): 'publicado' va azul y
+    'local' amarillo. Sin rol, se mantiene el criterio de siempre.
+    """
+    rol = evento.get('rol')
+    if rol == 'publicado':
+        return COLOR_PUBLICADO
+    agencia = evento.get('agencia')
+    if agencia in COLOR_AGENCIA:
+        return COLOR_AGENCIA[agencia]
+    if rol == 'local':
+        return COLOR_NO_PERCIBIDO
+    if fuente == "eventquery" and evento.get('percibido') == "S":
+        return COLOR_PERCIBIDO
+    return COLOR_NO_PERCIBIDO
+
+
+def _bordes_eventos(eventos):
+    """Edgecolors y grosores de borde por evento en el mismo orden."""
+    bordes = []
+    grosores = []
+    for ev in eventos:
+        sospechoso = bool(ev.get('sospechoso'))
+        bordes.append(COLOR_BORDE_SOSPECHOSO if sospechoso else 'black')
+        grosores.append(GROSOR_BORDE_SOSPECHOSO if sospechoso else 1.2)
+    return bordes, grosores
+
+
+def _estilo_marcadores(fuente, eventos):
+    """
+    facecolors/edgecolors/grosores por evento, en el mismo orden.
+
+    Es como _color_evento + _bordes_eventos, pero el evento con rol
+    'publicado' (comparación de un no actualizado) sale como un ANILLO: centro
+    blanco y borde COLOR_PUBLICADO. El centro blanco (opaco) hace que se lea
+    como anillo sobre cualquier fondo (océano, tierra, sismicidad); con relleno
+    transparente el agujero mostraba el fondo y parecía un punto relleno.
+    """
+    caras = []
+    bordes = []
+    grosores = []
+    for ev in eventos:
+        if ev.get('rol') == 'publicado':
+            caras.append('white')  # centro blanco (anillo)
+            bordes.append(COLOR_PUBLICADO)
+            grosores.append(2.0)
+        else:
+            caras.append(_color_evento(fuente, ev))
+            sospechoso = bool(ev.get('sospechoso'))
+            bordes.append(COLOR_BORDE_SOSPECHOSO if sospechoso else 'black')
+            grosores.append(GROSOR_BORDE_SOSPECHOSO if sospechoso else 1.2)
+    return caras, bordes, grosores
+
+
+def _handles_eventos(fuente, roles=None, agencias=None, superpuestos=False):
+    """
+    Handles de leyenda con los colores de los sismos según fuente.
+    eventquery distingue no percibido/percibido; seisan usa un solo
+    color ("Sismo registrado"). Ambos incluyen la sospecha (borde violeta,
+    relleno según percibido/no percibido) y el anillo de selección.
+
+    Si 'roles' trae 'local'/'publicado' (comparación de un no actualizado), la
+    leyenda nombra el catálogo local y el publicado en su lugar. Con 'agencias'
+    (panel de «Comparar agencias») la leyenda lista el publicado y cada agencia.
+    'superpuestos' agrega el ítem del aro de soluciones superpuestas.
+    """
+    from matplotlib.lines import Line2D
+    handle_sospechoso = Line2D([0], [0], marker='o', color='w',
+                               markerfacecolor=COLOR_NEUTRO,
+                               markeredgecolor=COLOR_BORDE_SOSPECHOSO,
+                               markeredgewidth=GROSOR_BORDE_SOSPECHOSO,
+                               markersize=9,
+                               label="Sospechoso (borde violeta)")
+    handle_seleccion = Line2D([0], [0], marker='o', color='w',
+                              markerfacecolor='none',
+                              markeredgecolor=COLOR_RESALTADO,
+                              markeredgewidth=2.2, markersize=8,
+                              label="Evento seleccionado")
+    handle_superpuesto = Line2D([0], [0], marker='o', color='w',
+                                markerfacecolor='none',
+                                markeredgecolor=COLOR_SUPERPUESTO,
+                                markeredgewidth=2.0, markersize=11,
+                                label="Soluciones superpuestas")
+    extra = [handle_superpuesto] if superpuestos else []
+    if agencias:
+        handles = [
+            Line2D([0], [0], marker='o', color='w',
+                   markerfacecolor=COLOR_PERCIBIDO, markeredgecolor='black',
+                   markersize=8, label="Percibido CSN"),
+            Line2D([0], [0], marker='o', color='w',
+                   markerfacecolor=COLOR_NO_PERCIBIDO, markeredgecolor='black',
+                   markersize=8, label="No percibido CSN"),
+        ]
+        for ag in agencias:
+            if ag in COLOR_AGENCIA:
+                handles.append(Line2D(
+                    [0], [0], marker='o', color='w',
+                    markerfacecolor=COLOR_AGENCIA[ag], markeredgecolor='black',
+                    markersize=8, label=AGENCIA_ETIQUETA.get(ag, ag)))
+        handles.extend(extra + [handle_sospechoso, handle_seleccion])
+        return handles
+    if roles:
+        etiqueta = _ETIQUETA_FUENTE.get(fuente, fuente)
+        handles = []
+        if 'local' in roles:
+            handles.append(Line2D(
+                [0], [0], marker='o', color='w',
+                markerfacecolor=COLOR_NO_PERCIBIDO, markeredgecolor='black',
+                markersize=8, label="Evento %s" % etiqueta))
+        if 'publicado' in roles:
+            handles.append(Line2D(
+                [0], [0], marker='o', color='w',
+                markerfacecolor='white', markeredgecolor=COLOR_PUBLICADO,
+                markeredgewidth=2.0, markersize=8, label="Publicado"))
+        handles.extend(extra + [handle_sospechoso, handle_seleccion])
+        return handles
+    if fuente == "eventquery":
+        handles = [
+            Line2D([0], [0], marker='o', color='w',
+                   markerfacecolor=COLOR_NO_PERCIBIDO, markeredgecolor='black',
+                   markersize=8, label="Sismo no percibido"),
+            Line2D([0], [0], marker='o', color='w',
+                   markerfacecolor=COLOR_PERCIBIDO, markeredgecolor='black',
+                   markersize=8, label="Sismo percibido"),
+            handle_sospechoso,
+            handle_seleccion,
+        ]
+    else:
+        handles = [
+            Line2D([0], [0], marker='o', color='w',
+                   markerfacecolor=COLOR_NO_PERCIBIDO, markeredgecolor='black',
+                   markersize=8, label="Sismo registrado"),
+            handle_sospechoso,
+            handle_seleccion,
+        ]
+    handles.extend(extra)
+    return handles
+
+
+def _roles_presentes(eventos):
+    """Conjunto de roles ('local'/'publicado') presentes en la lista."""
+    return {e.get('rol') for e in eventos if e.get('rol')}
+
+
+def _agencias_presentes(eventos):
+    """Agencias externas presentes en la lista, en orden estable."""
+    vistas = []
+    for e in eventos:
+        ag = e.get('agencia')
+        if ag and ag not in vistas:
+            vistas.append(ag)
+    return vistas
+
+
+def _fuente_de(evento):
+    """Nombre de la fuente: la agencia, o 'CSN' para lo nuestro."""
+    return evento.get('agencia') or 'CSN'
+
+
+def _coincidentes_planta(eventos):
+    """
+    Coordenadas (lat, lon) donde hay más de una solución de fuentes distintas.
+
+    Es la superposición: una agencia toma como propia la solución de otra. Se
+    redondea a 3 decimales para no marcar los cruces normales (a km).
+    """
+    vistos = {}
+    for ev in eventos:
+        lat = _a_numero_o_none(ev.get('latitud'))
+        lon = _a_numero_o_none(ev.get('longitud'))
+        if lat is None or lon is None:
+            continue
+        clave = (round(lat, 3), round(lon, 3))
+        vistos.setdefault(clave, set()).add(_fuente_de(ev))
+    return [c for c, fuentes in vistos.items() if len(fuentes) > 1]
+
+
+def _coincidentes_perfil(eventos):
+    """Coordenadas (along, prof) con más de una solución de fuentes distintas."""
+    vistos = {}
+    for ev in eventos:
+        along = _a_numero_o_none(ev.get('along_km'))
+        prof = _a_numero_o_none(ev.get('prof'))
+        if along is None or prof is None:
+            continue
+        clave = (round(along, 1), round(prof, 1))
+        vistos.setdefault(clave, set()).add(_fuente_de(ev))
+    return [c for c, fuentes in vistos.items() if len(fuentes) > 1]
+
+
+def _dibujar_superpuestos_planta(ax, coords):
+    """Aro magenta sobre cada ubicación superpuesta en la planta."""
+    for lat, lon in coords:
+        try:
+            ax.scatter([lon], [lat], s=300, facecolors='none',
+                       edgecolors=COLOR_SUPERPUESTO, linewidths=2, zorder=7,
+                       transform=ccrs.PlateCarree())
+        except Exception:
+            pass
+
+
+def _dibujar_superpuestos_perfil(ax, coords):
+    """Aro magenta sobre cada ubicación superpuesta en el perfil."""
+    for along, prof in coords:
+        try:
+            ax.scatter([along], [-prof], s=300, facecolors='none',
+                       edgecolors=COLOR_SUPERPUESTO, linewidths=2, zorder=9)
+        except Exception:
+            pass
+
+
+def _clave_ubicacion(evento, en_perfil):
+    """Clave de ubicación (por canvas) para agrupar superposiciones."""
+    if en_perfil:
+        along = _a_numero_o_none(evento.get('along_km'))
+        prof = _a_numero_o_none(evento.get('prof'))
+        if along is None or prof is None:
+            return None
+        return (round(along, 1), round(prof, 1))
+    lat = _a_numero_o_none(evento.get('latitud'))
+    lon = _a_numero_o_none(evento.get('longitud'))
+    if lat is None or lon is None:
+        return None
+    return (round(lat, 3), round(lon, 3))
+
+
+def _superpuestos_de(evento, eventos, en_perfil):
+    """Eventos que comparten ubicación con 'evento' (incluido él)."""
+    clave = _clave_ubicacion(evento, en_perfil)
+    if clave is None:
+        return [evento]
+    grupo = [e for e in eventos if _clave_ubicacion(e, en_perfil) == clave]
+    return grupo or [evento]
+
+
+def _linea_fuente(evento, referencia=None):
+    """Una fuente con sus claves y, si hay referencia, su Δ respecto de ella."""
+    fuente = evento.get('agencia') or 'CSN'
+    linea = "%s   prof %s km   mag %s (%s)" % (
+        fuente, _numero_evento(evento.get('prof'), 1),
+        _numero_evento(evento.get('magnitud'), 1), evento.get('tipo', ''))
+    if referencia is not None and evento is not referencia:
+        delta = _texto_diferencia(referencia, evento,
+                                  _etiqueta_referencia(referencia))
+        if delta:
+            linea += "\n     " + " · ".join(delta)
+    return linea
+
+
+def _texto_superposicion(grupo, referencia=None):
+    """Viñeta con todas las fuentes superpuestas (y el Δ de cada una)."""
+    unicos = []
+    vistos = set()
+    for ev in grupo:
+        nombre = ev.get('agencia') or 'CSN'
+        if nombre in vistos:
+            continue
+        vistos.add(nombre)
+        unicos.append(ev)
+    fuentes = [e.get('agencia') or 'CSN' for e in unicos]
+    encab = ("Soluciones superpuestas (%d): %s"
+             % (len(unicos), " ≡ ".join(fuentes)))
+    # Identificación del evento para no depender de buscar el id en el
+    # catálogo: id y fecha/hora de NUESTRO evento publicado (la referencia).
+    # Si no hay referencia, se muestra solo la fecha/hora, sin el id (no se
+    # rotula con el id de una agencia).
+    ident = []
+    if referencia is not None:
+        if referencia.get('id') not in (None, ""):
+            ident.append("id: %s" % referencia.get('id'))
+        if referencia.get('fecha hora'):
+            ident.append(str(referencia.get('fecha hora')))
+    linea_id = " · ".join(ident)
+    lineas = [encab]
+    if linea_id:
+        lineas.append(linea_id)
+    lineas += [_linea_fuente(e, referencia) for e in unicos]
+    return "\n".join(lineas)
+
+
+def _etiqueta_referencia(evento):
+    """
+    Nombre de la referencia si 'evento' es nuestra solución publicada de
+    eventquery (rol 'referencia'/'publicado'); None para el resto (agencia o
+    solución local), donde el Δ no se mide desde eventquery.
+    """
+    if evento.get('rol') in ('referencia', 'publicado'):
+        return 'eventquery'
+    return None
+
+
+def _texto_diferencia(local, publicado, ref_nombre=None):
+    """
+    Líneas del Δ entre referencia/solución y la otra solución (ej. eventquery/seiscomp
+    vs agencia publicada): ubicación, profundidad y magnitud (esta solo si difiere,
+    con el tipo si cambia). Lista vacía si no hay ningún dato comparable.
+
+    'ref_nombre' rotula, entre paréntesis, desde dónde se mide la dirección
+    (p. ej. 'eventquery'); se omite cuando el Δ no parte del publicado.
+    """
+    partes = []
+    try:
+        import comparacion
+        dist = comparacion.distancia_km(
+            local.get('latitud'), local.get('longitud'),
+            publicado.get('latitud'), publicado.get('longitud'))
+        if dist is not None:
+            try:
+                dirc = _direccion_cardinal(float(local.get('longitud')), float(local.get('latitud')),
+                                            float(publicado.get('longitud')), float(publicado.get('latitud')))
+            except Exception:
+                dirc = ""
+            if dirc and ref_nombre:
+                partes.append("Δ %.1f km %s (ref. %s)"
+                              % (dist, dirc, ref_nombre))
+            elif dirc:
+                partes.append("Δ ubicación %.1f km al %s" % (dist, dirc))
+            else:
+                partes.append("Δ ubicación %.1f km" % dist)
+    except Exception:
+        pass
+    try:
+        partes.append("Δ prof %.0f km"
+                      % abs(float(local['prof']) - float(publicado['prof'])))
+    except (TypeError, ValueError, KeyError):
+        pass
+    # Δ magnitud: solo si difiere (a 1 decimal). Con el tipo, si cambia.
+    try:
+        dmag = abs(float(local['magnitud']) - float(publicado['magnitud']))
+        if round(dmag, 1) != 0:
+            texto_mag = "Δ mag %.1f" % dmag
+            tipo_local = str(local.get('tipo') or '').strip()
+            tipo_pub = str(publicado.get('tipo') or '').strip()
+            if tipo_local and tipo_pub and tipo_local != tipo_pub:
+                texto_mag += " (%s vs %s)" % (tipo_local, tipo_pub)
+            partes.append(texto_mag)
+    except (TypeError, ValueError, KeyError):
+        pass
+    return partes
+
+
+def _dibujar_diferencia(ax_planta, ax_perfil, local, publicado, etiquetar=True):
+    """
+    Dibuja la línea local↔publicado en planta y perfil y, si 'etiquetar', el Δ.
+
+    Con 'etiquetar' (comparación de un evento suelto, un solo par) el Δ sale
+    abajo a la derecha. En el panel de no actualizados se llama con
+    'etiquetar=False': solo la línea; el Δ aparece al hacer clic en el evento.
+    """
+    # Con agencia, la línea lleva el color de esa agencia; si no, el azul del
+    # publicado (comparación local vs publicado).
+    color = COLOR_AGENCIA.get(publicado.get('agencia'), COLOR_PUBLICADO)
+    # Línea en la planta.
+    try:
+        ax_planta.plot(
+            [float(local['longitud']), float(publicado['longitud'])],
+            [float(local['latitud']), float(publicado['latitud'])],
+            color=color, linestyle='--', lw=1.0, alpha=0.8,
+            zorder=4, transform=ccrs.PlateCarree())
+    except (TypeError, ValueError, KeyError):
+        pass
+    # Línea en el perfil.
+    if ax_perfil is not None:
+        try:
+            ax_perfil.plot(
+                [float(local['along_km']), float(publicado['along_km'])],
+                [-float(local['prof']), -float(publicado['prof'])],
+                color=color, linestyle='--', lw=1.0, alpha=0.8,
+                zorder=8)
+        except (TypeError, ValueError, KeyError):
+            pass
+    if not etiquetar:
+        return
+    partes = _texto_diferencia(local, publicado, _etiqueta_referencia(local))
+    if not partes:
+        return
+    # Esquina inferior derecha (coordenadas de ejes): no tapa los puntos ni la
+    # referencia geográfica, que va abajo a la izquierda.
+    try:
+        ax_planta.text(0.985, 0.02, "\n".join(partes), fontsize=8, zorder=14,
+                       transform=ax_planta.transAxes, ha='right', va='bottom',
+                       bbox=dict(boxstyle="round", fc="white", alpha=0.85))
+    except Exception:
+        pass
+
+
+# =========================================================================
+# FONDO DE SISMICIDAD HISTÓRICA (base_2020_2026.dat, solo referencia)
+# =========================================================================
+
+_cache_sismicidad = None
+_cache_hist_perfil = {}
+_cache_localidades = None
+
+
+def _cargar_sismicidad():
+    """
+    Lee el catálogo histórico (tab-separado; cols 1=lat, 2=lon, 3=prof, 4=mag)
+    y lo guarda en caché de módulo. Devuelve (lats, lons, profs) o None si el
+    archivo no existe o no tiene eventos válidos. Es SOLO fondo/referencia:
+    estos eventos no se clasifican como sospechosos.
+    """
+    global _cache_sismicidad
+    if _cache_sismicidad is not None:
+        return _cache_sismicidad
+    if not os.path.isfile(ARCHIVO_SISMICIDAD):
+        _cache_sismicidad = None
+        return None
+
+    lats, lons, profs = [], [], []
+    with open(ARCHIVO_SISMICIDAD, encoding='utf-8') as f:
+        for linea in f:
+            partes = linea.strip().split('\t')
+            if len(partes) < 7:
+                continue
+            try:
+                lats.append(float(partes[1]))
+                lons.append(float(partes[2]))
+                profs.append(float(partes[3]))
+            except ValueError:
+                continue
+
+    if not lats:
+        _cache_sismicidad = None
+        return None
+    _cache_sismicidad = (np.array(lats), np.array(lons), np.array(profs))
+    return _cache_sismicidad
+
+
+def _handle_sismicidad():
+    """Handle de leyenda para el fondo de sismicidad histórica."""
+    from matplotlib.lines import Line2D
+    return Line2D([0], [0], marker='o', color='w',
+                  markerfacecolor=HIST_COLOR, markeredgecolor='none',
+                  markersize=6, label=HIST_LABEL)
+
+
+def _sismicidad_planta(ax, lon_min, lon_max, lat_min, lat_max):
+    """
+    Dibuja el fondo de sismicidad histórica en la vista en planta (gris tenue,
+    zorder=1), filtrando por la extensión visible.
+    """
+    datos = _cargar_sismicidad()
+    if datos is None:
+        return
+    lats, lons, profs = datos
+    mask = ((lons >= lon_min) & (lons <= lon_max) &
+            (lats >= lat_min) & (lats <= lat_max))
+    if not np.any(mask):
+        return
+    ax.scatter(lons[mask], lats[mask], s=HIST_S, color=HIST_COLOR,
+               alpha=HIST_ALPHA, linewidths=0, zorder=1, rasterized=True,
+               transform=ccrs.PlateCarree())
+
+
+def _proyectar_hist_perfil(lons, lats, profs, perfil):
+    """
+    Proyección vectorizada de los eventos históricos a un perfil: posición a
+    lo largo (km) y distancia perpendicular (km), replicando la geometría de
+    ap.distancia_al_perfil sobre todo el catálogo a la vez (loop por tramo,
+    numpy escalar por punto). Devuelve (alongs, profs_neg) con los eventos
+    dentro de HIST_MAX_PERP_PROF_KM (listas vacías si el perfil no sirve).
+    """
+    slab = perfil["slab"]
+    lon_c = slab["lon"]
+    lat_c = slab["lat"]
+    p_c = slab["p"]
+    if len(lon_c) < 2:
+        return [], []
+    lon_c = np.asarray(lon_c, dtype=float)
+    lat_c = np.asarray(lat_c, dtype=float)
+    p_c = np.asarray(p_c, dtype=float)
+    lon_ref = float(np.nanmean(lon_c))
+    lat_ref = float(np.nanmean(lat_c))
+
+    x_c, y_c = ap._proyectar_a_plano(lon_c, lat_c, lon_ref, lat_ref)
+    x_p, y_p = ap._proyectar_a_plano(np.asarray(lons, dtype=float),
+                                     np.asarray(lats, dtype=float),
+                                     lon_ref, lat_ref)
+    x_p = np.asarray(x_p, dtype=float)
+    y_p = np.asarray(y_p, dtype=float)
+
+    dx = np.diff(x_c)
+    dy = np.diff(y_c)
+    seg_len2 = dx * dx + dy * dy
+    n = x_p.shape[0]
+    mejor = np.full(n, np.inf)
+    mejor_i = np.zeros(n, dtype=np.intp)
+    for i in range(dx.shape[0]):
+        vx = x_p - x_c[i]
+        vy = y_p - y_c[i]
+        t = (vx * dx[i] + vy * dy[i]) / np.where(seg_len2[i] > 0,
+                                                 seg_len2[i], 1.0)
+        t = np.clip(t, 0.0, 1.0)
+        fx = x_c[i] + t * dx[i]
+        fy = y_c[i] + t * dy[i]
+        d2 = (x_p - fx) ** 2 + (y_p - fy) ** 2
+        idx = d2 < mejor
+        if idx.any():
+            mejor[idx] = d2[idx]
+            mejor_i[idx] = i
+
+    perp = np.sqrt(mejor)
+    mask = perp <= HIST_MAX_PERP_PROF_KM
+    if not mask.any():
+        return [], []
+    i = mejor_i[mask]
+    seg_len2_i = np.where(seg_len2[i] > 0, seg_len2[i], 1.0)
+    tm = np.clip(((x_p[mask] - x_c[i]) * dx[i] +
+                  (y_p[mask] - y_c[i]) * dy[i]) / seg_len2_i, 0.0, 1.0)
+    along = p_c[i] + tm * (p_c[i + 1] - p_c[i])
+    profs_neg = -np.asarray(profs, dtype=float)[mask]
+    return along.tolist(), profs_neg.tolist()
+
+
+def _sismicidad_perfil(ax_perfil, perfil):
+    """
+    Dibuja el fondo de sismicidad histórica en el perfil (derecha): proyecta
+    el catálogo al perfil (según la perpendicular al slab) y plotea los que
+    quedan dentro de HIST_MAX_PERP_PROF_KM. Usa caché por perfil.
+    """
+    datos = _cargar_sismicidad()
+    if datos is None:
+        return
+    clave = perfil["id"]
+    if clave in _cache_hist_perfil:
+        alongs, profs_neg = _cache_hist_perfil[clave]
+    else:
+        lats, lons, profs = datos
+        alongs, profs_neg = _proyectar_hist_perfil(lons, lats, profs, perfil)
+        _cache_hist_perfil[clave] = (alongs, profs_neg)
+    if alongs:
+        ax_perfil.scatter(alongs, profs_neg, s=HIST_S_PERFIL, color=HIST_COLOR,
+                          alpha=HIST_ALPHA, linewidths=0, zorder=1,
+                          rasterized=True)
+
+
+def _resumen_perfil(eventos, fuente):
+    """
+    Resumen de un grupo de eventos (un perfil) para la tabla del panel:
+    (total, sospechosos, percibidos, altas, along_min, along_max).
+    along_min/along_max son None si ningún evento tiene along_km válido.
+    'altas' cuenta los eventos con revisión Alta; en el panel normal vale 0.
+    """
+    total = 0
+    sospechosos = 0
+    percibidos = 0
+    altas = 0
+    alongs = []
+    for ev in eventos:
+        try:
+            float(ev['latitud'])
+            float(ev['longitud'])
+        except (TypeError, ValueError, KeyError):
+            continue
+        total += 1
+        if ev.get('sospechoso'):
+            sospechosos += 1
+        if ev.get('revision') == "Alta":
+            altas += 1
+        if fuente == "eventquery" and ev.get('percibido') == "S":
+            percibidos += 1
+        try:
+            alongs.append(float(ev.get('along_km')))
+        except (TypeError, ValueError):
+            pass
+    a_min = min(alongs) if alongs else None
+    a_max = max(alongs) if alongs else None
+    return total, sospechosos, percibidos, altas, a_min, a_max
+
+
+def _prof_fondo_perfil(perfil, profundidades_eventos):
+    """
+    Fondo (km) del eje de profundidad del perfil: cubre el slab y los eventos
+    del catálogo, con ~10 % de margen. PROF_MAX_KM actúa como piso, de modo
+    que los perfiles someros no cambian. 'profundidades_eventos' son valores
+    positivos (km).
+    """
+    base = 0.0
+    for d in profundidades_eventos:
+        try:
+            d = float(d)
+        except (TypeError, ValueError):
+            continue
+        if d > base:
+            base = d
+    try:
+        sz = np.asarray(perfil["slab"]["depth"], dtype=float)
+        if sz.size and np.any(~np.isnan(sz)):
+            base = max(base, float(np.nanmax(sz)))
+    except (KeyError, TypeError, ValueError):
+        pass
+    return max(PROF_MAX_KM, base * 1.10)
+
+
+def _mini_perfil(ax, perfil, eventos, fuente, mostrar_hist=False):
+    """
+    Miniatura ligera del perfil para el panel de análisis: topografía, slab y
+    eventos (con borde violeta en los sospechosos). Por defecto SIN fondo
+    histórico ni relieve (para dibujarse en fracciones de segundo a lo largo de
+    los ~32 perfiles); si mostrar_hist es True se añade la sismicidad histórica
+    (misma caché que el detalle).
+    """
+    sp = perfil["slab"]["p"]
+    sz = perfil["slab"]["depth"]
+
+    if mostrar_hist:
+        _sismicidad_perfil(ax, perfil)
+
+    try:
+        tp = perfil.get("topo_p")
+        alt = perfil.get("topo_alt")
+        if tp is not None and len(tp) > 1:
+            ax.plot(tp, np.asarray(alt) / 1000.0, color=COLOR_TOPO, lw=0.9,
+                    zorder=3, rasterized=True)
+    except Exception:
+        pass
+
+    if len(sp) > 0:
+        mask = ~np.isnan(sz)
+        if np.any(mask):
+            ax.plot(sp[mask], -sz[mask], color=COLOR_SLAB, lw=1.6, zorder=4,
+                    rasterized=True)
+
+    xs = []
+    ys = []
+    colores = []
+    bordes = []
+    grosores = []
+    total = 0
+    sospechosos = 0
+    for ev in eventos:
+        try:
+            prof_punto = float(ev['prof']) * -1
+            x_km = float(ev.get('along_km'))
+        except (TypeError, ValueError, KeyError):
+            continue
+        total += 1
+        if ev.get('sospechoso'):
+            sospechosos += 1
+        xs.append(x_km)
+        ys.append(prof_punto)
+        colores.append(_color_evento(fuente, ev))
+        b, g = _bordes_eventos([ev])
+        bordes.append(b[0])
+        grosores.append(g[0])
+    if xs:
+        ax.scatter(xs, ys, s=22, c=colores, edgecolors=bordes,
+                   linewidths=grosores, zorder=10, alpha=0.95, rasterized=True)
+
+    # Ejes: mismo rango que el detalle para que las miniaturas sean comparables.
+    min_x = None
+    max_x = None
+    if len(sp) > 0:
+        validos = sp[~np.isnan(sp)]
+        if len(validos):
+            min_x = float(validos.min())
+            max_x = float(validos.max())
+    if min_x is None and xs:
+        min_x = min(xs)
+        max_x = max(xs)
+    if min_x is None:
+        return False
+    ax.set_xlim(min_x, max_x)
+    ax.set_ylim(-_prof_fondo_perfil(perfil, [-y for y in ys]), ALT_MAR_KM)
+
+    ax.grid(True, linestyle=':', alpha=0.35, color='gray', zorder=0)
+    for lado in ('top', 'right'):
+        ax.spines[lado].set_visible(False)
+    ax.tick_params(axis='both', labelsize=6, length=2)
+
+    titulo = perfil["id"]
+    if total:
+        titulo += "  ·  %d ev" % total
+    if sospechosos:
+        titulo += "  ·  %d sospechosos" % sospechosos
+    ax.set_title(titulo, fontsize=7,
+                 fontweight='bold',
+                 color=('#8b0000' if sospechosos else 'black'))
+    return True
+
+
+def _mini_mapa_territorio(ax, nombre, eventos, fuente,
+                          margen_adicional=None):
+    """
+    Mini-mapa simplificado de un territorio para el sub-panel de eventos sin
+    perfil: fondo claro, costas/fronteras y eventos. SIN relieve, grilla,
+    localidades ni adjust_text (barato: ~decenas de ms tras la primera carga
+    de las features de cartopy). Devuelve True si dibujó.
+
+    'margen_adicional' permite ampliar la vista (por ejemplo, la vista nacional
+    del listado de No publicados). Si es None se usa MARGEN_PLANTA_GRADOS.
+    """
+    extent = _extent_planta_por_eventos(
+        eventos, perfil=None, territorio=nombre,
+        margen_adicional=margen_adicional)
+    if extent is None:
+        extent = _extent_territorio(nombre, margen=margen_adicional)
+    if extent is None:
+        return False
+    lon_min, lon_max, lat_min, lat_max = extent
+    ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
+    ax.set_facecolor("#eef3f7")
+
+    ax.add_feature(cfeature.COASTLINE.with_scale(NIVEL_GEO),
+                   edgecolor='#111111', linewidth=0.7, zorder=2)
+    ax.add_feature(cfeature.BORDERS.with_scale(NIVEL_GEO),
+                   edgecolor=COLOR_FRONTERA, linestyle=ESTILO_FRONTERA,
+                   linewidth=0.6, zorder=2)
+
+    eventos_plot = []
+    for e in eventos:
+        try:
+            float(e['longitud'])
+            float(e['latitud'])
+        except (TypeError, ValueError, KeyError):
+            continue
+        eventos_plot.append(e)
+    if eventos_plot:
+        lons = [float(e['longitud']) for e in eventos_plot]
+        lats = [float(e['latitud']) for e in eventos_plot]
+        colores = [_color_evento(fuente, e) for e in eventos_plot]
+        bordes, grosores = _bordes_eventos(eventos_plot)
+        ax.scatter(lons, lats, s=28, c=colores, alpha=0.95,
+                   edgecolors=bordes, linewidths=grosores, zorder=5,
+                   transform=ccrs.PlateCarree())
+
+    total = len(eventos_plot)
+    sosp = sum(1 for e in eventos_plot if e.get('sospechoso'))
+    ax.set_title("%s  ·  %d ev · %d sospechosos" % (nombre, total, sosp),
+                 fontsize=9, fontweight='bold')
+    return True
+
+
+_cache_regiones = None
+
+
+def _cargar_regiones_chile():
+    """
+    Límites internos de las regiones de Chile (Natural Earth 10m
+    'admin_1_states_provinces_lines'). Se leen con pyshp porque el lector de
+    cartopy falla por un registro con geometría nula. Devuelve una lista de
+    shapely geometries, cacheada en memoria. Si no se puede cargar, devuelve
+    [] (el mapa queda sin regiones, no rompe).
+    """
+    global _cache_regiones
+    if _cache_regiones is not None:
+        return _cache_regiones
+    try:
+        import shapefile
+        from shapely.geometry import shape
+        ruta = shpreader.natural_earth(
+            resolution='10m', category='cultural',
+            name='admin_1_states_provinces_lines')
+        r = shapefile.Reader(ruta)
+        i_adm = [f[0] for f in r.fields[1:]].index('ADM0_A3')
+        geoms = []
+        for sr in r.iterShapeRecords():
+            if sr.record[i_adm] != 'CHL':
+                continue
+            if sr.shape.shapeType == 0 or len(sr.shape.points) == 0:
+                continue
+            g = shape(sr.shape.__geo_interface__)
+            if not g.is_empty:
+                geoms.append(g)
+        _cache_regiones = geoms
+    except Exception as e:
+        print("[Aviso] No se pudieron cargar las regiones: %s" % e)
+        _cache_regiones = []
+    return _cache_regiones
+
+
+def _base_mapa_planta(ax, lon_min, lon_max, lat_min, lat_max):
+    """
+    Dibuja el fondo de la planta en el axes cartopy: relieve, costas, bordes
+    administrativos y grilla con etiquetas.
+    """
+    ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
+
+    img, proyeccion = _cargar_relieve_planta(lon_min, lon_max, lat_min, lat_max)
+    if img is not None:
+        try:
+            img_array = np.asarray(img)
+            ax.imshow(img_array, origin='upper',
+                      extent=[lon_min, lon_max, lat_min, lat_max],
+                      transform=ccrs.PlateCarree())
+        except Exception as e:
+            print("[Aviso] No se pudo mostrar el relieve: %s" % e)
+            ax.patch.set_facecolor("#f7f7f4")
+    else:
+        ax.patch.set_facecolor("#f7f7f4")
+
+    ax.add_feature(cfeature.COASTLINE.with_scale(NIVEL_GEO),
+                   edgecolor='#111111', linewidth=1.1, zorder=2)
+    ax.add_feature(cfeature.BORDERS.with_scale(NIVEL_GEO),
+                   edgecolor=COLOR_FRONTERA, linestyle=ESTILO_FRONTERA,
+                   linewidth=GROSOR_FRONTERA, zorder=2)
+
+    regiones = _cargar_regiones_chile()
+    if regiones:
+        ax.add_geometries(regiones, crs=ccrs.PlateCarree(),
+                          edgecolor=COLOR_REGION, linestyle=ESTILO_REGION,
+                          linewidth=GROSOR_REGION, facecolor='none', zorder=2)
+
+    gl = ax.gridlines(draw_labels=True, linestyle='--', alpha=0.5,
+                      color='#444444', zorder=4)
+    gl.top_labels = False
+    gl.right_labels = False
+    gl.xlabel_style = {'size': 8.5, 'weight': 'bold'}
+    gl.ylabel_style = {'size': 8.5, 'weight': 'bold'}
+
+
+def _marcadores_planta(ax, eventos, fuente):
+    """
+    Plotea los eventos (scatter con picker + etiqueta de id) sobre la planta.
+    Devuelve (scatter, eventos_plot) para habilitar la selección interactiva.
+    """
+    eventos_plot = []
+    for e in eventos:
+        try:
+            float(e['longitud'])
+            float(e['latitud'])
+        except (TypeError, ValueError, KeyError):
+            continue
+        eventos_plot.append(e)
+
+    if not eventos_plot:
+        return None, []
+
+    lons = [float(e['longitud']) for e in eventos_plot]
+    lats = [float(e['latitud']) for e in eventos_plot]
+
+    caras, bordes, grosores = _estilo_marcadores(fuente, eventos_plot)
+    scatter = ax.scatter(lons, lats, s=60, facecolors=caras, alpha=0.95,
+                         edgecolors=bordes, linewidths=grosores, zorder=5,
+                         transform=ccrs.PlateCarree(), picker=True,
+                         pickradius=6)
+
+    textos = []
+    # Etiquetas (id) solo si la cantidad de eventos lo permite (umbral
+    # configurable MAX_EVENTOS_ETIQUETA). Por encima se omiten: son ilegibles
+    # y adjust_text (cuadrático) vuelve lento el ploteo.
+    if len(eventos_plot) <= MAX_EVENTOS_ETIQUETA:
+        for e in eventos_plot:
+            # Sin id no se etiqueta: en el ploteo de un evento suelto (listados
+            # de No publicados / No actualizados) no hay id identificatorio.
+            if e.get('id') in (None, ""):
+                continue
+            try:
+                t = ax.text(float(e['longitud']), float(e['latitud']),
+                            str(e.get('id')), fontsize=7, zorder=6,
+                            transform=ccrs.PlateCarree())
+                textos.append(t)
+            except (TypeError, ValueError):
+                continue
+    if textos:
+        try:
+            # Acomoda las etiquetas evitando solapamientos. Valores
+            # configurables: expand (margen de separación, en fracción del
+            # tamaño de la etiqueta), min_arrow_len=0 (dibuja la flecha
+            # conectora al punto en TODAS las etiquetas; aumentarlo la dibuja
+            # solo cuando la etiqueta realmente se movió) e
+            # iter_lim=ITERACIONES_ADJUST_TEXT (control de rendimiento).
+            adjust_text(textos, ax=ax, expand=(1.2, 1.4), min_arrow_len=0,
+                        iter_lim=ITERACIONES_ADJUST_TEXT,
+                        arrowprops=dict(arrowstyle="-", color='black',
+                                        lw=0.5, alpha=0.6))
+        except Exception:
+            pass
+
+    return scatter, eventos_plot
+
+
+def _localidades_planta(ax, lon_min, lon_max, lat_min, lat_max, territorio=None):
+    """Marca las localidades que caen dentro del área visible de la planta."""
+    if not os.path.isfile(ARCHIVO_LOCALIDADES):
+        return
+    if territorio is not None:
+        return
+    try:
+        with open(ARCHIVO_LOCALIDADES, mode='r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                nombre = row['Nombre']
+                try:
+                    lon_loc = float(row['Lon'])
+                    lat_loc = float(row['Lat'])
+                except (TypeError, ValueError):
+                    continue
+                if (lon_min <= lon_loc <= lon_max and
+                        lat_min <= lat_loc <= lat_max):
+                    ax.plot(lon_loc, lat_loc, 'o', color='black',
+                            markersize=3, transform=ccrs.PlateCarree(),
+                            zorder=6)
+                    ax.text(lon_loc + 0.08, lat_loc + 0.04, nombre,
+                            fontsize=8, fontweight='bold', color='black',
+                            transform=ccrs.PlateCarree(), zorder=7,
+                            path_effects=None)
+    except Exception as e:
+        print("[Aviso] No se pudieron cargar las localidades: %s" % e)
+
+
+def _cargar_localidades():
+    """
+    Lee 'localidades.csv' (columnas Nombre, Lon, Lat) y lo guarda en caché de
+    módulo. Devuelve una lista de dicts {'nombre', 'lon', 'lat'} o None si el
+    archivo no existe o no tiene registros válidos.
+    """
+    global _cache_localidades
+    if _cache_localidades is not None:
+        return _cache_localidades
+    if not os.path.isfile(ARCHIVO_LOCALIDADES):
+        _cache_localidades = None
+        return None
+    localidades = []
+    try:
+        with open(ARCHIVO_LOCALIDADES, mode='r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    localidades.append({'nombre': row['Nombre'],
+                                        'lon': float(row['Lon']),
+                                        'lat': float(row['Lat'])})
+                except (TypeError, ValueError, KeyError):
+                    continue
+    except Exception as e:
+        print("[Aviso] No se pudieron cargar las localidades: %s" % e)
+        _cache_localidades = None
+        return None
+    _cache_localidades = localidades if localidades else None
+    return _cache_localidades
+
+
+def _localidad_mas_cercana(lon, lat):
+    """
+    Devuelve la localidad más cercana a (lon, lat) dentro de localidades.csv
+    como (nombre, distancia_km, direccion), donde 'direccion' es el punto
+    cardinal (N, NE, E, SE, S, SO, O, NO) en que está el punto respecto de la
+    localidad. None si no hay localidades cargadas.
+    """
+    localidades = _cargar_localidades()
+    if not localidades:
+        return None
+    mejor = None
+    mejor_dist = None
+    for loc in localidades:
+        lat_med = math.radians((lat + loc['lat']) / 2.0)
+        dx = (lon - loc['lon']) * 111.0 * math.cos(lat_med)
+        dy = (lat - loc['lat']) * 111.0
+        d = math.hypot(dx, dy)
+        if mejor_dist is None or d < mejor_dist:
+            mejor = loc
+            mejor_dist = d
+    if mejor is None:
+        return None
+    lat_med = math.radians((lat + mejor['lat']) / 2.0)
+    dx = (lon - mejor['lon']) * 111.0 * math.cos(lat_med)
+    dy = (lat - mejor['lat']) * 111.0
+    direccion = ""
+    if dx != 0.0 or dy != 0.0:
+        ang = math.degrees(math.atan2(dx, dy)) % 360.0
+        puntos = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO']
+        direccion = puntos[int((ang + 22.5) // 45.0) % 8]
+    return mejor['nombre'], mejor_dist, direccion
+
+
+def _direccion_cardinal(lon1, lat1, lon2, lat2):
+    """Dirección cardinal de (lon1,lat1) → (lon2,lat2): N, NE, E, SE, S, SO, O, NO."""
+    try:
+        lat_med = math.radians((lat1 + lat2) / 2.0)
+        dx = (lon2 - lon1) * 111.0 * math.cos(lat_med)  # este positivo
+        dy = (lat2 - lat1) * 111.0  # norte positivo
+        if abs(dx) < 1e-12 and abs(dy) < 1e-12:
+            return ""
+        ang = math.degrees(math.atan2(dx, dy)) % 360.0
+        puntos = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO']
+        return puntos[int((ang + 22.5) // 45.0) % 8]
+    except Exception:
+        return ""
+
+
+
+def _desplegar_referencia_geo(ax, ev):
+    """
+    Dibuja en la esquina inferior izquierda de la planta un recuadro con la
+    referencia geográfica del evento: distancia y dirección del epicentro
+    respecto de la localidad más cercana de localidades.csv.
+    """
+    try:
+        lon = float(ev['longitud'])
+        lat = float(ev['latitud'])
+    except (TypeError, ValueError, KeyError):
+        return
+    ref = _localidad_mas_cercana(lon, lat)
+    if ref is None:
+        return
+    nombre, dist_km, direccion = ref
+    if direccion:
+        linea = "%d km al %s de %s" % (round(dist_km), direccion, nombre)
+    else:
+        linea = "%d km de %s" % (round(dist_km), nombre)
+    ev_id = ev.get('id')
+    contenido = "Ev %s\n%s" % (ev_id, linea) if ev_id is not None and ev_id != '' else linea
+    t = ax.text(0.02, 0.04, contenido, transform=ax.transAxes, ha='left',
+                va='bottom', fontsize=9, fontweight='bold',
+                bbox=dict(boxstyle='round,pad=0.4', fc='white', ec='navy',
+                          alpha=0.92), zorder=14)
+    t._es_referencia_geo = True
+
+
+def _extent_planta_por_eventos(eventos, perfil=None, territorio=None, margen_adicional=None):
+    """
+    Calcula el área visible de la vista en planta con proporción fija
+    (ASPECTO_PLANTA_GRADOS), centrada en los eventos del perfil.
+
+    Recopila las coordenadas válidas de los eventos (rellenando con el slab
+    si el perfil no tiene eventos con coordenadas), expande con el margen de
+    planta y ajusta la extensión para que ancho/alto en grados sea exactamente
+    ASPECTO_PLANTA_GRADOS. Así todos los mapas se renderizan igual de grandes.
+
+    Si se proporciona 'territorio', también se consideran sus límites por
+    defecto para asegurar que el mapa cubra el área del territorio, haciendo
+    los márgenes dinámicos para adaptarse a eventos fuera de esos límites.
+    Devuelve (lon_min, lon_max, lat_min, lat_max).
+    """
+    lons = []
+    lats = []
+    for ev in eventos:
+        try:
+            lons.append(float(ev['longitud']))
+            lats.append(float(ev['latitud']))
+        except (TypeError, ValueError, KeyError):
+            continue
+
+    if not lons and perfil is not None:
+        lon_s = perfil["slab"]["lon"]
+        lat_s = perfil["slab"]["lat"]
+        lons = [float(x) for x in lon_s if not np.isnan(x)]
+        lats = [float(x) for x in lat_s if not np.isnan(x)]
+
+    if not lons:
+        if territorio is not None:
+            return _extent_territorio(territorio, margen=margen_adicional)
+        return None
+
+    margen = MARGEN_PLANTA_GRADOS if margen_adicional is None else margen_adicional
+    lon_min_e = min(lons)
+    lon_max_e = max(lons)
+    lat_min_e = min(lats)
+    lat_max_e = max(lats)
+
+    if territorio is not None and territorio in TERRITORIOS:
+        ((tlon_min, tlon_max), (tlat_min, tlat_max)) = TERRITORIOS[territorio]
+        lon_min = min(lon_min_e, tlon_min)
+        lon_max = max(lon_max_e, tlon_max)
+        lat_min = min(lat_min_e, tlat_min)
+        lat_max = max(lat_max_e, tlat_max)
+    else:
+        lon_min = lon_min_e
+        lon_max = lon_max_e
+        lat_min = lat_min_e
+        lat_max = lat_max_e
+
+    lon_min = lon_min - margen
+    lon_max = lon_max + margen
+    lat_min = lat_min - margen
+    lat_max = lat_max + margen
+
+    if territorio is not None:
+        return (lon_min, lon_max, lat_min, lat_max)
+
+    ancho = lon_max - lon_min
+    alto = lat_max - lat_min
+    if ancho <= 0 or alto <= 0:
+        return None
+
+    # Proporción fija ancho/alto en grados.
+    objetivo = ASPECTO_PLANTA_GRADOS
+    if ancho / alto < objetivo:
+        ancho = alto * objetivo
+    else:
+        alto = ancho / objetivo
+
+    lon_centro = (lon_min + lon_max) / 2.0
+    lat_centro = (lat_min + lat_max) / 2.0
+    return (lon_centro - ancho / 2.0, lon_centro + ancho / 2.0,
+            lat_centro - alto / 2.0, lat_centro + alto / 2.0)
+
+
+def _raiz_tk():
+    """Devuelve la ventana raíz Tk compartida de matplotlib (TkAgg) o None.
+
+    Solo devuelve la raíz si existe al menos una figura real: con cero
+    figuras, plt.get_current_fig_manager() puede devolver un manager residual
+    cuya ventana es una raíz Tk vacía ("Figure 1" sin contenido), y usarla
+    impediría crear el ancla oculta de la sesión.
+    """
+    try:
+        import tkinter
+        if not plt.get_fignums():
+            return None
+        fm = plt.get_current_fig_manager()
+        win = fm.window
+        top = win.winfo_toplevel()
+        if isinstance(top, tkinter.Tk):
+            return top
+        raiz = top.master
+        while raiz is not None and not isinstance(raiz, tkinter.Tk):
+            raiz = raiz.master
+        return raiz
+    except Exception:
+        return None
+
+
+# _TOP_AVISO: referencia a la única ventana «Sin datos» viva. Evita que dos
+# invocaciones (clic duplicado del WM/AnyDesk, reentrada o dos pestañas) creen
+# dos cuadros superpuestos: si ya hay una, se trae al frente.
+_TOP_AVISO = None
+
+
+def _avisar_sin_datos(texto, padre=None):
+    """Avisa por interfaz (una línea) que no hay datos para plotear.
+
+    Se usa en las acciones que no producen figura. Si no hay ventana con la que
+    dialogar, cae a la consola (p. ej. uso por línea de comandos).
+
+    No usa messagebox modal: un grab de X sobre una pila gráfica frágil
+    (nvidia + AnyDesk, p. ej.) puede dejar la sesión entera bloqueada hasta
+    matar el proceso. Es una ventana común, sin grab.
+    """
+    global _TOP_AVISO
+    # Si ya hay una ventana viva, no se crea otra: se trae al frente.
+    try:
+        if _TOP_AVISO is not None and _TOP_AVISO.winfo_exists():
+            _log("aviso «Sin datos» ya abierto; se trae al frente: %s" % texto)
+            try:
+                _TOP_AVISO.lift()
+                _TOP_AVISO.focus_force()
+            except Exception:
+                pass
+            return
+    except Exception:
+        _TOP_AVISO = None
+    _log("aviso «Sin datos»: %s" % texto)
+    try:
+        import tkinter as tk
+        # Se crea OCULTO y se configura entero antes de mostrarlo una sola vez.
+        # Si se crea visible, en esta pila frágil (nvidia + AnyDesk) el gestor
+        # alcanza a mapearlo primero con su tamaño/posición por defecto y en el
+        # ciclo siguiente lo re-mapea ya configurado: se ve un "destello" de una
+        # caja fantasma antes del cuadro real.
+        top = tk.Toplevel(padre)
+        _TOP_AVISO = top
+        top.withdraw()
+        top.title("Sin datos")
+        tk.Label(top, text=texto, padx=20, pady=12).pack()
+
+        def _cerrar():
+            global _TOP_AVISO
+            _TOP_AVISO = None
+            try:
+                top.destroy()
+            except Exception:
+                pass
+
+        tk.Button(top, text="Aceptar", command=_cerrar).pack(pady=(0, 12))
+        # Geometría mínima y transient mientras está oculto: se resuelven antes
+        # del único mapeo (evita el 1x1 en 0,0 del primer intento).
+        top.geometry("380x90")
+        if padre is not None:
+            try:
+                top.transient(padre)
+            except Exception:
+                pass
+        top.protocol("WM_DELETE_WINDOW", _cerrar)
+        top.update_idletasks()
+        # Único mapeo: solo aquí la ventana se hace visible.
+        top.deiconify()
+        try:
+            top.lift()
+        except Exception:
+            pass
+        try:
+            top.focus_force()
+        except Exception:
+            pass
+    except Exception:
+        _TOP_AVISO = None
+
+
+def _texto_extencion(lon_min, lon_max, lat_min, lat_max):
+    """Devuelve un str con la extensión geográfica en grados y km."""
+    lat_med = (lat_min + lat_max) / 2.0
+    lon_km = (lon_max - lon_min) * 111.0 * max(0.1, math.cos(math.radians(lat_med)))
+    lat_km = (lat_max - lat_min) * 111.0
+    return ("Lon %.1f° a %.1f° | Lat %.1f° a %.1f° (≈ %d × %d km)"
+            % (lon_min, lon_max, lat_min, lat_max, round(lon_km), round(lat_km)))
+
+
+_ETIQUETA_FUENTE = {'seiscomp': 'SeisComp', 'seisan': 'Seisan'}
+
+# Columnas con que se baja el listado de eventos del panel de análisis.
+# Lleva lo mismo que muestra la viñeta del evento, para que el archivo y la
+# pantalla se puedan leer juntos: identificador, posición, magnitud, perfil,
+# distancia a la estación asignada y el motivo de la asignación.
+COLUMNAS_DESCARGA_EVENTO = [
+    ("id", "Id", 70),
+    ("fecha hora", "Fecha y hora", 150),
+    ("latitud", "Latitud", 90),
+    ("longitud", "Longitud", 90),
+    ("prof", "Prof. km", 80),
+    ("magnitud", "Mag.", 70),
+    ("tipo", "Tipo mag.", 80),
+    ("perfil", "Perfil", 70),
+    ("sospechoso", "Sospechoso", 90),
+    ("percibido", "Percibido", 80),
+    ("analistas", "Analista(s)", 130),
+    ("along_km", "Along (km)", 95),
+    ("perp_km", "Perp (km)", 95),
+    ("residuo_km", "Residuo (km)", 95),
+    ("dist_asoc", "Dist. asoc. (km)", 100),
+    ("motivo", "Motivo", 130),
+]
+
+# El panel de «No actualizados» agrega la clasificación a la descarga. No se
+# suman a COLUMNAS_DESCARGA_EVENTO para que la descarga del panel normal no
+# lleve dos columnas siempre vacías.
+COLUMNAS_DESCARGA_NOACT = COLUMNAS_DESCARGA_EVENTO[:11] + [
+    ("publicacion_probable", "Publicación probable", 160),
+    ("revision", "Revisión", 85),
+] + COLUMNAS_DESCARGA_EVENTO[11:]
+
+
+def _valor_descarga(valor):
+    """
+    Un valor del JSON listo para una celda del archivo.
+
+    Los booleanos van como sí/no y no como True/False: el archivo lo lee otra
+    persona y «True» en una columna de sospechosos no dice nada. Lo que falta
+    va vacío, que es lo que distingue un dato ausente de un cero.
+    """
+    if valor is None:
+        return ""
+    if isinstance(valor, bool):
+        return "sí" if valor else "no"
+    if isinstance(valor, (list, tuple)):
+        return ", ".join(str(v) for v in valor)
+    return str(valor)
+
+
+def _analistas_de_descarga(ev):
+    """
+    Los analistas del evento en una celda, con la fuente de cada uno.
+
+    El JSON trae 'analistas' como lista de entradas, cada una con su fuente y
+    sus nombres, así que no se puede volcar tal cual: saldría la
+    representación del diccionario. Se aplana a "Seisan: Jere; SeisComp: mdur"
+    porque, cuando las fuentes no coinciden, el desacuerdo es información que
+    hay que conservar (ver _lineas_posible_analista).
+    """
+    entradas = ev.get("analistas")
+    if not entradas:
+        # Fuente única: el dato viene plano en 'analista'.
+        return _valor_descarga(ev.get("analista"))
+    textos = []
+    for entrada in entradas:
+        if not isinstance(entrada, dict):
+            textos.append(_valor_descarga(entrada))
+            continue
+        nombres = entrada.get("analistas") or []
+        if isinstance(nombres, str):
+            nombres = [nombres]
+        if not nombres:
+            continue
+        fuente = _ETIQUETA_FUENTE.get(entrada.get("fuente"),
+                                      entrada.get("fuente") or "")
+        nombres_txt = ", ".join(str(n) for n in nombres)
+        textos.append("%s: %s" % (fuente, nombres_txt) if fuente
+                      else nombres_txt)
+    return "; ".join(textos)
+
+
+def _fila_descarga(ev, columnas=None):
+    """Una fila del archivo, en el orden de las columnas pedidas."""
+    fila = []
+    for clave, _titulo, _ancho in (columnas or COLUMNAS_DESCARGA_EVENTO):
+        if clave == "analistas":
+            fila.append(_analistas_de_descarga(ev))
+        elif clave in ("latitud", "longitud"):
+            fila.append(_numero_evento(ev.get(clave), 3))
+        elif clave in ("prof", "magnitud", "along_km", "perp_km",
+                       "residuo_km", "dist_asoc"):
+            fila.append(_numero_evento(ev.get(clave), 1))
+        else:
+            fila.append(_valor_descarga(ev.get(clave)))
+    return fila
+
+
+def _lineas_posible_analista(ev):
+    """
+    Renglones de la viñeta con el responsable PROBABLE del evento.
+
+    Hay dos casos muy distintos y no se pueden mezclar en uno solo. Cuando el
+    evento viene de Seisan o SeisComp, el analista es un dato: la fuente lo
+    trae en su propio CSV. Cuando viene de eventquery no hay ningún dato de
+    responsable, y lo que se muestra es una inferencia hecha cruzando por
+    tiempo y distancia el evento publicado con las soluciones locales. Por eso
+    aquí se dice siempre "posible" y se acompaña el Δt y la distancia, que es lo
+    que permite juzgar si el cruce es creíble o una conjetura.
+
+    Si más de una fuente nombró a alguien, se listan las dos en vez de elegir
+    una: son dos sistemas independientes y el desacuerdo es información, no
+    ruido que haya que tapar.
+    """
+    entradas = ev.get('analistas')
+    if entradas:
+        nombres = []
+        for entrada in entradas:
+            for n in entrada.get('analistas') or ['(sin nombre)']:
+                if n not in nombres:
+                    nombres.append(n)
+        fuentes = [_ETIQUETA_FUENTE.get(e.get('fuente'), e.get('fuente', 'local'))
+                   for e in entradas]
+        # Todas las fuentes dicen lo mismo: alcanza con un renglón. Repetir
+        # "Jere" dos veces no informa nada y hace creer que hay un conflicto
+        # que en realidad no existe.
+        if len(nombres) == 1:
+            detalle = []
+            mejor = min((e for e in entradas if e.get('dt_seg') is not None),
+                        key=lambda e: e['dt_seg'], default=None)
+            if mejor is not None:
+                detalle.append("Δt %.1f s" % mejor['dt_seg'])
+                if mejor.get('km') is not None:
+                    detalle.append("%.1f km" % mejor['km'])
+            duplicadas = sum(e.get('n_soluciones', 1) for e in entradas)
+            if duplicadas > 1:
+                detalle.append("%d soluciones" % duplicadas)
+            detalle.insert(0, " + ".join(fuentes) if len(fuentes) > 1
+                           else fuentes[0])
+            if len(fuentes) > 1:
+                detalle.insert(1, "coinciden")
+            return ["posible analista: %s  (%s)" % (nombres[0],
+                                                    ', '.join(detalle))]
+        # Las fuentes discrepan: se listan todas en vez de elegir una, porque
+        # el desacuerdo es información sobre a quién hay que preguntarle.
+        lineas = ["posibles analistas: %s (las fuentes no coinciden)"
+                  % ', '.join(nombres)]
+        for entrada in entradas:
+            fuente = _ETIQUETA_FUENTE.get(entrada.get('fuente'),
+                                          entrada.get('fuente', 'local'))
+            detalle = []
+            if entrada.get('dt_seg') is not None:
+                detalle.append("Δt %.1f s" % entrada['dt_seg'])
+            if entrada.get('km') is not None:
+                detalle.append("%.1f km" % entrada['km'])
+            if entrada.get('n_soluciones', 1) > 1:
+                detalle.append("%d soluciones" % entrada['n_soluciones'])
+            sufijo = "  (%s)" % ', '.join(detalle) if detalle else ""
+            lineas.append("    %s: %s%s" % (fuente,
+                                            ', '.join(entrada['analistas']),
+                                            sufijo))
+        return lineas
+    if ev.get('analista'):
+        return ["analista: %s" % ev['analista']]
+    return []
+
+
+def _numero_evento(valor, decimales):
+    """
+    Formatea un número con N decimales, o devuelve el texto tal cual.
+
+    Los eventos traen lat/lon como float y prof/magnitud a veces como texto; si
+    el valor falta o no es numérico se muestra crudo (o vacío) en vez de
+    romper. Lo usan la viñeta y la descarga, que deben coincidir.
+    """
+    if valor is None or str(valor).strip() == "":
+        return ""
+    try:
+        return "%.*f" % (decimales, float(valor))
+    except (TypeError, ValueError):
+        return str(valor)
+
+
+def _texto_parametros_evento(ev):
+    """Texto multilínea con los parámetros del evento para la viñeta."""
+    lineas = []
+    # La línea 'id:' solo va si el evento trae id identificatorio (los paneles
+    # usan un correlativo; en el ploteo de un evento suelto no hay id).
+    if ev.get('id') not in (None, ""):
+        lineas.append("id: %s" % ev.get('id'))
+    lineas.extend([
+        "fecha hora: %s" % ev.get('fecha hora', ''),
+        "lat: %s   lon: %s" % (_numero_evento(ev.get('latitud'), 3),
+                               _numero_evento(ev.get('longitud'), 3)),
+        "prof: %s km" % _numero_evento(ev.get('prof'), 1),
+        "magnitud: %s   tipo: %s" % (_numero_evento(ev.get('magnitud'), 1),
+                                     ev.get('tipo', '')),
+    ])
+    try:
+        fr = fronteras.frontera_mas_cercana(
+            ev.get('latitud'), ev.get('longitud'))
+    except Exception:
+        fr = None
+    if fr:
+        lineas.append("frontera más cercana: %s"
+                      % fronteras.formatear_frontera(fr))
+    if 'percibido' in ev:
+        lineas.append("percibido: %s" % ev['percibido'])
+    lineas.extend(_lineas_posible_analista(ev))
+    if ev.get('perfil') is not None:
+        lineas.append("perfil: %s   along: %s km"
+                      % (ev.get('perfil'),
+                         _numero_evento(ev.get('along_km'), 1)))
+    if ev.get('publicacion_probable') or ev.get('revision'):
+        lineas.append("publicación probable: %s"
+                      % (ev.get('publicacion_probable') or "—"))
+        revision = ev.get('revision') or "—"
+        motivo = str(ev.get('revision_motivo') or "").strip()
+        lineas.append("revisión: %s%s"
+                      % (revision, (" (%s)" % motivo) if motivo else ""))
+    return "\n".join(lineas)
+
+def _distancia_a_rectangulo(lon, lat, limites):
+    """Distancia mínima (grados) de un punto (lon, lat) a una caja geográfica."""
+    (lon_min, lon_max), (lat_min, lat_max) = limites
+    dx = max(lon_min - lon, 0.0, lon - lon_max)
+    dy = max(lat_min - lat, 0.0, lat - lat_max)
+    return math.sqrt(dx * dx + dy * dy)
+
+
+def _categorizar_por_territorio(eventos):
+    """Categoriza eventos sin perfil en los 3 territorios definidos.
+
+    Los eventos que no caen dentro de los límites por defecto de NINGÚN
+    territorio se asignan al territorio cuya caja les queda más cerca, para
+    que nunca queden fuera de los mapas; su mapa se expande dinámicamente
+    para incluirlos. Se imprime un aviso en consola cuando esto ocurre.
+    """
+    resultado = {nombre: [] for nombre in TERRITORIOS}
+    fuera = []
+
+    for ev in eventos:
+        try:
+            lon = float(ev['longitud'])
+            lat = float(ev['latitud'])
+        except (TypeError, ValueError, KeyError):
+            continue
+
+        for nombre, limites in TERRITORIOS.items():
+            (lon_min, lon_max), (lat_min, lat_max) = limites
+            if lon_min <= lon <= lon_max and lat_min <= lat <= lat_max:
+                resultado[nombre].append(ev)
+                break
+        else:
+            fuera.append((ev, lon, lat))
+
+    for ev, lon, lat in fuera:
+        mejor_nombre = None
+        mejor_dist = None
+        for nombre, limites in TERRITORIOS.items():
+            d = _distancia_a_rectangulo(lon, lat, limites)
+            if mejor_dist is None or d < mejor_dist:
+                mejor_dist = d
+                mejor_nombre = nombre
+        resultado[mejor_nombre].append(ev)
+        print("[Aviso] Evento %s (%.2f, %.2f) fuera de los límites; asignado "
+              "a '%s' (~%d km). El mapa se expandirá."
+              % (ev.get('id'), lat, lon, mejor_nombre,
+                 round(mejor_dist * 111.0)))
+
+    return resultado["Nacional"], resultado["Insular"], resultado["Antártico"]
+
+
+def _extent_territorio(nombre, margen=None):
+    """
+    Devuelve la extensión geográfica completa de un territorio sin forzar
+    proporción: (lon_min, lon_max, lat_min, lat_max). 'nombre' debe ser una
+    clave de TERRITORIOS. 'margen' en grados alrededor de los límites.
+    """
+    if nombre not in TERRITORIOS:
+        return None
+    if margen is None:
+        margen = MARGEN_PLANTA_GRADOS
+    ((lon_min, lon_max), (lat_min, lat_max)) = TERRITORIOS[nombre]
+    return (lon_min - margen, lon_max + margen,
+            lat_min - margen, lat_max + margen)
+
+
+def _limpiar_resaltado(ax):
+    """Elimina anillos de selección, viñetas y referencias marcados en 'ax'."""
+    for coll in list(ax.collections):
+        if getattr(coll, '_es_resaltado', False):
+            coll.remove()
+    for t in list(ax.texts):
+        if getattr(t, '_es_anotacion', False) or getattr(
+                t, '_es_referencia_geo', False):
+            t.remove()
+
+
+def _ubicacion_vineta(ax, x, y):
+    """
+    Elige el lado en que se abre la viñeta para que no se salga de la figura:
+    hacia la izquierda si el evento cae en la mitad derecha de los ejes, y
+    hacia abajo si está cerca del borde superior. Devuelve
+    (xytext, ha, va) para ax.annotate.
+    """
+    try:
+        x0, x1 = ax.get_xlim()
+        y0, y1 = ax.get_ylim()
+    except Exception:
+        x0, x1, y0, y1 = 0.0, 1.0, 0.0, 1.0
+    fx = (x - x0) / (x1 - x0) if x1 > x0 else 0.5
+    fy = (y - y0) / (y1 - y0) if y1 > y0 else 0.5
+    if fx > 0.5:
+        dx, ha = -6, 'right'
+    else:
+        dx, ha = 6, 'left'
+    if fy > 0.75:
+        dy, va = -6, 'top'
+    else:
+        dy, va = 25, 'bottom'
+    return (dx, dy), ha, va
+
+
+def _resaltar_evento(ax, ev, lon=None, lat=None, x_km=None, prof_km=None,
+                     anotar=True, grupo=None, referencia=None):
+    """
+    Dibuja un anillo grande resaltando el evento seleccionado y, si 'anotar',
+    una viñeta con sus parámetros cerca del círculo.
+
+    Si 'grupo' trae más de una fuente superpuesta, la viñeta las lista todas
+    (con su Δ respecto de 'referencia', si se pasa).
+    """
+    # Elimina resaltados y viñetas previos en el mismo axes
+    _limpiar_resaltado(ax)
+
+    if grupo and len(grupo) > 1:
+        contenido = _texto_superposicion(grupo, referencia)
+    else:
+        contenido = _texto_parametros_evento(ev)
+        # En el panel de no actualizados el evento trae su par publicado; en el
+        # de comparar agencias, la referencia (nuestro publicado) va en
+        # '_referencia'. El Δ va aquí, así aparece solo en el evento clickeado.
+        par = ev.get('publicado')
+        if isinstance(par, dict):
+            delta = _texto_diferencia(ev, par, _etiqueta_referencia(ev))
+            if delta:
+                contenido += "\n" + "\n".join(delta)
+        ref = ev.get('_referencia')
+        if isinstance(ref, dict):
+            delta = _texto_diferencia(ref, ev, _etiqueta_referencia(ref))
+            if delta:
+                contenido += "\n" + "\n".join(delta)
+
+    if lon is not None and lat is not None:
+        sc = ax.scatter([lon], [lat], s=250, facecolors='none',
+                        edgecolors=COLOR_RESALTADO, linewidths=2.5, zorder=12,
+                        transform=ccrs.PlateCarree(), picker=False)
+        if anotar:
+            xytext, ha, va = _ubicacion_vineta(ax, lon, lat)
+            anot = ax.annotate(
+                contenido, xy=(lon, lat), xytext=xytext,
+                textcoords='offset points', ha=ha, va=va, fontsize=8,
+                color='black',
+                bbox=dict(boxstyle='round,pad=0.4', fc='lightyellow',
+                          ec='navy', alpha=0.95),
+                arrowprops=dict(arrowstyle='-', color='navy', lw=0.8),
+                zorder=13, clip_on=False, transform=ccrs.PlateCarree())
+    elif x_km is not None and prof_km is not None:
+        sc = ax.scatter([x_km], [prof_km], s=250, facecolors='none',
+                        edgecolors=COLOR_RESALTADO, linewidths=2.5, zorder=12,
+                        picker=False)
+        if anotar:
+            xytext, ha, va = _ubicacion_vineta(ax, x_km, prof_km)
+            anot = ax.annotate(
+                contenido, xy=(x_km, prof_km), xytext=xytext,
+                textcoords='offset points', ha=ha, va=va, fontsize=8,
+                color='black',
+                bbox=dict(boxstyle='round,pad=0.4', fc='lightyellow',
+                          ec='navy', alpha=0.95),
+                arrowprops=dict(arrowstyle='-', color='navy', lw=0.8),
+                zorder=13, clip_on=False)
+    else:
+        return
+    sc._es_resaltado = True
+    if anotar:
+        anot._es_anotacion = True
+
+
+def _resaltar_en_axes(ax, ev, anotar=False, grupo=None, referencia=None):
+    """Resalta 'ev' en 'ax' (planta cartopy o perfil rectilineo).
+
+    'anotar' controla si además del anillo se dibuja la viñeta con los
+    parámetros del evento (solo en el mapa clicado). 'grupo'/'referencia' se
+    usan para la viñeta de soluciones superpuestas.
+    """
+    if ax.name.startswith('cartopy'):
+        try:
+            _resaltar_evento(ax, ev, lon=float(ev['longitud']),
+                             lat=float(ev['latitud']), anotar=anotar,
+                             grupo=grupo, referencia=referencia)
+            _desplegar_referencia_geo(ax, ev)
+        except (TypeError, ValueError, KeyError):
+            pass
+    else:
+        try:
+            _resaltar_evento(ax, ev, x_km=float(ev.get('along_km')),
+                             prof_km=float(ev['prof']) * -1,
+                             anotar=anotar, grupo=grupo, referencia=referencia)
+        except (TypeError, ValueError, KeyError):
+            pass
+
+
+def _buscar_mismo_evento(ev, lista):
+    """Devuelve el evento equivalente a 'ev' dentro de 'lista', o None."""
+    for e in lista:
+        if e is ev:
+            return e
+    ident = ev.get('id')
+    if ident is not None:
+        for e in lista:
+            if e.get('id') == ident:
+                return e
+    return None
+
+
+def _conectar_seleccion_eventos(fig, ax, scatter, eventos_plot,
+                                contraparte=None):
+    """
+    Conecta clics sobre un scatter para resaltar un evento y mostrar su
+    viñeta de parámetros.
+
+    Usa deteccion propia (scatter.contains) en button_press/button_release,
+    independiente del widgetlock del toolbar: la seleccion funciona tambien
+    mientras el modo zoom/pan esta activo (matplotlib ignora los clics simples
+    de < 5 px en esos modos, asi no hay conflicto). Si 'contraparte' es
+    (ax2, eventos2), resalta el mismo evento en el otro mapa con el mismo
+    anillo (mismo tamano y color); la viñeta solo aparece en el mapa clicado.
+    Un clic en espacio vacio (fuera de cualquier circulo) elimina la viñeta y
+    los anillos de ambos mapas.
+    """
+    presion = {'x': None, 'y': None}
+
+    def on_press(evento):
+        if getattr(evento, 'x', None) is None:
+            return
+        if getattr(evento, 'inaxes', None) is not ax:
+            return
+        presion['x'] = evento.x
+        presion['y'] = evento.y
+
+    def on_release(evento):
+        if presion['x'] is None:
+            return
+        if getattr(evento, 'inaxes', None) is not ax:
+            return
+        dx = abs(evento.x - presion['x'])
+        dy = abs(evento.y - presion['y'])
+        presion['x'] = None
+        presion['y'] = None
+        if dx >= 5 or dy >= 5:
+            return  # fue un drag (zoom/pan), no un clic simple
+        if getattr(evento, 'button', 1) not in (1, None):
+            return
+        cont = scatter.contains(evento)
+        if not cont[0]:
+            _limpiar_resaltado(ax)
+            if contraparte is not None:
+                ax2, _ = contraparte
+                if ax2 is not None:
+                    _limpiar_resaltado(ax2)
+            fig.canvas.draw_idle()
+            return
+        ind = cont[1]['ind']
+        if not len(ind):
+            return
+        idx = int(ind[0])
+        if idx >= len(eventos_plot):
+            return
+        ev = eventos_plot[idx]
+        # Grupo de soluciones superpuestas en este mapa (mismo criterio que el
+        # aro): así el clic muestra todas las fuentes, no solo una.
+        en_perfil = not ax.name.startswith('cartopy')
+        grupo = _superpuestos_de(ev, eventos_plot, en_perfil)
+        referencia = ev.get('_referencia')
+        if referencia is None and ev.get('rol') in ('publicado', 'referencia'):
+            referencia = ev
+        _resaltar_en_axes(ax, ev, anotar=True, grupo=grupo,
+                          referencia=referencia)
+        if contraparte is not None:
+            ax2, eventos2 = contraparte
+            if ax2 is not None:
+                ev2 = _buscar_mismo_evento(ev, eventos2)
+                if ev2 is not None:
+                    _resaltar_en_axes(ax2, ev2)
+        fig.canvas.draw_idle()
+
+    fig.canvas.mpl_connect('button_press_event', on_press)
+    fig.canvas.mpl_connect('button_release_event', on_release)
+
+
+def mostrar_json_en_popup(nombre, eventos, fuente, percibidos, total_eventos):
+    """
+    Muestra el JSON de los eventos de un perfil en una ventana pop-up con scroll,
+    restaurando la funcionalidad de la versión Tkinter original.
+    """
+    try:
+        import tkinter as tk
+        from tkinter import scrolledtext
+    except Exception:
+        return
+    raiz = _raiz_tk()
+    if raiz is None:
+        return
+    contenido_json = json.dumps(eventos, indent=4, ensure_ascii=False)
+    popup = tk.Toplevel(raiz)
+    if fuente == "eventquery":
+        popup.title("%s ( fuente %s - %d percibidos de %d eventos ploteados)"
+                     % (nombre, fuente, percibidos, total_eventos))
+    else:
+        popup.title("%s ( fuente %s - %d eventos ploteados)"
+                     % (nombre, fuente, total_eventos))
+    popup.geometry("700x400")
+    campo_texto = scrolledtext.ScrolledText(popup, wrap=tk.WORD,
+                                            font=("Consolas", 10))
+    campo_texto.pack(expand=True, fill="both")
+    campo_texto.insert(tk.INSERT, contenido_json)
+    campo_texto.config(state=tk.DISABLED)
+
+
+_detener_despliegue = False
+_progreso = ""
+
+
+def _registrar_progreso(texto):
+    """Guarda el avance actual del despliegue para mostrar en el título."""
+    global _progreso
+    _progreso = texto
+
+
+def _agregar_boton_detener(fig):
+    """Añade un botón pequeño 'Detener' en el extremo derecho inferior de la
+    ventana del mapa, fuera del área de la leyenda."""
+    try:
+        from matplotlib.widgets import Button
+    except Exception:
+        return
+    ax_btn = fig.add_axes([0.905, 0.012, 0.08, 0.04])
+    for s in ax_btn.spines.values():
+        s.set_visible(False)
+    ax_btn.set_xticks([])
+    ax_btn.set_yticks([])
+    boton = Button(ax_btn, 'Detener', color='#c00000', hovercolor='#ff5050')
+    boton.label.set_color('white')
+    boton.label.set_fontweight('bold')
+    boton.label.set_fontsize(8)
+    boton.on_clicked(lambda event: detener())
+    # matplotlib registra el callback del widget como weakref; sin una
+    # referencia fuerte el Button se recolecta al salir de esta funcion y el
+    # clic deja de responder. Se ancla a la figura para que viva con ella.
+    fig._boton_detener = boton
+    return boton
+
+
+def detener():
+    """Detiene el despliegue cerrando las figuras abiertas de detalle."""
+    global _detener_despliegue
+    _detener_despliegue = True
+    try:
+        if _panel_activo and _fig_ancla is not None:
+            # En el modo panel se cierran solo las ventanas de detalle; la
+            # figura ancla (y con ella la raíz Tk del panel) sigue viva.
+            for num in list(plt.get_fignums()):
+                if num != _fig_ancla.number:
+                    plt.close(num)
+        else:
+            plt.close('all')
+    except Exception:
+        pass
+
+
+def despliegue_detenido():
+    return _detener_despliegue
+
+
+# Estado del panel de análisis. _panel_activo indica que el usuario navega
+# desde el panel (ya hay un mainloop Tk corriendo), por lo que el modo
+# "bloqueante" debe esperar el cierre bombeando eventos en vez de anidar un
+# segundo mainloop. _fig_ancla mantiene viva la raíz Tk de la sesión.
+_panel_activo = False
+_fig_ancla = None
+# Ids de percibidos ya escritos en percibidos.txt (evita duplicados cuando el
+# usuario abre el mismo perfil más de una vez desde el panel).
+_percibidos_escritos = set()
+
+
+def _registrar_percibido(evento):
+    """
+    Registra el evento como percibido VISTO en esta sesión: lo escribe en
+    percibidos.txt la primera vez (dedup por id) y lo suma al contador de
+    vistos (_percibidos_escritos). Devuelve True si quedó registrado aquí.
+    """
+    if evento.get('percibido') != "S":
+        return False
+    key = evento.get('id')
+    if key in _percibidos_escritos:
+        return False
+    try:
+        prof_punto = -float(evento['prof'])
+        linea = "{} {} {} {} {} {} {} {}\n".format(
+            key, evento.get('fecha hora'),
+            float(evento['latitud']), float(evento['longitud']),
+            prof_punto, evento.get('magnitud'),
+            evento.get('tipo'), evento.get('percibido'))
+        with open(rutas.p_ploteo("percibidos.txt"), "a") as archivo_perc:
+            archivo_perc.write(linea)
+    except (TypeError, ValueError, KeyError, OSError):
+        return False
+    _percibidos_escritos.add(key)
+    return True
+
+
+def _asegurar_raiz():
+    """
+    Devuelve la raíz Tk compartida de TkAgg, creándola si aún no existe ninguna
+    figura (el panel de análisis es la primera ventana de la sesión). Se usa
+    una figura 'ancla' oculta que mantiene viva la raíz hasta el cierre.
+    Devuelve None si el backend no es interactivo (fallback al flujo
+    secuencial).
+    """
+    global _fig_ancla
+    raiz = _raiz_tk()
+    if raiz is not None:
+        return raiz
+    try:
+        fig_ancla = plt.figure(figsize=(0.1, 0.1), dpi=1)
+        mgr = fig_ancla.canvas.manager
+        if mgr is not None:
+            # La figura 'ancla' se crea SIN mostrarse (no se llama a show()):
+            # solo se oculta su ventana para que la raíz Tk exista y sirva de
+            # maestro para el panel y las figuras de detalle, sin que nunca
+            # llegue a verse el cuadro vacío "Figure 1".
+            try:
+                mgr.window.withdraw()
+            except Exception:
+                pass
+        raiz = _raiz_tk()
+        if raiz is not None:
+            _fig_ancla = fig_ancla  # se conserva para no cerrar la raíz
+            return raiz
+    except Exception:
+        pass
+    return None
+
+
+def _mostrar_figura(bloquear):
+    """
+    Muestra la figura actual respetando el modo de interacción:
+      - bloquear=False -> no bloquea (abre ventanas en paralelo). Se muestra
+        SOLO la figura actual con el manager, sin pasar por plt.show() (que
+        recorrería y re-mapearía el ancla oculta de la raíz Tk).
+      - bloquear=True  -> bloquea hasta cerrar la ventana (modo secuencial,
+        fuera del panel) con plt.show() normal.
+    """
+    mgr = getattr(plt.gcf().canvas, 'manager', None)
+    if bloquear:
+        plt.show(block=True)
+    elif mgr is not None:
+        mgr.show()
+    else:
+        plt.show(block=False)
+
+
+def _estilar_toolbar_figura(fig):
+    """
+    Pinta los botones del toolbar con los colores del tema de ttkbootstrap.
+
+    matplotlib arma su toolbar con widgets tk clasicos (tk.Button y
+    tk.Checkbutton), y ttkbootstrap intercepta los constructores de esos
+    widgets para darles el tema: les pone de fondo colors.primary. Con el tema
+    'flatly' de la app ese color es un azul marino, y los botones quedaban
+    oscuros. Peor: los iconos de matplotlib son PNG con trazo negro, que sobre
+    ese azul no se leen.
+
+    Se repinta cada boton con el fondo y el texto del tema, y se les deja un
+    borde de 1 pixel para que se separen entre si (ttkbootstrap los deja con
+    relief='flat' y borderwidth=0, o sea pegados).
+
+    Pan y Zoom son Checkbutton con indicatoron=False: su unica forma de mostrar
+    el estado pulsado es -selectcolor, asi que se les pone. No se hace en los
+    tk.Button porque -selectcolor no es una opcion valida ahi y TclError.
+
+    Si la app no esta corriendo (plotear.py desde la linea de comandos no
+    importa ttkbootstrap) no se toca nada: el toolbar se queda con el gris
+    claro de matplotlib, que ya se ve bien.
+    """
+    toolbar = getattr(getattr(fig.canvas, 'manager', None), 'toolbar', None)
+    if toolbar is None:
+        return
+    if 'ttkbootstrap' not in sys.modules:
+        return
+    try:
+        from ttkbootstrap.style import Style
+        colores = Style.get_instance().colors
+        fondo = colores.bg
+        texto = colores.fg
+        pulsado = colores.selectbg
+        texto_pulsado = colores.selectfg
+        borde = colores.border
+    except Exception:
+        # Sin instancia de Style todavia: se deja el toolbar como esta.
+        return
+
+    def _pintar(widget, **opciones):
+        try:
+            widget.configure(**opciones)
+        except Exception:
+            pass
+
+    _pintar(toolbar, background=fondo)
+    etiqueta = getattr(toolbar, '_message_label', None)
+    if etiqueta is not None:
+        _pintar(etiqueta, background=fondo, foreground=texto)
+
+    for boton in getattr(toolbar, '_buttons', {}).values():
+        opciones = {
+            'background': fondo,
+            'foreground': texto,
+            'activebackground': pulsado,
+            'activeforeground': texto_pulsado,
+            'highlightbackground': borde,
+            'relief': 'flat',
+            'borderwidth': 1,
+        }
+        if boton.winfo_class() == 'Checkbutton':
+            # Es lo que dibuja el modo activo en Pan/Zoom.
+            opciones['selectcolor'] = pulsado
+        _pintar(boton, **opciones)
+
+
+def _indicador_modo_interaccion(fig):
+    """
+    Muestra el modo activo del toolbar (ZOOM/PAN) y cambia el cursor.
+
+    El toolbar de matplotlib deja fijo el cursor de cruz (tcross) en modo zoom
+    con independencia de que ya se haya completado el zoom, lo que puede
+    confundir. Aqui se sustituye por una mano mientras el modo este activo y se
+    añade un texto superpuesto que indica el modo y los gestos disponibles.
+
+    El modo solo cambia por tres vias: los botones Zoom/Pan del toolbar (se
+    reconfigura su 'command'), la tecla Escape y por eventos de raton (para el
+    cursor se usa motion_notify_event, que corre despues del del toolbar).
+    No se usa ningun temporizador Tk ('after'): los timers pendientes de una
+    figura cerrada provocan 'invalid command name' al dispararse en el
+    mainloop, por lo que se evitan a la raiz.
+    """
+    try:
+        from matplotlib.backend_bases import cursors
+    except Exception:
+        cursors = None
+    toolbar = getattr(getattr(fig.canvas, 'manager', None), 'toolbar', None)
+    if toolbar is None:
+        return
+    _estilar_toolbar_figura(fig)
+    canvas = fig.canvas
+    tk_canvas = None
+    try:
+        tk_canvas = canvas.get_tk_widget()
+    except Exception:
+        tk_canvas = None
+
+    indicador = fig.text(
+        0.01, 0.955, "", transform=fig.transFigure, ha='left', va='top',
+        fontsize=10,
+        bbox=dict(boxstyle='round,pad=0.3', fc='lightyellow', ec='navy',
+                  alpha=0.9))
+    indicador.set_visible(False)
+
+    estado = {'texto': '', 'parado': False,
+              'boton_zoom': None, 'boton_pan': None}
+
+    def _texto_modo():
+        if toolbar.mode.name == 'ZOOM':
+            return ("MODO ZOOM  ·  clic = seleccionar evento  ·  "
+                    "arrastre = zoom  ·  Esc = salir")
+        if toolbar.mode.name == 'PAN':
+            return ("MODO PAN  ·  clic = seleccionar evento  ·  "
+                    "arrastre = mover vista  ·  Esc = salir")
+        return ''
+
+    def _refrescar_cursor():
+        if cursors is None or tk_canvas is None:
+            return
+        nuevo = (cursors.HAND if toolbar.mode.name in ('ZOOM', 'PAN')
+                 else cursors.POINTER)
+        try:
+            if tk_canvas.cget('cursor') != (
+                    'hand2' if nuevo == cursors.HAND else 'arrow'):
+                canvas.set_cursor(nuevo)
+        except Exception:
+            pass
+
+    def _refrescar():
+        try:
+            if estado['parado']:
+                return
+            texto = _texto_modo()
+            if texto != estado['texto']:
+                estado['texto'] = texto
+                indicador.set_text(texto)
+                indicador.set_visible(bool(texto))
+                canvas.draw_idle()
+        except Exception:
+            pass
+        _refrescar_cursor()
+
+    def _alternar(modo):
+        def _adelante():
+            if estado['parado']:
+                return
+            try:
+                getattr(toolbar, modo)()
+            except Exception:
+                return
+            _refrescar()
+        return _adelante
+
+    boton_zoom = toolbar._buttons.get('Zoom') \
+        if hasattr(toolbar, '_buttons') else None
+    boton_pan = toolbar._buttons.get('Pan') \
+        if hasattr(toolbar, '_buttons') else None
+    if boton_zoom is not None:
+        estado['boton_zoom'] = _alternar('zoom')
+        try:
+            boton_zoom.configure(command=estado['boton_zoom'])
+        except Exception:
+            pass
+    if boton_pan is not None:
+        estado['boton_pan'] = _alternar('pan')
+        try:
+            boton_pan.configure(command=estado['boton_pan'])
+        except Exception:
+            pass
+
+    def _on_key(event):
+        if event is None or getattr(event, 'key', None) != 'escape':
+            return
+        if toolbar.mode.name == 'ZOOM':
+            toolbar.zoom()
+        elif toolbar.mode.name == 'PAN':
+            toolbar.pan()
+        else:
+            return
+        _refrescar()
+
+    def _on_move(event):
+        _refrescar_cursor()
+
+    fig._modo_interaccion = estado
+    canvas.mpl_connect('key_press_event', _on_key)
+    canvas.mpl_connect('motion_notify_event', _on_move)
+    _refrescar()
+
+
+def _layout_nacional(fig, ax, ax_txt, lon_min, lon_max, lat_min, lat_max,
+                     titulo, subtitulo):
+    """
+    Recalcula la disposición del mapa del Territorio Nacional según el tamaño
+    actual de la figura: el mapa queda a la derecha respetando su aspecto
+    geográfico (sin deformar) y el título a la izquierda, envolviéndolo al
+    ancho de la columna. Se invoca al crear y en cada redimensionamiento.
+    """
+    W, H = fig.get_size_inches()
+    if W <= 0 or H <= 0:
+        return
+    # Aspecto geográfico del mapa (grados).
+    aspecto = (lon_max - lon_min) / max(1e-9, lat_max - lat_min)
+    # Márgenes en fracción de la figura.
+    top_frac = 0.03
+    bot_frac = 0.10
+    der_in = 0.12
+    izq_in = 0.02
+    # Espacio vertical disponible para el mapa.
+    alto_disponible = H * (1.0 - top_frac - bot_frac)
+    # Ancho mínimo (pulgadas) para la columna de texto a la izquierda.
+    texto_min_in = 2.2
+    ancho_disponible = W - der_in
+    alto_mapa = alto_disponible
+    ancho_mapa = alto_mapa * aspecto
+    if ancho_mapa > ancho_disponible - texto_min_in:
+        ancho_mapa = ancho_disponible - texto_min_in
+        alto_mapa = ancho_mapa / aspecto
+    # Posición del mapa (derecha).
+    x0_mapa = (W - der_in - ancho_mapa) / W
+    y0_mapa = bot_frac
+    ax.set_position([x0_mapa, y0_mapa, ancho_mapa / W, alto_mapa / H])
+    # Columna de texto a la izquierda del mapa.
+    x0_texto = izq_in / W
+    ancho_columna = (x0_mapa - izq_in / W)
+    ax_txt.set_position([x0_texto, bot_frac, max(0.03, ancho_columna),
+                         1.0 - top_frac - bot_frac])
+    ax_txt.cla()
+    ax_txt.axis('off')
+    # Envolver el texto al ancho de la columna (estimación por caracteres).
+    fs = 11
+    ancho_pulg = max(1.0, ancho_columna * W)
+    chars = max(10, int(ancho_pulg / (0.6 * fs / 72.0)))
+    titulo_env = textwrap.fill(titulo, width=chars) if titulo else ""
+    subtitulo_env = textwrap.fill(subtitulo, width=chars) if subtitulo else ""
+    # Título en negrita y subtítulo (fuente/conteos) en texto normal y más
+    # chico, apilados y centrados en la columna.
+    ax_txt.text(0.0, 0.53, titulo_env, ha='left', va='bottom',
+                transform=ax_txt.transAxes, fontsize=fs, fontweight='bold')
+    if subtitulo_env:
+        ax_txt.text(0.0, 0.47, subtitulo_env, ha='left', va='top',
+                    transform=ax_txt.transAxes, fontsize=9,
+                    fontweight='normal')
+
+
+def _aviso_analista_inferido(fig, eventos, fuente):
+    """
+    Aviso en la esquina superior derecha de la figura.
+
+    eventquery no informa quién procesó el evento: esa columna no existe en el
+    catálogo. El nombre que aparece en la viñeta sale de cruzar el evento
+    publicado con las soluciones locales por tiempo y distancia, así que es una
+    inferencia, no un dato. Sin este rótulo, un lector podría tomar "eatl" por
+    un hecho verificado cuando en realidad es el mejor cruce disponible.
+
+    Se dibuja solo en eventquery y solo si hay atribución en la figura: en un
+    panel chico el texto taparía puntos, y en las otras fuentes no hay nada que
+    advertir porque el analista es un dato, no una inferencia.
+    """
+    if fuente != "eventquery":
+        return
+    if not eventos:
+        return
+    if not any(ev.get('analistas') for ev in eventos):
+        return
+    fig.text(0.995, 0.938,
+             "posible analista = atribución por cruce (eventquery no informa "
+             "el responsable)",
+             ha='right', va='top', fontsize=6.5, style='italic',
+             color='#555555', zorder=30)
+
+
+def _titular_ventana(fig, titulo):
+    """
+    Pone el título de la ventana de la figura.
+
+    matplotlib titula las ventanas "Figure 1", "Figure 2"… por número. Aquí se
+    reemplaza por un nombre que describe lo que muestra. Es texto plano de la
+    barra del SO: sin conteos ni formato.
+    """
+    mgr = getattr(fig.canvas, "manager", None)
+    if mgr is not None and titulo:
+        try:
+            mgr.set_window_title(titulo)
+        except Exception:
+            pass
+
+
+def _titulo_subtitulo_fig(fig, titulo, subtitulo):
+    """
+    Dibuja el título en negrita y el subtítulo en texto normal y más chico.
+
+    matplotlib no admite formato mixto en un solo texto: el suptitle lleva la
+    identidad (perfil, territorio, comparación) y fig.text, debajo, la fuente y
+    los conteos.
+    """
+    fig.suptitle(titulo, fontsize=12, fontweight='bold', y=0.98)
+    if subtitulo:
+        fig.text(0.5, 0.945, subtitulo, ha='center', va='top',
+                 fontsize=9, fontweight='normal')
+
+
+def plotear_planta(eventos, fuente, perfil=None, n_asignados=None, totales=None,
+                   territorio=None, bloquear=True, mostrar_json=True,
+                   con_boton_detener=True, delta_auto=False):
+    """
+    Crea una ventana con la vista en planta (relieve + localidades + eventos).
+    Si se pasa 'perfil', el área visible se deriva del recorrido del slab;
+    si no, y se pasa 'territorio' (clave de TERRITORIOS), se usa la extensión
+    completa de ese territorio; si no, la extensión de los propios eventos.
+    n_asignados/totales: conteos de generajson.py para mostrar en la ventana.
+    Devuelve (percibidos, total_eventos).
+    """
+    total_eventos = 0
+    percibidos = 0
+    sospechosos = 0
+    for ev in eventos:
+        try:
+            float(ev['latitud'])
+            float(ev['longitud'])
+        except (TypeError, ValueError, KeyError):
+            continue
+        total_eventos += 1
+        if fuente == "eventquery" and ev.get('percibido') == "S":
+            percibidos += 1
+            _registrar_percibido(ev)
+        if ev.get('sospechoso'):
+            sospechosos += 1
+
+    # Pares local↔publicado (No actualizados) y lista plana para dibujar.
+    pares = _pares_comparacion(eventos, perfil)
+    eventos_plot = _expandir_pares(eventos, perfil)
+
+    if eventos_plot:
+        extent = _extent_planta_por_eventos(eventos_plot, perfil,
+                                             territorio=territorio)
+    elif territorio is not None:
+        extent = _extent_territorio(territorio)
+    else:
+        extent = None
+    if extent is None:
+        return percibidos, 0
+    lon_min, lon_max, lat_min, lat_max = extent
+    etiqueta_fuente = _ETIQUETA_FUENTE.get(fuente, fuente)
+    plural_ev = "evento" if total_eventos == 1 else "eventos"
+    plural_sosp = "sospechoso" if sospechosos == 1 else "sospechosos"
+    sufijo_perc = (" · %d percibidos" % percibidos
+                   if fuente == "eventquery" and percibidos else "")
+    if perfil is not None:
+        titulo = "Vista en Planta - Perfil %s" % perfil["id"]
+        nombre_popup = "Perfil %s" % perfil["id"]
+        titulo_fig = "Perfil %s" % perfil["id"]
+        titulo_ventana = ("Planta · Perfil %s · %s"
+                          % (perfil["id"], etiqueta_fuente))
+        if n_asignados is None:
+            n_asignados = total_eventos
+        conteo = ("%s · %d eventos asignados%s · %d sospechosos%s"
+                  % (etiqueta_fuente, n_asignados,
+                     (" (de %d totales)" % totales) if totales else "",
+                     sospechosos, sufijo_perc))
+    elif territorio is not None:
+        nombre_popup = "Territorio %s" % territorio
+        titulo = "Territorio %s" % territorio
+        titulo_fig = titulo
+        titulo_ventana = ("Planta · Territorio %s · %s"
+                          % (territorio, etiqueta_fuente))
+        conteo = ("%s · %d %s · %d %s%s"
+                  % (etiqueta_fuente, total_eventos, plural_ev,
+                     sospechosos, plural_sosp, sufijo_perc))
+    else:
+        titulo = "Vista en Planta - Eventos sin perfil asignado"
+        nombre_popup = "Eventos sin perfil"
+        titulo_fig = "Eventos sin perfil"
+        titulo_ventana = "Planta · Eventos sin perfil · %s" % etiqueta_fuente
+        conteo = ("%s · %d %s · %d %s%s"
+                  % (etiqueta_fuente, total_eventos, plural_ev,
+                     sospechosos, plural_sosp, sufijo_perc))
+    subtitulo = _texto_extencion(lon_min, lon_max, lat_min, lat_max)
+
+    layout_nacional = (territorio == "Nacional")
+    if layout_nacional:
+        fig = plt.figure(figsize=FIG_SIZE_NACIONAL, dpi=DPI)
+        # Abre a lo máximo en vertical: ajusta la altura al alto de pantalla.
+        try:
+            raiz = _raiz_tk()
+            if raiz is not None:
+                alto_px = int(raiz.winfo_screenheight())
+                if alto_px > 0:
+                    alto_pulg = max(6.0, alto_px / DPI - 1.0)
+                    aspecto = (lon_max - lon_min) / max(
+                        1e-9, lat_max - lat_min)
+                    ancho_pulg = (0.02 + 2.4 + 0.2) + (alto_pulg - 0.9) * aspecto
+                    ancho_pulg = max(4.0, ancho_pulg)
+                    fig.set_size_inches(ancho_pulg, alto_pulg)
+        except Exception:
+            pass
+        ax = fig.add_axes([0.40, 0.10, 0.58, 0.84], projection=ccrs.PlateCarree())
+        ax_txt = fig.add_axes([0.02, 0.10, 0.30, 0.84])
+        ax_txt.axis('off')
+        _layout_nacional(fig, ax, ax_txt, lon_min, lon_max, lat_min, lat_max,
+                         titulo_fig, conteo)
+        fig.canvas.mpl_connect(
+            'resize_event',
+            lambda ev: _layout_nacional(fig, ax, ax_txt,
+                                        lon_min, lon_max, lat_min, lat_max,
+                                        titulo_fig, conteo))
+    else:
+        fig = plt.figure(figsize=FIG_SIZE, dpi=DPI)
+        ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+    _base_mapa_planta(ax, lon_min, lon_max, lat_min, lat_max)
+    _localidades_planta(ax, lon_min, lon_max, lat_min, lat_max, territorio=territorio)
+    scatter, eventos_plot = _marcadores_planta(ax, eventos_plot, fuente)
+    coinc = _coincidentes_planta(eventos_plot)
+    _dibujar_superpuestos_planta(ax, coinc)
+    handles_leyenda = _handles_eventos(
+        fuente, _roles_presentes(eventos_plot),
+        _agencias_presentes(eventos_plot), superpuestos=bool(coinc))
+    # El Δ automático es solo para la comparación de un evento suelto.
+    for local, publicado in pares:
+        _dibujar_diferencia(ax, None, local, publicado,
+                            etiquetar=(delta_auto and len(pares) == 1))
+    if scatter is not None:
+        _conectar_seleccion_eventos(fig, ax, scatter, eventos_plot)
+    if layout_nacional:
+        # La disposición y el título izquierdo los gestiona _layout_nacional.
+        pass
+    elif territorio is None:
+        # En territorio el título de la figura ya lo pone el suptitle; no se
+        # duplica en el eje.
+        texto_titulo = titulo
+        if perfil is not None:
+            texto_titulo = "%s\n%s" % (titulo, subtitulo)
+        ax.set_title(texto_titulo, fontsize=11, fontweight='bold', pad=10)
+    if mostrar_json:
+        mostrar_json_en_popup(nombre_popup, eventos, fuente, percibidos,
+                              total_eventos)
+    if not layout_nacional:
+        # Nacional dibuja título/subtítulo dentro de la columna de texto.
+        _titulo_subtitulo_fig(fig, titulo_fig, conteo)
+    fig.legend(handles=handles_leyenda, loc='lower center',
+               bbox_to_anchor=(0.5, 0.02),
+               ncol=(2 if layout_nacional else len(handles_leyenda)),
+               fontsize=8, frameon=True)
+    _aviso_analista_inferido(fig, eventos, fuente)
+    if not layout_nacional:
+        plt.tight_layout(rect=[0, 0.10, 1, 0.90])
+    if con_boton_detener:
+        _agregar_boton_detener(fig)
+    _indicador_modo_interaccion(fig)
+    _titular_ventana(fig, titulo_ventana)
+    _mostrar_figura(bloquear)
+    return percibidos, total_eventos
+
+
+def plotear_perfil(eventos, perfil, fuente, percibidos, n_asignados=None,
+                   totales=None, bloquear=True, mostrar_json=True,
+                   con_boton_detener=True, titulo=None, subtitulo=None,
+                   delta_auto=False):
+    """
+    Crea una figura con dos subplots: vista en planta (izquierda) y perfil
+    de subducción (derecha), con etiquetas de id y selección interactiva.
+    n_asignados/totales: conteos de generajson.py para mostrar en la ventana.
+    'titulo' reemplaza el suptitle por defecto (lo usa la comparación local vs
+    publicado); 'subtitulo' es su línea de fuente/fecha en texto normal y más
+    chico. Devuelve (percibidos, total_eventos).
+    """
+    total_eventos = 0
+    percibidos = 0
+    sospechosos = 0
+
+    # Pares local↔publicado (No actualizados) y lista plana para dibujar.
+    pares = _pares_comparacion(eventos, perfil)
+    eventos_plot = _expandir_pares(eventos, perfil)
+
+    extent = _extent_planta_por_eventos(eventos_plot, perfil)
+    if extent is None:
+        return percibidos, 0
+    lon_min, lon_max, lat_min, lat_max = extent
+
+    fig = plt.figure(figsize=FIG_SIZE, dpi=DPI)
+
+    # --- Planta (izquierda) ---
+    ax_planta = fig.add_subplot(1, 2, 1, projection=ccrs.PlateCarree())
+    _base_mapa_planta(ax_planta, lon_min, lon_max, lat_min, lat_max)
+    _localidades_planta(ax_planta, lon_min, lon_max, lat_min, lat_max)
+    scatter, eventos_plot = _marcadores_planta(ax_planta, eventos_plot, fuente)
+    coinc_planta = _coincidentes_planta(eventos_plot)
+    _dibujar_superpuestos_planta(ax_planta, coinc_planta)
+    handles_leyenda = _handles_eventos(
+        fuente, _roles_presentes(eventos_plot),
+        _agencias_presentes(eventos_plot),
+        superpuestos=bool(coinc_planta)) + [_handle_sismicidad()]
+    ax_planta.set_title("Vista en Planta - Perfil %s %s\n%s"
+                        % (perfil["id"], "(%s)" % _progreso if _progreso else "",
+                           _texto_extencion(lon_min, lon_max, lat_min,
+                                            lat_max)),
+                        fontsize=11, fontweight='bold', pad=10)
+
+    # --- Perfil (derecha) ---
+    ax_perfil = fig.add_subplot(1, 2, 2)
+
+    _sismicidad_perfil(ax_perfil, perfil)
+
+    tp = perfil["topo_p"]
+    alt = perfil["topo_alt"]
+    if len(tp) > 1:
+        ax_perfil.plot(tp, alt / 1000.0, color=COLOR_TOPO, lw=1.2, zorder=3,
+                       label="Topografía/Batimetría")
+
+    sp = perfil["slab"]["p"]
+    sz = perfil["slab"]["depth"]
+    if len(sp) > 0:
+        mask = ~np.isnan(sz)
+        if np.any(mask):
+            ax_perfil.plot(sp[mask], -sz[mask], color=COLOR_SLAB, lw=2.2,
+                           zorder=4, label="Contacto Placas")
+
+    n_validos_perfil = 0
+    for e in eventos_plot:
+        try:
+            float(e['prof'])
+            float(e.get('along_km'))
+        except (TypeError, ValueError, KeyError):
+            continue
+        n_validos_perfil += 1
+    # Mismo umbral que en la planta (MAX_EVENTOS_ETIQUETA): controla si el
+    # perfil etiqueta los ids o los omite por densidad.
+    etiquetas_perfil = n_validos_perfil <= MAX_EVENTOS_ETIQUETA
+
+    xs = []
+    ys = []
+    colores = []
+    bordes = []
+    grosores = []
+    eventos_perfil = []
+    textos = []
+    for evento in eventos_plot:
+        try:
+            prof_punto = float(evento['prof']) * -1  # negativa hacia abajo
+            x_km = float(evento.get('along_km'))
+        except (TypeError, ValueError, KeyError):
+            continue
+        # Los conteos del panel son de los eventos de referencia; la publicada
+        # (No actualizados) y las agencias (Comparar agencias) son los pares.
+        if evento.get('rol') not in ('publicado', 'agencia'):
+            total_eventos += 1
+            if evento.get('sospechoso'):
+                sospechosos += 1
+            if fuente == "eventquery" and evento.get('percibido') == "S":
+                percibidos += 1
+                _registrar_percibido(evento)
+        caras_e, bordes_e, grosores_e = _estilo_marcadores(fuente, [evento])
+        xs.append(x_km)
+        ys.append(prof_punto)
+        colores.append(caras_e[0])
+        bordes.append(bordes_e[0])
+        grosores.append(grosores_e[0])
+        eventos_perfil.append(evento)
+
+        if evento.get('id') is not None and etiquetas_perfil:
+            t = ax_perfil.text(x_km, prof_punto, str(evento.get('id', '')),
+                               fontsize=7, zorder=11)
+            textos.append(t)
+
+    scatter_perf = None
+    if xs:
+        scatter_perf = ax_perfil.scatter(xs, ys, s=60, facecolors=colores,
+                                         alpha=0.95, edgecolors=bordes,
+                                         linewidths=grosores, zorder=10,
+                                         picker=True, pickradius=6)
+        if textos:
+            try:
+                adjust_text(textos, ax=ax_perfil,
+                            expand=(1.15, 1.7), min_arrow_len=0,
+                            iter_lim=ITERACIONES_ADJUST_TEXT,
+                            arrowprops=dict(arrowstyle="-", color='black',
+                                            lw=0.4, alpha=0.5))
+            except Exception:
+                pass
+
+    # Aro de soluciones superpuestas en el perfil (mismo evento, misma prof).
+    _dibujar_superpuestos_perfil(ax_perfil, _coincidentes_perfil(eventos_perfil))
+
+    # Seleccion cruzada: al hacer clic en un mapa se resalta el mismo evento
+    # (mismo anillo, tamano y color) tambien en el otro mapa.
+    if scatter is not None:
+        _conectar_seleccion_eventos(
+            fig, ax_planta, scatter, eventos_plot,
+            contraparte=(ax_perfil, eventos_perfil))
+    if scatter_perf is not None:
+        _conectar_seleccion_eventos(
+            fig, ax_perfil, scatter_perf, eventos_perfil,
+            contraparte=(ax_planta, eventos_plot))
+
+    # Comparación local vs publicado: la línea va por cada par. El Δ automático
+    # es solo para la comparación de un evento suelto (un par); en el panel sale
+    # al hacer clic.
+    for local, publicado in pares:
+        _dibujar_diferencia(ax_planta, ax_perfil, local, publicado,
+                            etiquetar=(delta_auto and len(pares) == 1))
+
+    minX = float(sp.min())
+    maxX = float(sp.max())
+    prof_fondo = _prof_fondo_perfil(perfil, [-y for y in ys])
+    ax_perfil.set_xlim(minX, maxX)
+    ax_perfil.set_ylim(-prof_fondo, ALT_MAR_KM)
+    ax_perfil.set_xlabel("Distancia a lo largo (km)", fontsize=9,
+                         fontweight='bold')
+    ax_perfil.set_ylabel("Profundidad (km)", fontsize=9, fontweight='bold')
+    ax_perfil.tick_params(axis='both', labelsize=8)
+    ax_perfil.grid(True, linestyle=':', alpha=0.4, color='gray', zorder=0)
+    ax_perfil.set_title("Perfil %s (%.0f-%.0f km | 0-%.0f km de prof)"
+                        % (perfil["id"], minX, maxX, prof_fondo),
+                        fontsize=11, fontweight='bold', pad=10)
+
+    if mostrar_json:
+        mostrar_json_en_popup("Perfil %s" % perfil["id"], eventos, fuente,
+                              percibidos, total_eventos)
+    if n_asignados is None:
+        n_asignados = total_eventos
+    etiqueta_fuente = _ETIQUETA_FUENTE.get(fuente, fuente)
+    sufijo = (" · %d percibidos" % percibidos
+              if fuente == "eventquery" and percibidos else "")
+    if titulo:
+        titulo_fig = titulo
+        conteo = subtitulo or ""
+        titulo_ventana = "Comparación · %s vs publicado" % etiqueta_fuente
+    else:
+        titulo_fig = "Perfil %s" % perfil["id"]
+        titulo_ventana = ("Planta y perfil · Perfil %s · %s"
+                          % (perfil["id"], etiqueta_fuente))
+        conteo = ("%s · %d eventos asignados%s · %d sospechosos%s"
+                  % (etiqueta_fuente, n_asignados,
+                     (" (de %d totales)" % totales) if totales else "",
+                     sospechosos, sufijo))
+    _titulo_subtitulo_fig(fig, titulo_fig, conteo)
+    fig.legend(handles=handles_leyenda, loc='lower center',
+               bbox_to_anchor=(0.5, 0.02), ncol=len(handles_leyenda),
+               fontsize=8, frameon=True)
+    plt.tight_layout(rect=[0, 0.10, 1, 0.90])
+    if con_boton_detener:
+        _agregar_boton_detener(fig)
+    _indicador_modo_interaccion(fig)
+    _titular_ventana(fig, titulo_ventana)
+    _mostrar_figura(bloquear)
+    return percibidos, total_eventos
+
+
+def plotear_ventana(eventos, perfil, fuente, percibidos, n_asignados=None,
+                    totales=None, bloquear=True, mostrar_json=True,
+                    con_boton_detener=True, titulo=None, subtitulo=None,
+                    delta_auto=False):
+    """
+    Abre la ventana de un perfil (planta + perfil). Se mantiene este alias
+    para no cambiar el resto del flujo. Devuelve (percibidos, total_eventos).
+    """
+    return plotear_perfil(eventos, perfil, fuente, percibidos,
+                          n_asignados, totales, bloquear=bloquear,
+                          mostrar_json=mostrar_json,
+                          con_boton_detener=con_boton_detener, titulo=titulo,
+                          subtitulo=subtitulo, delta_auto=delta_auto)
+
+
+# Cache de perfiles detectados en grillas/. detectar_perfiles() lee todas las
+# grillas, así que se hace una sola vez por sesión: lo necesitan el ploteo de un
+# evento suelto (listados de No publicados / No actualizados).
+_PERFILES_CACHE = {}
+
+
+def _perfiles_cacheados():
+    """Perfiles de grillas/, detectados una sola vez por sesión."""
+    import asigna_perfiles as ap
+    if "perfiles" not in _PERFILES_CACHE:
+        try:
+            _PERFILES_CACHE["perfiles"] = ap.detectar_perfiles()
+        except Exception:
+            _PERFILES_CACHE["perfiles"] = []
+    return _PERFILES_CACHE["perfiles"]
+
+
+def _a_numero_o_none(valor):
+    """El valor como float, o None si no es un número usable."""
+    try:
+        return float(str(valor).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _completar_along(evento, perfil):
+    """Le pone along_km/perp_km al evento contra 'perfil', si le faltan."""
+    if perfil is None or evento.get('along_km') is not None:
+        return
+    lat = _a_numero_o_none(evento.get('latitud'))
+    lon = _a_numero_o_none(evento.get('longitud'))
+    if lat is None or lon is None:
+        return
+    try:
+        import asigna_perfiles as ap
+        perp, along = ap.distancia_al_perfil(lon, lat, perfil)
+        evento['along_km'] = along
+        evento['perp_km'] = perp
+    except Exception:
+        pass
+
+
+def _pares_comparacion(eventos, perfil=None):
+    """
+    Lista de (local, publicado) de un set de eventos.
+
+    Dos orígenes: eventos con 'publicado' anidado (panel de «No actualizados») y
+    listas con roles 'local'/'publicado' (comparación de un evento suelto). Con
+    'perfil' completa el along_km del publicado cuando falta, midiéndolo contra
+    esa sección para que la línea del par caiga en el perfil correcto.
+    """
+    pares = []
+    for ev in eventos:
+        ags = ev.get('agencias')
+        if isinstance(ags, list) and ags:
+            referencia = dict(ev)
+            referencia.pop('agencias', None)
+            referencia['rol'] = 'publicado'
+            for a in ags:
+                sol = dict(a)
+                sol['rol'] = 'agencia'
+                _completar_along(sol, perfil)
+                pares.append((referencia, sol))
+            continue
+        pub = ev.get('publicado')
+        if isinstance(pub, dict):
+            local = dict(ev)
+            local['rol'] = 'local'
+            publicado = dict(pub)
+            publicado['rol'] = 'publicado'
+            _completar_along(publicado, perfil)
+            pares.append((local, publicado))
+    if not pares:
+        local = next((e for e in eventos if e.get('rol') == 'local'), None)
+        publicado = next((e for e in eventos if e.get('rol') == 'publicado'),
+                         None)
+        if local is not None and publicado is not None:
+            pares.append((local, publicado))
+    return pares
+
+
+def _expandir_pares(eventos, perfil=None):
+    """
+    Lista plana para dibujar. Expande 'publicado' anidado y 'agencias' (lista):
+    la referencia va como anillo (rol 'publicado') y las agencias como puntos
+    con su color. Los sets ya role-tagged se devuelven tal cual.
+    """
+    hay = any(
+        isinstance(ev.get('publicado'), dict)
+        or (isinstance(ev.get('agencias'), list) and ev.get('agencias'))
+        for ev in eventos)
+    if not hay:
+        return list(eventos)
+    plano = []
+    for ev in eventos:
+        ags = ev.get('agencias')
+        if isinstance(ags, list) and ags:
+            referencia = dict(ev)
+            referencia.pop('agencias', None)
+            # Rol propio: nuestra solución (publicado) se dibuja rellena por
+            # percibido (rojo/amarillo), no como el anillo 'publicado'.
+            referencia['rol'] = 'referencia'
+            plano.append(referencia)
+            for a in ags:
+                sol = dict(a)
+                sol['rol'] = 'agencia'
+                sol['_referencia'] = referencia
+                _completar_along(sol, perfil)
+                plano.append(sol)
+            continue
+        pub = ev.get('publicado')
+        if not isinstance(pub, dict):
+            plano.append(ev)
+            continue
+        # La copia local conserva 'publicado' a propósito: al hacer clic se
+        # arma el Δ de la pareja en la viñeta.
+        local = dict(ev)
+        local['rol'] = 'local'
+        publicado = dict(pub)
+        publicado['rol'] = 'publicado'
+        _completar_along(publicado, perfil)
+        plano.append(local)
+        plano.append(publicado)
+    return plano
+
+
+def abrir_eventos(eventos, fuente, perfiles=None):
+    """
+    Abre una figura (planta + perfil) para uno o más eventos sueltos.
+
+    Un evento solo (listado de «No publicados»): comportamiento de siempre. Dos
+    con roles 'local' y 'publicado' (comparación de un «no actualizado»): se
+    ubican AMBOS en el perfil del evento local y se dibuja la línea
+    local↔publicado con el Δ de ubicación/profundidad.
+
+    Cada evento es un diccionario con al menos 'latitud', 'longitud' y 'prof';
+    si no trae 'perfil', se le asigna con asigna_perfiles (el mismo asignador
+    que usa generajson.py) y se calcula 'sospechoso' con
+    sismicidad.es_sospechoso. Con perfil dibuja planta + perfil; si queda fuera
+    de cobertura (o falta profundidad) dibuja solo la planta. No bloquea.
+    """
+    import asigna_perfiles as ap
+    if isinstance(eventos, dict):
+        eventos = [eventos]
+    eventos = list(eventos)
+    if perfiles is None:
+        perfiles = _perfiles_cacheados()
+    for ev in eventos:
+        ev["latitud"] = _a_numero_o_none(ev.get("latitud"))
+        ev["longitud"] = _a_numero_o_none(ev.get("longitud"))
+        ev["prof"] = _a_numero_o_none(ev.get("prof"))
+    eventos = [ev for ev in eventos
+               if ev["latitud"] is not None and ev["longitud"] is not None]
+    if not eventos:
+        raise ValueError("el evento no tiene coordenadas")
+
+    # Perfil de referencia: el del evento local si está; si no, el del primero.
+    local = next((e for e in eventos if e.get('rol') == 'local'), eventos[0])
+    if not local.get("perfil"):
+        try:
+            local.update(ap.asignar_perfil_evento(
+                local["longitud"], local["latitud"], local["prof"], perfiles))
+        except Exception:
+            local.setdefault("perfil", None)
+    perfil_id = local.get("perfil")
+    perfil_obj = next((p for p in perfiles if p.get("id") == perfil_id), None) \
+        if perfil_id else None
+
+    for ev in eventos:
+        # Todos al perfil de referencia, para que compartan el eje del perfil.
+        if perfil_obj is not None:
+            try:
+                perp, along = ap.distancia_al_perfil(
+                    ev["longitud"], ev["latitud"], perfil_obj)
+                ev["perfil"] = perfil_obj["id"]
+                ev["along_km"] = along
+                ev["perp_km"] = perp
+                slab = ap.profundidad_slab_en(perfil_obj, along)
+                ev["residuo_km"] = (None if slab != slab or ev["prof"] is None
+                                    else abs(ev["prof"] - slab))
+            except Exception:
+                ev.setdefault("perfil", None)
+        elif not ev.get("perfil"):
+            try:
+                ev.update(ap.asignar_perfil_evento(
+                    ev["longitud"], ev["latitud"], ev["prof"], perfiles))
+            except Exception:
+                ev.setdefault("perfil", None)
+        try:
+            import sismicidad
+            ev["sospechoso"] = sismicidad.es_sospechoso(ev)
+        except Exception:
+            ev.setdefault("sospechoso", False)
+
+    # Título de la comparación de la solución contra lo publicado: la identidad
+    # va en el suptitle y la fuente/fecha, en texto normal y más chico, en el
+    # subtítulo.
+    titulo = None
+    subtitulo = None
+    pub = next((e for e in eventos if e.get('rol') == 'publicado'), None)
+    if local.get('rol') == 'local' and pub is not None:
+        etiqueta = _ETIQUETA_FUENTE.get(fuente, fuente)
+        fecha = local.get('fecha hora') or ''
+        titulo = "Comparación %s vs publicado" % etiqueta
+        subtitulo = ("%s · %s" % (etiqueta, fecha)) if fecha else etiqueta
+
+    if perfil_obj is not None and all(e.get("prof") is not None
+                                      for e in eventos):
+        return plotear_perfil(eventos, perfil_obj, fuente, 0,
+                              mostrar_json=False, con_boton_detener=False,
+                              bloquear=False, titulo=titulo,
+                              subtitulo=subtitulo, delta_auto=True)
+    return plotear_planta(eventos, fuente, mostrar_json=False,
+                          con_boton_detener=False, bloquear=False,
+                          delta_auto=True)
+
+
+def abrir_evento(evento, fuente, perfiles=None):
+    """Abre planta + perfil de UN evento suelto (delega en abrir_eventos)."""
+    return abrir_eventos([evento], fuente, perfiles=perfiles)
+
+
+def _preparar_un_evento(evento, perfiles):
+    """
+    Completa un evento suelto con perfil, along_km, perp_km y sospechoso.
+
+    Usa el mismo criterio que abrir_eventos para una sola solución: asigna el
+    perfil con asigna_perfiles y calcula el flag con sismicidad.es_sospechoso.
+    Devuelve el objeto de perfil asignado, o None si el evento quedó fuera de
+    cobertura (o sin coordenadas).
+    """
+    evento["latitud"] = _a_numero_o_none(evento.get("latitud"))
+    evento["longitud"] = _a_numero_o_none(evento.get("longitud"))
+    evento["prof"] = _a_numero_o_none(evento.get("prof"))
+
+    perfil_obj = None
+    pid = evento.get("perfil")
+    if pid:
+        perfil_obj = next((p for p in perfiles if p.get("id") == pid), None)
+    if perfil_obj is None and evento["latitud"] is not None \
+            and evento["longitud"] is not None:
+        try:
+            datos = ap.asignar_perfil_evento(
+                evento["longitud"], evento["latitud"], evento["prof"], perfiles)
+            evento["perfil"] = datos.get("perfil")
+            for clave, valor in datos.items():
+                if clave != "perfil":
+                    evento[clave] = valor
+            perfil_obj = next(
+                (p for p in perfiles if p.get("id") == evento["perfil"]), None)
+        except Exception:
+            evento.setdefault("perfil", None)
+
+    if perfil_obj is not None and evento["latitud"] is not None \
+            and evento["longitud"] is not None:
+        try:
+            perp, along = ap.distancia_al_perfil(
+                evento["longitud"], evento["latitud"], perfil_obj)
+            evento["perfil"] = perfil_obj["id"]
+            evento["along_km"] = along
+            evento["perp_km"] = perp
+            slab = ap.profundidad_slab_en(perfil_obj, along)
+            evento["residuo_km"] = (
+                None if slab != slab or evento["prof"] is None
+                else abs(evento["prof"] - slab))
+        except Exception:
+            pass
+
+    try:
+        import sismicidad
+        evento["sospechoso"] = sismicidad.es_sospechoso(evento)
+    except Exception:
+        evento.setdefault("sospechoso", False)
+    return perfil_obj
+
+
+def extent_mapa_nacional(evento, margen=MARGEN_MINI_MAPA_NACIONAL):
+    """Extensión (lon_min, lon_max, lat_min, lat_max) de la vista nacional."""
+    if evento is None:
+        return None
+    return _extent_planta_por_eventos(
+        [evento], territorio="Nacional", margen_adicional=margen)
+
+
+def conectar_zoom_mapa(fig, extent_inicial, centro=None):
+    """
+    Conecta zoom y reinicio a una figura del mini-mapa nacional.
+
+    La rueda acerca/aleja alrededor del cursor; los botones del panel lo hacen
+    alrededor del evento. Arrastrar con el botón izquierdo mueve la vista y
+    'centrar' devuelve el evento al centro sin cambiar el zoom. 'extent_inicial'
+    es el límite al que se puede volver y más allá del cual no se permite
+    alejar ni desplazar. 'actualizar' se llama al cambiar de evento para fijar
+    una nueva vista inicial.
+    """
+    if fig is None or extent_inicial is None:
+        return {"zoom_in": lambda: None, "zoom_out": lambda: None,
+                "reset": lambda: None, "actualizar": lambda *a, **k: None}
+
+    estado = {"inicial": tuple(extent_inicial),
+              "extent": tuple(extent_inicial), "centro": centro}
+    arrastre = {"activo": False, "x": 0, "y": 0, "extent": None}
+
+    def _ax():
+        return fig.axes[-1] if fig.axes else None
+
+    def _aplicar(extent):
+        ax = _ax()
+        if ax is None:
+            return
+        ax.set_extent(extent, crs=ccrs.PlateCarree())
+        estado["extent"] = tuple(extent)
+        fig.canvas.draw_idle()
+
+    def _recortar(extent):
+        x0, x1, y0, y1 = extent
+        i0, i1, j0, j1 = estado["inicial"]
+        ancho = x1 - x0
+        alto = y1 - y0
+        if ancho >= i1 - i0:
+            x0, x1 = i0, i1
+        elif x0 < i0:
+            x0, x1 = i0, i0 + ancho
+        elif x1 > i1:
+            x1, x0 = i1, i1 - ancho
+        if alto >= j1 - j0:
+            y0, y1 = j0, j1
+        elif y0 < j0:
+            y0, y1 = j0, j0 + alto
+        elif y1 > j1:
+            y1, y0 = j1, j1 - alto
+        return (x0, x1, y0, y1)
+
+    def _zoom(factor, foco=None):
+        x0, x1, y0, y1 = estado["extent"]
+        ancho = max(ZOOM_MINI_MAPA_MIN_GRADOS, (x1 - x0) / factor)
+        alto = max(ZOOM_MINI_MAPA_MIN_GRADOS, (y1 - y0) / factor)
+        fx, fy = foco if foco is not None else (0.5, 0.5)
+        fx = max(0.0, min(1.0, fx))
+        fy = max(0.0, min(1.0, fy))
+        centro_lon = x0 + fx * (x1 - x0)
+        centro_lat = y0 + fy * (y1 - y0)
+        nuevo = (centro_lon - fx * ancho, centro_lon + (1 - fx) * ancho,
+                 centro_lat - fy * alto, centro_lat + (1 - fy) * alto)
+        _aplicar(_recortar(nuevo))
+
+    def _desplazar(base, dx, dy):
+        """Mueve la vista 'dx'/'dy' fracciones de su ancho/alto."""
+        x0, x1, y0, y1 = base
+        ancho = x1 - x0
+        alto = y1 - y0
+        nuevo = (x0 - dx * ancho, x1 - dx * ancho,
+                 y0 - dy * alto, y1 - dy * alto)
+        _aplicar(_recortar(nuevo))
+
+    def _mover(dx, dy):
+        _desplazar(estado["extent"], dx, dy)
+
+    def _centrar():
+        if estado["centro"] is None:
+            return
+        lon, lat = estado["centro"]
+        x0, x1, y0, y1 = estado["extent"]
+        ancho = x1 - x0
+        alto = y1 - y0
+        nuevo = (lon - ancho / 2.0, lon + ancho / 2.0,
+                 lat - alto / 2.0, lat + alto / 2.0)
+        _aplicar(_recortar(nuevo))
+
+    def _foco_centro():
+        if estado["centro"] is None:
+            return (0.5, 0.5)
+        lon, lat = estado["centro"]
+        x0, x1, y0, y1 = estado["extent"]
+        if x1 == x0 or y1 == y0:
+            return (0.5, 0.5)
+        return ((lon - x0) / (x1 - x0), (lat - y0) / (y1 - y0))
+
+    def _reset():
+        arrastre["activo"] = False
+        ax = _ax()
+        if ax is not None:
+            try:
+                ax.set_cursor("")
+            except Exception:
+                pass
+        _aplicar(estado["inicial"])
+
+    def _rueda(evento):
+        ax = _ax()
+        if ax is None or evento.inaxes is not ax:
+            return
+        if evento.button == "up":
+            factor = ZOOM_MINI_MAPA_FACTOR
+        elif evento.button == "down":
+            factor = 1.0 / ZOOM_MINI_MAPA_FACTOR
+        else:
+            return
+        fx, fy = ax.transAxes.inverted().transform((evento.x, evento.y))
+        _zoom(factor, (fx, fy))
+
+    def _presionar(evento):
+        ax = _ax()
+        if ax is None or evento.inaxes is not ax:
+            return
+        if evento.dblclick:
+            _reset()
+            return
+        if evento.button != 1:
+            return
+        arrastre.update(activo=True, x=evento.x, y=evento.y,
+                        extent=estado["extent"])
+        try:
+            ax.set_cursor("fleur")
+        except Exception:
+            pass
+
+    def _arrastrar(evento):
+        if not arrastre["activo"]:
+            return
+        ax = _ax()
+        if ax is None or evento.x is None or evento.y is None:
+            return
+        fx0, fy0 = ax.transAxes.inverted().transform(
+            (arrastre["x"], arrastre["y"]))
+        fx1, fy1 = ax.transAxes.inverted().transform(
+            (evento.x, evento.y))
+        _desplazar(arrastre["extent"], fx1 - fx0, fy1 - fy0)
+
+    def _soltar(_evento=None):
+        arrastre["activo"] = False
+        ax = _ax()
+        if ax is not None:
+            try:
+                ax.set_cursor("")
+            except Exception:
+                pass
+
+    def _actualizar(extent, centro=None):
+        arrastre["activo"] = False
+        estado["inicial"] = tuple(extent)
+        estado["extent"] = tuple(extent)
+        estado["centro"] = centro
+        ax = _ax()
+        if ax is not None:
+            try:
+                ax.set_cursor("")
+            except Exception:
+                pass
+        _aplicar(estado["inicial"])
+
+    fig.canvas.mpl_connect("scroll_event", _rueda)
+    fig.canvas.mpl_connect("button_press_event", _presionar)
+    fig.canvas.mpl_connect("motion_notify_event", _arrastrar)
+    fig.canvas.mpl_connect("button_release_event", _soltar)
+    return {"zoom_in": lambda: _zoom(ZOOM_MINI_MAPA_FACTOR,
+                                     _foco_centro()),
+            "zoom_out": lambda: _zoom(1.0 / ZOOM_MINI_MAPA_FACTOR,
+                                      _foco_centro()),
+            "mover": _mover, "centrar": _centrar,
+            "reset": _reset, "actualizar": _actualizar}
+
+
+def dibujar_mini_mapa_evento(fig, evento, fuente,
+                             margen=MARGEN_MINI_MAPA_NACIONAL):
+    """
+    Dibuja en 'fig' una vista nacional con un único evento.
+
+    Se usa en el listado de «No publicados» para ubicar rápidamente el evento
+    seleccionado respecto del país. La vista no hace zoom al evento: cubre todo
+    el territorio nacional y agrega 'margen' grados en latitud y longitud. Si el
+    evento queda fuera del recuadro, la extensión se amplía para incluirlo.
+    Devuelve True si dibujó el mapa.
+    """
+    if evento is None or fig is None:
+        return False
+
+    lat = _a_numero_o_none(evento.get("latitud"))
+    lon = _a_numero_o_none(evento.get("longitud"))
+    fig.clear()
+    ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
+    if lat is None or lon is None:
+        ax.text(0.5, 0.5, "El evento no tiene coordenadas",
+                ha="center", va="center", fontsize=8, color="#555555",
+                transform=ax.transAxes)
+        ax.set_axis_off()
+        fig.canvas.draw_idle()
+        return False
+
+    try:
+        dibujado = _mini_mapa_territorio(
+            ax, "Nacional", [evento], fuente, margen_adicional=margen)
+    except Exception as e:
+        print("[Aviso] mini mapa nacional: %s" % e)
+        dibujado = False
+    if not dibujado:
+        ax.text(0.5, 0.5, "No se pudo dibujar el mapa",
+                ha="center", va="center", fontsize=8, color="#555555",
+                transform=ax.transAxes)
+        ax.set_axis_off()
+    fig.canvas.draw_idle()
+    return bool(dibujado)
+
+
+def dibujar_mini_evento(fig, evento, fuente, mostrar_hist=False):
+    """
+    Dibuja en 'fig' la miniatura del perfil de un evento suelto.
+
+    'fig' es una Figure ya embebida en un lienzo Tk (FigureCanvasTkAgg); la
+    miniatura usa el mismo _mini_perfil del panel de análisis, para que los
+    ejes sean comparables. Con 'mostrar_hist' agrega la sismicidad histórica
+    (igual que la casilla del panel de análisis). Devuelve True si dibujó el
+    perfil y False si el evento quedó sin perfil (fuera de cobertura), sin
+    profundidad o sin coordenadas; en ese caso deja un aviso en la figura.
+    """
+    if evento is None or fig is None:
+        return False
+    perfiles = _perfiles_cacheados()
+    perfil_obj = _preparar_un_evento(evento, perfiles)
+    fig.clear()
+    ax = fig.add_subplot(111)
+    dibujado = False
+    if perfil_obj is not None and evento.get("prof") is not None:
+        dibujado = bool(_mini_perfil(ax, perfil_obj, [evento], fuente,
+                                     mostrar_hist=mostrar_hist))
+    if not dibujado:
+        ax.text(0.5, 0.5, "Sin perfil asignado\n(fuera de cobertura o sin\n"
+                          "coordenadas/profundidad)",
+                ha="center", va="center", fontsize=8, color="#555555",
+                transform=ax.transAxes)
+        ax.set_axis_off()
+    fig.canvas.draw_idle()
+    return dibujado
+
+
+def abrir_comparacion(evento, fuente="eventquery", perfiles=None):
+    """
+    Abre planta + perfil de un evento con sus soluciones de agencia.
+
+    El evento trae 'agencias' (lista; ver agencias.py) y 'perfil' asignado por
+    generajson. Se reusa plotear_perfil, que ya dibuja cada agencia con su color
+    y el Δ al hacer clic. Sin perfil (o sin profundidad) cae a la planta.
+    """
+    if perfiles is None:
+        perfiles = _perfiles_cacheados()
+    perfil = None
+    pid = evento.get('perfil')
+    if pid is not None:
+        perfil = next((p for p in perfiles if p.get('id') == pid), None)
+    tiene_prof = _a_numero_o_none(evento.get('prof')) is not None
+    if perfil is not None and tiene_prof:
+        return plotear_perfil([evento], perfil, fuente, 0,
+                              mostrar_json=False, con_boton_detener=False,
+                              bloquear=False)
+    return plotear_planta([evento], fuente, mostrar_json=False,
+                          con_boton_detener=False, bloquear=False)
+
+
+def _panel_analisis(grupos, perfiles_por_id, sin_perfil, fuente,
+                    conteo_por_perfil, conteo_total, total_eventos,
+                    n_sospechosos, total_percibidos=None, contenedor=None,
+                    etiqueta_fuente=None, n_huerfanos=0,
+                    con_prioridad=False, n_altas=0):
+    """
+    Panel de análisis: tabla resumen de todos los perfiles con su mini-perfil,
+    y acciones para abrir cada uno en detalle (en paralelo), abrir los mapas de
+    territorio, filtrar por sospechosos, añadir la sismicidad histórica al
+    mini-perfil y restablecer la vista de inicio. Al cerrar, los callbacks
+    pendientes quedan desactivados para no tocar widgets ya destruidos.
+
+    Si 'contenedor' es None se crea una ventana Toplevel propia (modo
+    autónomo, p. ej. plotear.py por línea de comandos). Si se pasa un widget
+    (ttk.Frame), el panel se construye EMBEBIDO dentro de él (modo app).
+
+    Se apoya en la raíz Tk compartida (_asegurar_raiz). Devuelve True si el
+    panel quedó operativo; False si no hay backend interactivo.
+
+    'con_prioridad' activa lo propio de «No actualizados»: columna Alta,
+    filtro «Solo alta prioridad» y botón de ayuda de la clasificación.
+    """
+    global _panel_activo
+    import tkinter as tk
+    from tkinter import ttk
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+    raiz = _asegurar_raiz()
+    if raiz is None:
+        return False
+    _panel_activo = True
+    embebido = contenedor is not None
+
+    estado = {'percibidos': 0, 'filtro_sospechosos': False,
+              'filtro_alta': False, 'activo': True, 'mostrar_hist': False}
+    # Referencia al sub-panel de territorios (para poder cerrarlo al salir).
+    terr_state = {'panel': None, 'cerrar': None, 'avisando': False}
+    con_perfil = sum(len(v) for v in grupos.values())
+
+    if embebido:
+        panel = contenedor
+    else:
+        panel = tk.Toplevel(raiz)
+        titulo_panel = ("Panel de análisis · %s — %d eventos (%d con perfil, %s)"
+                        % (fuente, total_eventos, con_perfil,
+                           ("%d sospechosos" % n_sospechosos)
+                           if n_sospechosos else "sin sospechosos"))
+        if n_huerfanos:
+            titulo_panel += (" | %d con perfil no disponible (JSON de otro "
+                             "set de grillas)" % n_huerfanos)
+        panel.title(titulo_panel)
+        panel.geometry("980x600")
+        panel.minsize(860, 480)
+
+    def _salir():
+        global _panel_activo
+        # Marca la sesión como inactiva ANTES de destruir widgets: así los
+        # callbacks Tk que queden en cola se convierten en no-op y no tocan
+        # widgets ya destruidos (evita "invalid command name").
+        estado['activo'] = False
+        _panel_activo = False
+        # Cierra el sub-panel de territorios si estuviera abierto.
+        cerrar_terr = terr_state.get('cerrar')
+        if cerrar_terr is not None:
+            try:
+                cerrar_terr()
+            except Exception:
+                pass
+        # Cierra solo las figuras de detalle: el ancla sostiene la raíz Tk.
+        try:
+            for num in list(plt.get_fignums()):
+                if _fig_ancla is None or num != _fig_ancla.number:
+                    plt.close(num)
+        except Exception:
+            pass
+        try:
+            fig_mini.clear()
+        except Exception:
+            pass
+        if embebido:
+            # Ya no hay ninguna vía para llegar aquí con un panel embebido (el
+            # botón «Cerrar panel» se quitó). Se corta en vez de seguir por el
+            # cierre de abajo, que destruiría el frame: es una pestaña de la
+            # aplicación principal y quedaría muda.
+            return
+        try:
+            panel.destroy()
+        except Exception:
+            pass
+        try:
+            raiz.quit()
+        except Exception:
+            pass
+
+    if not embebido:
+        panel.protocol("WM_DELETE_WINDOW", _salir)
+
+    # --- Cabecera con resumen e indicaciones ---
+    marco_cab = ttk.Frame(panel)
+    marco_cab.pack(fill='x', padx=8, pady=(8, 2))
+    etiqueta_resumen = None
+
+    def _actualizar_resumen():
+        if not estado['activo'] or etiqueta_resumen is None or not total_percibidos:
+            return
+        try:
+            if not etiqueta_resumen.winfo_exists():
+                return
+        except Exception:
+            return
+        etiqueta_resumen.config(
+            text="Percibidos vistos: %d de %d en el catálogo."
+                 % (len(_percibidos_escritos), total_percibidos))
+
+    if total_eventos:
+        if etiqueta_fuente:
+            ttk.Label(marco_cab, justify='left', text="Fuente: %s"
+                      % etiqueta_fuente,
+                      font=('', 10, 'bold'),
+                      bootstyle='primary').pack(anchor='w')
+        resumen = ("%d eventos · %d con perfil · %d sospechosos"
+                   % (total_eventos, con_perfil, n_sospechosos))
+        if con_prioridad:
+            resumen += " · %d alta prioridad" % n_altas
+        resumen += " · doble clic en una fila para abrir el detalle"
+        ttk.Label(marco_cab, justify='left', text=resumen,
+                  font=('', 10, 'bold')).pack(anchor='w')
+        if fuente == "eventquery" and total_percibidos:
+            etiqueta_resumen = ttk.Label(marco_cab, justify='left', text="",
+                                         font=('', 9))
+            etiqueta_resumen.pack(anchor='w')
+            _actualizar_resumen()
+    else:
+        ttk.Label(marco_cab, text="No hay eventos para analizar.",
+                  font=('', 10, 'bold')).pack(anchor='w')
+
+    # --- Zona principal: tabla (izquierda) + mini-perfil (derecha) ---
+    marco_principal = ttk.Frame(panel)
+    marco_principal.pack(fill='both', expand=True, padx=8, pady=4)
+
+    marco_tabla = ttk.Frame(marco_principal)
+    marco_tabla.pack(side='left', fill='both', expand=True)
+    columnas = ['n', 'perfil', 'eventos', 'sosp']
+    encabezados = [('n', '#', 38), ('perfil', 'Perfil', 60),
+                   ('eventos', 'Ev', 55), ('sosp', 'Sospechosos', 90)]
+    if con_prioridad:
+        columnas.append('altas')
+        encabezados.append(('altas', 'Alta', 55))
+    columnas.extend(('perc', 'along'))
+    encabezados.extend([('perc', 'Percibidos', 80),
+                        ('along', 'Along (km)', 120)])
+    arbol = ttk.Treeview(marco_tabla, columns=tuple(columnas),
+                         show='headings', height=20)
+    for clave, texto, ancho in encabezados:
+        arbol.heading(clave, text=texto)
+        arbol.column(clave, width=ancho, minwidth=40, stretch=False)
+    barra = ttk.Scrollbar(marco_tabla, orient='vertical', command=arbol.yview)
+    arbol.configure(yscrollcommand=barra.set)
+    arbol.pack(side='left', fill='both', expand=True)
+    barra.pack(side='left', fill='y')
+
+    # --- Mini-perfil insertado en el panel ---
+    fig_mini = plt.Figure(figsize=(5.2, 3.4), dpi=82)
+    lienzo_mini = FigureCanvasTkAgg(fig_mini, master=marco_principal)
+    lienzo_mini.get_tk_widget().pack(side='left', fill='both', expand=True,
+                                     padx=(10, 0))
+    ax_mini = fig_mini.add_subplot(111)
+
+    # --- Lista de ids mostrados (índice de fila en el árbol) ---
+    filas = []
+
+    def _poblar_arbol():
+        if not estado['activo']:
+            return
+        arbol.delete(*arbol.get_children())
+        del filas[:]
+        for pid in sorted(grupos):
+            total, sosp, perc, altas, a_min, a_max = _resumen_perfil(
+                grupos[pid], fuente)
+            if estado['filtro_sospechosos'] and not sosp:
+                continue
+            if con_prioridad and estado['filtro_alta'] and not altas:
+                continue
+            if a_min is not None:
+                along = "%.1f-%.1f" % (a_min, a_max)
+            else:
+                along = "-"
+            valores = [len(filas) + 1, pid, total, sosp]
+            if con_prioridad:
+                valores.append(altas)
+            valores.extend((perc, along))
+            iid = arbol.insert('', 'end', values=tuple(valores))
+            if sosp:
+                arbol.item(iid, tags=('sosp',))
+            filas.append(pid)
+        arbol.tag_configure('sosp', foreground='#8b0000',
+                            font=('', 10, 'bold'))
+
+    def _actualizar_mini():
+        if not estado['activo']:
+            return
+        sel = arbol.selection()
+        if not sel:
+            return
+        idx = arbol.index(sel[0])
+        if idx >= len(filas):
+            return
+        pid = filas[idx]
+        fig_mini.clear()
+        ax_nuevo = fig_mini.add_subplot(111)
+        _mini_perfil(ax_nuevo, perfiles_por_id[pid], grupos[pid], fuente,
+                     mostrar_hist=estado['mostrar_hist'])
+        fig_mini.canvas.draw_idle()
+
+    def _abrir_perfil_actual():
+        if not estado['activo']:
+            return
+        sel = arbol.selection()
+        if not sel:
+            return
+        idx = arbol.index(sel[0])
+        if idx >= len(filas):
+            return
+        pid = filas[idx]
+        perfil = perfiles_por_id[pid]
+        # Sin ningún evento con coordenadas, el detalle no se puede dibujar:
+        # se avisa por interfaz en vez de no hacer nada.
+        if not any(_a_numero_o_none(e.get('latitud')) is not None
+                   and _a_numero_o_none(e.get('longitud')) is not None
+                   for e in grupos[pid]):
+            _avisar_sin_datos("Este perfil no tiene eventos ploteables.", raiz)
+            return
+        _registrar_progreso("Perfil %s" % pid)
+        p_, _ = plotear_ventana(grupos[pid], perfil, fuente,
+                                estado['percibidos'],
+                                n_asignados=conteo_por_perfil.get(pid),
+                                totales=conteo_total,
+                                bloquear=False,
+                                mostrar_json=False,
+                                con_boton_detener=False)
+        estado['percibidos'] += p_
+        _actualizar_resumen()
+
+    def _eventos_descarga(evs):
+        """
+        Los eventos a descargar, con los filtros activos aplicados.
+
+        Se filtra evento por evento igual que hace el detalle: el filtro «Solo
+        sospechosos» saca del árbol los perfiles que no tienen ninguno, pero no
+        saca los eventos normales de un perfil que sí tiene, y una descarga
+        que se llevara todos esos eventos no sería lo que se está viendo. Con
+        «Solo alta prioridad» pasa lo mismo.
+        """
+        resultado = list(evs)
+        if estado['filtro_sospechosos']:
+            resultado = [ev for ev in resultado if ev.get('sospechoso')]
+        if con_prioridad and estado['filtro_alta']:
+            resultado = [ev for ev in resultado
+                         if ev.get('revision') == "Alta"]
+        return resultado
+
+    def _elegir_ambito_descarga():
+        """
+        Diálogo de qué parte del panel se quiere descargar.
+
+        Devuelve (eventos, etiqueta) ya resueltos, o None si se cancela o no
+        hay nada que ofrecer. Se resuelve aquí adentro y no en _descargar_panel
+        porque la alternativa depende de qué fila esté seleccionada en el
+        momento de armar el diálogo: si se volviera a leer la selección
+        después de responder, el diálogo podría ofrecer un ámbito y exportar
+        otro, o no exportar nada sin decir por qué.
+        """
+        if not estado['activo']:
+            return None
+        if raiz is None:
+            return None
+
+        sel = arbol.selection()
+        pid_sel = None
+        if sel:
+            idx = arbol.index(sel[0])
+            if idx < len(filas):
+                pid_sel = filas[idx]
+
+        # Cada opción trae sus eventos ya filtrados. Una opción sin eventos no
+        # se ofrece: es mejor no=listarla que listar algo que al elegirlo
+        # resulta en "no hay eventos".
+        opciones = []
+        if pid_sel is not None:
+            evs = _eventos_descarga(grupos[pid_sel])
+            if evs:
+                opciones.append((
+                    "perfil",
+                    "Perfil seleccionado (%s) — %d eventos"
+                    % (pid_sel, len(evs)),
+                    evs, "perfil_%s_%s" % (pid_sel, fuente)))
+        evs_visibles = []
+        for pid in filas:
+            evs_visibles.extend(_eventos_descarga(grupos[pid]))
+        if evs_visibles:
+            opciones.append((
+                "visibles",
+                "Todos los perfiles visibles — %d eventos" % len(evs_visibles),
+                evs_visibles, "panel_%s" % fuente))
+        if sin_perfil:
+            evs_sin = _eventos_descarga(sin_perfil)
+            if evs_sin:
+                opciones.append((
+                    "sin_perfil",
+                    "Eventos sin perfil — %d eventos" % len(evs_sin),
+                    evs_sin, "sin_perfil_%s" % fuente))
+
+        if not opciones:
+            from tkinter import messagebox
+            # El foco se sube antes de abrir el aviso: messagebox es bloqueante,
+            # así que pasarlo a encima_de solo lo enfocaría al cerrarse.
+            descargas.encima_de(raiz)
+            activos = []
+            if estado['filtro_sospechosos']:
+                activos.append("«Solo sospechosos»")
+            if con_prioridad and estado['filtro_alta']:
+                activos.append("«Solo alta prioridad»")
+            detalle = ("Filtros activos: %s.\n\n" % " y ".join(activos)
+                       if activos else "")
+            messagebox.showwarning(
+                "No hay eventos que descargar.",
+                "Con el filtro actual no queda ningún evento en el panel.\n\n"
+                + detalle + "Quite el filtro o elija otro ámbito.",
+                parent=raiz)
+            return None
+
+        eleccion = {"opcion": None}
+        top = tk.Toplevel(raiz)
+        top.title("Descargar eventos")
+        top.transient(raiz)
+        top.resizable(False, False)
+        marco = ttk.Frame(top, padding=12)
+        marco.pack(fill='both', expand=True)
+        ttk.Label(marco, text="¿Qué quieres descargar?").pack(anchor='w')
+        marco_op = ttk.Frame(marco)
+        marco_op.pack(anchor='w', fill='x', pady=(6, 4))
+        # Una sola variable para todas: hace que sean un grupo excluyente.
+        # Con una por opción, al marcar la segunda la primera sigue
+        # apareciendo marcada y no se puede desmarcar ninguna.
+        var = tk.StringVar(value=opciones[0][0])
+        for clave, texto, _evs, _etiqueta in opciones:
+            ttk.Radiobutton(marco_op, text=texto, value=clave,
+                            variable=var).pack(anchor='w')
+        activos = []
+        if estado['filtro_sospechosos']:
+            activos.append("sospechosos")
+        if con_prioridad and estado['filtro_alta']:
+            activos.append("alta prioridad")
+        if activos:
+            descargas._etiqueta_secundaria(
+                ttk, marco,
+                "Filtros activos: se exportarán únicamente los eventos %s, "
+                "porque los filtros están prendidos." % " y ".join(activos),
+                wraplength=380, justify='left').pack(anchor='w', pady=(4, 0))
+
+        def _aceptar(_evento=None):
+            eleccion['opcion'] = var.get()
+            top.destroy()
+
+        def _cancelar(_evento=None):
+            top.destroy()
+
+        botones = ttk.Frame(marco)
+        botones.pack(anchor='e', pady=(10, 0))
+        try:
+            ttk.Button(botones, text="Cancelar", command=_cancelar,
+                       bootstyle="secondary").pack(side='right')
+            ttk.Button(botones, text="Continuar", command=_aceptar,
+                       bootstyle="primary").pack(side='right', padx=(0, 6))
+        except Exception:
+            ttk.Button(botones, text="Cancelar",
+                       command=_cancelar).pack(side='right')
+            ttk.Button(botones, text="Continuar",
+                       command=_aceptar).pack(side='right', padx=(0, 6))
+        top.bind("<Return>", _aceptar)
+        top.bind("<Escape>", _cancelar)
+        top.protocol("WM_DELETE_WINDOW", _cancelar)
+        descargas.encima_de(raiz, top)
+        raiz.wait_window(top)
+        elegida = eleccion['opcion']
+        for clave, _texto, evs, etiqueta in opciones:
+            if clave == elegida:
+                return evs, etiqueta
+        return None
+
+    def _descargar_panel():
+        """Arma la lista de eventos del ámbito pedido y la pasa a descargas."""
+        elegido = _elegir_ambito_descarga()
+        if elegido is None:
+            return
+        evs, etiqueta = elegido
+        columnas = (COLUMNAS_DESCARGA_NOACT if con_prioridad
+                    else COLUMNAS_DESCARGA_EVENTO)
+        encabezados = [titulo for _, titulo, _ in columnas]
+        filas_csv = [_fila_descarga(ev, columnas) for ev in evs]
+        descargas.descargar_tabla(raiz, encabezados, filas_csv, etiqueta,
+                                  aviso=True)
+
+    def _abrir_territorios_impl():
+        # Categoriza una sola vez y, si no hay nada que mostrar en ningún
+        # territorio, avisa (una sola rama, un solo aviso).
+        items = []
+        if sin_perfil:
+            nacional, insular, antartico = _categorizar_por_territorio(
+                sin_perfil)
+            items = [(nombre, evs) for nombre, evs in [
+                ("Nacional", nacional), ("Insular", insular),
+                ("Antártico", antartico)] if evs]
+        if not items:
+            _log("Mapas sin perfil: nada para mostrar (sin_perfil=%d)."
+                 % len(sin_perfil))
+            _avisar_sin_datos("No hay eventos sin perfil para mostrar.",
+                              raiz)
+            return
+        # Si ya está abierto, se trae al frente en vez de duplicarlo.
+        if terr_state.get('panel') is not None:
+            try:
+                terr_state['panel'].lift()
+                return
+            except Exception:
+                terr_state['panel'] = None
+
+        motivos = {}
+        for ev in sin_perfil:
+            m = ev.get('motivo') or 'sin_perfil'
+            motivos[m] = motivos.get(m, 0) + 1
+        etq_mot = {'fuera_cobertura_norte': 'norte',
+                   'fuera_cobertura_sur': 'sur',
+                   'fuera_cobertura_extremo': 'extremo',
+                   'fuera_cobertura': 'otro',
+                   'fuera_umbral': 'umbral',
+                   'sin_coordenadas': 'sin coords',
+                   'sin_perfiles': 'sin perfiles'}
+        detalle = ", ".join("%s: %d" % (etq_mot.get(k, k), v)
+                            for k, v in sorted(motivos.items()))
+        top = tk.Toplevel(raiz)
+        top.title("Mapas sin perfil · %s — %d eventos sin perfil%s"
+                  % (fuente, len(sin_perfil),
+                     (" (%s)" % detalle) if detalle else ""))
+        top.geometry("780x520")
+        terr_activo = {'activo': True}
+
+        marco = ttk.Frame(top)
+        marco.pack(fill='both', expand=True, padx=8, pady=8)
+        marco_tabla = ttk.Frame(marco)
+        marco_tabla.pack(side='left', fill='y')
+        cols = ('terr', 'eventos', 'sosp', 'perc')
+        arbol_t = ttk.Treeview(marco_tabla, columns=cols, show='headings',
+                               height=8)
+        for clave, texto, ancho in [('terr', 'Territorio', 110),
+                                    ('eventos', 'Eventos', 70),
+                                    ('sosp', 'Sospechosos', 95),
+                                    ('perc', 'Percibidos', 85)]:
+            arbol_t.heading(clave, text=texto)
+            arbol_t.column(clave, width=ancho, minwidth=50, stretch=False)
+        arbol_t.pack(side='left', fill='y')
+
+        fig_mapa = plt.Figure(figsize=(4.6, 3.4), dpi=82)
+        lienzo = FigureCanvasTkAgg(fig_mapa, master=marco)
+        lienzo.get_tk_widget().pack(side='left', fill='both', expand=True,
+                                    padx=(10, 0))
+
+        datos = {}
+        for nombre, evs in items:
+            tot = len(evs)
+            sosp = sum(1 for e in evs if e.get('sospechoso'))
+            perc = sum(1 for e in evs if e.get('percibido') == 'S')
+            iid = arbol_t.insert('', 'end', values=(nombre, tot, sosp, perc))
+            datos[iid] = (nombre, evs)
+
+        def _redibujar_mini():
+            if not terr_activo['activo']:
+                return
+            sel = arbol_t.selection()
+            if not sel:
+                return
+            nombre, evs = datos[sel[0]]
+            fig_mapa.clear()
+            ax = fig_mapa.add_subplot(111, projection=ccrs.PlateCarree())
+            try:
+                _mini_mapa_territorio(ax, nombre, evs, fuente)
+            except Exception as e:
+                ax.set_title("No se pudo dibujar %s" % nombre, fontsize=9)
+                print("[Aviso] mini territorio %s: %s" % (nombre, e))
+            fig_mapa.canvas.draw_idle()
+
+        def _abrir_detalle_terr():
+            if not terr_activo['activo']:
+                return
+            sel = arbol_t.selection()
+            if not sel:
+                return
+            nombre, evs = datos[sel[0]]
+            _registrar_progreso("Territorio %s" % nombre)
+            p_, _ = plotear_planta(
+                evs, fuente, perfil=None,
+                n_asignados=conteo_por_perfil.get("(%s)" % nombre),
+                totales=conteo_total, territorio=nombre,
+                bloquear=False, mostrar_json=False,
+                con_boton_detener=False)
+            estado['percibidos'] += p_
+            _actualizar_resumen()
+
+        def _cerrar_territorios():
+            if not terr_activo['activo']:
+                return
+            terr_activo['activo'] = False
+            terr_state['panel'] = None
+            terr_state['cerrar'] = None
+            try:
+                fig_mapa.clear()
+            except Exception:
+                pass
+            try:
+                top.destroy()
+            except Exception:
+                pass
+
+        arbol_t.bind('<<TreeviewSelect>>', lambda e: _redibujar_mini())
+        arbol_t.bind('<Double-1>', lambda e: _abrir_detalle_terr())
+        top.protocol("WM_DELETE_WINDOW", _cerrar_territorios)
+
+        marco_bot = ttk.Frame(top)
+        marco_bot.pack(fill='x', padx=8, pady=(0, 8))
+        ttk.Button(marco_bot, text="Abrir detalle",
+                   command=_abrir_detalle_terr, padding=(10, 6)).pack(
+                       side='left', padx=4)
+        ttk.Button(marco_bot, text="Cerrar", command=_cerrar_territorios,
+                   padding=(10, 6)).pack(side='left', padx=4)
+
+        terr_state['panel'] = top
+        terr_state['cerrar'] = _cerrar_territorios
+        # Enganches para pruebas.
+        top._arbol = arbol_t
+        top._fig_mapa = fig_mapa
+        top._redibujar_mini = _redibujar_mini
+        top._abrir_detalle = _abrir_detalle_terr
+        top._cerrar = _cerrar_territorios
+
+        arbol_t.selection_set(arbol_t.get_children()[0])
+        _redibujar_mini()
+
+    def _abrir_territorios():
+        if not estado['activo']:
+            return
+        if terr_state.get('avisando'):
+            _log("Mapas sin perfil: clic ignorado (ya en curso).")
+            return
+        _log("Mapas sin perfil: apertura (sin_perfil=%d)." % len(sin_perfil))
+        terr_state['avisando'] = True
+        try:
+            try:
+                btn_mapas.config(state='disabled')
+            except Exception:
+                pass
+            _abrir_territorios_impl()
+        finally:
+            terr_state['avisando'] = False
+            try:
+                btn_mapas.config(state='normal')
+            except Exception:
+                pass
+
+    def _alternar_filtro():
+        if not estado['activo']:
+            return
+        estado['filtro_sospechosos'] = not estado['filtro_sospechosos']
+        btn_filtro.config(
+            text=("Todos los perfiles" if estado['filtro_sospechosos']
+                  else "Solo sospechosos"))
+        _poblar_arbol()
+        if arbol.get_children():
+            arbol.selection_set(arbol.get_children()[0])
+        _actualizar_mini()
+
+    def _alternar_filtro_alta():
+        if not estado['activo'] or not con_prioridad:
+            return
+        estado['filtro_alta'] = not estado['filtro_alta']
+        btn_filtro_alta.config(
+            text=("Todos los perfiles" if estado['filtro_alta']
+                  else "Solo alta prioridad"))
+        _poblar_arbol()
+        if arbol.get_children():
+            arbol.selection_set(arbol.get_children()[0])
+        _actualizar_mini()
+
+    def _ir_inicio():
+        # Restaura el estado inicial: los dos filtros apagados, tabla repoblada
+        # y primera fila seleccionada con su mini-perfil.
+        if not estado['activo']:
+            return
+        estado['filtro_sospechosos'] = False
+        estado['filtro_alta'] = False
+        btn_filtro.config(text="Solo sospechosos")
+        if con_prioridad:
+            btn_filtro_alta.config(text="Solo alta prioridad")
+        _poblar_arbol()
+        if arbol.get_children():
+            arbol.selection_set(arbol.get_children()[0])
+        _actualizar_mini()
+
+    arbol.bind('<<TreeviewSelect>>', lambda e: _actualizar_mini())
+    arbol.bind('<Double-1>', lambda e: _abrir_perfil_actual())
+
+    # --- Botones ---
+    marco_botones = ttk.Frame(panel)
+    marco_botones.pack(fill='x', padx=8, pady=(2, 8))
+    estilo_btn = {'padding': (10, 6)}
+
+    def _boton(marco, texto, fn):
+        ttk.Button(marco, text=texto, command=fn, **estilo_btn).pack(
+            side='left', padx=4)
+
+    var_hist = tk.BooleanVar(value=False)
+
+    def _alternar_hist():
+        if not estado['activo']:
+            return
+        estado['mostrar_hist'] = bool(var_hist.get())
+        _actualizar_mini()
+
+    _boton(marco_botones, "Abrir detalle", _abrir_perfil_actual)
+    btn_mapas = ttk.Button(marco_botones, text="Mapas sin perfil", command=_abrir_territorios, **estilo_btn)
+    btn_mapas.pack(side='left', padx=4)
+    btn_filtro = ttk.Button(marco_botones, text="Solo sospechosos",
+                            command=_alternar_filtro, **estilo_btn)
+    btn_filtro.pack(side='left', padx=4)
+    btn_filtro_alta = None
+    if con_prioridad:
+        btn_filtro_alta = ttk.Button(
+            marco_botones, text="Solo alta prioridad",
+            command=_alternar_filtro_alta, **estilo_btn)
+        btn_filtro_alta.pack(side='left', padx=4)
+
+        def _mostrar_ayuda_clasificacion():
+            descargas.mostrar_texto_mono(
+                raiz, "Clasificación de No actualizados",
+                cruce_noact.AYUDA_REVISION_NO_ACTUALIZADOS)
+
+        ttk.Button(marco_botones, text="Criterios de clasificación",
+                   command=_mostrar_ayuda_clasificacion,
+                   **estilo_btn).pack(side='left', padx=4)
+    _boton(marco_botones, "Inicio", _ir_inicio)
+    chk_hist = ttk.Checkbutton(marco_botones, text="Sismicidad histórica",
+                               variable=var_hist, command=_alternar_hist)
+    chk_hist.pack(side='left', padx=8)
+    _boton(marco_botones, "Descargar", _descargar_panel)
+    # Solo la ventana propia lleva botón de salida. En el panel embebido el
+    # botón «Cerrar panel» se quitó: vaciaba los widgets sin avisarle a la
+    # aplicación, que seguía creyendo que el panel estaba construido, así que
+    # la pestaña quedaba muda el resto de la sesión y, con el botón de procesar
+    # esa fuente deshabilitado por «ya procesada», no había forma de volver a
+    # dibujarlo. Cambiar de pestaña ya cumple la misma función.
+    if not embebido:
+        _boton(marco_botones, "Salir", _salir)
+
+    _poblar_arbol()
+    if arbol.get_children():
+        arbol.selection_set(arbol.get_children()[0])
+        _actualizar_mini()
+
+    # Enganches para depuración/pruebas (sin efecto en la operación normal).
+    panel._arbol = arbol
+    panel._fig_mini = fig_mini
+    panel._etiqueta_resumen = etiqueta_resumen
+    panel._actualizar_mini = _actualizar_mini
+    panel._actualizar_resumen = _actualizar_resumen
+    panel._btn_filtro = btn_filtro
+    panel._chk_hist = chk_hist
+    panel._var_hist = var_hist
+    panel._abrir_perfil_actual = _abrir_perfil_actual
+    panel._abrir_territorios = _abrir_territorios
+    panel._alternar_filtro = _alternar_filtro
+    panel._alternar_hist = _alternar_hist
+    panel._ir_inicio = _ir_inicio
+    panel._poblar_arbol = _poblar_arbol
+    panel._salir = _salir
+    return True
+
+
+def _cargar_conteo(fuente):
+    """
+    Lee datos/conteo_perfiles_<fuente>.json (el que dejó generajson.py).
+    Devuelve (conteo_por_perfil, total); ({}, None) si no existe.
+    """
+    conteo_por_perfil = {}
+    conteo_total = None
+    conteo_archivo = rutas.p_datos('conteo_perfiles_%s.json' % fuente)
+    if os.path.isfile(conteo_archivo):
+        try:
+            with open(conteo_archivo) as f:
+                datos = json.load(f)
+            conteo_por_perfil = datos.get('conteo', {})
+            conteo_total = datos.get('total')
+        except Exception:
+            pass
+    return conteo_por_perfil, conteo_total
+
+
+def _agrupar_por_perfil(eventos, perfiles_por_id):
+    """
+    Agrupa los eventos por perfil disponible en el set actual.
+
+    Devuelve (grupos, sin_perfil, huerfanos):
+        grupos     : {id_perfil: [eventos]}  (el perfil existe en grillas)
+        sin_perfil : eventos sin perfil asignado (perfil None)
+        huerfanos  : {id_perfil: [eventos]}  cuyo perfil NO existe en el set
+                     actual; indica que el JSON se generó con otro conjunto de
+                     grillas. No se mezclan con sin_perfil ni se dibujan contra
+                     otra sección.
+    """
+    grupos = {}
+    sin_perfil = []
+    huerfanos = {}
+    for ev in eventos:
+        pid = ev.get('perfil')
+        if pid is None:
+            sin_perfil.append(ev)
+        elif pid in perfiles_por_id:
+            grupos.setdefault(pid, []).append(ev)
+        else:
+            huerfanos.setdefault(pid, []).append(ev)
+    if huerfanos:
+        n = sum(len(v) for v in huerfanos.values())
+        print("[Aviso] JSON de otro conjunto de grillas: %d eventos usan "
+              "perfiles que ya no existen (%s). Re-corra «Generar JSON»."
+              % (n, ", ".join(sorted(huerfanos))))
+    return grupos, sin_perfil, huerfanos
+
+
+def abrir_panel(contenedor, archivo_json, fuente, etiqueta_fuente=None,
+                vista=None):
+    """
+    Carga 'archivo_json' (eventos_<vista>.json) y muestra el panel de análisis
+    EMBEBIDO en 'contenedor' (un widget ttk). Se usa desde la aplicación
+    (app.py). 'etiqueta_fuente' se muestra en la cabecera (# "No publicados de
+    seisan"). 'fuente' decide el comportamiento (estilos/percibidos/analista) y
+    'vista' de dónde sale conteo_perfiles_<vista>.json (default: 'fuente') para
+    que los «no publicados» no lean el conteo de la fuente principal.
+    Devuelve True si el panel quedó operativo.
+    """
+    if not archivo_json or not os.path.isfile(archivo_json):
+        return False
+    with open(archivo_json) as f:
+        eventos = json.load(f)
+    perfiles = ap.detectar_perfiles()
+    if not perfiles:
+        return False
+    perfiles_por_id = {p["id"]: p for p in perfiles}
+    grupos, sin_perfil, huerfanos = _agrupar_por_perfil(eventos, perfiles_por_id)
+    n_huerfanos = sum(len(v) for v in huerfanos.values())
+    n_eventos = len(eventos)
+    n_sospechosos = sum(1 for ev in eventos if ev.get('sospechoso'))
+    n_altas = sum(1 for ev in eventos if ev.get('revision') == "Alta")
+    con_prioridad = any("revision" in ev for ev in eventos)
+    total_percibidos = sum(1 for ev in eventos if ev.get('percibido') == "S")
+    conteo_por_perfil, conteo_total = _cargar_conteo(vista or fuente)
+    return _panel_analisis(grupos, perfiles_por_id, sin_perfil, fuente,
+                           conteo_por_perfil, conteo_total, n_eventos,
+                           n_sospechosos, total_percibidos,
+                           contenedor=contenedor,
+                           etiqueta_fuente=etiqueta_fuente,
+                           n_huerfanos=n_huerfanos,
+                           con_prioridad=con_prioridad, n_altas=n_altas)
+
+
+def _despliegue_secuencial(grupos, perfiles_por_id, sin_perfil, fuente,
+                           conteo_por_perfil, conteo_total, bloquear=True):
+    """
+    Fallback para cuando no hay backend interactivo (headless): un perfil por
+    ventana y luego los mapas de territorio de los eventos sin perfil.
+    En modo interactivo el análisis se hace desde el panel, así que solo se
+    llega aquí si el panel no pudo abrirse.
+    Devuelve (percibidos, total_por_perfil).
+    """
+    global _detener_despliegue
+    _detener_despliegue = False
+
+    percibidos = 0
+    total_por_perfil = {}
+
+    for pid in sorted(grupos):
+        if despliegue_detenido():
+            break
+        perfil = perfiles_por_id[pid]
+        _registrar_progreso("Perfil %s de %d"
+                            % (pid, len(grupos)))
+        p, n = plotear_ventana(grupos[pid], perfil, fuente, percibidos,
+                               n_asignados=conteo_por_perfil.get(pid),
+                               totales=conteo_total, bloquear=bloquear)
+        percibidos += p
+        total_por_perfil[pid] = n
+
+    if sin_perfil and not despliegue_detenido():
+        _registrar_progreso("Eventos sin perfil")
+        nacional, insular, antartico = _categorizar_por_territorio(sin_perfil)
+
+        for nombre, eventos_territorio in [
+            ("Nacional", nacional),
+            ("Insular", insular),
+            ("Antártico", antartico)
+        ]:
+            if despliegue_detenido():
+                break
+            if eventos_territorio:
+                p, n = plotear_planta(
+                    eventos_territorio, fuente, perfil=None,
+                    n_asignados=conteo_por_perfil.get("(%s)" % nombre),
+                    totales=conteo_total, territorio=nombre,
+                    bloquear=bloquear
+                )
+                percibidos += p
+                total_por_perfil[nombre] = n
+
+    if despliegue_detenido():
+        print("Despliegue detenido por el usuario.")
+
+    return percibidos, total_por_perfil
+
+
+def _escribir_log_sesion(fuente, total_eventos, n_sospechosos,
+                         total_percibidos=None, vistos=None):
+    """
+    Guarda el resumen de la sesión en dos archivos del directorio de trabajo:
+      - resumen_historico.log: acumulativo. Si no existe se crea con
+        encabezado (puede haberse borrado); luego se añade una línea por
+        ejecución.
+      - resumen_sesion.log: solo la sesión actual (se pisa en cada ejecución).
+    Devuelve la línea escrita.
+    """
+    import datetime
+    ahora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    t_perc = total_percibidos if total_percibidos is not None else "-"
+    v = vistos if vistos is not None else "-"
+    linea = ("%s | %s | %d | %d | %s | %s"
+             % (ahora, fuente, total_eventos, n_sospechosos, t_perc, v))
+    encabezado = ("fecha hora | fuente | eventos | sospechosos | "
+                  "percibidos catalogo | percibidos vistos")
+    ruta_hist = rutas.p_ploteo("resumen_historico.log")
+    ruta_sesion = rutas.p_ploteo("resumen_sesion.log")
+    if not os.path.isfile(ruta_hist):
+        with open(ruta_hist, "w") as f:
+            f.write(encabezado + "\n")
+    with open(ruta_hist, "a") as f:
+        f.write(linea + "\n")
+    with open(ruta_sesion, "w") as f:
+        f.write(encabezado + "\n")
+        f.write(linea + "\n")
+    return linea
+
+
+def main():
+    if len(sys.argv) < 3:
+        print(__doc__)
+        sys.exit(1)
+
+    archivo = sys.argv[1]
+    fuente = sys.argv[2]
+
+    if not os.path.isfile(archivo):
+        print("Error: no se encontró el archivo '%s'." % archivo)
+        sys.exit(1)
+
+    # abre percibidos.txt SIEMPRE en modo "w" para evitar acumular datos
+    # de ejecuciones anteriores (solo relevante para eventquery)
+    if fuente == "eventquery":
+        _percibidos_escritos.clear()
+        with open(rutas.p_ploteo("percibidos.txt"), "w") as f:
+            f.write("id fecha hora latitud longitud prof magnitud tipomag percibido\n")
+
+    # Carga el conteo por perfil que generajson.py dejó en
+    # datos/conteo_perfiles_<fuente>.json para mostrarlo a medida que se plotea.
+    conteo_por_perfil, conteo_total = _cargar_conteo(fuente)
+
+    with open(archivo) as contenido:
+        eventos = json.load(contenido)
+
+    perfiles = ap.detectar_perfiles()
+    if not perfiles:
+        print("Error: no se detectaron perfiles validos en 'grillas'.")
+        sys.exit(1)
+
+    perfiles_por_id = {p["id"]: p for p in perfiles}
+
+    # agrupa en memoria por perfil (avisa si el JSON es de otro set de grillas)
+    grupos, sin_perfil, huerfanos = _agrupar_por_perfil(eventos, perfiles_por_id)
+    n_huerfanos = sum(len(v) for v in huerfanos.values())
+
+    n_eventos = len(eventos)
+    n_sospechosos = sum(1 for ev in eventos if ev.get('sospechoso'))
+    # Total de percibidos del catálogo extraído (denominador del resumen
+    # "vistos de totales").
+    total_percibidos = sum(
+        1 for ev in eventos if ev.get('percibido') == "S")
+
+    # Nueva interacción: panel de análisis con vista general y detalle a
+    # demanda. Si no hay backend interactivo (o falla) se cae al flujo
+    # secuencial histórico.
+    if _panel_analisis(grupos, perfiles_por_id, sin_perfil, fuente,
+                       conteo_por_perfil, conteo_total, n_eventos,
+                       n_sospechosos, total_percibidos,
+                       n_huerfanos=n_huerfanos):
+        # Mantiene viva la raíz Tk: procesa eventos del panel y de las
+        # figuras de detalle hasta que el usuario cierra la sesión. Se usa
+        # el mainloop de la raíz (y no plt.show()) para que el ancla oculta
+        # nunca vuelva a mapearse como cuadro vacío.
+        raiz = _raiz_tk()
+        if raiz is not None:
+            raiz.mainloop()
+    else:
+        _despliegue_secuencial(grupos, perfiles_por_id, sin_perfil, fuente,
+                               conteo_por_perfil, conteo_total,
+                               bloquear=True)
+
+    if fuente == "eventquery":
+        vistos = len(_percibidos_escritos)
+        _escribir_log_sesion(fuente, n_eventos, n_sospechosos,
+                             total_percibidos, vistos)
+        print("De %d percibidos en el catalogo, %d eventos percibidos "
+              "vistos en esta sesion." % (total_percibidos, vistos))
+    else:
+        _escribir_log_sesion(fuente, n_eventos, n_sospechosos)
+
+
+if __name__ == "__main__":
+    main()

@@ -38,6 +38,9 @@ def _config() -> dict:
 def _entorno() -> dict:
     config = _config()
     entorno = os.environ.copy()
+    entorno["RCS_CORE_DATA"] = str(
+        current_app.config.get("RCS_CORE_DATA", "")
+    )
     entorno.update(
         {
             "RCS_DB_HOST": config["host"],

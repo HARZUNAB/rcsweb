@@ -93,7 +93,7 @@ CATALOGOS_SSH_USER=sysopr
 
 ## Exportación de SeisComp (solo lectura)
 
-La exportación reutiliza `exporta_ventana_seiscomp.py` del proyecto base con
+La exportación reutiliza `exporta_ventana_seiscomp.py` del core incorporado con
 `--base todas`: consulta la base histórica y la de tiempo real y combina los
 resultados. El script escribe el CSV, `_fases.csv`, `_no_picadas.csv` y la marca
 `.completo`.
@@ -260,7 +260,7 @@ docker compose exec web flask --app app set-analyst-code gjerez Jere \
 ## Pipeline
 
 El worker arma el plan según las fuentes seleccionadas y ejecuta los scripts del
-proyecto base con `cwd` en `workspace/<job>/` y `RV_PROG=1`/`RV_ENTREGABLES=1`:
+core incorporado con `cwd` en `workspace/<job>/` y `RV_PROG=1`/`RV_ENTREGABLES=1`:
 
 | Fuente | Pasos |
 |---|---|
@@ -344,7 +344,7 @@ Seisan. El trabajo de demostración conserva sus resultados.
   mínimo de 8° de longitud × 3° de latitud y se limita el zoom inicial a 7.
   En `No actualizados` se ven la solución local y la publicada, y la publicada
   es la referencia; en `Repetidos` se ve el grupo completo.
-- **Colores y leyendas**: se usa la paleta del proyecto base: amarillo para
+- **Colores y leyendas**: se usa la paleta del core incorporado: amarillo para
   sismos registrados o no percibidos, rojo para Eventquery percibido, anillo
   blanco/negro para la solución publicada, borde violeta para sospechosos, aro
   azul marino para el seleccionado y aro magenta para soluciones superpuestas.
@@ -405,7 +405,7 @@ Seisan. El trabajo de demostración conserva sus resultados.
   El script toma el SVG base, agrega o reemplaza la capa `region-chile` con los
   límites de Natural Earth 10m y genera el JSON de contorno y regiones para los
   paneles. Cartopy descarga las capas la primera vez si no están. No modifica el
-  proyecto base.
+  core incorporado.
 - Las miniaturas usan `loading="lazy"` y las imágenes se sirven con caché HTTP.
 
 ## Servicios y puertos
@@ -473,7 +473,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **350 tests**.
+runner de solo lectura. Total actual: **352 tests**.
 
 ## Filtros y exportación
 
@@ -551,11 +551,16 @@ runner de solo lectura. Total actual: **350 tests**.
 docker compose exec web flask --app app delete-job <job_id>
 ```
 
-## Relación con el proyecto base
+## Core incorporado
 
-El proyecto de escritorio vive en `~/Desarrollo/revisacatalogosweb` y se monta
-**solo lectura** en `/opt/rcs-core`. El worker ejecuta sus scripts con el
-directorio de trabajo en `workspace/<job>`. No se modifica el código original.
+El core ya forma parte de este repositorio:
+
+- `core/`: módulos y scripts de procesamiento;
+- `core_data/`: grillas, relieves, sismicidad histórica y localidades.
+
+El worker ejecuta esos scripts con el directorio de trabajo en
+`workspace/<job>`. Los datos grandes de `core_data/` no se versionan en Git y
+se instalan con `scripts/instalar_core_data.sh`.
 
 ## Seguridad
 

@@ -8,18 +8,18 @@ RCS Web.
 ## Arquitectura
 
 RCS Web es una aplicación Flask con tareas asíncronas en Celery. La interfaz
-web y el worker comparten el mismo código y el mismo espacio de trabajo; el
-proyecto base se monta en solo lectura.
+web y el worker comparten el mismo código y el mismo espacio de trabajo. El
+core sísmico está incorporado en `core/` y sus datos grandes en `core_data/`.
 
 ![Arquitectura de RCS Web](img/arquitectura.png)
 
 | Componente | Función |
 |---|---|
 | **Flask web** | Interfaz, autenticación, permisos, tablas, paneles y descargas |
-| **Celery worker** | Ejecuta el pipeline del proyecto base |
+| **Celery worker** | Ejecuta el pipeline del core incorporado |
 | **PostgreSQL** | Usuarios, trabajos, archivos, pasos, artefactos, solicitudes y auditoría |
 | **Redis** | Cola de Celery |
-| **Core sísmico** | Scripts de procesamiento montados en solo lectura |
+| **Core sísmico** | Scripts incorporados en `core/` |
 | **Workspace** | Archivos de entrada y salida de cada trabajo |
 
 ## Puesta en marcha
@@ -27,9 +27,10 @@ proyecto base se monta en solo lectura.
 ### Requisitos
 
 - Docker y Docker Compose.
-- El proyecto base en el host, por ejemplo
-  `/home/usuario/Desarrollo/revisacatalogosweb`.
-- Los datos sísmicos y Cartopy en el host.
+- El código del core en `core/`.
+- Los datos grandes del core en `core_data/`, instalados con
+  `scripts/instalar_core_data.sh` o copiados desde una instalación existente.
+- Los datos sísmicos externos y Cartopy en el host.
 - El archivo `.env` configurado.
 
 ### Variables principales
@@ -38,8 +39,9 @@ proyecto base se monta en solo lectura.
 |---|---|---|
 | `DATABASE_URL` | Conexión SQLAlchemy | `postgresql+psycopg://rcs:rcs@db:5432/rcs` |
 | `WORKSPACE_ROOT` | Carpeta de trabajos dentro del contenedor | `/workspace` |
-| `RCS_CORE_PATH` | Proyecto base dentro del contenedor | `/opt/rcs-core` |
-| `DATOS_PATH` | Datos de entrada dentro del contenedor | `/data` |
+| `RCS_CORE_PATH` | Código del core dentro del contenedor | `/app/core` |
+| `RCS_CORE_DATA` | Datos grandes del core | `/app/core_data` |
+| `DATOS_PATH` | Datos externos dentro del contenedor | `/data` |
 | `CARTOPY_DATA_DIR` | Datos de Cartopy | `/data/cartopy` |
 | `MAPS_MODE` | `auto`, `online` u `offline` | `auto` |
 | `ADMIN_USERNAME` | Administrador inicial | `admin` |
@@ -955,8 +957,8 @@ de root.
 5. Los resultados se normalizan en `workspace/<job_id>/resultados/`.
 6. La interfaz lee esos archivos para las tablas, miniaturas, mapas y paneles.
 
-El proyecto base se monta en solo lectura y no se modifica. Las miniaturas,
-mapas y paneles se cachean en el workspace. `plots._ruta_cache()` conserva la
+El core incorporado no se modifica desde la aplicación. Las miniaturas, mapas
+y paneles se cachean en el workspace. `plots._ruta_cache()` conserva la
 ruta relativa del archivo de resultados y rechaza rutas absolutas o con `..`.
 Así los catálogos usan, por ejemplo,
 `plots/miniaturas/catalogos/resultados/catalogo_eventquery/0.png`.
@@ -1117,4 +1119,5 @@ Los Markdown son la fuente de verdad; no edite los `.docx` a mano.
   HTTPS.
 - Mantenga respaldos de la base y del workspace.
 - Revise la auditoría y desactive las cuentas que ya no se usan.
-- No modifique el proyecto base; se monta en solo lectura.
+- No modifique `core/` desde la aplicación; los cambios de código se hacen en
+  el repositorio y se despliegan con el resto de RCS Web.

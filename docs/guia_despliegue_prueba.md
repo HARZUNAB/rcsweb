@@ -60,6 +60,16 @@ Crear el workspace con el UID del usuario `rcs` del contenedor, que es `1000`:
 sudo install -d -o 1000 -g 1000 /home/rcswebtest/rcsweb/workspace
 ```
 
+Copiar los datos grandes del core desde la instalación de desarrollo. Se hace
+una sola vez; no se versionan en Git:
+
+```bash
+sudo install -d -o rcswebtest -g rcswebtest /home/rcswebtest/rcsweb/core_data
+sudo rsync -a --chown=rcswebtest:rcswebtest \
+  /home/hriquelmez/Desarrollo/rcsweb/core_data/ \
+  /home/rcswebtest/rcsweb/core_data/
+```
+
 ## Configurar el archivo .env
 
 ```bash
@@ -93,9 +103,6 @@ DATABASE_URL=postgresql+psycopg://rcs:<la misma clave>@db:5432/rcs
 
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=<contraseña fuerte>
-
-RCS_CORE_PATH_HOST=/home/hriquelmez/Desarrollo/revisacatalogosweb
-RCS_CORE_PATH=/opt/rcs-core
 
 DATOS_PATH_HOST=/home/hriquelmez/datos
 DATOS_PATH=/data
@@ -386,6 +393,7 @@ sudo rsync -a --delete --chown=rcswebtest:rcswebtest \
   --exclude '.env' \
   --exclude 'docker-compose.test.yml' \
   --exclude 'workspace/' \
+  --exclude 'core_data/' \
   --exclude '.git/' \
   --exclude '.venv/' \
   --exclude '__pycache__/' \
@@ -396,6 +404,8 @@ Notas:
 
 - `--delete` no elimina los archivos excluidos.
 - El workspace de prueba no se toca.
+- `core_data/` no se copia en cada actualización: se instala una vez y se
+  conserva.
 - El `.env` de prueba no se sobrescribe.
 - Si cambió `.env.example`, comparar y actualizar manualmente el `.env` de prueba.
 - Si se agregaron dependencias en `pyproject.toml`, será necesario reconstruir la imagen.

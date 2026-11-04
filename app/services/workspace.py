@@ -82,10 +82,10 @@ def guardar_archivo(file_storage, destino: Path) -> tuple[int, str]:
 
 
 def enlazar_insumos(workspace: Path) -> None:
-    """Crea symlinks a los insumos del core montado en solo lectura."""
-    core = Path(current_app.config["RCS_CORE_PATH"])
+    """Crea symlinks a los insumos del core incorporado."""
+    core_data = Path(current_app.config["RCS_CORE_DATA"])
     for nombre in INSUMOS:
-        origen = core / nombre
+        origen = core_data / nombre
         destino = workspace / nombre
         if not origen.exists() or destino.exists():
             continue

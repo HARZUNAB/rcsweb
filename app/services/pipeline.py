@@ -1,6 +1,6 @@
 """Orquestación del pipeline de análisis.
 
-Ejecuta los scripts del proyecto base como subprocesos, con el workspace del
+Ejecuta los scripts del core incorporado como subprocesos, con el workspace del
 trabajo como directorio de ejecución, y traduce las líneas ``@@PROGRESO@@`` a
 progreso del job. No modifica el core: lo invoca desde su montaje read-only.
 """
@@ -163,7 +163,7 @@ def _ejecutar_paso(
     core = Path(current_app.config["RCS_CORE_PATH"])
     script = core / paso.script
     if not script.is_file():
-        raise PipelineError(f"No se encontró {script} en el core montado.")
+        raise PipelineError(f"No se encontró {script} en el core incorporado.")
 
     comando = [sys.executable, str(script), *paso.args]
     log.escribir("")
@@ -171,6 +171,9 @@ def _ejecutar_paso(
     log.escribir("$ " + " ".join(comando))
 
     entorno = os.environ.copy()
+    entorno["RCS_CORE_DATA"] = str(
+        current_app.config.get("RCS_CORE_DATA", core.parent / "core_data")
+    )
     entorno.update(
         {
             "RV_PROG": "1",

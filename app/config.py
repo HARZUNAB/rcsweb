@@ -48,7 +48,12 @@ class Config:
 
     # Rutas de trabajo
     WORKSPACE_ROOT = Path(os.environ.get("WORKSPACE_ROOT", BASE_DIR / "workspace"))
-    RCS_CORE_PATH = Path(os.environ.get("RCS_CORE_PATH", "/opt/rcs-core"))
+    RCS_CORE_PATH = Path(
+        os.environ.get("RCS_CORE_PATH", BASE_DIR / "core")
+    ).resolve()
+    RCS_CORE_DATA = Path(
+        os.environ.get("RCS_CORE_DATA", BASE_DIR / "core_data")
+    ).resolve()
     DATOS_PATH = Path(os.environ.get("DATOS_PATH", "/data"))
 
     # Celery
