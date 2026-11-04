@@ -17,6 +17,8 @@ online/offline con zoom, colores por fuente y panel de parámetros.
   [DOCX](docs/manual_usuario.docx)
 - **Manual técnico**: [Markdown](docs/manual_tecnico.md) ·
   [DOCX](docs/manual_tecnico.docx)
+- **Guía de despliegue de prueba**: [Markdown](docs/guia_despliegue_prueba.md) ·
+  [DOCX](docs/guia_despliegue_prueba.docx)
 
 Los Markdown son la fuente de verdad. Los DOCX se regeneran con:
 
@@ -569,7 +571,8 @@ se instalan con `scripts/instalar_core_data.sh`.
 - Sesiones `HttpOnly` y `SameSite=Lax`; `Secure` se activa con
   `SESSION_COOKIE_SECURE=1` bajo HTTPS.
 - Subidas limitadas a `MAX_UPLOAD_MB`.
-- El dump y el core se montan en solo lectura.
+- El dump, `core_data/` y los datos externos se montan en solo lectura.
+- El código de `core/` también se monta en solo lectura dentro de los contenedores.
 - SeisComp se consulta con el rol `rcs_ro` y el runner fuerza
   `default_transaction_read_only=on` en cada conexión.
 - Descargas validadas contra el workspace del trabajo (sin traversal).

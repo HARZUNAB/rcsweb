@@ -80,9 +80,12 @@ La aplicación queda en `http://127.0.0.1:8000`.
 | `pgdata` | Volumen Docker | Datos de PostgreSQL |
 | `redisdata` | Volumen Docker | Persistencia de Redis |
 | `./workspace` | Bind mount | Archivos de los trabajos |
+| `./core` | Bind mount en solo lectura | Código del core incorporado |
+| `./core_data` | Bind mount en solo lectura | Datos grandes del core |
 
-El servicio `web` monta además `./app`, `./tasks` y `./migrations`, y el core y
-los datos en solo lectura.
+El servicio `web` monta además `./app`, `./tasks` y `./migrations`. El código
+del core y sus datos grandes se montan en solo lectura desde `./core` y
+`./core_data`.
 
 ## Almacenamiento
 
