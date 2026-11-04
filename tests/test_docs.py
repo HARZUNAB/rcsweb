@@ -55,3 +55,15 @@ def test_manual_tecnico_documenta_relaciones_y_catalogos():
     assert "UNIQUE (job_id, source_id, event_id)" in texto
     assert "SET NULL" in texto
     assert "CASCADE" in texto
+
+
+def test_guia_despliegue_prueba_existe_y_tiene_anexo():
+    markdown = DOCS / "guia_despliegue_prueba.md"
+    docx = DOCS / "guia_despliegue_prueba.docx"
+    assert markdown.is_file()
+    assert docx.is_file()
+    with zipfile.ZipFile(docx) as archivo:
+        xml = archivo.read("word/document.xml").decode("utf-8")
+    assert "rcswebtest" in xml
+    assert "Anexo A" in xml
+    assert "Actualizar la app de prueba" in xml

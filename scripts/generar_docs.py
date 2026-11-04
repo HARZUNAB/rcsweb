@@ -43,6 +43,10 @@ MANUALES = {
         "Manual técnico",
         "Instalación, operación y mantenimiento",
     ),
+    "guia_despliegue_prueba": (
+        "Guía de despliegue de prueba",
+        "Cuenta rcswebtest, acceso seguro y actualizaciones",
+    ),
 }
 
 MESES = (
