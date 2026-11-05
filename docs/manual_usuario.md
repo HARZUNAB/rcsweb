@@ -99,6 +99,11 @@ El listado muestra **Estado inicial** y **Estado final**:
     trabajo.
   - **Sin trabajo**: la solicitud no generó un trabajo.
 
+La columna **Creador** identifica al usuario que creó cada solicitud. El
+supervisor y el administrador ven las solicitudes de todos los usuarios; el
+analista y el perfil de consulta solo ven las propias. Si la solicitud es
+anterior a este campo, el creador aparece como `—`.
+
 La columna **Eliminado** muestra la fecha en que se eliminó el trabajo, o `—`
 si sigue vigente. El estado de descarga puede seguir siendo **Terminada**,
 porque la descarga sí se completó; el estado final indica qué pasó con el

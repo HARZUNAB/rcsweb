@@ -32,7 +32,18 @@ def _radios(html: str) -> list[str]:
     return re.findall(r'<input[^>]*name="primary_source"[^>]*>', html)
 
 
-def _solicitud(app, status="queued", fuentes=("eventquery", "seisan"), principal=None, radio=None):
+def _solicitud(
+    app,
+    status="queued",
+    fuentes=("eventquery", "seisan"),
+    principal=None,
+    radio=None,
+    creador_id=None,
+):
+    if creador_id is None:
+        creador_id = db.session.execute(
+            db.select(User.id).filter_by(username="tester")
+        ).scalar_one()
     solicitud = CatalogRequest(
         id=nuevo_uuid(),
         mode="ssh",
@@ -43,9 +54,7 @@ def _solicitud(app, status="queued", fuentes=("eventquery", "seisan"), principal
         station_radius_km=radio,
         server="10.54.217.9",
         remote_user="sysopr",
-        requested_by_id=db.session.execute(
-            db.select(User.id).filter_by(username="tester")
-        ).scalar_one(),
+        requested_by_id=creador_id,
     )
     db.session.add(solicitud)
     db.session.commit()
@@ -471,6 +480,67 @@ def test_ejecutar_solicitud_invalida_no_crea_job(app, monkeypatch):
     solicitud = db.session.get(CatalogRequest, solicitud.id)
     assert solicitud.status == "failed"
     assert db.session.execute(db.select(Job)).scalar_one_or_none() is None
+
+
+def test_lista_solicitudes_identifica_creador(app, client, login):
+    maria = User(username="maria", role="analista")
+    maria.set_password("secret")
+    db.session.add(maria)
+    db.session.commit()
+    _solicitud(app)
+    propia = _solicitud(app, creador_id=maria.id)
+    login()
+
+    html = client.get("/solicitudes/").get_data(as_text=True)
+
+    assert "<th>Creador</th>" in html
+    assert "maria" in html
+
+    detalle = client.get(f"/solicitudes/{propia.id}").get_data(as_text=True)
+    assert "solicitada por" in detalle
+    assert "maria" in detalle
+
+
+def test_supervisor_identifica_creador_de_solicitud(app, client):
+    supervisor = User(username="supervisora", role="supervisor")
+    supervisor.set_password("secret")
+    db.session.add(supervisor)
+    db.session.commit()
+    solicitud = _solicitud(app, creador_id=supervisor.id)
+    client.post(
+        "/login",
+        data={"username": "supervisora", "password": "secret"},
+    )
+
+    lista = client.get("/solicitudes/").get_data(as_text=True)
+    detalle = client.get(f"/solicitudes/{solicitud.id}").get_data(as_text=True)
+
+    assert "Creador" in lista
+    assert "supervisora" in lista
+    assert "solicitada por" in detalle
+    assert "supervisora" in detalle
+
+
+def test_detalle_solicitud_sin_creador_muestra_guion(app, client, login):
+    solicitud = CatalogRequest(
+        id=nuevo_uuid(),
+        mode="ssh",
+        period_start=datetime(2026, 10, 1, tzinfo=UTC),
+        period_end=datetime(2026, 10, 31, 23, 59, 59, tzinfo=UTC),
+        status="done",
+        server="10.54.217.9",
+        remote_user="sysopr",
+        requested_by_id=None,
+    )
+    db.session.add(solicitud)
+    db.session.commit()
+    preparar_workspace(solicitud.id)
+    login()
+
+    detalle = client.get(f"/solicitudes/{solicitud.id}").get_data(as_text=True)
+
+    assert "solicitada por" in detalle
+    assert "—" in detalle
 
 
 def _exportar_seiscomp_falso(error=None):

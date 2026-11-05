@@ -79,8 +79,9 @@ capacidad, se muestra “no evaluable”.
 - El **radio de estaciones** es editable por solicitud (400 km por defecto) y
   define la lista de estaciones sin arribos del export.
 - La contraseña se usa solo durante la descarga (`SSH_ASKPASS`) y no se guarda.
-- Historial en `/solicitudes`, con estado por catálogo, progreso, log y
-  reintento de lo fallido.
+- Historial en `/solicitudes`, con creador, estado por catálogo, progreso, log y
+  reintento de lo fallido. El supervisor y el administrador ven las solicitudes
+  de todos los usuarios y pueden identificar quién creó cada una.
 - Al validar, crea el trabajo con `origin=ssh` y lo encola en el pipeline.
 - Los comandos remotos se ejecutan con un locale UTF-8 para que `eventquery2`
   no falle con nombres acentuados.
@@ -475,7 +476,7 @@ make fmt      # ruff format
 Incluye tests de validadores, plan dinámico, alta con SeisComp-only,
 alta con Seisan-only, borradores por validación fallida, solicitudes SSH con un
 módulo de red simulado, exportación SeisComp con `subprocess` simulado y el
-runner de solo lectura. Total actual: **355 tests**.
+runner de solo lectura. Total actual: **358 tests**.
 
 ## Filtros y exportación
 

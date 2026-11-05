@@ -15,6 +15,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
+from sqlalchemy.orm import selectinload
 
 from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
@@ -119,8 +120,10 @@ def _puede_reintentar(solicitud: CatalogRequest) -> bool:
 @login_required
 @permiso_requerido("solicitudes.ver")
 def lista():
-    consulta = db.select(CatalogRequest).order_by(
-        CatalogRequest.created_at.desc()
+    consulta = (
+        db.select(CatalogRequest)
+        .options(selectinload(CatalogRequest.requested_by))
+        .order_by(CatalogRequest.created_at.desc())
     )
     if not alcance_total(current_user):
         consulta = consulta.where(

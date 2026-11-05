@@ -16,6 +16,8 @@
       <div class="text-secondary small">
         {{ solicitud.id }} · {{ solicitud.remote_user }}@{{ solicitud.server }}
         · creada {{ solicitud.created_at.strftime('%Y-%m-%d %H:%M') }}
+        · solicitada por
+        {{ solicitud.requested_by.username if solicitud.requested_by else '—' }}
         {% if solicitud.station_radius_km %}
           · radio {{ solicitud.station_radius_km }} km
         {% endif %}

@@ -22,6 +22,7 @@
       <thead class="table-light">
         <tr>
           <th>Período</th>
+          <th>Creador</th>
           <th>Servidor</th>
           <th>Estado inicial</th>
           <th>Estado final</th>
@@ -37,6 +38,9 @@
           <td>
             {{ solicitud.period_start.strftime('%Y-%m-%d') }} →
             {{ solicitud.period_end.strftime('%Y-%m-%d') }}
+          </td>
+          <td class="small">
+            {{ solicitud.requested_by.username if solicitud.requested_by else '—' }}
           </td>
           <td class="small">
             {{ solicitud.remote_user }}@{{ solicitud.server }}
@@ -78,7 +82,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="8" class="text-center text-secondary py-5">
+          <td colspan="9" class="text-center text-secondary py-5">
             No hay solicitudes todavía.
           </td>
         </tr>
