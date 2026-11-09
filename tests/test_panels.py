@@ -723,6 +723,7 @@ def test_ruta_detalle_grupo_perfil(client, login, monkeypatch):
     assert "ident=P001" in html
     assert 'id="controles-estaciones-mapa"' not in html
     assert 'id="btn-propagacion"' not in html
+    assert 'id="btn-propagacion-consultar"' not in html
 
 
 def test_ruta_detalle_grupo_territorio_sin_perfil(client, login, monkeypatch):
@@ -746,6 +747,7 @@ def test_ruta_detalle_grupo_territorio_sin_perfil(client, login, monkeypatch):
     assert "ident=Otros" in html
     assert 'id="controles-estaciones-mapa"' not in html
     assert 'id="btn-propagacion"' not in html
+    assert 'id="btn-propagacion-consultar"' not in html
 
 
 def test_ruta_detalle_grupo_inexistente(client, login, monkeypatch):

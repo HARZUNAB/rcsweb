@@ -979,6 +979,29 @@ consultar disponibilidad.
 5. En cada cuadro se marca cada estación como `pendiente`, `observada` o
    `estimada`, y se pasa una instantánea a `window.RCSMapaDetalle`.
 
+La revisión expone `tiene_estimadas` para mostrar el botón de consulta solo
+cuando hay estaciones sin arribos en el mapa. Cada estación estimada lleva
+además `estado_ondas`, derivado del campo `disponible` que ya entrega la
+revisión:
+
+| `disponible` | `estado_ondas` |
+|---|---|
+| `"Sí"` | `disponible` |
+| `"No"` | `sin_datos` |
+| `"—"` o vacío | `sin_consultar` |
+
+El botón **Consultar formas de onda** de la barra de propagación no crea un
+flujo nuevo: llama a `encolar(false)`, la misma función que usa la solapa
+**Sin arribos**. `encolar`, `consultarEstado`, `actualizarPanel` y
+`prepararPropagacion` siguen siendo los únicos responsables del POST, el
+sondeo, la actualización del panel y el redibujo. `mostrarEstado` escribe el
+progreso tanto en el panel como en `#propagacion-consulta-estado`, y
+`bloquearBotonesConsulta` habilita/deshabilita los tres botones de consulta.
+`actualizarResumenEstimadas` cuenta las estaciones visibles por estado.
+
+La consulta no genera tiempos de arribo: la estación sigue siendo `estimada`
+para el frente. Solo cambia la certeza sobre la disponibilidad de ondas.
+
 La reproducción usa `requestAnimationFrame` con un avance de
 `maxT / 15` segundos de evento por segundo real, multiplicado por 1x, 2x o 5x.
 Los redibujos se limitan a ~20 por segundo. El control de tiempo también se
@@ -996,6 +1019,8 @@ En **Leaflet**:
 - cada estación es un `divIcon` con un triángulo SVG;
 - las estaciones se dibujan con `L.marker` y se actualizan cambiando el
   `fill`/`stroke` del polígono;
+- en propagación el icono incluye un badge `×` para `sin_datos` y `•` para
+  `disponible`;
 - el frente son cuatro `L.circle` concéntricos (principal y tres estelas), con
   radio en metros actualizado en cada cuadro.
 
@@ -1004,10 +1029,13 @@ En **Plotly**:
 - las estaciones son trazas `scattergeo` con `symbol: "triangle-up"`;
 - el frente son trazas de línea con un polígono geodésico generado con
   `circuloGeo()`;
+- los estados de ondas se dibujan como trazas superpuestas con `symbol: "x"` y
+  `symbol: "circle"`;
 - las trazas se agregan una vez y se actualizan con `Plotly.restyle`.
 
 El color único es `#0b7285`: relleno para observadas, contorno para estimadas y
-gris para pendientes. No se colorea por fase.
+gris para pendientes. No se colorea por fase. La vista estática no muestra los
+badges de ondas; el estado se consulta en el popup.
 
 ##### Curva de tiempos
 

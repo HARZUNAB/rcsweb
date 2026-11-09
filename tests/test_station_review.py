@@ -221,6 +221,7 @@ def test_revision_agrupa_y_filtra_no_utilizadas(tmp_path):
     assert revision["sin_arribos"][0]["_categoria"] == "indicio"
 
     assert revision["tiene_coordenadas"] is True
+    assert revision["tiene_estimadas"] is True
     assert revision["tiene_tiempos"] is True
     mapa = revision["estaciones_mapa"]
     assert len(mapa) == 2
@@ -282,6 +283,7 @@ def test_revision_solo_arribos_alimenta_mapa_y_tiempos(tmp_path):
     assert revision["estado"] == "ok"
     assert revision["sin_arribos"] == []
     assert revision["tiene_coordenadas"] is True
+    assert revision["tiene_estimadas"] is False
     assert revision["tiene_tiempos"] is True
     mapa = revision["estaciones_mapa"]
     assert {punto["estacion"] for punto in mapa} == {"ANMO"}
@@ -449,6 +451,7 @@ def _job_con_revision(app, *, con_sin_arribos: bool = True):
 
 
 def test_detalle_muestra_revision_y_descarga(client, login, app):
+    app.config["RCS_DISPONIBILIDAD_URL"] = "http://sidecar:8010"
     job = _job_con_revision(app)
     login()
 
@@ -491,6 +494,9 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert 'id="propagacion-controles"' in html
     assert 'id="propagacion-tiempo"' in html
     assert 'id="btn-propagacion-play"' in html
+    assert 'id="btn-propagacion-consultar"' in html
+    assert 'id="propagacion-estimadas"' in html
+    assert 'id="propagacion-consulta-estado"' in html
     assert html.count('id="btn-propagacion"') == 1
     assert html.count('id="propagacion-controles"') == 1
     assert 'id="tiempos-llegada-datos"' in html
@@ -575,6 +581,7 @@ def test_detalle_solo_arribos_muestra_controles(client, login, app):
     assert 'id="btn-propagacion"' in html
     assert 'id="propagacion-controles"' in html
     assert html.count('id="btn-propagacion"') == 1
+    assert 'id="btn-propagacion-consultar"' not in html
     assert 'id="estaciones-mapa-datos"' in html
     assert 'id="tiempos-llegada-datos"' in html
 

@@ -450,6 +450,28 @@ footer {
   overflow: visible;
 }
 
+.rcs-estacion-simbolo {
+  position: relative;
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.rcs-estacion-badge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+  color: #0b7285;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff;
+}
+
+.rcs-estacion-badge.sin-datos {
+  color: #6c757d;
+}
+
 #propagacion-controles {
   padding: 0.5rem 0.65rem;
   border: 1px solid #d7e3e7;

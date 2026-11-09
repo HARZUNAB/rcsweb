@@ -591,6 +591,7 @@ def _vacio(
         "consulta_pendientes": 0,
         "consulta_requiere_todas": False,
         "tiene_coordenadas": False,
+        "tiene_estimadas": False,
         "tiene_tiempos": False,
         "estaciones_mapa": [],
         "tiempos_llegada": {},
@@ -820,6 +821,9 @@ def _datos_mapa_tiempos(
         and arribo["segundos"] is not None
     ]
     tiene_coordenadas = bool(estaciones_mapa)
+    tiene_estimadas = any(
+        punto["tipo"] != "arribo" for punto in estaciones_mapa
+    )
     tiene_tiempos = bool(event_time) and bool(graficables or estaciones_tiempo)
     tiempos_llegada = (
         {
@@ -833,6 +837,7 @@ def _datos_mapa_tiempos(
     )
     return {
         "tiene_coordenadas": tiene_coordenadas,
+        "tiene_estimadas": tiene_estimadas,
         "tiene_tiempos": tiene_tiempos,
         "estaciones_mapa": estaciones_mapa,
         "tiempos_llegada": tiempos_llegada,
@@ -1014,6 +1019,7 @@ def revisar_evento(
         "consulta_pendientes": consulta_pendientes,
         "consulta_requiere_todas": consulta_omitidas > 0,
         "tiene_coordenadas": datos_mapa["tiene_coordenadas"],
+        "tiene_estimadas": datos_mapa["tiene_estimadas"],
         "tiene_tiempos": datos_mapa["tiene_tiempos"],
         "estaciones_mapa": datos_mapa["estaciones_mapa"],
         "tiempos_llegada": datos_mapa["tiempos_llegada"],

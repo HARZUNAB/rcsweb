@@ -62,6 +62,17 @@
     Reiniciar
   </button>
   <span class="small text-secondary" id="propagacion-fuente"></span>
+  {% if rev.puede_consultar and rev.tiene_estimadas %}
+  <div class="w-100 d-flex flex-wrap align-items-center gap-2">
+    <button type="button" class="btn btn-sm btn-outline-secondary"
+            id="btn-propagacion-consultar">
+      Consultar formas de onda
+    </button>
+    <span class="small text-secondary" id="propagacion-estimadas"></span>
+    <span class="small text-secondary" id="propagacion-consulta-estado"
+          role="status" aria-live="polite"></span>
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 {% endif %}

@@ -398,6 +398,42 @@ Frente: 152 km · Frente observado
 - Si no hay picks suficientes, se usa **Vp = 6.0 km/s** como respaldo.
 - El rótulo indica si el frente es observado o estimado.
 
+##### Estado de las estaciones sin arribos
+
+Para las estaciones que no tienen pick, la propagación distingue tres estados
+de disponibilidad de formas de onda:
+
+| Estado | Marca | Significado |
+|---|---|---|
+| **Sin consultar** | sin marca | Todavía no se consultaron las formas de onda. La ausencia de arribo es una suposición. |
+| **Sin datos (verificado)** | `×` | Se consultaron las ondas y no hay. La estación no estaba grabando o no hay datos. |
+| **Disponible y no usada** | `•` | Hay formas de onda, pero la estación no tiene pick. Estaba operativa. |
+
+- El relleno del triángulo sigue indicando si el frente ya la alcanzó.
+- La marca `×` o `•` indica el estado de las ondas.
+- El popup muestra:
+  ```text
+  Estado de ondas: Sin datos (verificado)
+  ```
+  o
+  ```text
+  Estado de ondas: Disponible y no usada
+  ```
+- La barra de propagación resume:
+  ```text
+  Estimadas: 20 · sin consultar: 5 · sin datos: 12 · disponibles no usadas: 3
+  ```
+
+El botón **Consultar formas de onda** de la barra de propagación realiza la
+misma consulta que el botón de la solapa **Sin arribos**: mismos filtros,
+mismos límites y mismo sondeo. Al terminar, se actualizan el panel, el mapa y
+el contador. Las estaciones que queden fuera de la consulta permanecen como
+**sin consultar**.
+
+La consulta de formas de onda **no entrega un tiempo de arribo**. Por eso la
+estación sigue siendo **estimada** para la propagación; lo que cambia es la
+certeza sobre si había datos y no se usó, o si no hay datos.
+
 La propagación es una representación **geométrica y temporal**: no carga las
 formas de onda reales. Las estaciones sin coordenadas no se dibujan, pero
 pueden aparecer en la curva de tiempos si tienen distancia.

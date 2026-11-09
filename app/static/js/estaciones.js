@@ -56,12 +56,39 @@
 
   function mostrarEstado(texto, clase) {
     var aviso = estadoElemento();
-    if (!aviso) {
-      return;
+    if (aviso) {
+      aviso.className = "alert small py-2 " + (clase || "alert-light border");
+      aviso.textContent = texto;
+      aviso.classList.remove("d-none");
     }
-    aviso.className = "alert small py-2 " + (clase || "alert-light border");
-    aviso.textContent = texto;
-    aviso.classList.remove("d-none");
+    var propagacion = document.getElementById(
+      "propagacion-consulta-estado"
+    );
+    if (propagacion) {
+      var color = "text-secondary";
+      if (clase === "alert-danger") {
+        color = "text-danger";
+      } else if (clase === "alert-warning") {
+        color = "text-warning";
+      } else if (clase === "alert-success") {
+        color = "text-success";
+      }
+      propagacion.className = "small " + color;
+      propagacion.textContent = texto;
+    }
+  }
+
+  function bloquearBotonesConsulta(activo) {
+    [
+      "btn-disponibilidad",
+      "btn-disponibilidad-todas",
+      "btn-propagacion-consultar",
+    ].forEach(function (id) {
+      var boton = document.getElementById(id);
+      if (boton) {
+        boton.disabled = activo;
+      }
+    });
   }
 
   function segundos() {
@@ -101,14 +128,7 @@
       contenedor.dataset.tarea = "";
       contenedor.dataset.error = "1";
     }
-    var boton = document.getElementById("btn-disponibilidad");
-    if (boton) {
-      boton.disabled = false;
-    }
-    var botonTodas = document.getElementById("btn-disponibilidad-todas");
-    if (botonTodas) {
-      botonTodas.disabled = false;
-    }
+    bloquearBotonesConsulta(false);
     mostrarEstado(mensaje, "alert-danger");
   }
 
@@ -572,6 +592,11 @@
           detener();
           if (actualizarPanel(datos.html)) {
             mostrarToast("Disponibilidad actualizada");
+            bloquearBotonesConsulta(false);
+            mostrarEstado(
+              "Disponibilidad actualizada.",
+              "alert-success"
+            );
             if (omitidasConsulta > 0) {
               mostrarEstado(
                 "Se consultaron " +
@@ -632,14 +657,7 @@
       return;
     }
     contenedor.dataset.error = "";
-    var boton = document.getElementById("btn-disponibilidad");
-    if (boton) {
-      boton.disabled = true;
-    }
-    var botonTodas = document.getElementById("btn-disponibilidad-todas");
-    if (botonTodas) {
-      botonTodas.disabled = true;
-    }
+    bloquearBotonesConsulta(true);
     mostrarEstado("Enviando consulta…", "alert-info");
     var cuerpo = new URLSearchParams();
     var radio = document.getElementById("filtro-radio");
@@ -903,6 +921,41 @@
     return ultimo.t + (distancia - ultimo.r) / pendiente;
   }
 
+  function actualizarResumenEstimadas(datos) {
+    var nodo = document.getElementById("propagacion-estimadas");
+    if (!nodo || !datos) {
+      return;
+    }
+    var estimadas = (datos.estaciones || []).filter(function (estacion) {
+      return estacion.tipo !== "arribo";
+    });
+    if (!estimadas.length) {
+      nodo.textContent = "Sin estaciones estimadas en el mapa.";
+      return;
+    }
+    var sinConsultar = 0;
+    var sinDatos = 0;
+    var disponibles = 0;
+    estimadas.forEach(function (estacion) {
+      if (estacion.estado_ondas === "sin_datos") {
+        sinDatos += 1;
+      } else if (estacion.estado_ondas === "disponible") {
+        disponibles += 1;
+      } else {
+        sinConsultar += 1;
+      }
+    });
+    nodo.textContent =
+      "Estimadas: " +
+      estimadas.length +
+      " · sin consultar: " +
+      sinConsultar +
+      " · sin datos: " +
+      sinDatos +
+      " · disponibles no usadas: " +
+      disponibles;
+  }
+
   function datosPropagacion() {
     var puntos = puntosMapaVisibles();
     var tiempos = datosTiemposLlegada();
@@ -978,6 +1031,12 @@
           evidencia: punto.evidencia || "",
           formas_onda: punto.formas_onda || "",
           disponible: punto.disponible || "",
+          estado_ondas:
+            punto.disponible === "Sí"
+              ? "disponible"
+              : punto.disponible === "No"
+                ? "sin_datos"
+                : "sin_consultar",
           streams: punto.streams || "",
           fases: punto.fases || [],
           observado: observado,
@@ -1108,6 +1167,7 @@
         evidencia: estacion.evidencia,
         formas_onda: estacion.formas_onda,
         disponible: estacion.disponible,
+        estado_ondas: estacion.estado_ondas,
         streams: estacion.streams,
         fases: estacion.fases,
         observado: estacion.observado,
@@ -1134,6 +1194,7 @@
       tiempo: propagacionTiempo,
       fuente: datos.fuente,
     });
+    actualizarResumenEstimadas(datos);
     var reloj = document.getElementById("propagacion-reloj");
     if (reloj) {
       reloj.textContent = "t = " + propagacionTiempo.toFixed(1) + " s";
@@ -1281,7 +1342,7 @@
     var leyenda = document.getElementById("leyenda-estaciones-mapa");
     if (leyenda) {
       leyenda.textContent =
-        "▲ observada · △ estimada · gris: pendiente";
+        "▲ observada · △ sin consultar · △× sin datos · △• disponible no usada";
     }
     actualizarPropagacion();
     irAlMapa();
@@ -1649,6 +1710,15 @@
       reiniciar.addEventListener("click", function (evento) {
         evento.preventDefault();
         reiniciarPropagacion();
+      });
+    }
+    var consultarPropagacion = document.getElementById(
+      "btn-propagacion-consultar"
+    );
+    if (consultarPropagacion) {
+      consultarPropagacion.addEventListener("click", function (evento) {
+        evento.preventDefault();
+        encolar(false);
       });
     }
     var botonActualizar = document.getElementById("btn-tiempos-actualizar");

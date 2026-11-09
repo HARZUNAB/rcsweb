@@ -155,14 +155,20 @@
       } else if (punto.estado === "pendiente") {
         partes.push("Aún no alcanzada");
       }
+      if (punto.estado_ondas === "sin_datos") {
+        partes.push("Estado de ondas: Sin datos (verificado)");
+      } else if (punto.estado_ondas === "disponible") {
+        partes.push("Estado de ondas: Disponible y no usada");
+      } else if (punto.estado_ondas === "sin_consultar") {
+        partes.push("Estado de ondas: Sin consultar");
+      } else if (punto.disponible) {
+        partes.push("Disponible y no usada: " + esc(punto.disponible));
+      }
       if (punto.evidencia) {
         partes.push("Evidencia: " + esc(punto.evidencia));
       }
       if (punto.formas_onda) {
         partes.push("Formas de onda: " + esc(punto.formas_onda));
-      }
-      if (punto.disponible) {
-        partes.push("Disponible y no usada: " + esc(punto.disponible));
       }
       if (punto.streams) {
         partes.push("Streams: " + esc(punto.streams));
@@ -1135,6 +1141,48 @@
         },
         [indicesPropagacion.estaciones]
       );
+
+      const validas = estacionesPropagacionValidas(
+        datosPropagacion.estaciones
+      );
+      const sinDatos = validas.filter(function (punto) {
+        return punto.estado_ondas === "sin_datos";
+      });
+      const disponibles = validas.filter(function (punto) {
+        return punto.estado_ondas === "disponible";
+      });
+      window.Plotly.restyle(
+        contenedor,
+        {
+          lat: [
+            sinDatos.map(function (punto) {
+              return punto.lat;
+            }),
+          ],
+          lon: [
+            sinDatos.map(function (punto) {
+              return punto.lon;
+            }),
+          ],
+        },
+        [indicesPropagacion.sinDatos]
+      );
+      window.Plotly.restyle(
+        contenedor,
+        {
+          lat: [
+            disponibles.map(function (punto) {
+              return punto.lat;
+            }),
+          ],
+          lon: [
+            disponibles.map(function (punto) {
+              return punto.lon;
+            }),
+          ],
+        },
+        [indicesPropagacion.disponibles]
+      );
     }
 
     window.RCSMapaDetalle = {
@@ -1306,22 +1354,66 @@
           };
         });
         trazas.push(trazaEstacionesPropagacion(datosPropagacion.estaciones));
+        trazas.push({
+          type: "scattergeo",
+          mode: "markers",
+          name: "Propagación · Sin datos",
+          lat: [],
+          lon: [],
+          marker: {
+            symbol: "x",
+            size: 5,
+            color: "#6c757d",
+            line: { width: 0 },
+          },
+          hoverinfo: "skip",
+          showlegend: false,
+        });
+        trazas.push({
+          type: "scattergeo",
+          mode: "markers",
+          name: "Propagación · Disponibles",
+          lat: [],
+          lon: [],
+          marker: {
+            symbol: "circle",
+            size: 3.5,
+            color: COLOR_PROPAGACION,
+            line: { width: 0 },
+          },
+          hoverinfo: "skip",
+          showlegend: false,
+        });
         window.Plotly.addTraces(contenedor, trazas).then(function () {
           if (generacion !== generacionPropagacion) {
             window.RCSMapaDetalle.ocultarPropagacion();
             return;
           }
-          const indices = { frentes: [], estaciones: -1 };
+          const indices = {
+            frentes: [],
+            estaciones: -1,
+            sinDatos: -1,
+            disponibles: -1,
+          };
           contenedor.data.forEach(function (traza, indice) {
             if (traza.name === "Propagación · Estaciones") {
               indices.estaciones = indice;
+            } else if (traza.name === "Propagación · Sin datos") {
+              indices.sinDatos = indice;
+            } else if (traza.name === "Propagación · Disponibles") {
+              indices.disponibles = indice;
             } else if (
               (traza.name || "").indexOf("Propagación · Frente") === 0
             ) {
               indices.frentes.push(indice);
             }
           });
-          if (indices.estaciones < 0 || indices.frentes.length !== 4) {
+          if (
+            indices.estaciones < 0 ||
+            indices.sinDatos < 0 ||
+            indices.disponibles < 0 ||
+            indices.frentes.length !== 4
+          ) {
             propagacionPendiente = false;
             return;
           }
@@ -1466,6 +1558,19 @@
       });
     }
 
+    function iconoEstacionPropagacion(relleno, borde) {
+      return window.L.divIcon({
+        className: "rcs-estacion-icono",
+        html:
+          '<span class="rcs-estacion-simbolo">' +
+          svgTriangulo(relleno, borde, 16) +
+          '<span class="rcs-estacion-badge"></span>' +
+          "</span>",
+        iconSize: [16, 16],
+        iconAnchor: [8, 15],
+      });
+    }
+
     window.RCSMapaDetalle = {
       tipo: "leaflet",
       mostrarEstaciones: function (puntos) {
@@ -1516,11 +1621,12 @@
               return;
             }
             const marcador = window.L.marker([punto.lat, punto.lon], {
-              icon: iconoEstacion("#ffffff", COLOR_PENDIENTE),
+              icon: iconoEstacionPropagacion("#ffffff", COLOR_PENDIENTE),
             });
             const registro = {
               marcador: marcador,
               polygon: null,
+              badge: null,
               punto: punto,
             };
             marcador.bindPopup(function () {
@@ -1530,6 +1636,9 @@
             const elemento = marcador.getElement();
             registro.polygon = elemento
               ? elemento.querySelector("polygon")
+              : null;
+            registro.badge = elemento
+              ? elemento.querySelector(".rcs-estacion-badge")
               : null;
             registrosPropagacion[claveEstacion(punto)] = registro;
           });
@@ -1556,6 +1665,19 @@
           polygon.setAttribute("fill", relleno);
           polygon.setAttribute("stroke", borde);
           polygon.setAttribute("stroke-width", punto.pulso ? "2.8" : "1.5");
+          const badge = registro.badge;
+          if (badge) {
+            if (punto.estado_ondas === "sin_datos") {
+              badge.textContent = "×";
+              badge.className = "rcs-estacion-badge sin-datos";
+            } else if (punto.estado_ondas === "disponible") {
+              badge.textContent = "•";
+              badge.className = "rcs-estacion-badge";
+            } else {
+              badge.textContent = "";
+              badge.className = "rcs-estacion-badge";
+            }
+          }
         });
 
         const epicentro = datosPropagacion.epicentro;
