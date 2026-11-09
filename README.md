@@ -113,6 +113,12 @@ sobre las estaciones nuevas. La consulta de ondas se limita por defecto a las
 150 estaciones más cercanas visibles; **Consultar todas** omite ese tope y el
 sidecar consulta los streams por lotes de 300.
 
+Cuando el evento y sus estaciones traen coordenadas, la solapa **Sin arribos**
+ofrece dos acciones bajo demanda: **Estaciones en el mapa** agrega una capa de
+marcadores al mapa (20 más cercanas por defecto, con opción **Mostrar todas**) y
+**Tiempos de llegada** abre una curva distancia-tiempo con picks reales y curvas
+P/S estimadas. Nada se dibuja hasta que el usuario pulsa el botón.
+
 Variables principales en `.env`:
 
 ```dotenv
@@ -120,7 +126,9 @@ SEISCOMP_HOST_ROOT=/home/hriquelmez/seiscomp
 SDS_HOST_ROOT=/mnt/sds
 RCS_DISPONIBILIDAD_URL=http://disponibilidad:8010
 RCS_DISPONIBILIDAD_TOKEN=<token compartido>
-RCS_DISPONIBILIDAD_TIMEOUT=70
+RCS_DISPONIBILIDAD_TIMEOUT=240
+RCS_DISPONIBILIDAD_MAX_ESTACIONES=150
+RCS_DISPONIBILIDAD_MAX_STREAMS=5000
 RCS_RECORDSTREAM=
 ```
 

@@ -923,6 +923,45 @@ confunde con la consulta completa. La clave con `todas=1` es distinta de la
 automática; si el usuario recarga durante una consulta “todas”, el detalle no
 la reanuda, pero la tarea sigue y deja la caché actualizada.
 
+#### Estaciones en el mapa y tiempos de llegada
+
+La revisión calcula dos datos derivados y los expone en el contexto:
+
+- `tiene_coordenadas`: hay al menos una estación sin arribos con
+  `station_latitude` y `station_longitude`;
+- `tiene_tiempos`: hay `event_time` y coordenadas del evento o de estaciones.
+
+`station_review` arma además:
+
+- `estaciones_mapa`: red, estación, lat/lon, distancia, categoría de evidencia,
+  formas de onda y streams;
+- `tiempos_llegada`: `event_time`, posición del evento, estaciones y arribos con
+  `distancia_km` y `segundos`.
+
+Las distancias de los arribos se calculan con haversine entre la posición del
+evento y la estación. Si faltan coordenadas, se usa el valor canónico
+(`distance_km`, expresado en grados) multiplicado por 111.19. Los segundos se
+obtienen de `pick_time - event_time` con `_instante()`.
+
+La plantilla `results/_estaciones_sin_arribos.html`:
+
+- muestra **Estaciones en el mapa** solo si `tiene_coordenadas` y hay mapa
+  interactivo;
+- muestra **Tiempos de llegada** solo si `tiene_tiempos`;
+- incluye los datos como JSON embebido (`#estaciones-mapa-datos` y
+  `#tiempos-llegada-datos`).
+
+`static/js/estaciones.js` no dibuja nada al cargar: los botones son la única
+entrada. La capa se agrega con `window.RCSMapaDetalle`, que `mapa_detalle.js`
+expone para Leaflet y Plotly. Por defecto se muestran 20 estaciones; **Mostrar
+todas** quita el tope y la capa se redibuja al cambiar los filtros o al
+actualizar la disponibilidad.
+
+La gráfica de tiempos usa Plotly con picks reales y curvas P/S estimadas
+(Vp=6.0 km/s, Vs=3.5 km/s), rotuladas como estimación. Los picks manuales se
+dibujan como círculo y los automáticos como rombo. No se agregan rutas HTTP
+nuevas: los datos ya vienen en el detalle y solo se dibujan bajo demanda.
+
 Estados de evidencia:
 
 | Estado | Significado |

@@ -175,6 +175,22 @@ def _distancia_grados(lat1, lon1, lat2, lon2) -> float | None:
     return math.hypot(c - a, d - b)
 
 
+def _distancia_km(lat1, lon1, lat2, lon2) -> float | None:
+    """Distancia epicentro-estación en kilómetros (haversine)."""
+    valores = [_numero(lat1), _numero(lon1), _numero(lat2), _numero(lon2)]
+    if any(valor is None for valor in valores):
+        return None
+    a, b, c, d = valores
+    phi1, phi2 = math.radians(a), math.radians(c)
+    dphi = math.radians(c - a)
+    dlambda = math.radians(d - b)
+    h = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
+    return 2 * 6371.0088 * math.asin(min(1.0, math.sqrt(h)))
+
+
 def resolver_evento(
     workspace: Path, source_id: str, tabla: str, fila: dict
 ) -> dict | None:
@@ -270,6 +286,8 @@ def _fila_arribo(arribo: dict) -> dict:
         "qc": CALIDAD_PICK.get(qc.lower(), qc),
         "lugar": _texto(arribo.get("station_place")),
         "elevacion": _numero_texto(arribo.get("station_elevation_m"), 0),
+        "lat": _numero(arribo.get("station_latitude")),
+        "lon": _numero(arribo.get("station_longitude")),
         "_usada": arribo.get("is_used_in_solution"),
         "_azimut": _numero(arribo.get("azimuth")),
         "_clase": clase,
@@ -334,6 +352,8 @@ def _fila_sin_arribos(registro: dict) -> dict:
         "elevacion": _numero_texto(registro.get("station_elevation_m"), 0),
         "lugar": _texto(registro.get("station_place")),
         "pais": _texto(registro.get("station_country")),
+        "lat": _numero(registro.get("station_latitude")),
+        "lon": _numero(registro.get("station_longitude")),
         "distancia_num": _numero(registro.get("distance_km")),
         "_distancia": _numero(registro.get("distance_km")),
         "_streams": streams,
@@ -570,6 +590,10 @@ def _vacio(
         "consulta_omitidas": 0,
         "consulta_pendientes": 0,
         "consulta_requiere_todas": False,
+        "tiene_coordenadas": False,
+        "tiene_tiempos": False,
+        "estaciones_mapa": [],
+        "tiempos_llegada": {},
     }
 
 
@@ -713,6 +737,71 @@ def revisar_evento(
         if fila.get("_estado_disponibilidad")
         == availability.ESTADO_NO_CONSULTADO
     )
+    event_time = _texto((evento or {}).get("event_time"))
+    instante_evento = _instante(event_time)
+    if instante_evento is not None:
+        event_time = instante_evento.isoformat(sep=" ")
+    event_lat = _numero((evento or {}).get("latitude"))
+    event_lon = _numero((evento or {}).get("longitude"))
+    estaciones_mapa = []
+    for fila in sin_arribos:
+        lat, lon = fila.get("lat"), fila.get("lon")
+        if lat is None or lon is None:
+            continue
+        estaciones_mapa.append(
+            {
+                "red": fila.get("red", ""),
+                "estacion": fila.get("estacion", ""),
+                "lat": lat,
+                "lon": lon,
+                "distancia_km": fila.get("distancia_num"),
+                "categoria": fila.get("_categoria", "normal"),
+                "evidencia": fila.get("evidencia", ""),
+                "formas_onda": fila.get("formas_onda", ""),
+                "disponible": fila.get("disponible", ""),
+                "streams": fila.get("streams_ids", ""),
+            }
+        )
+    arribos_tiempo = []
+    for fila in arribos:
+        lat, lon = fila.get("lat"), fila.get("lon")
+        distancia = _distancia_km(event_lat, event_lon, lat, lon)
+        if distancia is None:
+            grados = _numero(fila.get("distancia"))
+            if grados is not None:
+                distancia = abs(grados) * 111.19
+        segundos = None
+        instante_pick = _instante(fila.get("llegada"))
+        if instante_evento and instante_pick:
+            segundos = (instante_pick - instante_evento).total_seconds()
+        if distancia is None and segundos is None:
+            continue
+        arribos_tiempo.append(
+            {
+                "red": fila.get("red", ""),
+                "estacion": fila.get("estacion", ""),
+                "fase": fila.get("fase", ""),
+                "llegada": fila.get("llegada", ""),
+                "modo": fila.get("modo", ""),
+                "usada": fila.get("usada", ""),
+                "lat": lat,
+                "lon": lon,
+                "distancia_km": distancia,
+                "segundos": segundos,
+            }
+        )
+    tiene_coordenadas = bool(estaciones_mapa)
+    tiene_tiempos = bool(event_time) and bool(estaciones_mapa or arribos_tiempo)
+    tiempos_llegada = (
+        {
+            "event_time": event_time,
+            "evento": {"lat": event_lat, "lon": event_lon},
+            "estaciones": estaciones_mapa,
+            "arribos": arribos_tiempo,
+        }
+        if tiene_tiempos
+        else {}
+    )
     return {
         "fuente": source_id,
         "etiqueta": fuentes_manifest.etiqueta(source_id),
@@ -742,6 +831,10 @@ def revisar_evento(
         "consulta_omitidas": consulta_omitidas,
         "consulta_pendientes": consulta_pendientes,
         "consulta_requiere_todas": consulta_omitidas > 0,
+        "tiene_coordenadas": tiene_coordenadas,
+        "tiene_tiempos": tiene_tiempos,
+        "estaciones_mapa": estaciones_mapa,
+        "tiempos_llegada": tiempos_llegada,
         **filtros,
     }
 

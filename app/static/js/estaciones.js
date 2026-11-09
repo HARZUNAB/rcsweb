@@ -144,6 +144,9 @@
     contenedor = document.getElementById("panel-sin-arribos-contenido");
     iniciarModalStreams();
     iniciarFiltrosSinArribos();
+    if (mapaEstacionesActivo) {
+      dibujarMapaEstaciones();
+    }
     return Boolean(contenedor);
   }
 
@@ -331,6 +334,10 @@
         actual.searchParams.delete("solo_cercanas");
       }
       window.history.replaceState({}, "", actual.toString());
+
+      if (mapaEstacionesActivo) {
+        dibujarMapaEstaciones();
+      }
     }
 
     function segundosAmpliar() {
@@ -498,6 +505,14 @@
     radio.addEventListener("input", programar);
     cerca.addEventListener("input", programar);
     solo.addEventListener("change", aplicar);
+    var todasMapa = document.getElementById("mapa-estaciones-todas");
+    if (todasMapa) {
+      todasMapa.addEventListener("change", function () {
+        if (mapaEstacionesActivo) {
+          dibujarMapaEstaciones();
+        }
+      });
+    }
     sinLimite.addEventListener("change", function () {
       radio.disabled = sinLimite.checked;
       if (sinLimite.checked) {
@@ -707,6 +722,283 @@
     }
   }
 
+  var mapaEstacionesActivo = false;
+
+  function datosEstacionesMapa() {
+    var nodo = document.getElementById("estaciones-mapa-datos");
+    if (!nodo) {
+      return [];
+    }
+    try {
+      return JSON.parse(nodo.textContent || "[]");
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function datosTiemposLlegada() {
+    var nodo = document.getElementById("tiempos-llegada-datos");
+    if (!nodo) {
+      return {};
+    }
+    try {
+      return JSON.parse(nodo.textContent || "{}");
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function puntosMapaVisibles() {
+    var datos = datosEstacionesMapa();
+    var radio = parseFloat(
+      ((document.getElementById("filtro-radio") || {}).value || "").replace(
+        ",",
+        "."
+      )
+    );
+    var cerca = parseFloat(
+      ((document.getElementById("filtro-cerca") || {}).value || "").replace(
+        ",",
+        "."
+      )
+    );
+    var solo = Boolean(
+      (document.getElementById("filtro-solo") || {}).checked
+    );
+    var todas = Boolean(
+      (document.getElementById("mapa-estaciones-todas") || {}).checked
+    );
+    if (!Number.isFinite(cerca)) {
+      cerca = 50;
+    }
+    var puntos = datos.filter(function (punto) {
+      var distancia = Number(punto.distancia_km);
+      if (solo) {
+        return Number.isFinite(distancia) && distancia <= cerca;
+      }
+      if (Number.isFinite(radio)) {
+        return !Number.isFinite(distancia) || distancia <= radio;
+      }
+      return true;
+    });
+    if (!todas) {
+      puntos = puntos.slice(0, 20);
+    }
+    return puntos;
+  }
+
+  function dibujarMapaEstaciones() {
+    if (!mapaEstacionesActivo) {
+      return;
+    }
+    var api = window.RCSMapaDetalle;
+    if (!api || typeof api.mostrarEstaciones !== "function") {
+      mostrarEstado(
+        "El mapa interactivo no está disponible para agregar estaciones.",
+        "alert-warning"
+      );
+      return;
+    }
+    api.mostrarEstaciones(puntosMapaVisibles());
+    var boton = document.getElementById("btn-estaciones-mapa");
+    if (boton) {
+      boton.textContent = "Ocultar estaciones";
+    }
+    var opciones = document.getElementById("mapa-estaciones-opciones");
+    if (opciones) {
+      opciones.classList.remove("d-none");
+    }
+  }
+
+  function alternarMapaEstaciones() {
+    if (!mapaEstacionesActivo) {
+      mapaEstacionesActivo = true;
+      dibujarMapaEstaciones();
+      var mapa = document.getElementById("mapa-detalle");
+      if (mapa) {
+        mapa.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return;
+    }
+    mapaEstacionesActivo = false;
+    if (window.RCSMapaDetalle && window.RCSMapaDetalle.ocultarEstaciones) {
+      window.RCSMapaDetalle.ocultarEstaciones();
+    }
+    var boton = document.getElementById("btn-estaciones-mapa");
+    if (boton) {
+      boton.textContent = "Estaciones en el mapa";
+    }
+    var opciones = document.getElementById("mapa-estaciones-opciones");
+    if (opciones) {
+      opciones.classList.add("d-none");
+    }
+  }
+
+  function dibujarTiemposLlegada() {
+    var datos = datosTiemposLlegada();
+    var contenedorGrafico = document.getElementById("grafico-tiempos");
+    if (!contenedorGrafico) {
+      return;
+    }
+    if (!window.Plotly) {
+      contenedorGrafico.innerHTML =
+        '<div class="text-secondary small p-3">No se pudo cargar el gráfico.</div>';
+      return;
+    }
+    var vp = parseFloat(
+      ((document.getElementById("tiempos-vp") || {}).value || "6").replace(
+        ",",
+        "."
+      )
+    );
+    var vs = parseFloat(
+      ((document.getElementById("tiempos-vs") || {}).value || "3.5").replace(
+        ",",
+        "."
+      )
+    );
+    if (!Number.isFinite(vp) || vp <= 0) {
+      vp = 6.0;
+    }
+    if (!Number.isFinite(vs) || vs <= 0) {
+      vs = 3.5;
+    }
+    var arribos = (datos.arribos || []).filter(function (arribo) {
+      return (
+        Number.isFinite(Number(arribo.distancia_km)) &&
+        Number.isFinite(Number(arribo.segundos))
+      );
+    });
+    var estaciones = (datos.estaciones || [])
+      .filter(function (estacion) {
+        return Number.isFinite(Number(estacion.distancia_km));
+      })
+      .slice(0, 20);
+    var distancias = arribos
+      .map(function (arribo) { return Number(arribo.distancia_km); })
+      .concat(
+        estaciones.map(function (estacion) {
+          return Number(estacion.distancia_km);
+        })
+      );
+    var maxKm = Math.max.apply(null, [100].concat(distancias || []));
+    var trazas = [
+      {
+        type: "scatter",
+        mode: "lines",
+        name: "P estimada (" + vp.toFixed(1) + " km/s)",
+        x: [0, maxKm],
+        y: [0, maxKm / vp],
+        line: { color: "#1f77b4", dash: "dash" },
+        hoverinfo: "skip",
+      },
+      {
+        type: "scatter",
+        mode: "lines",
+        name: "S estimada (" + vs.toFixed(1) + " km/s)",
+        x: [0, maxKm],
+        y: [0, maxKm / vs],
+        line: { color: "#ff7f0e", dash: "dash" },
+        hoverinfo: "skip",
+      },
+      {
+        type: "scatter",
+        mode: "markers",
+        name: "Picks reales",
+        x: arribos.map(function (arribo) {
+          return Number(arribo.distancia_km);
+        }),
+        y: arribos.map(function (arribo) {
+          return Number(arribo.segundos);
+        }),
+        text: arribos.map(function (arribo) {
+          return (
+            (arribo.red || "") +
+            " " +
+            (arribo.estacion || "") +
+            " · " +
+            (arribo.fase || "") +
+            " · " +
+            (arribo.modo || "")
+          );
+        }),
+        marker: {
+          size: 8,
+          color: arribos.map(function (arribo) {
+            var fase = (arribo.fase || "").toUpperCase();
+            if (fase.startsWith("P")) {
+              return "#1f77b4";
+            }
+            if (fase.startsWith("S")) {
+              return "#ff7f0e";
+            }
+            return "#6c757d";
+          }),
+          symbol: arribos.map(function (arribo) {
+            return (arribo.modo || "").toLowerCase() === "manual"
+              ? "circle"
+              : "diamond";
+          }),
+          line: { color: "#ffffff", width: 0.5 },
+        },
+        hovertemplate: "%{text}<br>%{x:.1f} km · %{y:.1f} s<extra></extra>",
+      },
+    ];
+    if (estaciones.length) {
+      trazas.push({
+        type: "scatter",
+        mode: "markers",
+        name: "Sin arribos (P estimada)",
+        x: estaciones.map(function (estacion) {
+          return Number(estacion.distancia_km);
+        }),
+        y: estaciones.map(function (estacion) {
+          return Number(estacion.distancia_km) / vp;
+        }),
+        text: estaciones.map(function (estacion) {
+          return (estacion.red || "") + " " + (estacion.estacion || "");
+        }),
+        marker: {
+          size: 6,
+          color: "#adb5bd",
+          symbol: "circle-open",
+        },
+        hovertemplate: "%{text}<br>P estimada · %{y:.1f} s<extra></extra>",
+      });
+    }
+    window.Plotly.newPlot(
+      contenedorGrafico,
+      trazas,
+      {
+        margin: { l: 60, r: 20, t: 20, b: 55 },
+        xaxis: { title: "Distancia (km)" },
+        yaxis: { title: "Tiempo desde el origen (s)" },
+        hovermode: "closest",
+        legend: { orientation: "h" },
+      },
+      { responsive: true, displaylogo: false }
+    );
+  }
+
+  function abrirTiemposLlegada() {
+    var modal = document.getElementById("modal-tiempos");
+    if (!modal) {
+      return;
+    }
+    if (!window.bootstrap || !window.bootstrap.Modal) {
+      return;
+    }
+    var instancia = window.bootstrap.Modal.getOrCreateInstance(modal);
+    if (modal.classList.contains("show")) {
+      dibujarTiemposLlegada();
+      return;
+    }
+    modal.addEventListener("shown.bs.modal", dibujarTiemposLlegada, {
+      once: true,
+    });
+    instancia.show();
+  }
+
   function iniciarPanel() {
     panel = document.getElementById("panel-sin-arribos");
     contenedor = document.getElementById("panel-sin-arribos-contenido");
@@ -716,6 +1008,24 @@
     iniciarModalStreams();
     iniciarFiltrosSinArribos();
     panel.addEventListener("click", function (evento) {
+      var botonMapa = evento.target.closest("#btn-estaciones-mapa");
+      if (botonMapa) {
+        evento.preventDefault();
+        alternarMapaEstaciones();
+        return;
+      }
+      var botonTiempos = evento.target.closest("#btn-tiempos-llegada");
+      if (botonTiempos) {
+        evento.preventDefault();
+        abrirTiemposLlegada();
+        return;
+      }
+      var botonActualizar = evento.target.closest("#btn-tiempos-actualizar");
+      if (botonActualizar) {
+        evento.preventDefault();
+        dibujarTiemposLlegada();
+        return;
+      }
       var botonTodas = evento.target.closest("#btn-disponibilidad-todas");
       if (botonTodas) {
         evento.preventDefault();

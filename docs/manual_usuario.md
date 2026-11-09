@@ -342,6 +342,37 @@ RCS_DISPONIBILIDAD_MAX_ESTACIONES=150
 RCS_DISPONIBILIDAD_MAX_STREAMS=5000
 ```
 
+### Estaciones en el mapa y tiempos de llegada
+
+Cuando el evento y sus estaciones traen coordenadas, aparecen dos botones
+opcionales en la solapa **Sin arribos**:
+
+- **Estaciones en el mapa**
+- **Tiempos de llegada**
+
+No se dibuja nada al abrir el detalle: cada botón trabaja solo cuando se pulsa.
+Si faltan las coordenadas, los botones no aparecen.
+
+**Estaciones en el mapa** agrega una capa de marcadores al mapa de la página. Por
+defecto muestra las **20 estaciones más cercanas** de la lista visible; la opción
+**Mostrar todas** quita ese límite. La capa respeta el radio y el filtro **Solo
+cercanas**. Los colores son los mismos de la tabla: verde verificado, ámbar
+indicio y gris sin evidencia o sin consultar. Cada marcador muestra estación,
+distancia, evidencia, formas de onda y streams. El botón cambia a **Ocultar
+estaciones** para quitar la capa.
+
+**Tiempos de llegada** abre una gráfica de distancia contra tiempo desde el
+origen del evento. Muestra:
+
+- los picks reales como puntos (círculo si son manuales, rombo si son
+  automáticos);
+- las curvas P y S estimadas con velocidad constante;
+- hasta 20 estaciones sin arribos con su tiempo P estimado.
+
+Los campos **Vp** y **Vs** permiten ajustar las velocidades; **Actualizar**
+redibuja. Las curvas son una **estimación** con velocidad constante, no un
+modelo de tierra real.
+
 ### Colores de “Sin arribos”
 
 | Condición | Significado |

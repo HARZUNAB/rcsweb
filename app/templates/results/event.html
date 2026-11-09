@@ -454,5 +454,7 @@
 <script src="{{ url_for('static', filename='js/vineta.js') }}"></script>
 <script src="{{ url_for('static', filename='js/regiones_mapa.js') }}"></script>
 <script src="{{ url_for('static', filename='js/mapa_detalle.js') }}"></script>
+{% elif revision_estaciones and revision_estaciones.tiene_tiempos %}
+<script src="{{ url_for('static', filename='vendor/plotly/plotly.min.js') }}"></script>
 {% endif %}
 {% endblock %}

@@ -171,6 +171,9 @@ def test_revision_agrupa_y_filtra_no_utilizadas(tmp_path):
     evento = {
         "event_id": "seiscomp:000000",
         "source_event_id": "csn_test_0001",
+        "event_time": "2026-10-03 15:53:56",
+        "latitude": -29.519,
+        "longitude": -72.594,
     }
 
     revision = revisar_evento(workspace, "seiscomp", evento)
@@ -213,6 +216,25 @@ def test_revision_agrupa_y_filtra_no_utilizadas(tmp_path):
     assert revision["consulta_pendientes"] == 1
     assert revision["consulta_requiere_todas"] is False
     assert revision["sin_arribos"][0]["_categoria"] == "indicio"
+
+    assert revision["tiene_coordenadas"] is True
+    assert revision["tiene_tiempos"] is True
+    mapa = revision["estaciones_mapa"]
+    assert len(mapa) == 1
+    assert mapa[0]["estacion"] == "LVC"
+    assert mapa[0]["lat"] == -29.1
+    assert mapa[0]["lon"] == -71.1
+    assert mapa[0]["categoria"] == "indicio"
+
+    tiempos = revision["tiempos_llegada"]
+    assert tiempos["event_time"] == "2026-10-03 15:53:56"
+    assert tiempos["evento"]["lat"] == -29.519
+    assert tiempos["evento"]["lon"] == -72.594
+    arribos_tiempo = {fila["estacion"]: fila for fila in tiempos["arribos"]}
+    assert set(arribos_tiempo) == {"ANMO", "ML02"}
+    assert arribos_tiempo["ANMO"]["segundos"] == 24.123
+    assert arribos_tiempo["ML02"]["segundos"] == 29.0
+    assert arribos_tiempo["ANMO"]["distancia_km"] > 100
 
     columnas_sin, filas_sin = filas_para_csv(revision, "sin_arribos")
     assert "Streams vigentes" in columnas_sin
@@ -420,6 +442,11 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert 'data-categoria="indicio"' in html
     assert "Colores de las llegadas" in html
     assert "pick-manual-usada" in html
+    assert 'id="btn-estaciones-mapa"' in html
+    assert 'id="btn-tiempos-llegada"' in html
+    assert 'id="modal-tiempos"' in html
+    assert 'id="estaciones-mapa-datos"' in html
+    assert 'id="tiempos-llegada-datos"' in html
 
     respuesta = client.get(
         f"/jobs/{job.id}/resultados/no_publicados/seiscomp/0/estaciones/arribos.csv"
@@ -438,6 +465,43 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert "Streams vigentes" in texto_sin.splitlines()[0]
     assert "IU.LVC.00.HHZ" in texto_sin
     assert "Indicio (actividad)" in texto_sin
+
+
+def _json_embebido(html: str, id_elemento: str):
+    patron = re.compile(
+        r'<script type="application/json"\s+id="'
+        + re.escape(id_elemento)
+        + r'">(.*?)</script>',
+        re.S,
+    )
+    coincidencia = patron.search(html)
+    assert coincidencia is not None
+    return json.loads(coincidencia.group(1))
+
+
+def test_detalle_datos_mapa_y_tiempos(client, login, app):
+    job = _job_con_revision(app)
+    login()
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/no_publicados/seiscomp/0"
+    ).get_data(as_text=True)
+
+    estaciones = _json_embebido(html, "estaciones-mapa-datos")
+    assert len(estaciones) == 1
+    assert estaciones[0]["estacion"] == "LVC"
+    assert estaciones[0]["lat"] == -29.1
+    assert estaciones[0]["lon"] == -71.1
+    assert estaciones[0]["distancia_km"] == 12.3
+    assert estaciones[0]["categoria"] == "indicio"
+
+    tiempos = _json_embebido(html, "tiempos-llegada-datos")
+    assert tiempos["event_time"] == "2026-10-03 15:53:56"
+    assert tiempos["evento"] == {"lat": -29.519, "lon": -72.594}
+    arribos = {fila["estacion"]: fila for fila in tiempos["arribos"]}
+    assert set(arribos) == {"ANMO", "ML02"}
+    assert arribos["ANMO"]["segundos"] == 24.123
+    assert arribos["ANMO"]["distancia_km"] > 100
 
 
 def test_descarga_respeta_visibilidad_del_analista(client, login, app):
@@ -525,6 +589,8 @@ def test_detalle_muestra_no_evaluable_sin_archivos(client, login, app):
     assert "Revisión de estaciones" in html
     assert "No evaluable:" in html
     assert "Este trabajo no incluye la revisión de estaciones." in html
+    assert 'id="btn-estaciones-mapa"' not in html
+    assert 'id="btn-tiempos-llegada"' not in html
 
 
 def test_detalle_no_muestra_revision_sin_capacidad(

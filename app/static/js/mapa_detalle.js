@@ -856,6 +856,56 @@
       });
       contenedor.on("plotly_unhover", restaurarPrevio);
     });
+
+    window.RCSMapaDetalle = {
+      tipo: "plotly",
+      mostrarEstaciones: function (puntos) {
+        if (!window.Plotly || !puntos || !puntos.length) {
+          return;
+        }
+        window.RCSMapaDetalle.ocultarEstaciones();
+        const traza = {
+          type: "scattergeo",
+          mode: "markers",
+          name: "Estaciones sin arribos",
+          lat: puntos.map(function (punto) { return punto.lat; }),
+          lon: puntos.map(function (punto) { return punto.lon; }),
+          text: puntos.map(function (punto) {
+            return (punto.red || "") + " " + (punto.estacion || "");
+          }),
+          customdata: puntos,
+          marker: {
+            size: 5,
+            color: puntos.map(function (punto) {
+              if (punto.categoria === "verificado") {
+                return "#1a7f37";
+              }
+              if (punto.categoria === "indicio") {
+                return "#9a6a00";
+              }
+              return "#6c757d";
+            }),
+            line: { color: "#ffffff", width: 0.5 },
+          },
+          hoverinfo: "text",
+        };
+        window.Plotly.addTraces(contenedor, traza);
+      },
+      ocultarEstaciones: function () {
+        if (!window.Plotly || !contenedor || !contenedor.data) {
+          return;
+        }
+        const indices = [];
+        contenedor.data.forEach(function (traza, indice) {
+          if (traza.name === "Estaciones sin arribos") {
+            indices.push(indice);
+          }
+        });
+        if (indices.length) {
+          window.Plotly.deleteTraces(contenedor, indices);
+        }
+      },
+    };
   }
 
   function limitesIniciales(coordenadas) {
@@ -950,6 +1000,68 @@
         mapa.setZoom(ZOOM_INICIAL_MAX, { animate: false });
       }
     }
+
+    let capaEstaciones = null;
+    window.RCSMapaDetalle = {
+      tipo: "leaflet",
+      mostrarEstaciones: function (puntos) {
+        if (capaEstaciones) {
+          mapa.removeLayer(capaEstaciones);
+          capaEstaciones = null;
+        }
+        if (!puntos || !puntos.length) {
+          return;
+        }
+        capaEstaciones = window.L.layerGroup();
+        puntos.forEach(function (punto) {
+          if (!Number.isFinite(punto.lat) || !Number.isFinite(punto.lon)) {
+            return;
+          }
+          let color = "#6c757d";
+          if (punto.categoria === "verificado") {
+            color = "#1a7f37";
+          } else if (punto.categoria === "indicio") {
+            color = "#9a6a00";
+          }
+          const marcador = window.L.circleMarker([punto.lat, punto.lon], {
+            radius: 4,
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.85,
+            weight: 1,
+          });
+          const partes = [
+            "<strong>" +
+              esc((punto.red || "") + " " + (punto.estacion || "")) +
+              "</strong>",
+          ];
+          if (punto.distancia_km != null) {
+            partes.push("Distancia: " + esc(punto.distancia_km) + " km");
+          }
+          if (punto.evidencia) {
+            partes.push("Evidencia: " + esc(punto.evidencia));
+          }
+          if (punto.formas_onda) {
+            partes.push("Formas de onda: " + esc(punto.formas_onda));
+          }
+          if (punto.disponible) {
+            partes.push("Disponible y no usada: " + esc(punto.disponible));
+          }
+          if (punto.streams) {
+            partes.push("Streams: " + esc(punto.streams));
+          }
+          marcador.bindPopup(partes.join("<br>"));
+          marcador.addTo(capaEstaciones);
+        });
+        capaEstaciones.addTo(mapa);
+      },
+      ocultarEstaciones: function () {
+        if (capaEstaciones) {
+          mapa.removeLayer(capaEstaciones);
+          capaEstaciones = null;
+        }
+      },
+    };
   }
 
   if (historicoCheck) {
