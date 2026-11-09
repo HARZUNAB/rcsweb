@@ -1051,6 +1051,41 @@ gris para pendientes. No se colorea por fase. La leyenda
 muestran cuando hay una capa activa; el mismo texto se replica en
 `#propagacion-estimadas`.
 
+##### Perfil
+
+`dibujarPerfilCompleto()` extiende `window.RCSMapaDetalle` con:
+
+- `mostrarEstacionesPerfil(puntos)`;
+- `ocultarEstacionesPerfil()`;
+- `mostrarPropagacionPerfil(datos)`;
+- `ocultarPropagacionPerfil()`.
+
+La proyección usa la polilínea del slab (`slab_lat`, `slab_lon`, `slab_p`):
+
+1. `proyectarEnPerfil()` busca el segmento más cercano y devuelve `along_km` y
+   `perp_km`.
+2. `elevacionSuperficie()` interpola `topo_p`/`topo_alt` para ubicar la estación
+   en la superficie.
+3. `proyectarEstacionesPerfil()` descarta las estaciones con `perp_km > 150` o
+   fuera del rango del perfil.
+4. `actualizarNotaPerfil()` escribe la nota:
+   ```text
+   Perfil: N de M estaciones a ≤150 km. Las lejanas no son representativas.
+   ```
+
+En el perfil, las estaciones se dibujan como triángulos en
+`(along_km, elevación)`, con las mismas trazas superpuestas `x`/`circle` para
+los estados de ondas. La propagación agrega cuatro círculos
+`Perfil propagación · Frente` centrados en el evento seleccionado, usando
+`along_km` y `-prof`, con el mismo `radio_km` y tiempo que la planta. El evento
+se elige por `rol` (`local` o `seleccionado`) y, si no existe, por el primero
+con `along_km` y `prof` válidos.
+
+Al redibujar el perfil por la sismicidad histórica se emite
+`rcs:perfil-redibujado`; `estaciones.js` reaplica la capa activa. Las trazas se
+eliminan por prefijo (`Perfil estático ·` y `Perfil propagación ·`) y no
+interfieren con el índice de la traza de eventos.
+
 ##### Curva de tiempos
 
 La curva usa Plotly con:

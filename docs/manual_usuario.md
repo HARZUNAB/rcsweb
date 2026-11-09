@@ -464,6 +464,24 @@ La propagación es una representación **geométrica y temporal**: no carga las
 formas de onda reales. Las estaciones sin coordenadas no se dibujan, pero
 pueden aparecer en la curva de tiempos si tienen distancia.
 
+#### Perfil
+
+Las mismas capas se aplican al mapa de perfil:
+
+- **Estaciones en el mapa** y **Propagación** también dibujan sobre el perfil.
+- Las estaciones se proyectan sobre la línea del perfil y se ubican en la
+  superficie.
+- Se muestran solo las que están a **≤150 km** de la línea y dentro del rango
+  del perfil. El resto se omite con una nota breve:
+  ```text
+  Perfil: 27 de 30 estaciones a ≤150 km. Las lejanas no son representativas.
+  ```
+- Mantienen los triángulos, los badges `×`/`•` y los estados de ondas.
+- La propagación dibuja un **frente proyectado** con el mismo radio y tiempo
+  que el mapa de planta.
+- Al activar o desactivar la sismicidad histórica, la capa se vuelve a aplicar
+  automáticamente sobre el perfil redibujado.
+
 #### Tiempos de llegada
 
 Abre una gráfica de distancia contra tiempo desde el origen del evento:

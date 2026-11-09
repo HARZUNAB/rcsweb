@@ -89,6 +89,10 @@
                 style="width: 8px; height: 8px; background: #8c8c8c; opacity: 0.45;"></span>
           <span id="historico-texto">{{ historico.label if historico else '' }}</span>
         </div>
+        {% if controles_estaciones %}
+        <div class="small text-secondary mb-2 d-none"
+             id="perfil-estaciones-nota" role="status"></div>
+        {% endif %}
         {% endif %}
         <div class="perfil-contenedor perfil-contenedor-detalle">
           <div id="perfil-detalle" class="rounded border">

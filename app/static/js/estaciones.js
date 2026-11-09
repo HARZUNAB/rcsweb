@@ -1238,13 +1238,17 @@
       );
       return;
     }
-    api.mostrarPropagacion({
+    var instantanea = {
       epicentro: datos.evento,
       estaciones: estaciones,
       radio_km: radio,
       tiempo: propagacionTiempo,
       fuente: datos.fuente,
-    });
+    };
+    api.mostrarPropagacion(instantanea);
+    if (typeof api.mostrarPropagacionPerfil === "function") {
+      api.mostrarPropagacionPerfil(instantanea);
+    }
     actualizarResumenEstados(estaciones);
     var reloj = document.getElementById("propagacion-reloj");
     if (reloj) {
@@ -1362,6 +1366,12 @@
       if (window.RCSMapaDetalle && window.RCSMapaDetalle.ocultarEstaciones) {
         window.RCSMapaDetalle.ocultarEstaciones();
       }
+      if (
+        window.RCSMapaDetalle &&
+        window.RCSMapaDetalle.ocultarEstacionesPerfil
+      ) {
+        window.RCSMapaDetalle.ocultarEstacionesPerfil();
+      }
       var botonEstaciones = document.getElementById("btn-estaciones-mapa");
       if (botonEstaciones) {
         botonEstaciones.textContent = "Estaciones en el mapa";
@@ -1404,6 +1414,12 @@
     if (window.RCSMapaDetalle && window.RCSMapaDetalle.ocultarPropagacion) {
       window.RCSMapaDetalle.ocultarPropagacion();
     }
+    if (
+      window.RCSMapaDetalle &&
+      window.RCSMapaDetalle.ocultarPropagacionPerfil
+    ) {
+      window.RCSMapaDetalle.ocultarPropagacionPerfil();
+    }
     var controles = document.getElementById("propagacion-controles");
     if (controles) {
       controles.classList.add("d-none");
@@ -1444,6 +1460,9 @@
     }
     var puntos = puntosMapaVisibles();
     api.mostrarEstaciones(puntos);
+    if (typeof api.mostrarEstacionesPerfil === "function") {
+      api.mostrarEstacionesPerfil(puntos);
+    }
     actualizarResumenEstados(puntos);
     var boton = document.getElementById("btn-estaciones-mapa");
     if (boton) {
@@ -1469,6 +1488,12 @@
     mapaEstacionesActivo = false;
     if (window.RCSMapaDetalle && window.RCSMapaDetalle.ocultarEstaciones) {
       window.RCSMapaDetalle.ocultarEstaciones();
+    }
+    if (
+      window.RCSMapaDetalle &&
+      window.RCSMapaDetalle.ocultarEstacionesPerfil
+    ) {
+      window.RCSMapaDetalle.ocultarEstacionesPerfil();
     }
     var boton = document.getElementById("btn-estaciones-mapa");
     if (boton) {
@@ -1783,6 +1808,13 @@
         }
       });
     }
+    document.addEventListener("rcs:perfil-redibujado", function () {
+      if (mapaEstacionesActivo) {
+        dibujarMapaEstaciones();
+      } else if (propagacionActiva) {
+        actualizarPropagacion();
+      }
+    });
   }
 
   function iniciarPanel() {

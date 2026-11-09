@@ -702,6 +702,152 @@
     const xMax = xs.length ? Math.max.apply(null, xs) : undefined;
     const yMin = ys.length ? Math.min.apply(null, ys) : undefined;
     const yMax = ys.length ? Math.max.apply(null, ys) : undefined;
+
+    const PERFIL_PERP_MAX_KM = 150;
+    const slabPuntos = [];
+    const slabLat = datos.slab_lat || [];
+    const slabLon = datos.slab_lon || [];
+    const slabP = datos.slab_p || [];
+    for (
+      let indice = 0;
+      indice < Math.min(slabLat.length, slabLon.length, slabP.length);
+      indice += 1
+    ) {
+      const la = slabLat[indice];
+      const lo = slabLon[indice];
+      const p = slabP[indice];
+      if (
+        Number.isFinite(la) &&
+        Number.isFinite(lo) &&
+        Number.isFinite(p)
+      ) {
+        slabPuntos.push([la, lo, p]);
+      }
+    }
+    let perfilRefLat = 0;
+    let perfilRefLon = 0;
+    let perfilCos = 1;
+    if (slabPuntos.length) {
+      perfilRefLat =
+        slabPuntos.reduce(function (suma, item) {
+          return suma + item[0];
+        }, 0) / slabPuntos.length;
+      perfilRefLon =
+        slabPuntos.reduce(function (suma, item) {
+          return suma + item[1];
+        }, 0) / slabPuntos.length;
+      perfilCos = Math.cos((perfilRefLat * Math.PI) / 180);
+    }
+    function perfilXY(lat, lon) {
+      return [
+        (lon - perfilRefLon) * 111.32 * perfilCos,
+        (lat - perfilRefLat) * 111.02,
+      ];
+    }
+    const perfilLinea = slabPuntos.map(function (item) {
+      const xy = perfilXY(item[0], item[1]);
+      return { x: xy[0], y: xy[1], p: item[2] };
+    });
+    function proyectarEnPerfil(lat, lon) {
+      if (perfilLinea.length < 2) {
+        return null;
+      }
+      const xy = perfilXY(lat, lon);
+      let mejor = null;
+      for (let indice = 0; indice < perfilLinea.length - 1; indice += 1) {
+        const a = perfilLinea[indice];
+        const b = perfilLinea[indice + 1];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const den = dx * dx + dy * dy;
+        let t = 0;
+        if (den > 0) {
+          t = Math.max(
+            0,
+            Math.min(
+              1,
+              ((xy[0] - a.x) * dx + (xy[1] - a.y) * dy) / den
+            )
+          );
+        }
+        const px = a.x + t * dx;
+        const py = a.y + t * dy;
+        const perp = Math.hypot(xy[0] - px, xy[1] - py);
+        const along = a.p + t * (b.p - a.p);
+        if (!mejor || perp < mejor.perp) {
+          mejor = { perp: perp, along: along };
+        }
+      }
+      return mejor;
+    }
+    const topoPares = [];
+    const topoP = datos.topo_p || [];
+    const topoAlt = datos.topo_alt || [];
+    for (
+      let indice = 0;
+      indice < Math.min(topoP.length, topoAlt.length);
+      indice += 1
+    ) {
+      if (
+        Number.isFinite(topoP[indice]) &&
+        Number.isFinite(topoAlt[indice])
+      ) {
+        topoPares.push([topoP[indice], topoAlt[indice]]);
+      }
+    }
+    function elevacionSuperficie(along) {
+      if (!topoPares.length) {
+        return 0;
+      }
+      if (along <= topoPares[0][0]) {
+        return topoPares[0][1] / 1000;
+      }
+      const ultimo = topoPares[topoPares.length - 1];
+      if (along >= ultimo[0]) {
+        return ultimo[1] / 1000;
+      }
+      for (let indice = 1; indice < topoPares.length; indice += 1) {
+        if (along <= topoPares[indice][0]) {
+          const a = topoPares[indice - 1];
+          const b = topoPares[indice];
+          const delta = b[0] - a[0];
+          return (
+            (delta > 0
+              ? a[1] + ((b[1] - a[1]) * (along - a[0])) / delta
+              : a[1]) / 1000
+          );
+        }
+      }
+      return 0;
+    }
+    function proyectarEstacionesPerfil(puntos) {
+      const salida = [];
+      (puntos || []).forEach(function (punto) {
+        if (
+          !Number.isFinite(punto.lat) ||
+          !Number.isFinite(punto.lon)
+        ) {
+          return;
+        }
+        const proyeccion = proyectarEnPerfil(punto.lat, punto.lon);
+        if (!proyeccion || proyeccion.perp > PERFIL_PERP_MAX_KM) {
+          return;
+        }
+        if (xMin !== undefined && proyeccion.along < xMin) {
+          return;
+        }
+        if (xMax !== undefined && proyeccion.along > xMax) {
+          return;
+        }
+        const copia = Object.assign({}, punto);
+        copia.along_km = proyeccion.along;
+        copia.perp_km = proyeccion.perp;
+        copia.elev_km = elevacionSuperficie(proyeccion.along);
+        salida.push(copia);
+      });
+      return salida;
+    }
+
     const layout = {
       margin: { l: 60, r: 15, t: 15, b: 45 },
       xaxis: {
@@ -728,6 +874,652 @@
       plot_bgcolor: "#ffffff",
       uirevision: datos.id || "perfil",
     };
+
+    let perfilPropagacionLista = false;
+    let perfilPropagacionPendiente = false;
+    let perfilGeneracion = 0;
+    let perfilIndices = null;
+    let perfilUltimoDatos = null;
+
+    function estadoOndasPerfil(punto) {
+      return (
+        punto.estado_ondas ||
+        (punto.tipo === "arribo" ? "observada" : "sin_consultar")
+      );
+    }
+
+    function textoEstadoOndas(punto) {
+      const estado = estadoOndasPerfil(punto);
+      if (estado === "sin_datos") {
+        return "Estado de ondas: Sin datos (verificado)";
+      }
+      if (estado === "disponible") {
+        return "Estado de ondas: Disponible y no usada";
+      }
+      if (estado === "sin_consultar") {
+        return "Estado de ondas: Sin consultar";
+      }
+      return "";
+    }
+
+    function textoEstacionPerfil(punto) {
+      const lineas = [
+        (punto.red || "") + " " + (punto.estacion || ""),
+        "Perfil: " +
+          Number(punto.along_km).toFixed(1) +
+          " km · perp " +
+          Number(punto.perp_km).toFixed(1) +
+          " km",
+      ];
+      const estado = textoEstadoOndas(punto);
+      if (estado) {
+        lineas.push(estado);
+      }
+      if (punto.tipo === "arribo" && (punto.fases || []).length) {
+        const fases = punto.fases
+          .map(function (fase) {
+            let texto = fase.fase || "";
+            if (fase.segundos != null) {
+              texto += " " + Number(fase.segundos).toFixed(1) + " s";
+            }
+            if (fase.modo) {
+              texto += " · " + fase.modo;
+            }
+            return texto.trim();
+          })
+          .filter(function (texto) {
+            return texto !== "";
+          });
+        if (fases.length) {
+          lineas.push(fases.join("<br>"));
+        }
+      }
+      return lineas.join("<br>");
+    }
+
+    function textoEstacionPropagacionPerfil(punto) {
+      const lineas = textoEstacionPerfil(punto).split("<br>");
+      if (punto.estado === "observada" && punto.llegada != null) {
+        lineas.push(
+          "Observada · " + Number(punto.llegada).toFixed(1) + " s"
+        );
+      } else if (punto.estado === "estimada" && punto.llegada != null) {
+        lineas.push(
+          "Estimada · " + Number(punto.llegada).toFixed(1) + " s"
+        );
+      } else {
+        lineas.push("Aún no alcanzada");
+      }
+      return lineas.join("<br>");
+    }
+
+    function circuloPerfil(centroX, centroY, radioKm) {
+      const pasos = 72;
+      const x = [];
+      const y = [];
+      for (let indice = 0; indice <= pasos; indice += 1) {
+        const angulo = (2 * Math.PI * indice) / pasos;
+        x.push(centroX + radioKm * Math.cos(angulo));
+        y.push(centroY + radioKm * Math.sin(angulo));
+      }
+      return { x: x, y: y };
+    }
+
+    function eventoPerfilReferencia() {
+      const eventos = (datos.eventos || []).filter(function (evento) {
+        return (
+          Number.isFinite(evento.along_km) &&
+          Number.isFinite(evento.prof)
+        );
+      });
+      return (
+        eventos.find(function (evento) {
+          return evento.rol === "local" || evento.rol === "seleccionado";
+        }) ||
+        eventos[0] ||
+        null
+      );
+    }
+
+    function actualizarNotaPerfil(mostradas, total) {
+      const nota = document.getElementById("perfil-estaciones-nota");
+      if (!nota) {
+        return;
+      }
+      if (total > 0 && mostradas < total) {
+        nota.textContent =
+          "Perfil: " +
+          mostradas +
+          " de " +
+          total +
+          " estaciones a ≤150 km. Las lejanas no son representativas.";
+        nota.classList.remove("d-none");
+      } else {
+        nota.textContent = "";
+        nota.classList.add("d-none");
+      }
+    }
+
+    function ocultarNotaPerfil() {
+      const nota = document.getElementById("perfil-estaciones-nota");
+      if (nota) {
+        nota.textContent = "";
+        nota.classList.add("d-none");
+      }
+    }
+
+    function borrarTrazasPerfil(prefijo) {
+      if (!window.Plotly || !perfil || !perfil.data) {
+        return;
+      }
+      const indices = [];
+      perfil.data.forEach(function (traza, indice) {
+        if ((traza.name || "").indexOf(prefijo) === 0) {
+          indices.push(indice);
+        }
+      });
+      if (indices.length) {
+        window.Plotly.deleteTraces(perfil, indices);
+      }
+    }
+
+    function mostrarEstacionesPerfil(puntos) {
+      if (!window.Plotly || !perfil) {
+        return;
+      }
+      if (!perfil.data) {
+        window.setTimeout(function () {
+          if (
+            window.RCSMapaDetalle &&
+            window.RCSMapaDetalle.mostrarEstacionesPerfil
+          ) {
+            window.RCSMapaDetalle.mostrarEstacionesPerfil(puntos);
+          }
+        }, 200);
+        return;
+      }
+      borrarTrazasPerfil("Perfil estático ·");
+      const estaciones = proyectarEstacionesPerfil(puntos);
+      actualizarNotaPerfil(estaciones.length, (puntos || []).length);
+      if (!estaciones.length) {
+        return;
+      }
+      const trazas = [
+        {
+          type: "scatter",
+          mode: "markers",
+          name: "Perfil estático · Estaciones",
+          x: estaciones.map(function (punto) {
+            return punto.along_km;
+          }),
+          y: estaciones.map(function (punto) {
+            return punto.elev_km;
+          }),
+          text: estaciones.map(textoEstacionPerfil),
+          marker: {
+            symbol: "triangle-up",
+            size: estaciones.map(function (punto) {
+              return punto.tipo === "arribo" ? 10 : 8;
+            }),
+            color: estaciones.map(function (punto) {
+              return estadoOndasPerfil(punto) === "observada"
+                ? COLOR_PROPAGACION
+                : "#ffffff";
+            }),
+            opacity: estaciones.map(function (punto) {
+              return estadoOndasPerfil(punto) === "sin_consultar"
+                ? 0.55
+                : 1;
+            }),
+            line: {
+              color: estaciones.map(function (punto) {
+                const estado = estadoOndasPerfil(punto);
+                if (estado === "sin_datos") {
+                  return "#6c757d";
+                }
+                if (
+                  estado === "disponible" ||
+                  estado === "observada"
+                ) {
+                  return COLOR_PROPAGACION;
+                }
+                return "#ced4da";
+              }),
+              width: estaciones.map(function (punto) {
+                return estadoOndasPerfil(punto) === "disponible"
+                  ? 2
+                  : 1.2;
+              }),
+            },
+          },
+          hoverinfo: "text",
+          showlegend: false,
+        },
+      ];
+      const sinDatos = estaciones.filter(function (punto) {
+        return estadoOndasPerfil(punto) === "sin_datos";
+      });
+      if (sinDatos.length) {
+        trazas.push({
+          type: "scatter",
+          mode: "markers",
+          name: "Perfil estático · Sin datos",
+          x: sinDatos.map(function (punto) {
+            return punto.along_km;
+          }),
+          y: sinDatos.map(function (punto) {
+            return punto.elev_km;
+          }),
+          marker: {
+            symbol: "x",
+            size: 7,
+            color: "#6c757d",
+            line: { width: 0 },
+          },
+          hoverinfo: "skip",
+          showlegend: false,
+        });
+      }
+      const disponibles = estaciones.filter(function (punto) {
+        return estadoOndasPerfil(punto) === "disponible";
+      });
+      if (disponibles.length) {
+        trazas.push({
+          type: "scatter",
+          mode: "markers",
+          name: "Perfil estático · Disponibles",
+          x: disponibles.map(function (punto) {
+            return punto.along_km;
+          }),
+          y: disponibles.map(function (punto) {
+            return punto.elev_km;
+          }),
+          marker: {
+            symbol: "circle",
+            size: 5,
+            color: COLOR_PROPAGACION,
+            line: { width: 0 },
+          },
+          hoverinfo: "skip",
+          showlegend: false,
+        });
+      }
+      window.Plotly.addTraces(perfil, trazas);
+    }
+
+    function ocultarEstacionesPerfil() {
+      borrarTrazasPerfil("Perfil estático ·");
+      ocultarNotaPerfil();
+    }
+
+    function trazaEstacionesPropagacionPerfil(estaciones) {
+      return {
+        type: "scatter",
+        mode: "markers",
+        name: "Perfil propagación · Estaciones",
+        x: estaciones.map(function (punto) {
+          return punto.along_km;
+        }),
+        y: estaciones.map(function (punto) {
+          return punto.elev_km;
+        }),
+        text: estaciones.map(textoEstacionPropagacionPerfil),
+        marker: {
+          symbol: "triangle-up",
+          size: estaciones.map(function (punto) {
+            if (punto.pulso) {
+              return 12;
+            }
+            return punto.estado === "pendiente" ? 7 : 9;
+          }),
+          color: estaciones.map(function (punto) {
+            if (punto.estado === "observada") {
+              return COLOR_PROPAGACION;
+            }
+            if (punto.estado === "estimada") {
+              return "#ffffff";
+            }
+            return "#eef1f2";
+          }),
+          opacity: estaciones.map(function (punto) {
+            return estadoOndasPerfil(punto) === "sin_consultar"
+              ? 0.55
+              : 1;
+          }),
+          line: {
+            color: estaciones.map(function (punto) {
+              if (punto.estado === "observada") {
+                return COLOR_PROPAGACION;
+              }
+              if (punto.estado === "estimada") {
+                return COLOR_PROPAGACION_TENUE;
+              }
+              return COLOR_PENDIENTE;
+            }),
+            width: estaciones.map(function (punto) {
+              if (punto.pulso) {
+                return 2.6;
+              }
+              return estadoOndasPerfil(punto) === "disponible" ? 2 : 1.2;
+            }),
+          },
+        },
+        hoverinfo: "text",
+        showlegend: false,
+      };
+    }
+
+    function actualizarPropagacionPerfil(
+      datosPropagacion,
+      centroX,
+      centroY,
+      estaciones
+    ) {
+      if (!perfilIndices || !window.Plotly) {
+        return;
+      }
+      const radioKm = Math.max(
+        0.01,
+        Number(datosPropagacion.radio_km) || 0
+      );
+      const factores = [1, 0.97, 0.94, 0.91];
+      const circulos = factores.map(function (factor) {
+        return circuloPerfil(centroX, centroY, radioKm * factor);
+      });
+      window.Plotly.restyle(
+        perfil,
+        {
+          x: circulos.map(function (circulo) {
+            return circulo.x;
+          }),
+          y: circulos.map(function (circulo) {
+            return circulo.y;
+          }),
+        },
+        perfilIndices.frentes
+      );
+      window.Plotly.restyle(
+        perfil,
+        {
+          x: [
+            estaciones.map(function (punto) {
+              return punto.along_km;
+            }),
+          ],
+          y: [
+            estaciones.map(function (punto) {
+              return punto.elev_km;
+            }),
+          ],
+          text: [estaciones.map(textoEstacionPropagacionPerfil)],
+          "marker.size": [
+            estaciones.map(function (punto) {
+              if (punto.pulso) {
+                return 12;
+              }
+              return punto.estado === "pendiente" ? 7 : 9;
+            }),
+          ],
+          "marker.color": [
+            estaciones.map(function (punto) {
+              if (punto.estado === "observada") {
+                return COLOR_PROPAGACION;
+              }
+              if (punto.estado === "estimada") {
+                return "#ffffff";
+              }
+              return "#eef1f2";
+            }),
+          ],
+          "marker.opacity": [
+            estaciones.map(function (punto) {
+              return estadoOndasPerfil(punto) === "sin_consultar"
+                ? 0.55
+                : 1;
+            }),
+          ],
+          "marker.line.color": [
+            estaciones.map(function (punto) {
+              if (punto.estado === "observada") {
+                return COLOR_PROPAGACION;
+              }
+              if (punto.estado === "estimada") {
+                return COLOR_PROPAGACION_TENUE;
+              }
+              return COLOR_PENDIENTE;
+            }),
+          ],
+          "marker.line.width": [
+            estaciones.map(function (punto) {
+              if (punto.pulso) {
+                return 2.6;
+              }
+              return estadoOndasPerfil(punto) === "disponible" ? 2 : 1.2;
+            }),
+          ],
+        },
+        [perfilIndices.estaciones]
+      );
+      const sinDatos = estaciones.filter(function (punto) {
+        return estadoOndasPerfil(punto) === "sin_datos";
+      });
+      const disponibles = estaciones.filter(function (punto) {
+        return estadoOndasPerfil(punto) === "disponible";
+      });
+      window.Plotly.restyle(
+        perfil,
+        {
+          x: [
+            sinDatos.map(function (punto) {
+              return punto.along_km;
+            }),
+          ],
+          y: [
+            sinDatos.map(function (punto) {
+              return punto.elev_km;
+            }),
+          ],
+        },
+        [perfilIndices.sinDatos]
+      );
+      window.Plotly.restyle(
+        perfil,
+        {
+          x: [
+            disponibles.map(function (punto) {
+              return punto.along_km;
+            }),
+          ],
+          y: [
+            disponibles.map(function (punto) {
+              return punto.elev_km;
+            }),
+          ],
+        },
+        [perfilIndices.disponibles]
+      );
+    }
+
+    function mostrarPropagacionPerfil(datosPropagacion) {
+      if (!window.Plotly || !perfil || !datosPropagacion) {
+        return;
+      }
+      if (!perfil.data) {
+        window.setTimeout(function () {
+          if (
+            window.RCSMapaDetalle &&
+            window.RCSMapaDetalle.mostrarPropagacionPerfil
+          ) {
+            window.RCSMapaDetalle.mostrarPropagacionPerfil(
+              datosPropagacion
+            );
+          }
+        }, 200);
+        return;
+      }
+      const evento = eventoPerfilReferencia();
+      const estaciones = proyectarEstacionesPerfil(
+        datosPropagacion.estaciones || []
+      );
+      actualizarNotaPerfil(
+        estaciones.length,
+        (datosPropagacion.estaciones || []).length
+      );
+      if (!evento) {
+        return;
+      }
+      const centroX = evento.along_km;
+      const centroY = -evento.prof;
+      const radioKm = Math.max(
+        0.01,
+        Number(datosPropagacion.radio_km) || 0
+      );
+      if (perfilPropagacionLista) {
+        actualizarPropagacionPerfil(
+          datosPropagacion,
+          centroX,
+          centroY,
+          estaciones
+        );
+        return;
+      }
+      if (perfilPropagacionPendiente) {
+        perfilUltimoDatos = {
+          datosPropagacion,
+          centroX,
+          centroY,
+          estaciones,
+        };
+        return;
+      }
+      perfilPropagacionPendiente = true;
+      const generacion = perfilGeneracion;
+      const factores = [1, 0.97, 0.94, 0.91];
+      const trazas = factores.map(function (factor, indice) {
+        const circulo = circuloPerfil(
+          centroX,
+          centroY,
+          radioKm * factor
+        );
+        return {
+          type: "scatter",
+          mode: "lines",
+          name:
+            indice === 0
+              ? "Perfil propagación · Frente"
+              : "Perfil propagación · Frente " + (indice + 1),
+          x: circulo.x,
+          y: circulo.y,
+          line: {
+            color: COLOR_PROPAGACION,
+            width: indice === 0 ? 2 : 1,
+          },
+          opacity:
+            indice === 0 ? 0.85 : Math.max(0.08, 0.3 - indice * 0.06),
+          hoverinfo: "skip",
+          showlegend: false,
+        };
+      });
+      trazas.push(trazaEstacionesPropagacionPerfil(estaciones));
+      trazas.push({
+        type: "scatter",
+        mode: "markers",
+        name: "Perfil propagación · Sin datos",
+        x: [],
+        y: [],
+        marker: {
+          symbol: "x",
+          size: 7,
+          color: "#6c757d",
+          line: { width: 0 },
+        },
+        hoverinfo: "skip",
+        showlegend: false,
+      });
+      trazas.push({
+        type: "scatter",
+        mode: "markers",
+        name: "Perfil propagación · Disponibles",
+        x: [],
+        y: [],
+        marker: {
+          symbol: "circle",
+          size: 5,
+          color: COLOR_PROPAGACION,
+          line: { width: 0 },
+        },
+        hoverinfo: "skip",
+        showlegend: false,
+      });
+      window.Plotly.addTraces(perfil, trazas).then(function () {
+        if (generacion !== perfilGeneracion) {
+          window.RCSMapaDetalle.ocultarPropagacionPerfil();
+          return;
+        }
+        const indices = {
+          frentes: [],
+          estaciones: -1,
+          sinDatos: -1,
+          disponibles: -1,
+        };
+        (perfil.data || []).forEach(function (traza, indice) {
+          if (traza.name === "Perfil propagación · Estaciones") {
+            indices.estaciones = indice;
+          } else if (traza.name === "Perfil propagación · Sin datos") {
+            indices.sinDatos = indice;
+          } else if (traza.name === "Perfil propagación · Disponibles") {
+            indices.disponibles = indice;
+          } else if (
+            (traza.name || "").indexOf("Perfil propagación · Frente") === 0
+          ) {
+            indices.frentes.push(indice);
+          }
+        });
+        if (
+          indices.estaciones < 0 ||
+          indices.sinDatos < 0 ||
+          indices.disponibles < 0 ||
+          indices.frentes.length !== 4
+        ) {
+          perfilPropagacionPendiente = false;
+          return;
+        }
+        perfilIndices = indices;
+        perfilPropagacionLista = true;
+        perfilPropagacionPendiente = false;
+        if (perfilUltimoDatos) {
+          actualizarPropagacionPerfil(
+            perfilUltimoDatos.datosPropagacion,
+            perfilUltimoDatos.centroX,
+            perfilUltimoDatos.centroY,
+            perfilUltimoDatos.estaciones
+          );
+        }
+      });
+    }
+
+    function ocultarPropagacionPerfil() {
+      perfilGeneracion += 1;
+      perfilPropagacionLista = false;
+      perfilPropagacionPendiente = false;
+      perfilIndices = null;
+      perfilUltimoDatos = null;
+      borrarTrazasPerfil("Perfil propagación ·");
+      ocultarNotaPerfil();
+    }
+
+    if (!window.RCSMapaDetalle) {
+      window.RCSMapaDetalle = {};
+    }
+    window.RCSMapaDetalle.mostrarEstacionesPerfil =
+      mostrarEstacionesPerfil;
+    window.RCSMapaDetalle.ocultarEstacionesPerfil =
+      ocultarEstacionesPerfil;
+    window.RCSMapaDetalle.mostrarPropagacionPerfil =
+      mostrarPropagacionPerfil;
+    window.RCSMapaDetalle.ocultarPropagacionPerfil =
+      ocultarPropagacionPerfil;
+
     window.Plotly.newPlot(perfil, trazas, layout, {
       responsive: true,
       displaylogo: false,
@@ -753,6 +1545,7 @@
         }
       });
       perfil.on("plotly_unhover", restaurarPrevio);
+      document.dispatchEvent(new CustomEvent("rcs:perfil-redibujado"));
     });
   }
 
