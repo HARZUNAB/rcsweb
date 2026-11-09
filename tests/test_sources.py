@@ -22,6 +22,7 @@ def test_registro_de_fuentes():
     assert [f.codigo for f in fuentes_locales()] == [
         "local_export",
         "local_select",
+        "local_db",
     ]
     assert fuente("eventquery").rol == "referencia"
     assert not fuente("eventquery").es_local

@@ -37,6 +37,7 @@ class EventoCanonico:
     agency: str = ""
     analyst: str = ""
     status: str = ""
+    revision: str = ""
     is_preferred: bool = True
     is_published: bool = False
     # Identidad de la fila en el archivo crudo. Permite enlazar los arribos y

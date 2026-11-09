@@ -128,205 +128,152 @@ def detecta_repetidos(lista_sismos, max_seg, max_lat, max_lon, nombre_archivo, c
     archivo.close()
     return total_repetidos
 
+def _completar_coordenada(valor):
+    if len(valor) <= 6:
+        if len(valor) == 3:
+            return valor + ".000"
+        if len(valor) == 4:
+            return valor + "000"
+        if len(valor) == 5:
+            return valor + "00"
+        if len(valor) == 6:
+            return valor + "0"
+    return valor
+
+
+def _leer_publica(ruta):
+    lista = []
+    with open(ruta) as archivo:
+        lector = csv.reader(archivo)
+        next(lector, None)
+        for linea in lector:
+            if len(linea) < 9:
+                continue
+            try:
+                fecha = _parsear_fecha_hora(linea[1])
+            except (ValueError, IndexError):
+                continue
+            lista.append({
+                "fecha_hora": linea[1],
+                "dt": fecha,
+                "lat": _completar_coordenada(linea[2]),
+                "lon": _completar_coordenada(linea[3]),
+                "prof": linea[4],
+                "mag": linea[5],
+                "tipo_mag": linea[6],
+                "ref": linea[7],
+                "perc": linea[8],
+            })
+    return lista
+
+
+def _leer_local(ruta):
+    lista = []
+    with open(ruta) as archivo:
+        lector = csv.reader(archivo)
+        next(lector, None)
+        for linea in lector:
+            if len(linea) < 8:
+                continue
+            try:
+                fecha = _parsear_fecha_hora(linea[1])
+            except (ValueError, IndexError):
+                continue
+            lista.append({
+                "fecha_hora": linea[1],
+                "dt": fecha,
+                "lat": _completar_coordenada(linea[2]),
+                "lon": _completar_coordenada(linea[3]),
+                "prof": linea[4],
+                "mag": linea[5],
+                "tipo_mag": linea[6],
+                "analista": linea[7],
+            })
+    return lista
+
+
+def _separar_argumentos(argv):
+    prefijos = None
+    rutas = []
+    for argumento in argv[1:]:
+        if argumento.startswith("--prefijos="):
+            valor = argumento.split("=", 1)[1]
+            prefijos = [p.strip() for p in valor.split(",") if p.strip()]
+        else:
+            rutas.append(argumento)
+    return rutas, prefijos
+
+
+def _prefijos_historicos(rutas):
+    prefijos = []
+    for indice, _ in enumerate(rutas):
+        if indice == 0:
+            prefijos.append("seisan")
+        elif indice == 1:
+            prefijos.append("seiscomp")
+        else:
+            prefijos.append("fuente%d" % (indice + 1))
+    return prefijos
+
+
 def main(argv=None):
     argv = sys.argv if argv is None else argv
+    rutas, prefijos = _separar_argumentos(argv)
+    if not rutas:
+        print(
+            "Uso: repetidos.py <eventquery.csv> <catalogo_local.csv> [...] "
+            "[--prefijos=a,b]"
+        )
+        return 2
 
-    csv_file_1 = open(argv[1])
-    csv_file_2 = open(argv[2])
-    # Tercer CSV opcional: el catálogo de SeisComp (seiscomp_parametros.csv). Tiene
-    # el mismo layout de 8 columnas que el de Seisan, así que se procesa igual.
-    csv_file_3 = (open(argv[3]) if len(argv) > 3 and argv[3]
-                  else None)
+    ruta_publica = rutas[0]
+    rutas_locales = rutas[1:]
+    if prefijos is None:
+        prefijos = _prefijos_historicos(rutas_locales)
+    if len(prefijos) != len(rutas_locales):
+        print("La cantidad de prefijos no coincide con los catálogos locales.")
+        return 2
 
-    csvreader_1 = csv.reader(csv_file_1)
-    csvreader_2 = csv.reader(csv_file_2)
-    csvreader_3 = csv.reader(csv_file_3) if csv_file_3 is not None else None
-
-    # saltar el encabezado
-    next(csvreader_1,None)
-    next(csvreader_2,None)
-    if csvreader_3 is not None:
-        next(csvreader_3,None)
-
-    # Declara diccionario
-    diccsv_1={}
-    diccsv_2={}
-    diccsv_3={}
-
-    # Declara listas
-    listacsv_1=[]
-    listacsv_2=[]
-    listacsv_3=[]
-
-    numsis_csv_1=0
-    numsis_csv_2=0
-    numsis_csv_3=0
-
-    # Creando diccionario que contiene lista con datos extraidos del .csv ordenado (eventquery)
-    for linea1 in csvreader_1:
-        # Completa con ceros la latitud
-        if len(linea1[2])<=6:
-            largo_lat=len(linea1[2])
-            if largo_lat==3:
-                linea1[2]=linea1[2]+".000"
-            if largo_lat==4:
-                linea1[2]=linea1[2]+"000"
-            if largo_lat==5:
-                linea1[2]=linea1[2]+"00"
-            if largo_lat==6:
-                linea1[2]=linea1[2]+"0"
-
-        # Completa con ceros la longitud
-        if len(linea1[3])<=6:
-            largo_lon=len(linea1[3])
-            if largo_lon==3:
-                linea1[3]=linea1[3]+".000"
-            if largo_lon==4:
-                linea1[3]=linea1[3]+"000"
-            if largo_lon==5:
-                linea1[3]=linea1[3]+"00"
-            if largo_lon==6:
-                linea1[3]=linea1[3]+"0"
-
-        diccsv_1={
-            "fecha_hora":linea1[1],
-            "dt":_parsear_fecha_hora(linea1[1]),
-            "lat":linea1[2],
-            "lon":linea1[3],
-            "prof":linea1[4],
-            "mag":linea1[5],
-            "tipo_mag":linea1[6],
-            "ref":linea1[7],
-            "perc":linea1[8]
-        }
-        listacsv_1.append(diccsv_1)
-
-    # Creando diccionario que contiene lista con datos extraidos del .csv ordenado (seisan)
-    for linea2 in csvreader_2:
-        # Completa con ceros la latitud
-        if len(linea2[2])<=6:
-            largo_lat=len(linea2[2])
-            if largo_lat==3:
-                linea2[2]=linea2[2]+".000"
-            if largo_lat==4:
-                linea2[2]=linea2[2]+"000"
-            if largo_lat==5:
-                linea2[2]=linea2[2]+"00"
-            if largo_lat==6:
-                linea2[2]=linea2[2]+"0"
-
-        # Completa con ceros la longitud
-        if len(linea2[3])<=6:
-            largo_lon=len(linea2[3])
-            if largo_lon==3:
-                linea2[3]=linea2[3]+".000"
-            if largo_lon==4:
-                linea2[3]=linea2[3]+"000"
-            if largo_lon==5:
-                linea2[3]=linea2[3]+"00"
-            if largo_lon==6:
-                linea2[3]=linea2[3]+"0"
-
-        diccsv_2={
-            "fecha_hora":linea2[1],
-            "dt":_parsear_fecha_hora(linea2[1]),
-            "lat":linea2[2],
-            "lon":linea2[3],
-            "prof":linea2[4],
-            "mag":linea2[5],
-            "tipo_mag":linea2[6],
-            "analista":linea2[7],
-        }
-        listacsv_2.append(diccsv_2)
-
-    # Creando diccionario que contiene lista con datos extraidos del .csv ordenado (seiscomp)
-    if csvreader_3 is not None:
-        for linea3 in csvreader_3:
-            # Completa con ceros la latitud
-            if len(linea3[2])<=6:
-                largo_lat=len(linea3[2])
-                if largo_lat==3:
-                    linea3[2]=linea3[2]+".000"
-                if largo_lat==4:
-                    linea3[2]=linea3[2]+"000"
-                if largo_lat==5:
-                    linea3[2]=linea3[2]+"00"
-                if largo_lat==6:
-                    linea3[2]=linea3[2]+"0"
-
-            # Completa con ceros la longitud
-            if len(linea3[3])<=6:
-                largo_lon=len(linea3[3])
-                if largo_lon==3:
-                    linea3[3]=linea3[3]+".000"
-                if largo_lon==4:
-                    linea3[3]=linea3[3]+"000"
-                if largo_lon==5:
-                    linea3[3]=linea3[3]+"00"
-                if largo_lon==6:
-                    linea3[3]=linea3[3]+"0"
-
-            diccsv_3={
-                "fecha_hora":linea3[1],
-                "dt":_parsear_fecha_hora(linea3[1]),
-                "lat":linea3[2],
-                "lon":linea3[3],
-                "prof":linea3[4],
-                "mag":linea3[5],
-                "tipo_mag":linea3[6],
-                "analista":linea3[7],
-            }
-            listacsv_3.append(diccsv_3)
-
-    for sismo in listacsv_1:
-        numsis_csv_1+=1
-    print('total eventos',argv[1], numsis_csv_1, "( fuente eventquery )")
-
-    for sismo in listacsv_2:
-        numsis_csv_2+=1
-    print('total eventos', argv[2], numsis_csv_2, "( fuente select de seisan )")
-
-    for sismo in listacsv_3:
-        numsis_csv_3+=1
-    if csvreader_3 is not None:
-        print('total eventos', argv[3], numsis_csv_3, "( fuente SeisComp )")
+    lista_publica = _leer_publica(ruta_publica)
+    print("total eventos", ruta_publica, len(lista_publica),
+          "( fuente eventquery )")
 
     print("Revisando datos de publica...")
-    rep_publica_amplio=detecta_repetidos(listacsv_1, MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO, MAX_LAT_LON_AMPLIO, "rep_publica_amplio.txt", cabecera_publica, campos_publica)
-    rep_publica_estricto=detecta_repetidos(listacsv_1, MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO, MAX_LAT_LON_ESTRICTO, "rep_publica_estricto.txt", cabecera_publica, campos_publica)
-
+    if lista_publica:
+        detecta_repetidos(
+            lista_publica, MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO,
+            MAX_LAT_LON_AMPLIO, "rep_publica_amplio.txt",
+            cabecera_publica, campos_publica,
+        )
+        detecta_repetidos(
+            lista_publica, MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO,
+            MAX_LAT_LON_ESTRICTO, "rep_publica_estricto.txt",
+            cabecera_publica, campos_publica,
+        )
     print("\nFinalizado")
 
-    print("Revisando datos de seisan...")
-    rep_seisan_amplio=detecta_repetidos(listacsv_2, MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO, MAX_LAT_LON_AMPLIO, "rep_seisan_amplio.txt", cabecera_seisan, campos_seisan)
-    rep_seisan_estricto=detecta_repetidos(listacsv_2, MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO, MAX_LAT_LON_ESTRICTO, "rep_seisan_estricto.txt", cabecera_seisan, campos_seisan)
-
-    print("\nFinalizado")
-
-    rep_seiscomp_amplio=0
-    rep_seiscomp_estricto=0
-    if csvreader_3 is not None:
-        print("Revisando datos de SeisComp...")
-        rep_seiscomp_amplio=detecta_repetidos(listacsv_3, MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO, MAX_LAT_LON_AMPLIO, "rep_seiscomp_amplio.txt", cabecera_seisan, campos_seisan)
-        rep_seiscomp_estricto=detecta_repetidos(listacsv_3, MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO, MAX_LAT_LON_ESTRICTO, "rep_seiscomp_estricto.txt", cabecera_seisan, campos_seisan)
+    for ruta_local, prefijo in zip(rutas_locales, prefijos):
+        lista = _leer_local(ruta_local)
+        print("total eventos", ruta_local, len(lista),
+              "( fuente %s )" % prefijo)
+        print("\nRevisando datos de %s..." % prefijo)
+        if lista:
+            detecta_repetidos(
+                lista, MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO,
+                MAX_LAT_LON_AMPLIO, "rep_%s_amplio.txt" % prefijo,
+                cabecera_seisan, campos_seisan,
+            )
+            detecta_repetidos(
+                lista, MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO,
+                MAX_LAT_LON_ESTRICTO, "rep_%s_estricto.txt" % prefijo,
+                cabecera_seisan, campos_seisan,
+            )
         print("\nFinalizado")
 
     print("----------------------------------- Salida -----------------------------------")
-    print('Posibles repetidos en publica (amplio, {}s/{}°): {}'.format(MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO, rep_publica_amplio))
-    print('Posibles repetidos en publica (estricto, {}s/{}°): {}'.format(MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO, rep_publica_estricto))
-    print('Posibles repetidos en seisan (amplio, {}s/{}°): {}'.format(MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO, rep_seisan_amplio))
-    print('Posibles repetidos en seisan (estricto, {}s/{}°): {}'.format(MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO, rep_seisan_estricto))
-    if csvreader_3 is not None:
-        print('Posibles repetidos en SeisComp (amplio, {}s/{}°): {}'.format(MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO, rep_seiscomp_amplio))
-        print('Posibles repetidos en SeisComp (estricto, {}s/{}°): {}'.format(MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO, rep_seiscomp_estricto))
-    print('Archivos generados...')
-    print('rep_publica_amplio.txt')
-    print('rep_publica_estricto.txt')
-    print('rep_seisan_amplio.txt')
-    print('rep_seisan_estricto.txt')
-    if csvreader_3 is not None:
-        print('rep_seiscomp_amplio.txt')
-        print('rep_seiscomp_estricto.txt')
+    print("Archivos generados en informes/: rep_publica_*.txt y "
+          "rep_<fuente>_*.txt")
+    return 0
 
 
 if __name__ == "__main__":

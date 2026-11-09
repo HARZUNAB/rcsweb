@@ -1,8 +1,9 @@
 # Manual de usuario
 
-RCS Web es el revisor de catálogos sísmicos de la red. Permite solicitar o
-subir catálogos, procesarlos, revisar los resultados, abrir el detalle de cada
-evento y consultar los paneles de contexto sismotectónico.
+RCS Web es el revisor de catálogos sísmicos de la red. Permite solicitar
+catálogos, preparar trabajos con fuentes locales, procesarlos, revisar los
+resultados, abrir el detalle de cada evento y consultar los paneles de contexto
+sismotectónico.
 
 **Versión:** 0.7.3 · **Actualizado:** noviembre de 2026
 
@@ -111,22 +112,26 @@ trabajo asociado.
 
 ![Descarga en curso](img/descarga.png)
 
-### Subir catálogos
+### Nuevo trabajo
 
-Use **Subir catálogos** cuando ya tenga los archivos en su equipo.
+Use **Nuevo trabajo** cuando ya tenga los archivos en su equipo o cuando quiera
+consultar una fuente directa, como Central.
 
-![Subir catálogos](img/subir.png)
+![Nuevo trabajo](img/subir.png)
 
 1. Seleccione el catálogo de referencia.
 2. Agregue las fuentes locales disponibles según corresponda.
 3. En cada fuente local puede cambiar **Nombre de la fuente** para
    identificarla mejor en tablas, paneles y filtros.
-4. Indique el período y la fuente principal.
-5. Envíe el formulario.
+4. Si una fuente no requiere archivo, la tarjeta lo indica y muestra el nombre
+   sugerido de la extracción. La consulta se hace directamente al crear el
+   trabajo.
+5. Indique el período y la fuente principal.
+6. Envíe el formulario.
 
-Si falta un archivo o el contenido no es válido, el trabajo queda en
-**Borrador** con el detalle del problema. Corrija el archivo y cree uno nuevo,
-o elimine el borrador.
+Si falta un archivo, la conexión falla o el contenido no es válido, el trabajo
+queda en **Borrador** con el detalle del problema. Corrija el archivo o el
+período y cree uno nuevo, o elimine el borrador.
 
 ## Seguimiento del trabajo
 
@@ -582,6 +587,9 @@ visibles provienen del manifiesto de fuentes y pueden cambiar sin modificar la
 aplicación.
 
 - Las columnas y filtros funcionan como en los resultados.
+- Cuando la fuente es **Central**, el catálogo agrega **Publicado** (`Sí`/`No`)
+  y **Revisión** (`Revisado`, `Final`, `Confirmado`, etc.). Así se distingue un
+  evento local de uno que no está publicado, sin ocultar los publicados.
 - **Administrador y supervisor** mantienen el acceso completo: columnas de
   analista, **Web**, **Ver**, **Ver miniaturas**, descargas completas y el nuevo
   **Descargar catálogo**.

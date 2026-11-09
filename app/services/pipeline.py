@@ -316,6 +316,7 @@ def _planes_a_pasos(
     *,
     es_referencia: bool = False,
 ) -> list[Paso]:
+    adapter.source_id = source_id
     planes = adapter.pasos(job, eventquery)
     pasos = []
     for indice, plan in enumerate(planes):
@@ -349,7 +350,7 @@ def _planes_a_pasos(
                     ruta_cruda=(raiz / crudo) if crudo else None,
                 )
                 try:
-                    extensiones = _adapter.extensiones(job, eventquery)
+                    extensiones = _adapter.extensiones(job, eventquery, raiz)
                 except (AttributeError, ValueError):
                     extensiones = {}
                 if extensiones:
@@ -471,52 +472,12 @@ def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
             ]
         )
 
-    por_tipo = {adapter.tipo: item for item in locales if adapter.tipo}
-    fuente_select = por_tipo.get("select")
-    fuente_export = por_tipo.get("export")
-    renombres: list[tuple[str, str]] = []
-    if fuente_select and fuente_export:
-        args_repetidos = [
-            new2,
-            fuente_select[3].catalogo(job, eventquery),
-            fuente_export[3].catalogo(job, eventquery),
-        ]
-        renombres = [
-            (item[0], item[3].prefijo_repetidos or item[3].tipo)
-            for item in (fuente_select, fuente_export)
-            if item[0] != (item[3].prefijo_repetidos or item[3].tipo)
-        ]
-    elif fuente_select:
-        args_repetidos = [new2, fuente_select[3].catalogo(job, eventquery)]
-        prefijo = fuente_select[3].prefijo_repetidos or fuente_select[3].tipo
-        renombres = (
-            [(fuente_select[0], prefijo)]
-            if fuente_select[0] != prefijo
-            else []
-        )
-    elif fuente_export:
-        args_repetidos = [new2, fuente_export[3].catalogo(job, eventquery)]
-        prefijo = fuente_export[3].prefijo_repetidos_core
-        renombres = (
-            [(fuente_export[0], prefijo)]
-            if fuente_export[0] != prefijo
-            else []
-        )
-    elif len(locales) == 1:
-        source_id, _formato, _alias, adapter = locales[0]
-        args_repetidos = [new2, adapter.catalogo(job, eventquery)]
-        prefijo = (
-            adapter.prefijo_repetidos_core
-            if adapter.tipo == "export"
-            else (adapter.prefijo_repetidos or adapter.tipo or source_id)
-        )
-        renombres = [(source_id, prefijo)] if source_id != prefijo else []
-    else:
-        raise PipelineError(
-            "La detección de repetidos para más de dos fuentes locales "
-            "todavía no está implementada."
-        )
-    post = _renombrar_varias(renombres) if renombres else None
+    args_repetidos = [new2]
+    prefijos = []
+    for source_id, _formato, _alias, adapter in locales:
+        args_repetidos.append(adapter.catalogo(job, eventquery))
+        prefijos.append(source_id)
+    args_repetidos.append("--prefijos=" + ",".join(prefijos))
 
     pasos.append(
         Paso(
@@ -524,7 +485,6 @@ def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
             "Detectar eventos repetidos",
             "repetidos.py",
             args_repetidos,
-            post=post,
         )
     )
     return pasos
@@ -547,6 +507,7 @@ def _registrar_artefactos(job: Job, workspace: Path) -> None:
     nombre_ref = nombre_canonico(referencia.id, job.inicio14, job.fin14)
     for definicion in fuentes_manifest.fuentes():
         adapter = obtener_adaptador(definicion.format)
+        adapter.source_id = definicion.id
         ruta = workspace / adapter.catalogo(job, nombre_ref)
         if ruta.is_file():
             candidatos.append(("catalogo", ruta))

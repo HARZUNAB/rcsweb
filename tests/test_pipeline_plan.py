@@ -26,7 +26,7 @@ def test_plan_solo_seiscomp():
         "comparar_seiscomp",
         "detectar_repetidos",
     ]
-    assert pasos[-1].post is not None
+    assert pasos[-1].post is None
 
 
 def test_plan_solo_seisan():
@@ -65,6 +65,28 @@ def test_plan_sin_fuente_local_falla():
         pass
     else:  # pragma: no cover
         raise AssertionError("debía rechazar un trabajo sin fuentes locales")
+
+
+def test_plan_solo_central():
+    pasos = pipeline._construir_pasos(
+        _job(), "eventquery_20261001000000_20261031235959.csv", ["central"]
+    )
+
+    claves = _claves(pasos)
+    assert "consultar_central" in claves
+    assert "comparar_central" in claves
+    assert pasos[-1].clave == "detectar_repetidos"
+    assert pasos[-1].args[-1] == "--prefijos=central"
+
+
+def test_plan_tres_fuentes_locales():
+    pasos = pipeline._construir_pasos(
+        _job(),
+        "eventquery_20261001000000_20261031235959.csv",
+        ["seiscomp", "seisan", "central"],
+    )
+
+    assert pasos[-1].args[-1] == "--prefijos=seiscomp,seisan,central"
 
 
 def test_renombrar_repetidos_de_seiscomp(tmp_path):

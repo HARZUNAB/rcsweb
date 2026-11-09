@@ -37,8 +37,8 @@ def test_dashboard_prioriza_solicitud(client, login):
     html = client.get("/").get_data(as_text=True)
 
     assert "Solicitar catálogos" in html
-    assert "Subir catálogos" in html
-    assert html.index("Solicitar catálogos") < html.index("Subir catálogos")
+    assert "Nuevo trabajo" in html
+    assert html.index("Solicitar catálogos") < html.index("Nuevo trabajo")
 
 
 def test_logout_cierra_sesion(client):

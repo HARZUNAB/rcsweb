@@ -49,6 +49,8 @@ def leer_formulario(fuentes: tuple[Fuente, ...]) -> list[dict]:
 
 
 def extension_permitida(fuente: Fuente, archivo) -> bool:
+    if not fuente.requires_file:
+        return True
     if archivo is None or not getattr(archivo, "filename", ""):
         return False
     if not fuente.accept:

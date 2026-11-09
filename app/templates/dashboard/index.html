@@ -16,7 +16,7 @@
     {% endif %}
     {% if puede('trabajos.crear') %}
     <a class="btn btn-outline-secondary" href="{{ url_for('jobs.nuevo') }}">
-      Subir catálogos
+      Nuevo trabajo
     </a>
     {% endif %}
   </div>
@@ -119,7 +119,7 @@
               {% endif %}
               {% if puede('trabajos.crear') %}
               <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('jobs.nuevo') }}">
-                Subir catálogos
+                Nuevo trabajo
               </a>
               {% endif %}
             </div>

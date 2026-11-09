@@ -19,6 +19,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from ..domain.catalogs import manifest as fuentes_manifest
+from ..domain.catalogs.registry import adaptador as obtener_adaptador
 from ..extensions import db
 from ..forms import JobForm
 from ..models import Job, JobArtifact, JobFile, JobSource, nuevo_uuid
@@ -222,12 +223,15 @@ def nuevo():
 
             try:
                 referencia_opcion = opciones_por_id[referencia.id]
-                _guardar(referencia.id, referencia_opcion["archivo"])
+                if referencia.requires_file:
+                    _guardar(referencia.id, referencia_opcion["archivo"])
                 for source_id in orden:
-                    _guardar(
-                        source_id,
-                        opciones_por_id[source_id]["archivo"],
-                    )
+                    fuente_def = opciones_por_id[source_id]["fuente"]
+                    if fuente_def.requires_file:
+                        _guardar(
+                            source_id,
+                            opciones_por_id[source_id]["archivo"],
+                        )
 
                 db.session.add(job)
                 db.session.add(
@@ -271,23 +275,28 @@ def nuevo():
             try:
                 validaciones = {}
                 for source in job.sources:
-                    ruta = rutas.get(source.kind)
                     definicion = fuentes_manifest.por_id(source.kind)
-                    validador = definicion.validator if definicion else source.kind
-                    if ruta is None:
-                        resultado = {
-                            "ok": False,
-                            "errores": ["No se encontró el archivo cargado."],
-                            "advertencias": [],
-                            "eventos": 0,
-                        }
+                    if definicion is not None and not definicion.requires_file:
+                        adapter = obtener_adaptador(definicion.format)
+                        adapter.source_id = definicion.id
+                        resultado = adapter.validar_periodo(job)
                     else:
-                        resultado = validar_fuente(
-                            validador,
-                            ruta,
-                            job.period_start,
-                            job.period_end,
-                        )
+                        ruta = rutas.get(source.kind)
+                        validador = definicion.validator if definicion else source.kind
+                        if ruta is None:
+                            resultado = {
+                                "ok": False,
+                                "errores": ["No se encontró el archivo cargado."],
+                                "advertencias": [],
+                                "eventos": 0,
+                            }
+                        else:
+                            resultado = validar_fuente(
+                                validador,
+                                ruta,
+                                job.period_start,
+                                job.period_end,
+                            )
                     validaciones[source.kind] = resultado
                     source.status = "ok" if resultado["ok"] else "error"
                     mensajes = resultado["errores"] + resultado["advertencias"]
@@ -308,6 +317,14 @@ def nuevo():
                 "fuentes": orden,
                 "principal": principal,
                 "archivos": archivos_meta,
+                "extracciones": {
+                    fuente.id: fuente.nombre_extraccion(
+                        job.inicio14, job.fin14
+                    )
+                    for fuente in definiciones
+                    if not fuente.requires_file
+                    and fuente.id in orden
+                },
                 "validacion": {
                     codigo: {
                         "ok": resultado["ok"],
@@ -322,13 +339,13 @@ def nuevo():
                 job.status = "draft"
                 job.current_step = "Validación fallida"
                 job.error = (
-                    "Alguno de los catálogos no pasó la validación. "
-                    "Revise el detalle, corrija el archivo y cree un trabajo nuevo."
+                    "Alguna fuente no pasó la validación. "
+                    "Revise el detalle y cree un trabajo nuevo."
                 )
                 db.session.commit()
                 registrar("job.create", entity=job.id, meta=meta)
                 flash(
-                    "El trabajo quedó en borrador: hay catálogos inválidos. "
+                    "El trabajo quedó en borrador: hay fuentes inválidas. "
                     "Revise el detalle antes de volver a intentar.",
                     "danger",
                 )

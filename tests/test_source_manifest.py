@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.domain.catalogs import manifest
 from app.extensions import db
-from app.models import Job, User, nuevo_uuid
+from app.models import Job, JobSource, User, nuevo_uuid
 from app.services import panels, plots
 from app.services.workspace import crear_workspace, ruta_workspace
 
@@ -344,3 +344,119 @@ def test_create_app_rechaza_manifiesto_invalido(tmp_path, monkeypatch):
 
     with pytest.raises(manifest.ManifestError):
         create_app(TestConfig)
+
+
+def _manifiesto_con_fuente_sin_archivo(tmp_path, monkeypatch, extraction_name="central_{inicio}_{fin}.csv"):
+    return _manifiesto_extra(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "id": "ref_x",
+                "label": "Referencia X",
+                "role": "reference",
+                "format": "eventquery",
+                "validator": "eventquery",
+                "download_handler": "eventquery",
+            },
+            {
+                "id": "central_tmp",
+                "label": "Central de prueba",
+                "role": "local",
+                "format": "local_db",
+                "validator": "central",
+                "requires_file": False,
+                "extraction_name": extraction_name,
+                "dsn_env": "RCS_CENTRAL_DSN",
+                "default_primary": True,
+            },
+        ],
+    )
+
+
+def test_fuente_sin_archivo_sugiere_nombre_de_extraccion(
+    tmp_path, monkeypatch
+):
+    _manifiesto_con_fuente_sin_archivo(tmp_path, monkeypatch)
+
+    fuente = manifest.por_id("central_tmp")
+
+    assert fuente is not None
+    assert fuente.requires_file is False
+    assert (
+        fuente.nombre_extraccion("20261001", "20261031")
+        == "central_20261001_20261031.csv"
+    )
+
+
+def test_formulario_oculta_archivo_para_fuente_sin_archivo(
+    client, login, tmp_path, monkeypatch
+):
+    _manifiesto_con_fuente_sin_archivo(tmp_path, monkeypatch)
+    login()
+
+    html = client.get("/jobs/new").get_data(as_text=True)
+
+    assert "Nuevo trabajo" in html
+    assert "No requiere archivo." in html
+    assert 'name="central_tmp"' not in html
+    assert "central_{inicio}_{fin}.csv" in html
+
+
+def test_alta_con_fuente_sin_archivo(
+    client, login, sin_celery, tmp_path, monkeypatch
+):
+    _manifiesto_con_fuente_sin_archivo(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        "app.domain.catalogs.adapters.central.Adaptador.validar_periodo",
+        lambda self, job: {
+            "codigo": "central_tmp",
+            "ok": True,
+            "errores": [],
+            "advertencias": [],
+            "eventos": 1,
+            "desde": None,
+            "hasta": None,
+        },
+    )
+    login()
+    datos = {
+        "period_start": "2026-10-01",
+        "period_end": "2026-10-31",
+        "incluir_central_tmp": "y",
+        "primary_source": "central_tmp",
+        "alias_central_tmp": "Central octubre",
+        "ref_x": (
+            open(SAMPLES / "eventquery_20261001000000_20261031235959.csv", "rb"),
+            "eventquery.csv",
+        ),
+    }
+
+    respuesta = client.post(
+        "/jobs/new", data=datos, content_type="multipart/form-data"
+    )
+
+    assert respuesta.status_code == 302
+    job = db.session.execute(db.select(Job)).scalar_one()
+    assert job.status == "queued"
+    assert {fuente.kind for fuente in job.sources} == {"ref_x", "central_tmp"}
+    assert {archivo.kind for archivo in job.files} == {"ref_x"}
+    central = db.session.execute(
+        db.select(JobSource).filter_by(job_id=job.id, kind="central_tmp")
+    ).scalar_one()
+    assert central.role == "local_principal"
+    assert central.alias == "Central octubre"
+    assert sin_celery == [job.id]
+
+
+def test_validar_rechaza_extraccion_con_ruta(tmp_path, monkeypatch):
+    import pytest
+
+    _manifiesto_con_fuente_sin_archivo(
+        tmp_path, monkeypatch, extraction_name="carpeta/central.csv"
+    )
+
+    with pytest.raises(manifest.ManifestError) as exc:
+        manifest.validar()
+
+    assert "extraction_name con ruta" in str(exc.value)

@@ -45,6 +45,9 @@ class Fuente:
     availability: str = ""
     default_primary: bool = False
     visible_in_observaciones: bool = True
+    requires_file: bool = True
+    extraction_name: str = ""
+    dsn_env: str = ""
 
     @property
     def es_referencia(self) -> bool:
@@ -66,6 +69,14 @@ class Fuente:
             return formato(self.format).capacidades
         except ValueError:
             return frozenset()
+
+    def nombre_extraccion(self, inicio14: str = "{inicio}", fin14: str = "{fin}") -> str:
+        """Nombre sugerido de la extracción, resuelto con el período."""
+        plantilla = self.extraction_name or f"{self.id}_{{inicio}}_{{fin}}.csv"
+        return (
+            plantilla.replace("{inicio}", inicio14)
+            .replace("{fin}", fin14)
+        )
 
 
 def _ruta() -> Path:
@@ -104,6 +115,9 @@ def _leer(ruta: str, _mtime: int) -> tuple[Fuente, ...]:
             visible_in_observaciones=bool(
                 item.get("visible_in_observaciones", fuente_role(item) == "local")
             ),
+            requires_file=_booleano(item, "requires_file", True),
+            extraction_name=str(item.get("extraction_name") or "").strip(),
+            dsn_env=str(item.get("dsn_env") or "").strip(),
         )
         if not fuente.id or fuente.id in vistos:
             raise ValueError(f"Fuente duplicada o vacía en el manifiesto: {fuente.id!r}")
@@ -116,6 +130,20 @@ def _leer(ruta: str, _mtime: int) -> tuple[Fuente, ...]:
 
 def fuente_role(item: dict) -> str:
     return str(item.get("role") or "local")
+
+
+def _booleano(item: dict, clave: str, defecto: bool) -> bool:
+    valor = item.get(clave, defecto)
+    if isinstance(valor, str):
+        return valor.strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+            "si",
+            "sí",
+        }
+    return bool(valor)
 
 
 def validar() -> tuple[Fuente, ...]:
@@ -192,6 +220,13 @@ def validar() -> tuple[Fuente, ...]:
             errores.append(
                 f"La fuente {etiqueta} tiene un stored_filename con ruta: "
                 f"{fuente.stored_filename!r}."
+            )
+        if fuente.extraction_name and (
+            "/" in fuente.extraction_name or "\\" in fuente.extraction_name
+        ):
+            errores.append(
+                f"La fuente {etiqueta} tiene un extraction_name con ruta: "
+                f"{fuente.extraction_name!r}."
             )
 
     if errores:

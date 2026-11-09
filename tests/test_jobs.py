@@ -36,7 +36,7 @@ def test_pagina_subida_es_secundaria(client, login):
 
     html = client.get("/jobs/new").get_data(as_text=True)
 
-    assert "Subir catálogos" in html
+    assert "Nuevo trabajo" in html
     assert "La forma habitual es descargar los catálogos del servidor" in html
     assert 'href="/solicitudes/nueva"' in html
 

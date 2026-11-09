@@ -26,9 +26,10 @@ class Adaptador:
     """
 
     formato: str = ""
-    tipo: str = ""  # reference | select | export
+    tipo: str = ""  # reference | select | export | db
     prefijo: str = ""
     prefijo_repetidos: str = ""
+    source_id: str = ""
     # Etiqueta genérica que usa repetidos.py cuando hay una sola fuente local
     # que no es un select.out. Es un detalle del core, no un nombre de fuente.
     prefijo_repetidos_core: str = "seisan"
@@ -43,7 +44,7 @@ class Adaptador:
         """Ruta relativa del CSV plano normalizado de esta fuente."""
         raise NotImplementedError
 
-    def extensiones(self, job, referencia: str) -> dict[str, str]:
+    def extensiones(self, job, referencia: str, workspace=None) -> dict[str, str]:
         """Archivos adicionales junto a la entrada, por clave canónica.
 
         Las claves son ``arribos`` y ``estaciones_sin_arribos``. Las rutas son

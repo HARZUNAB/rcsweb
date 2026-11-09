@@ -44,7 +44,7 @@ class Adaptador(Base):
     def catalogo(self, job, referencia: str) -> str:
         return "datos/seiscomp_parametros.csv"
 
-    def extensiones(self, job, referencia: str) -> dict[str, str]:
+    def extensiones(self, job, referencia: str, workspace=None) -> dict[str, str]:
         base = f"seiscomp_{job.inicio14}_{job.fin14}"
         return {
             "arribos": f"{base}_fases.csv",

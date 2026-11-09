@@ -41,11 +41,15 @@ Los Markdown son la fuente de verdad. Los DOCX se regeneran con:
 - **eventquery** es la referencia publicada y siempre es obligatorio.
 - **SeisComp** es la fuente local principal por defecto.
 - **Seisan** es una fuente local secundaria, desmarcada por defecto.
+- **Central** es una fuente local sin archivo: consulta la base CSN en modo de
+  solo lectura para el período del trabajo. Lista los eventos publicados y no
+  publicados, con columnas `Publicado` y `Revisión`.
 - Cada fuente tiene un **alias** visible y un **formato** interno. La app no
   depende del nombre: un formato nuevo solo agrega un adaptador.
 - Un trabajo necesita **al menos una fuente local** además de eventquery.
 - Cada fuente seleccionada se valida y se procesa; si falla, el trabajo queda en
-  borrador con el diagnóstico.
+  borrador con el diagnóstico. En Central, la validación consulta la base y
+  exige al menos un evento en el período.
 - La fuente principal se puede cambiar por trabajo.
 
 ## Catálogo estándar y adaptadores
@@ -214,6 +218,56 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO rcs_ro;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO rcs_ro;
 ```
 
+## Fuente Central (solo lectura)
+
+La fuente **Central** se declara en el manifiesto sin archivo:
+
+```json
+{
+  "id": "central",
+  "label": "Central",
+  "role": "local",
+  "format": "local_db",
+  "requires_file": false,
+  "extraction_name": "central_{inicio}_{fin}.csv",
+  "dsn_env": "RCS_CENTRAL_DSN"
+}
+```
+
+El nombre de la variable de conexión viene de `dsn_env`, no del código. En
+`.env`:
+
+```dotenv
+RCS_CENTRAL_DSN=postgresql://usuario_ro:clave@host:5433/csn_test
+```
+
+La app abre la conexión con `default_transaction_read_only=on` y solo ejecuta
+`SELECT`. No crea ni modifica tablas. El adaptador exporta a archivos
+intermedios del workspace:
+
+```text
+datos/<source_id>_parametros.csv   # eventos, Publicado y Revisión
+datos/<source_id>_tensores.csv     # tensores del origen preferido
+```
+
+La tabla `tensor` no declara unidades de momento. Los valores se conservan tal
+como vienen y `moment_magnitude` no se calcula hasta que la fuente declare la
+unidad.
+
+En el formulario **Nuevo trabajo**, Central no muestra input de archivo. El
+nombre sugerido de la extracción se muestra en la tarjeta y se resuelve con el
+período elegido.
+
+Permisos y comparación:
+
+- admin y supervisor ven todos los eventos;
+- analista y consulta ven solo los eventos de su `origin.author`;
+- `No publicados` solo incluye `Publicado = No`;
+- `No actualizados` incluye publicados y locales con diferencias;
+- `Repetidos` se calcula sobre el catálogo completo;
+- los publicados sin cruce en Eventquery, por tiempo o por espacio, se escriben
+  en `informes/publicados_sin_cruce_<fuente>_<filtro>.txt`.
+
 `/solicitudes/nueva` incluye **Probar conexión SeisComp**, que valida las
 credenciales y lista las bases visibles sin escribir nada. Si faltan las
 variables, la app muestra el error y deja la solicitud como borrador en vez de
@@ -243,9 +297,11 @@ make clean                # detener y borrar volúmenes
 
 1. **Solicitar catálogos** (flujo principal): período, servidor, contraseña SSH,
    fuentes y radio de estaciones. Descarga eventquery/Seisan y exporta SeisComp.
-2. **Subir catálogos** (alternativa secundaria): si los archivos ya están en
+2. **Nuevo trabajo** (alternativa secundaria): si los archivos ya están en
    disco, se suben desde `/jobs/new` con eventquery y una o más fuentes locales
-   (SeisComp y/o Seisan). Se valida el contenido antes de encolar.
+   (SeisComp y/o Seisan). También permite incluir **Central**, que no requiere
+   archivo y consulta la base CSN en modo de solo lectura. Se valida el contenido
+   o la conexión antes de encolar.
 3. El trabajo se encola en Celery. La página de detalle muestra progreso, pasos y
    log en vivo (polling HTMX cada 2 s).
 4. Al terminar: tarjetas con conteos, tablas paginables con búsqueda, filtros
@@ -268,7 +324,7 @@ make clean                # detener y borrar volúmenes
 | Opción | Administrador | Supervisor | Analista | Consulta |
 |---|:---:|:---:|:---:|:---:|
 | Ver trabajos | Sí | Sí | Sí | Sí |
-| Subir catálogos | Sí | Sí | Sí | — |
+| Nuevo trabajo | Sí | Sí | Sí | — |
 | Cancelar trabajo | Sí, todos | Sí, todos | Solo propios | — |
 | Eliminar trabajo | Sí, todos | Sí, todos | Solo propios | — |
 | Descargar artefactos | Sí | Sí | Sí | — |
@@ -350,14 +406,17 @@ core incorporado con `cwd` en `workspace/<job>/` y `RV_PROG=1`/`RV_ENTREGABLES=1
 | Fuente | Pasos |
 |---|---|
 | eventquery (siempre) | `proc_query_harz_2.py` |
-| SeisComp | `seiscomp_a_parametros.py` + `compara.py` (prefijo `seiscomp_`) + repetidos SeisComp |
-| Seisan | `revisaselect.py` + `revisacollect.py` + `compara.py` + excluidos + repetidos Seisan |
-| Dos fuentes locales | `cruza_nopub.py` para el cruce entre fuentes |
+| SeisComp | `seiscomp_a_parametros.py` + `compara.py` (prefijo `seiscomp_`) + repetidos |
+| Seisan | `revisaselect.py` + `revisacollect.py` + `compara.py` + excluidos + repetidos |
+| Central | consulta directa a la base + `compara.py` (prefijo `central_`) + repetidos |
+| Varias fuentes locales | `cruza_nopub.py` para el cruce entre fuentes, cuando aplica |
 | Resultados | `construir_resultados()` recorre solo las fuentes presentes |
 
 Los pasos de Seisan solo existen si Seisan está seleccionado. Lo mismo para
-SeisComp. Al final se normalizan las salidas en `workspace/<job>/resultados/` y
-se registran los artefactos descargables.
+SeisComp y Central. La detección de repetidos se ejecuta una vez por fuente y
+etiqueta cada informe con el `id` real de la fuente. Al final se normalizan las
+salidas en `workspace/<job>/resultados/` y se registran los artefactos
+descargables.
 
 El detalle del trabajo es el punto de entrada a los resultados: muestra los
 conteos por fuente, los catálogos procesados y los accesos a las tablas. La ruta

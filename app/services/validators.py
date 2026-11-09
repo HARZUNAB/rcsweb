@@ -271,6 +271,21 @@ def validar_seiscomp(ruta: Path, periodo_inicio=None, periodo_fin=None) -> dict:
     return resultado
 
 
+def validar_central(ruta=None, periodo_inicio=None, periodo_fin=None) -> dict:
+    """Validador de manifiesto para fuentes de base de datos.
+
+    La comprobación real se hace contra la base en el alta del trabajo
+    (``Adaptador.validar_periodo``). Este validador solo existe para que el
+    manifiesto pueda declarar ``validator=central``.
+    """
+    resultado = _resultado("central")
+    resultado["ok"] = True
+    resultado["advertencias"].append(
+        "La fuente Central se valida consultando la base al crear el trabajo."
+    )
+    return resultado
+
+
 def validar_fuente(codigo: str, ruta: Path, periodo_inicio=None, periodo_fin=None) -> dict:
     from .sources import fuente
 
@@ -279,6 +294,7 @@ def validar_fuente(codigo: str, ruta: Path, periodo_inicio=None, periodo_fin=Non
         "referencia": validar_eventquery,
         "local_select": validar_seisan,
         "local_export": validar_seiscomp,
+        "local_db": validar_central,
     }
     validador = validadores.get(formato)
     if validador is None:

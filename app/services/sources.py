@@ -53,7 +53,9 @@ def fuente(codigo: str) -> Formato:
 
 
 def adaptador(codigo: str):
-    return _adaptador_formato(formato(codigo))
+    instancia = _adaptador_formato(formato(codigo))
+    instancia.source_id = codigo
+    return instancia
 
 
 def locales() -> list[str]:

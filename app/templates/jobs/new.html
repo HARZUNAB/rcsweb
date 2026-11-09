@@ -1,12 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Subir catálogos{% endblock %}
+{% block title %}Nuevo trabajo{% endblock %}
 
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
   <div>
-    <h1 class="h3 mb-1">Subir catálogos</h1>
+    <h1 class="h3 mb-1">Nuevo trabajo</h1>
     <p class="text-secondary mb-0">
-      Subida manual de catálogos ya descargados. La fuente de referencia se usa para comparar.
+      Seleccione el período y las fuentes. Algunas se cargan como archivo y otras
+      se consultan directamente.
     </p>
   </div>
   <a class="btn btn-outline-secondary" href="{{ url_for('dashboard.index') }}">Volver al panel</a>
@@ -79,6 +80,10 @@
           </p>
 
           {% for item in fuentes if item.fuente.es_local %}
+          {% set plantilla = item.fuente.extraction_name or (item.fuente.id ~ "_{inicio}_{fin}.csv") %}
+          {% set inicio_sugerido = form.period_start.data.strftime("%Y%m%d") if form.period_start.data else "{inicio}" %}
+          {% set fin_sugerido = form.period_end.data.strftime("%Y%m%d") if form.period_end.data else "{fin}" %}
+          {% set extraccion = item.fuente.nombre_extraccion(inicio_sugerido, fin_sugerido) %}
           <div class="border rounded p-3 mb-3">
             <div class="form-check mb-2">
               <input class="form-check-input" type="checkbox"
@@ -97,14 +102,26 @@
                      id="alias_{{ item.fuente.id }}"
                      name="alias_{{ item.fuente.id }}"
                      value="{{ item.alias }}"
-                     placeholder="{{ item.fuente.label }}">
+                     {% if not item.fuente.requires_file %}data-extraccion-placeholder="{{ plantilla }}"{% endif %}
+                     placeholder="{{ extraccion if not item.fuente.requires_file else item.fuente.label }}">
             </div>
+            {% if item.fuente.requires_file %}
             <label class="form-label small"
                    for="{{ item.fuente.id }}">{{ item.fuente.label }}</label>
             <input class="form-control" type="file"
                    id="{{ item.fuente.id }}" name="{{ item.fuente.id }}"
                    accept="{{ item.fuente.accept|join(',') }}">
             <div class="form-text">{{ item.fuente.description }}</div>
+            {% else %}
+            <div class="alert alert-light border py-2 px-3 small mb-0">
+              <div class="fw-semibold">No requiere archivo.</div>
+              <div>{{ item.fuente.description }}</div>
+              <div class="mt-1">
+                Nombre sugerido de la extracción:
+                <code data-extraccion="{{ plantilla }}">{{ extraccion }}</code>
+              </div>
+            </div>
+            {% endif %}
             {% if item.error %}
             <div class="invalid-feedback d-block">{{ item.error }}</div>
             {% endif %}
@@ -156,4 +173,49 @@
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const desde = document.getElementById("period_start");
+  const hasta = document.getElementById("period_end");
+  const nombres = document.querySelectorAll("[data-extraccion]");
+  const campos = document.querySelectorAll("[data-extraccion-placeholder]");
+  if (!nombres.length && !campos.length) {
+    return;
+  }
+
+  function a14(valor) {
+    const partes = (valor || "").split("/");
+    if (partes.length !== 3 || partes[2].length !== 4) {
+      return null;
+    }
+    return partes[2] + partes[1].padStart(2, "0") + partes[0].padStart(2, "0");
+  }
+
+  function actualizar() {
+    const inicio = a14(desde && desde.value) || "{inicio}";
+    const fin = a14(hasta && hasta.value) || "{fin}";
+    nombres.forEach(function (elemento) {
+      elemento.textContent = (elemento.dataset.extraccion || "")
+        .replace("{inicio}", inicio)
+        .replace("{fin}", fin);
+    });
+    campos.forEach(function (elemento) {
+      elemento.placeholder = (elemento.dataset.extraccionPlaceholder || "")
+        .replace("{inicio}", inicio)
+        .replace("{fin}", fin);
+    });
+  }
+
+  [desde, hasta].forEach(function (elemento) {
+    if (!elemento) {
+      return;
+    }
+    ["input", "change", "blur"].forEach(function (evento) {
+      elemento.addEventListener(evento, actualizar);
+    });
+  });
+  actualizar();
+});
+</script>
 {% endblock %}

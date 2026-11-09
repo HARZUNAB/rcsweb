@@ -131,6 +131,16 @@ def escribir_desde_csv(
                 if indice is None:
                     indice = posicion
                 original = crudas[indice] if 0 <= indice < len(crudas) else {}
+                publicado = _boleano(fila.get("Publicado"))
+                if publicado is None:
+                    publicado = _boleano(fila.get("publicado"))
+                if publicado is None:
+                    publicado = es_referencia
+                revision = (
+                    _texto(fila.get("Revisión"))
+                    or _texto(fila.get("Revision"))
+                    or _texto(fila.get("revision"))
+                )
                 evento = EventoCanonico(
                     source_id=source_id,
                     event_id=f"{source_id}:{indice:06d}",
@@ -142,9 +152,10 @@ def escribir_desde_csv(
                     magnitude_type=fila.get("Tipo_mag.", "") or "",
                     agency=source_id,
                     analyst=fila.get("Analista", "") or "",
-                    status="published" if es_referencia else "reported",
+                    status="published" if publicado else "reported",
+                    revision=revision,
                     is_preferred=True,
-                    is_published=es_referencia,
+                    is_published=publicado,
                     source_event_id=(
                         _texto(fila.get("id_evento"))
                         or _texto(original.get("id_evento"))

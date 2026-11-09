@@ -78,6 +78,38 @@ def _magnitud(texto):
     except ValueError:
         return None
 
+
+def _normalizar_columna(texto):
+    return (
+        (texto or "")
+        .strip()
+        .lower()
+        .replace("ó", "o")
+        .replace("í", "i")
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("ú", "u")
+    )
+
+
+def _indice_columna(cabecera, nombre):
+    if not cabecera:
+        return None
+    buscado = _normalizar_columna(nombre)
+    for indice, columna in enumerate(cabecera):
+        if _normalizar_columna(columna) == buscado:
+            return indice
+    return None
+
+
+def _publicado(texto):
+    limpio = (texto or "").strip().lower()
+    if limpio in ("1", "true", "t", "si", "sí", "s", "yes", "y"):
+        return True
+    if limpio in ("0", "false", "f", "no", "n"):
+        return False
+    return None
+
 def _borrar(ruta):
     # Borra un CSV de salida que esta corrida dejó vacío, para que no quede el
     # de una corrida anterior y la pestaña muestre datos viejos.
@@ -103,13 +135,18 @@ def comparar(listacsv_1, listacsv_2, max_seg, max_lat, max_lon, sufijo,
     archivo=rutas.entregable("no_pub_todos_"+prefijo+sufijo+".txt")
     archivo1=open(rutas.p_informes("no_act_"+prefijo+sufijo+".txt"), "w")
     archivo2=rutas.entregable("no_pub_desde_2_5_"+prefijo+sufijo+".txt")
+    archivo_pub=open(
+        rutas.p_informes("publicados_sin_cruce_"+prefijo+sufijo+".txt"), "w"
+    )
 
     archivo.write(cabecera)
     archivo1.write(cabecera)
     archivo2.write(cabecera)
+    archivo_pub.write(cabecera)
 
     pub=0
     total_eventos=0
+    total_pub_sin_cruce=0
     diferencias=0
     total_diferentes=0
     totsobre2_5=0
@@ -138,6 +175,7 @@ def comparar(listacsv_1, listacsv_2, max_seg, max_lat, max_lon, sufijo,
         # el estado (publicado/sin actualizar) se reinicia por cada evento de seisan
         diferencias=0
         per_noper=''
+        cruce_espacial=False
 
         for sismo1 in listacsv_1:
             # con esto tengo dudas de como programe al principio, podria hacer falta sumarle un minuto a las horas 1 y 2
@@ -177,6 +215,7 @@ def comparar(listacsv_1, listacsv_2, max_seg, max_lat, max_lon, sufijo,
                 pub=1
                 # el delta maximo en coordenadas es de 1 grado en latitud y longitud
                 if delta_lat <= max_lat and delta_lon <= max_lon:
+                    cruce_espacial=True
                     # Coincidencia real: se anota la pareja completa para poder
                     # atribuir el evento publicado a un analista. El Δt y las
                     # distancias se guardan sin signo para que el consumidor
@@ -214,28 +253,52 @@ def comparar(listacsv_1, listacsv_2, max_seg, max_lat, max_lon, sufijo,
                         per_noper=sismo1['perc']
                         diferencias=1
 
-        # Si el valor de la variable pub es 0 el sismo no esta publicado        
+        # Si el valor de la variable pub es 0 el sismo no esta publicado.
+        # Si además la fila local declara Publicado = Sí, no es un "no
+        # publicado": es un publicado que no encontró su par en eventquery.
+        # Se separa en un informe de control para no dar una etiqueta falsa.
         if pub==0:
-            # el evento no publicado se escribe en el txt de salida correspondiente
-            total_eventos=total_eventos+1
-            archivo.write(sismo2['fecha_hora']+' '+sismo2['lat']+' '+sismo2['lon']+' '+sismo2['prof']+' '+sismo2['mag']+' '+sismo2['tipo_mag']+' '+sismo2['analista']+' '+'?'+"\n")
-            
-            # Si la magnitud es igual o superior a 2.5 el evento tambien es incluido en otro txt adicional.
-            # Un evento sin magnitud no entra al CSV: sin dato no se puede decir
-            # que sea "menor que 2.5". Se cuenta aparte y se informa, porque si
-            # no el total de no publicados y el del CSV no cierran y parece que
-            # el evento se publicó.
-            magnitud = _magnitud(sismo2['mag'])
-            if magnitud is None:
-                nopub_sin_magnitud = nopub_sin_magnitud + 1
-            elif magnitud >= 2.5:
-                totsobre2_5=totsobre2_5+1
-                archivo2.write(sismo2['fecha_hora']+' '+sismo2['lat']+' '+sismo2['lon']+' '+sismo2['prof']+' '+sismo2['mag']+' '+sismo2['tipo_mag']+' '+sismo2['analista']+' '+'?'+"\n")
-                # copia sin la clave temporal 'dt' para el .csv final
-                listanopub.append({k: v for k, v in sismo2.items()
-                                   if k != 'dt'})
+            linea = (
+                sismo2['fecha_hora']+' '+sismo2['lat']+' '+sismo2['lon']+' '
+                +sismo2['prof']+' '+sismo2['mag']+' '+sismo2['tipo_mag']+' '
+                +sismo2['analista']+' '+'?'+"\n"
+            )
+            if sismo2.get("publicado") is True:
+                total_pub_sin_cruce=total_pub_sin_cruce+1
+                archivo_pub.write(linea)
+            else:
+                # el evento no publicado se escribe en el txt de salida correspondiente
+                total_eventos=total_eventos+1
+                archivo.write(linea)
+
+                # Si la magnitud es igual o superior a 2.5 el evento tambien es incluido en otro txt adicional.
+                # Un evento sin magnitud no entra al CSV: sin dato no se puede decir
+                # que sea "menor que 2.5". Se cuenta aparte y se informa, porque si
+                # no el total de no publicados y el del CSV no cierran y parece que
+                # el evento se publicó.
+                magnitud = _magnitud(sismo2['mag'])
+                if magnitud is None:
+                    nopub_sin_magnitud = nopub_sin_magnitud + 1
+                elif magnitud >= 2.5:
+                    totsobre2_5=totsobre2_5+1
+                    archivo2.write(linea)
+                    # copia sin la clave temporal 'dt' para el .csv final
+                    listanopub.append({k: v for k, v in sismo2.items()
+                                       if k not in ('dt', 'publicado')})
 
         else:
+
+            # Coincide en tiempo pero no en espacio. Si la fila declara
+            # Publicado = Sí, va al informe de publicados sin cruce: no se
+            # puede afirmar que esté actualizado ni que no se publicó.
+            if not cruce_espacial and sismo2.get("publicado") is True:
+                linea = (
+                    sismo2['fecha_hora']+' '+sismo2['lat']+' '+sismo2['lon']+' '
+                    +sismo2['prof']+' '+sismo2['mag']+' '+sismo2['tipo_mag']+' '
+                    +sismo2['analista']+' '+'?'+"\n"
+                )
+                total_pub_sin_cruce=total_pub_sin_cruce+1
+                archivo_pub.write(linea)
 
             # Si el valor de la variable diferencia es distinto a 0 sismo no esta actualizado en la web
             # y se escribe el evento en el txt de salida correspondiente
@@ -302,7 +365,15 @@ def comparar(listacsv_1, listacsv_2, max_seg, max_lat, max_lon, sufijo,
     archivo.close()
     archivo1.close()
     archivo2.close()
-    return total_eventos, total_diferentes, totsobre2_5, salida, nopub_sin_magnitud
+    archivo_pub.close()
+    return (
+        total_eventos,
+        total_diferentes,
+        totsobre2_5,
+        salida,
+        nopub_sin_magnitud,
+        total_pub_sin_cruce,
+    )
 
 def main(argv=None):
     """
@@ -322,9 +393,12 @@ def main(argv=None):
     csvreader_1 = csv.reader(csv_file_1)
     csvreader_2 = csv.reader(csv_file_2)
 
-    # saltar el encabezado de cada archivo .csv
-    next(csvreader_1,None)
-    next(csvreader_2,None)
+    # saltar el encabezado de cada archivo .csv y ubicar la columna opcional
+    # Publicado. Las fuentes que no la traen conservan el comportamiento
+    # histórico: toda fila local se considera no publicada.
+    next(csvreader_1, None)
+    cabecera_2 = next(csvreader_2, None)
+    idx_publicado = _indice_columna(cabecera_2, "Publicado")
 
     # Declara diccionario
     diccsv_1={}
@@ -359,6 +433,9 @@ def main(argv=None):
 
     # Creando diccionario que contiene lista con datos extraidos del .csv ordenado (seisan)
     for linea2 in csvreader_2:
+        publicado = None
+        if idx_publicado is not None and len(linea2) > idx_publicado:
+            publicado = _publicado(linea2[idx_publicado])
         diccsv_2={
             "fecha_hora":linea2[1],
             "dt":_parsear_fecha_hora(linea2[1]),
@@ -368,6 +445,7 @@ def main(argv=None):
             "mag":comparacion.formato_magnitud(linea2[5]),
             "tipo_mag":linea2[6],
             "analista":linea2[7],
+            "publicado":publicado,
         }
         listacsv_2.append(diccsv_2)
 
@@ -394,6 +472,9 @@ def main(argv=None):
                 "no_act_" + PREFIJO + sufijo_guardado + ".txt")
             with open(ruta_informe, "w") as arch:
                 arch.write(cabecera)
+            ruta_pub = rutas.p_informes(
+                "publicados_sin_cruce_" + PREFIJO + sufijo_guardado + ".txt")
+            _borrar(ruta_pub)
         nombre_no_pub = "no_pub_desde_2_5_" + PREFIJO + "estricto.csv"
         _borrar(rutas.p_datos(nombre_no_pub))
         _borrar(rutas.p_descargas(nombre_no_pub))
@@ -402,10 +483,10 @@ def main(argv=None):
         return
 
     print("Comparando con filtro amplio ({}s/{}°/{}°)...".format(MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO, MAX_LAT_LON_AMPLIO))
-    total_eventos_amplio, total_diferentes_amplio, totsobre2_5_amplio, salida_amplio, sinmag_amplio = comparar(listacsv_1, listacsv_2, MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO, MAX_LAT_LON_AMPLIO, "amplio", PREFIJO, numsis_csv_2)
+    total_eventos_amplio, total_diferentes_amplio, totsobre2_5_amplio, salida_amplio, sinmag_amplio, pub_sin_cruce_amplio = comparar(listacsv_1, listacsv_2, MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO, MAX_LAT_LON_AMPLIO, "amplio", PREFIJO, numsis_csv_2)
 
     print("\nComparando con filtro estricto ({}s/{}°/{}°)...".format(MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO, MAX_LAT_LON_ESTRICTO))
-    total_eventos_estricto, total_diferentes_estricto, totsobre2_5_estricto, salida_estricto, sinmag_estricto = comparar(listacsv_1, listacsv_2, MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO, MAX_LAT_LON_ESTRICTO, "estricto", PREFIJO, numsis_csv_2)
+    total_eventos_estricto, total_diferentes_estricto, totsobre2_5_estricto, salida_estricto, sinmag_estricto, pub_sin_cruce_estricto = comparar(listacsv_1, listacsv_2, MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO, MAX_LAT_LON_ESTRICTO, "estricto", PREFIJO, numsis_csv_2)
 
     print("\n--------------------------------------- Salida ---------------------------------------")
     print('Filtro amplio ({}s/{}°)'.format(MAX_SEG_AMPLIO, MAX_LAT_LON_AMPLIO))
@@ -413,11 +494,13 @@ def main(argv=None):
     print('  eventos no publicados >= a mag. 2.5: {}'.format(totsobre2_5_amplio))
     print('  total eventos no actualizados: {}'.format(total_diferentes_amplio))
     print('  no publicados sin magnitud (no entran al CSV): {}'.format(sinmag_amplio))
+    print('  publicados sin cruce en eventquery: {}'.format(pub_sin_cruce_amplio))
     print('Filtro estricto ({}s/{}°)'.format(MAX_SEG_ESTRICTO, MAX_LAT_LON_ESTRICTO))
     print('  total eventos no publicados: {}'.format(total_eventos_estricto))
     print('  eventos no publicados >= a mag. 2.5: {}'.format(totsobre2_5_estricto))
     print('  total eventos no actualizados: {}'.format(total_diferentes_estricto))
     print('  no publicados sin magnitud (no entran al CSV): {}'.format(sinmag_estricto))
+    print('  publicados sin cruce en eventquery: {}'.format(pub_sin_cruce_estricto))
     print('Archivos generados...')
     print('no_act_%samplio.txt / no_act_%sestricto.txt' % (PREFIJO, PREFIJO))
     print('no_pub_desde_2_5_%sestricto.csv' % PREFIJO)

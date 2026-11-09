@@ -137,7 +137,7 @@ def test_admin_ve_usuarios(client, usuarios):
 def test_navegacion_segun_rol(client, usuarios):
     _login(client, "consulta")
     html = client.get("/").get_data(as_text=True)
-    assert "Subir catálogos" not in html
+    assert "Nuevo trabajo" not in html
     assert "Solicitar catálogos" not in html
     assert ">Solicitudes<" not in html
     assert "Auditoría" not in html
@@ -146,7 +146,7 @@ def test_navegacion_segun_rol(client, usuarios):
 
     _login(client, "supervisor")
     html = client.get("/").get_data(as_text=True)
-    assert "Subir catálogos" in html
+    assert "Nuevo trabajo" in html
     assert "Solicitar catálogos" in html
     assert "Auditoría" in html
     assert ">Usuarios<" not in html

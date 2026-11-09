@@ -161,3 +161,26 @@ def test_extension_tensores_unidades_desconocidas(tmp_path):
     assert registro["scalar_moment"] == 1e25
     assert registro["m_rr"] == 1e25
     assert registro["moment_magnitude"] is None
+
+
+def test_catalogo_respeta_publicado_por_evento(tmp_path):
+    workspace = tmp_path / "ws"
+    catalogo = workspace / "datos" / "central_parametros.csv"
+    catalogo.parent.mkdir(parents=True)
+    catalogo.write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Analista,"
+        "Publicado,Revisión\n"
+        "0,2026-10-01 00:00:00,-30.0,-71.0,10.0,2.5,ML,eatl,Sí,Revisado\n"
+        "1,2026-10-01 00:01:00,-30.1,-71.1,11.0,2.6,ML,eatl,No,Confirmado\n",
+        encoding="utf-8",
+    )
+
+    escribir_desde_csv(workspace, "central", "local_db", catalogo)
+
+    eventos = leer_canonico(workspace, "central")
+    assert eventos[0]["is_published"] is True
+    assert eventos[0]["status"] == "published"
+    assert eventos[0]["revision"] == "Revisado"
+    assert eventos[1]["is_published"] is False
+    assert eventos[1]["status"] == "reported"
+    assert eventos[1]["revision"] == "Confirmado"

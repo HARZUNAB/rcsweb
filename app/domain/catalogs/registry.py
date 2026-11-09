@@ -85,6 +85,18 @@ FORMATOS: dict[str, Formato] = {
         extensiones=("out", "txt", "dat"),
         tipo="select",
     ),
+    "local_db": Formato(
+        codigo="local_db",
+        etiqueta="Fuente local (base de datos)",
+        rol="local",
+        adaptador="app.domain.catalogs.adapters.central",
+        capacidades=frozenset(
+            {"eventos", "origenes", "magnitudes", "tensores"}
+        ),
+        archivo="",
+        extensiones=("csv",),
+        tipo="db",
+    ),
 }
 
 # Alias de compatibilidad para manifiestos y pruebas que usan los nombres

@@ -209,7 +209,7 @@ def test_solicitud_ofrece_subida_secundaria(client, login):
 
     html = client.get("/solicitudes/nueva").get_data(as_text=True)
 
-    assert "Subir catálogos" in html
+    assert "Nuevo trabajo" in html
     assert 'href="/jobs/new"' in html
 
 

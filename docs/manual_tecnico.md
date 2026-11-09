@@ -496,6 +496,11 @@ PostgreSQL. El pipeline las lee desde archivos, las normaliza y escribe un
 catálogo canónico JSONL en el workspace. La base solo conserva los metadatos de
 qué fuente y qué archivo se usaron.
 
+La fuente **Central** es la excepción: no recibe archivo, consulta la base CSN
+directamente en modo de solo lectura para el período del trabajo y genera los
+mismos archivos intermedios y el mismo catálogo canónico. No se agrega ni se
+modifica nada en el esquema de la base central.
+
 ![Catálogos de fuentes y catálogo canónico](img/esquema_catalogos.png)
 
 #### Manifiesto de fuentes
@@ -527,6 +532,16 @@ Ejemplo:
       "priority": 1,
       "catalog_file": "catalogo/local_a/eventos.jsonl",
       "capabilities": ["eventos", "origenes", "magnitudes", "arribos"]
+    },
+    {
+      "id": "central",
+      "label": "Central",
+      "role": "local",
+      "format": "local_db",
+      "description": "Base central CSN, solo lectura",
+      "requires_file": false,
+      "extraction_name": "central_{inicio}_{fin}.csv",
+      "dsn_env": "RCS_CENTRAL_DSN"
     }
   ]
 }
@@ -544,6 +559,9 @@ Campos principales:
 | `priority` | Prioridad cuando hay varias fuentes locales |
 | `catalog_file` | Ruta del catálogo canónico JSONL |
 | `capabilities` | Datos que aporta la fuente |
+| `requires_file` | `false` para fuentes que se consultan directamente y no reciben archivo |
+| `extraction_name` | Nombre sugerido de la extracción, con `{inicio}` y `{fin}` |
+| `dsn_env` | Variable de entorno con la cadena de conexión de solo lectura |
 
 La app debe usar `role=local` para los filtros de Resultados y excluir
 `role=reference`. No debe comparar el texto `eventquery`, `seisan` o
@@ -556,8 +574,8 @@ Paneles, las pestañas de catálogos, Resultados, Detalle y la adquisición usan
 las fuentes del manifiesto. Los adaptadores del pipeline siguen indexados por
 `format`: una fuente nueva con un formato existente funciona sin tocar la app;
 un formato nuevo requiere su adaptador o preparación externa. Las claves
-internas del registro son `referencia`, `local_select` y `local_export`, con
-alias para los nombres históricos.
+internas del registro son `referencia`, `local_select`, `local_export` y
+`local_db`, con alias para los nombres históricos.
 
 El manifiesto se valida al arrancar. Debe tener exactamente una fuente con
 `role=reference`, al menos una fuente local, IDs únicos y seguros, formatos,
@@ -605,6 +623,7 @@ distinto puede declarar otras fuentes o cambiar sus nombres visibles.
 | Eventquery | `eventquery_<inicio>_<fin>.csv`; el adaptador usa `datos/new_2_<eventquery>.csv` como catálogo publicado de referencia | `eventos`, `origenes`, `magnitudes`, `percibidos` |
 | SeisComp | `seiscomp_<inicio>_<fin>.csv` → `datos/seiscomp_parametros.csv` | `eventos`, `origenes`, `magnitudes`, `arribos`, `inventario`, `disponibilidad_ondas` |
 | Seisan | `select.out` → `datos/salida_collect.csv` | `eventos`, `origenes`, `magnitudes`, `excluidos` |
+| Central | Consulta directa a la base CSN → `datos/<source_id>_parametros.csv` y `datos/<source_id>_tensores.csv` | `eventos`, `origenes`, `magnitudes`, `tensores` |
 
 Columnas mínimas que valida la app:
 
@@ -613,6 +632,7 @@ Columnas mínimas que valida la app:
 | Eventquery | `time`, `lat`, `lon`, `depth`, `mag`, `tipo_mag`, `ref`, `perc` |
 | SeisComp | `ot_utc`, `latitud`, `longitud`, `profundidad_km`, `magnitud`, `tipo_magnitud`, `operador` |
 | Seisan | `select.out`: líneas con año, mes, día, hora, minuto y segundo |
+| Central | Conexión de solo lectura y al menos un evento en el período |
 
 Los adaptadores normalizan a `Fecha_Hora`, `Latitud`, `Longitud`, `Prof.`,
 `Mag.`, `Tipo_mag.` y `Analista`. El catálogo canónico agrega `source_id`,
@@ -627,7 +647,45 @@ campos permiten enlazar las extensiones de estaciones sin una tabla relacional.
 `job_sources` registra las fuentes locales del trabajo: `kind`, `format`,
 `role`, `priority`, `capabilities` y el `catalog_file_id` cuando el archivo vino
 de una solicitud. `job_files` registra los archivos subidos y
-`catalog_request_files` los archivos descargados por SSH.
+`catalog_request_files` los archivos descargados por SSH. Una fuente con
+`requires_file=false`, como Central, tiene `job_sources` pero no `job_files`.
+
+#### Fuente Central
+
+Central consulta la base CSN para el período del trabajo y exporta todos los
+eventos, publicados y no publicados:
+
+- `event.published` se conserva en la columna `Publicado` (`Sí`/`No`).
+- `origin.status` se normaliza en la columna `Revisión`
+  (`Revisado`, `Final`, `Confirmado`, `Automático`, `Manual`).
+- `origin.author` se usa como `Analista`.
+- Solo se consultan el evento, el origen preferido y la magnitud preferida.
+- Los tensores del origen preferido se exportan a la extensión `tensores.jsonl`.
+- La tabla `tensor` no declara unidades de momento; por ahora los valores se
+  conservan tal como vienen y no se calcula `moment_magnitude` hasta que la
+  fuente declare la unidad.
+- La conexión se abre con `default_transaction_read_only=on`.
+- No se agrega ni se modifica ninguna tabla de la base central.
+
+Permisos:
+
+- **admin y supervisor:** ven todos los eventos.
+- **analista y consulta:** solo los eventos cuyo `origin.author` coincida con su
+  código o alias. Los publicados tienen autor `eventquery_catalog`, así que un
+  analista no los ve.
+
+Comparación:
+
+- **No publicados:** solo eventos con `Publicado = No` que no aparecen en
+  Eventquery.
+- **No actualizados:** eventos publicados o locales que sí aparecen pero cuyos
+  parámetros difieren.
+- **Repetidos:** se calculan sobre el catálogo completo de Central, de modo que
+  un evento publicado con una copia local también se detecta.
+- **Publicados sin cruce:** los eventos con `Publicado = Sí` que no encuentran
+  su par en Eventquery, por tiempo o por espacio, se escriben en
+  `informes/publicados_sin_cruce_<fuente>_<filtro>.txt`. No se mezclan con
+  «No publicados» porque no lo son.
 
 #### Catálogo canónico JSONL
 
@@ -652,6 +710,7 @@ Cada línea es un objeto `EventoCanonico`:
 | `agency` | texto | Agencia o fuente |
 | `analyst` | texto | Analista |
 | `status` | texto | `published` o `reported` |
+| `revision` | texto | Estado de revisión de la fuente, cuando existe |
 | `is_preferred` | booleano | Solución preferida |
 | `is_published` | booleano | Publicado en Eventquery |
 | `source_event_id` | texto | Identificador del evento en la exportación original |
@@ -1287,7 +1346,7 @@ trabajos activos.
 | Opción | Administrador | Supervisor | Analista | Consulta |
 |---|:---:|:---:|:---:|:---:|
 | Ver trabajos | Sí | Sí | Solo propios | Solo propios |
-| Subir catálogos | Sí | Sí | Sí | — |
+| Nuevo trabajo | Sí | Sí | Sí | — |
 | Cancelar trabajo | Todos | Todos | Solo propios | — |
 | Eliminar trabajo | Todos | Todos | Solo propios | — |
 | Descargar artefactos | Sí | Sí | Sí | — |
@@ -1446,16 +1505,17 @@ de root.
 
 ## Pipeline y datos
 
-1. Se crea el trabajo por solicitud SSH o por carga de archivos.
-2. El formulario valida los archivos y el período. Si algo falla, queda en
-   **Borrador** con el detalle.
+1. Se crea el trabajo por solicitud SSH o por **Nuevo trabajo** (archivos o
+   fuente directa).
+2. El formulario valida los archivos, la conexión y el período. Si algo falla,
+   queda en **Borrador** con el detalle.
 3. El trabajo se encola en Redis y lo ejecuta el worker.
 4. El worker corre los scripts del core con `cwd` en el workspace:
-   eventquery, SeisComp, Seisan, comparaciones y repetidos.
+   eventquery, SeisComp, Seisan, Central, comparaciones y repetidos.
 5. Los resultados se normalizan en `workspace/<job_id>/resultados/`.
 6. La interfaz lee esos archivos para las tablas, miniaturas, mapas y paneles.
 
-El core incorporado no se modifica desde la aplicación. Las miniaturas, mapas
+El core incorporado no se modifica en tiempo de ejecución. Las miniaturas, mapas
 y paneles se cachean en el workspace. `plots._ruta_cache()` conserva la
 ruta relativa del archivo de resultados y rechaza rutas absolutas o con `..`.
 Así los catálogos usan, por ejemplo,

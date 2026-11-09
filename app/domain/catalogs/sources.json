@@ -53,6 +53,24 @@
       "availability": "",
       "default_primary": false,
       "visible_in_observaciones": true
+    },
+    {
+      "id": "central",
+      "label": "Central",
+      "role": "local",
+      "format": "local_db",
+      "description": "Base central CSN: consulta directa de solo lectura para el período del trabajo.",
+      "accept": [],
+      "validator": "central",
+      "download_handler": "",
+      "stored_filename": "",
+      "requires_radius": false,
+      "availability": "",
+      "default_primary": false,
+      "visible_in_observaciones": true,
+      "requires_file": false,
+      "extraction_name": "central_{inicio}_{fin}.csv",
+      "dsn_env": "RCS_CENTRAL_DSN"
     }
   ]
 }
