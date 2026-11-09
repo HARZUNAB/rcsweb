@@ -487,6 +487,12 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert html.count('id="btn-estaciones-mapa"') == 1
     assert html.count('id="btn-tiempos-llegada"') == 1
     assert html.count('id="modal-tiempos"') == 1
+    assert 'id="btn-propagacion"' in html
+    assert 'id="propagacion-controles"' in html
+    assert 'id="propagacion-tiempo"' in html
+    assert 'id="btn-propagacion-play"' in html
+    assert html.count('id="btn-propagacion"') == 1
+    assert html.count('id="propagacion-controles"') == 1
     assert 'id="tiempos-llegada-datos"' in html
 
     respuesta = client.get(
@@ -566,6 +572,9 @@ def test_detalle_solo_arribos_muestra_controles(client, login, app):
     assert html.count('id="btn-estaciones-mapa"') == 1
     assert html.count('id="btn-tiempos-llegada"') == 1
     assert html.count('id="modal-tiempos"') == 1
+    assert 'id="btn-propagacion"' in html
+    assert 'id="propagacion-controles"' in html
+    assert html.count('id="btn-propagacion"') == 1
     assert 'id="estaciones-mapa-datos"' in html
     assert 'id="tiempos-llegada-datos"' in html
 

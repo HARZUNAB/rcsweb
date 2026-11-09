@@ -114,13 +114,15 @@ sobre las estaciones nuevas. La consulta de ondas se limita por defecto a las
 sidecar consulta los streams por lotes de 300.
 
 Cuando el detalle de un evento único tiene coordenadas o tiempos en el canónico,
-aparecen dos acciones bajo demanda **justo arriba del mapa de planta**:
-**Estaciones en el mapa** agrega todos los arribos —coloreados por fase— y hasta
-20 estaciones sin arribos, con opción **Mostrar todas**; **Tiempos de llegada**
-abre una curva distancia-tiempo con picks reales y curvas P/S estimadas. Nada se
-dibuja hasta que el usuario pulsa el botón. Los controles también aparecen al
-abrir un evento desde Paneles con **Ver**, porque usan el mismo detalle; no
-aparecen en los mapas de grupo con varios eventos.
+aparecen tres acciones bajo demanda **justo arriba del mapa de planta**:
+**Estaciones en el mapa** dibuja triángulos para los arribos observados y las
+estaciones sin arribos; **Propagación** reproduce el tren de ondas desde el
+epicentro con anillos, play/pausa, 1x/2x/5x y control de tiempo; **Tiempos de
+llegada** abre una curva distancia-tiempo con picks en un solo color, curvas de
+referencia y una línea de tiempo sincronizada. Nada se dibuja hasta que el
+usuario pulsa el botón. Los controles también aparecen al abrir un evento desde
+Paneles con **Ver**, porque usan el mismo detalle; no aparecen en los mapas de
+grupo con varios eventos.
 
 Variables principales en `.env`:
 

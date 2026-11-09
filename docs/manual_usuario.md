@@ -342,55 +342,81 @@ RCS_DISPONIBILIDAD_MAX_ESTACIONES=150
 RCS_DISPONIBILIDAD_MAX_STREAMS=5000
 ```
 
-### Estaciones en el mapa y tiempos de llegada
+### Estaciones en el mapa, propagación y tiempos de llegada
 
 En el **detalle de un evento único**, cuando el canónico trae las coordenadas o
-los tiempos necesarios, aparecen dos controles **justo arriba del mapa de
-planta**:
+los tiempos necesarios, aparecen controles **justo arriba del mapa de planta**:
 
 - **Estaciones en el mapa**
+- **Propagación**
 - **Tiempos de llegada**
 
 No se dibuja nada al abrir el detalle: cada control trabaja solo cuando se
 pulsa. Si faltan las coordenadas, no aparece el botón del mapa; si faltan los
-tiempos, no aparece el de tiempos.
+tiempos, no aparece el de tiempos ni el de propagación.
 
 Los controles también están disponibles al abrir un evento desde **Paneles**
 con el botón **Ver**, porque esa acción abre el mismo detalle del evento. No
 aparecen en los mapas de grupo con varios eventos.
 
-**Estaciones en el mapa** agrega una capa de marcadores al mapa de planta. La
-capa incluye:
+#### Estaciones en el mapa
 
-- **todas las estaciones con arribos**, coloreadas por fase:
-  - P: azul;
-  - S: naranja;
-  - otras fases: gris;
-- hasta **20 estaciones sin arribos**, las más cercanas, con los colores de
-  evidencia de la tabla.
+Agrega una capa de **triángulos** al mapa de planta:
 
-La opción **Mostrar todas** quita el límite de 20 para las estaciones sin
-arribos. El radio y **Solo cercanas** se aplican a las estaciones sin arribos;
-los arribos se muestran siempre. Cada marcador de arribo indica estación,
-distancia, fase, hora del pick, tiempo desde el origen, si es manual o
-automático y si se usó en la solución. El botón cambia a **Ocultar estaciones**
-para quitar la capa.
+- **triángulo relleno azul petróleo**: estación con pick observado;
+- **triángulo hueco azul petróleo**: estación sin arribos.
 
-**Tiempos de llegada** abre una gráfica de distancia contra tiempo desde el
-origen del evento. Muestra:
+Incluye todas las estaciones con arribos y hasta **20 estaciones sin arribos**,
+las más cercanas. La opción **Mostrar todas** quita ese límite. El radio y
+**Solo cercanas** se aplican a las estaciones sin arribos; los arribos se
+muestran siempre. Cada triángulo abre un popup con estación, distancia, fase,
+hora del pick, tiempo desde el origen, modo y uso en la solución.
 
-- los picks reales de las lecturas de fase como puntos;
-- P en azul y S en naranja;
-- círculo si el pick es manual y rombo si es automático;
-- las curvas P y S estimadas con velocidad constante;
-- hasta 20 estaciones sin arribos con su tiempo P estimado, excluyendo las que
-  ya tienen un pick.
+#### Propagación
+
+Muestra cómo avanza el **tren de ondas** desde el epicentro hacia las
+estaciones.
+
+```text
+▶ Reproducir   t = 24.3 s   [=====|======]   1x   Reiniciar
+Frente: 152 km · Frente observado
+```
+
+- Salen anillos del frente desde el epicentro.
+- El frente principal se acompaña de anillos secundarios tenues.
+- Las estaciones se encienden cuando el frente las alcanza:
+  - **triángulo relleno**: alcanzada por un pick observado;
+  - **triángulo hueco**: alcanzada por estimación;
+  - **triángulo gris tenue**: todavía no alcanzada;
+  - halo breve en el instante de llegada.
+- **Reproducir / Pausar** controla la animación.
+- **1x / 2x / 5x** cambia la velocidad.
+- El control de tiempo también se puede arrastrar manualmente.
+- **Reiniciar** vuelve a t = 0.
+- La reproducción completa dura unos **15 segundos a 1x**.
+- El frente se calcula con el **primer arribo de cada estación**.
+- Si no hay picks suficientes, se usa **Vp = 6.0 km/s** como respaldo.
+- El rótulo indica si el frente es observado o estimado.
+
+La propagación es una representación **geométrica y temporal**: no carga las
+formas de onda reales. Las estaciones sin coordenadas no se dibujan, pero
+pueden aparecer en la curva de tiempos si tienen distancia.
+
+#### Tiempos de llegada
+
+Abre una gráfica de distancia contra tiempo desde el origen del evento:
+
+- **picks observados**: triángulos azul petróleo;
+- relleno si el pick es manual y hueco si es automático;
+- **estaciones sin arribos**: triángulos huecos grises con su tiempo P
+  estimado;
+- **curvas P y S**: líneas grises punteadas de referencia;
+- **línea vertical**: marca el tiempo actual de la propagación.
 
 Funciona aunque el evento no tenga estaciones sin arribos. Los campos **Vp** y
-**Vs** permiten ajustar las velocidades; **Actualizar** redibuja. Las curvas son
-una **estimación** con velocidad constante, no un modelo de tierra real.
-
-La animación de propagación de las ondas queda para una etapa posterior.
+**Vs** permiten ajustar las curvas de referencia; **Actualizar** redibuja. Las
+curvas son una **estimación** con velocidad constante, no un modelo de tierra
+real.
 
 ### Colores de “Sin arribos”
 

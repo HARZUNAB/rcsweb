@@ -146,6 +146,9 @@
     iniciarFiltrosSinArribos();
     if (mapaEstacionesActivo) {
       dibujarMapaEstaciones();
+    } else if (propagacionActiva) {
+      prepararPropagacion();
+      actualizarPropagacion();
     }
     return Boolean(contenedor);
   }
@@ -337,6 +340,9 @@
 
       if (mapaEstacionesActivo) {
         dibujarMapaEstaciones();
+      } else if (propagacionActiva) {
+        prepararPropagacion();
+        actualizarPropagacion();
       }
     }
 
@@ -716,6 +722,17 @@
 
   var mapaEstacionesActivo = false;
   var mapaTiemposIniciado = false;
+  var propagacionActiva = false;
+  var propagacionReproduciendo = false;
+  var propagacionVelocidad = 1;
+  var propagacionTiempo = 0;
+  var propagacionMax = 0;
+  var propagacionDatos = null;
+  var propagacionAnimacion = null;
+  var propagacionUltimo = 0;
+  var propagacionUltimoDibujo = 0;
+  var VP_PROPAGACION = 6.0;
+  var DURACION_PROPAGACION = 15;
 
   function datosEstacionesMapa() {
     var nodo = document.getElementById("estaciones-mapa-datos");
@@ -786,6 +803,526 @@
     return arribos.concat(sinArribos);
   }
 
+  function claveEstacion(punto) {
+    return (punto.red || "") + "|" + (punto.estacion || "");
+  }
+
+  function crearEnvolvente(observados) {
+    var porTiempo = {};
+    observados.forEach(function (observado) {
+      var tiempo = Number(observado.segundos);
+      var distancia = Number(observado.distancia_km);
+      if (!Number.isFinite(tiempo) || !Number.isFinite(distancia)) {
+        return;
+      }
+      if (tiempo <= 0) {
+        return;
+      }
+      porTiempo[tiempo] = Math.max(porTiempo[tiempo] || 0, distancia);
+    });
+    var tiempos = Object.keys(porTiempo)
+      .map(Number)
+      .sort(function (a, b) {
+        return a - b;
+      });
+    var knots = [{ t: 0, r: 0 }];
+    var maxRadio = 0;
+    tiempos.forEach(function (tiempo) {
+      maxRadio = Math.max(maxRadio, porTiempo[tiempo]);
+      knots.push({ t: tiempo, r: maxRadio });
+    });
+    return knots;
+  }
+
+  function radioEnvolvente(knots, tiempo) {
+    if (!Number.isFinite(tiempo) || tiempo <= 0) {
+      return 0;
+    }
+    if (!knots || knots.length < 2) {
+      return VP_PROPAGACION * tiempo;
+    }
+    for (var indice = 1; indice < knots.length; indice += 1) {
+      if (tiempo <= knots[indice].t) {
+        var anterior = knots[indice - 1];
+        var actual = knots[indice];
+        var delta = actual.t - anterior.t;
+        if (delta <= 0) {
+          return actual.r;
+        }
+        return (
+          anterior.r +
+          ((actual.r - anterior.r) * (tiempo - anterior.t)) / delta
+        );
+      }
+    }
+    var ultimo = knots[knots.length - 1];
+    var previo = knots[knots.length - 2];
+    var deltaUltimo = ultimo.t - previo.t;
+    var pendiente =
+      deltaUltimo > 0
+        ? (ultimo.r - previo.r) / deltaUltimo
+        : VP_PROPAGACION;
+    if (!(pendiente > 0)) {
+      pendiente = VP_PROPAGACION;
+    }
+    return ultimo.r + pendiente * (tiempo - ultimo.t);
+  }
+
+  function tiempoParaDistancia(knots, distancia) {
+    if (!Number.isFinite(distancia) || distancia <= 0) {
+      return 0;
+    }
+    if (!knots || knots.length < 2) {
+      return distancia / VP_PROPAGACION;
+    }
+    for (var indice = 1; indice < knots.length; indice += 1) {
+      if (distancia <= knots[indice].r) {
+        var anterior = knots[indice - 1];
+        var actual = knots[indice];
+        var deltaRadio = actual.r - anterior.r;
+        if (deltaRadio <= 0) {
+          return actual.t;
+        }
+        return (
+          anterior.t +
+          ((actual.t - anterior.t) * (distancia - anterior.r)) / deltaRadio
+        );
+      }
+    }
+    var ultimo = knots[knots.length - 1];
+    var previo = knots[knots.length - 2];
+    var deltaRadio = ultimo.r - previo.r;
+    var deltaTiempo = ultimo.t - previo.t;
+    var pendiente =
+      deltaTiempo > 0
+        ? deltaRadio / deltaTiempo
+        : VP_PROPAGACION;
+    if (!(pendiente > 0)) {
+      pendiente = VP_PROPAGACION;
+    }
+    return ultimo.t + (distancia - ultimo.r) / pendiente;
+  }
+
+  function datosPropagacion() {
+    var puntos = puntosMapaVisibles();
+    var tiempos = datosTiemposLlegada();
+    var evento = tiempos.evento || {};
+    var latEvento = Number(evento.lat);
+    var lonEvento = Number(evento.lon);
+    if (!Number.isFinite(latEvento) || !Number.isFinite(lonEvento)) {
+      return null;
+    }
+    var arribos = (tiempos.arribos || []).filter(function (arribo) {
+      return (
+        Number.isFinite(Number(arribo.segundos)) &&
+        Number.isFinite(Number(arribo.distancia_km))
+      );
+    });
+    var primeros = {};
+    arribos.forEach(function (arribo) {
+      var clave = claveEstacion(arribo);
+      var segundos = Number(arribo.segundos);
+      if (!(clave in primeros) || segundos < primeros[clave].segundos) {
+        primeros[clave] = {
+          segundos: segundos,
+          distancia_km: Number(arribo.distancia_km),
+          fase: arribo.fase || "",
+          modo: arribo.modo || "",
+        };
+      }
+    });
+    var estaciones = puntos
+      .filter(function (punto) {
+        return (
+          Number.isFinite(Number(punto.lat)) &&
+          Number.isFinite(Number(punto.lon))
+        );
+      })
+      .map(function (punto) {
+        var clave = claveEstacion(punto);
+        var primero = primeros[clave];
+        if (!primero && punto.fases && punto.fases.length) {
+          var validas = punto.fases
+            .filter(function (fase) {
+              return Number.isFinite(Number(fase.segundos));
+            })
+            .sort(function (a, b) {
+              return Number(a.segundos) - Number(b.segundos);
+            });
+          if (validas.length) {
+            primero = {
+              segundos: Number(validas[0].segundos),
+              distancia_km: Number(punto.distancia_km),
+              fase: validas[0].fase || "",
+              modo: validas[0].modo || "",
+            };
+          }
+        }
+        var distancia = Number(punto.distancia_km);
+        if (!Number.isFinite(distancia) && primero) {
+          distancia = Number(primero.distancia_km);
+        }
+        var observado = Boolean(
+          primero &&
+            Number.isFinite(Number(primero.segundos)) &&
+            Number.isFinite(distancia)
+        );
+        return {
+          red: punto.red || "",
+          estacion: punto.estacion || "",
+          lat: Number(punto.lat),
+          lon: Number(punto.lon),
+          distancia_km: Number.isFinite(distancia) ? distancia : null,
+          tipo: punto.tipo || "sin_arribo",
+          categoria: punto.categoria || "normal",
+          evidencia: punto.evidencia || "",
+          formas_onda: punto.formas_onda || "",
+          disponible: punto.disponible || "",
+          streams: punto.streams || "",
+          fases: punto.fases || [],
+          observado: observado,
+          tiempo: observado ? Number(primero.segundos) : null,
+        };
+      });
+    var observados = Object.keys(primeros).map(function (clave) {
+      return primeros[clave];
+    });
+    if (!observados.length) {
+      observados = estaciones
+        .filter(function (estacion) {
+          return estacion.observado;
+        })
+        .map(function (estacion) {
+          return {
+            segundos: estacion.tiempo,
+            distancia_km: estacion.distancia_km,
+          };
+        });
+    }
+    observados.sort(function (a, b) {
+      return Number(a.segundos) - Number(b.segundos);
+    });
+    var knots = crearEnvolvente(observados);
+    var maxTiempo = observados.length
+      ? Number(observados[observados.length - 1].segundos)
+      : 0;
+    var distancias = estaciones
+      .map(function (estacion) {
+        return estacion.distancia_km;
+      })
+      .filter(Number.isFinite);
+    var maxDistancia = distancias.length
+      ? Math.max.apply(null, distancias)
+      : 0;
+    if (!(maxTiempo > 0)) {
+      maxTiempo = maxDistancia / VP_PROPAGACION;
+    }
+    if (maxDistancia > 0) {
+      maxTiempo = Math.max(
+        maxTiempo,
+        tiempoParaDistancia(knots, maxDistancia)
+      );
+    }
+    maxTiempo = maxTiempo > 0 ? maxTiempo * 1.1 : 10;
+    return {
+      evento: { lat: latEvento, lon: lonEvento },
+      estaciones: estaciones,
+      knots: knots,
+      vp: VP_PROPAGACION,
+      maxT: maxTiempo,
+      fuente: observados.length ? "observado" : "estimado",
+    };
+  }
+
+  function prepararPropagacion() {
+    propagacionDatos = datosPropagacion();
+    if (!propagacionDatos) {
+      propagacionMax = 0;
+      return false;
+    }
+    propagacionMax = propagacionDatos.maxT;
+    if (propagacionTiempo > propagacionMax) {
+      propagacionTiempo = propagacionMax;
+    }
+    var slider = document.getElementById("propagacion-tiempo");
+    if (slider) {
+      slider.max = String(propagacionMax);
+      slider.value = String(propagacionTiempo);
+    }
+    var play = document.getElementById("btn-propagacion-play");
+    if (play) {
+      play.disabled = !(propagacionMax > 0);
+    }
+    return true;
+  }
+
+  function actualizarCursorTiempos(tiempo) {
+    var grafico = document.getElementById("grafico-tiempos");
+    if (!grafico || !window.Plotly || !grafico.data) {
+      return;
+    }
+    var indice = -1;
+    grafico.data.forEach(function (traza, posicion) {
+      if (traza.name === "Tiempo actual") {
+        indice = posicion;
+      }
+    });
+    if (indice < 0) {
+      return;
+    }
+    window.Plotly.restyle(grafico, { y: [[tiempo, tiempo]] }, [indice]);
+  }
+
+  function actualizarPropagacion() {
+    if (!propagacionActiva) {
+      return;
+    }
+    if (!propagacionDatos && !prepararPropagacion()) {
+      mostrarEstado(
+        "No hay datos suficientes para propagar las ondas.",
+        "alert-warning"
+      );
+      return;
+    }
+    var datos = propagacionDatos;
+    var radio = radioEnvolvente(datos.knots, propagacionTiempo);
+    var estaciones = datos.estaciones.map(function (estacion) {
+      var llegada = estacion.observado
+        ? estacion.tiempo
+        : tiempoParaDistancia(datos.knots, estacion.distancia_km);
+      var alcanzada =
+        Number.isFinite(llegada) && propagacionTiempo >= llegada;
+      var estado = alcanzada
+        ? estacion.observado
+          ? "observada"
+          : "estimada"
+        : "pendiente";
+      return {
+        red: estacion.red,
+        estacion: estacion.estacion,
+        lat: estacion.lat,
+        lon: estacion.lon,
+        distancia_km: estacion.distancia_km,
+        tipo: estacion.tipo,
+        categoria: estacion.categoria,
+        evidencia: estacion.evidencia,
+        formas_onda: estacion.formas_onda,
+        disponible: estacion.disponible,
+        streams: estacion.streams,
+        fases: estacion.fases,
+        observado: estacion.observado,
+        llegada: llegada,
+        estado: estado,
+        pulso:
+          alcanzada &&
+          Number.isFinite(llegada) &&
+          propagacionTiempo - llegada <= 1.5,
+      };
+    });
+    var api = window.RCSMapaDetalle;
+    if (!api || typeof api.mostrarPropagacion !== "function") {
+      mostrarEstado(
+        "El mapa interactivo no está disponible para la propagación.",
+        "alert-warning"
+      );
+      return;
+    }
+    api.mostrarPropagacion({
+      epicentro: datos.evento,
+      estaciones: estaciones,
+      radio_km: radio,
+      tiempo: propagacionTiempo,
+      fuente: datos.fuente,
+    });
+    var reloj = document.getElementById("propagacion-reloj");
+    if (reloj) {
+      reloj.textContent = "t = " + propagacionTiempo.toFixed(1) + " s";
+    }
+    var distancia = document.getElementById("propagacion-distancia");
+    if (distancia) {
+      distancia.textContent = "Frente: " + radio.toFixed(0) + " km";
+    }
+    var fuente = document.getElementById("propagacion-fuente");
+    if (fuente) {
+      fuente.textContent =
+        datos.fuente === "observado"
+          ? "Frente observado"
+          : "Frente estimado (Vp " +
+            VP_PROPAGACION.toFixed(1) +
+            " km/s)";
+    }
+    var slider = document.getElementById("propagacion-tiempo");
+    if (slider) {
+      slider.value = String(propagacionTiempo);
+    }
+    actualizarCursorTiempos(propagacionTiempo);
+  }
+
+  function irAlMapa() {
+    var mapa = document.getElementById("mapa-detalle");
+    if (mapa) {
+      mapa.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  function actualizarBotonPlay() {
+    var boton = document.getElementById("btn-propagacion-play");
+    if (!boton) {
+      return;
+    }
+    boton.textContent = propagacionReproduciendo
+      ? "Pausar"
+      : "Reproducir";
+    boton.classList.toggle("btn-primary", propagacionReproduciendo);
+    boton.classList.toggle(
+      "btn-outline-primary",
+      !propagacionReproduciendo
+    );
+  }
+
+  function pausarPropagacion() {
+    propagacionReproduciendo = false;
+    if (propagacionAnimacion !== null) {
+      window.cancelAnimationFrame(propagacionAnimacion);
+      propagacionAnimacion = null;
+    }
+    actualizarBotonPlay();
+  }
+
+  function tickPropagacion(ahora) {
+    if (!propagacionActiva || !propagacionReproduciendo) {
+      return;
+    }
+    var delta = (ahora - propagacionUltimo) / 1000;
+    if (!Number.isFinite(delta) || delta < 0) {
+      delta = 0;
+    }
+    delta = Math.min(delta, 0.25);
+    propagacionUltimo = ahora;
+    var avance =
+      (propagacionMax / DURACION_PROPAGACION) * propagacionVelocidad;
+    propagacionTiempo += delta * avance;
+    if (propagacionTiempo >= propagacionMax) {
+      propagacionTiempo = propagacionMax;
+      actualizarPropagacion();
+      pausarPropagacion();
+      return;
+    }
+    if (ahora - propagacionUltimoDibujo >= 50) {
+      propagacionUltimoDibujo = ahora;
+      actualizarPropagacion();
+    }
+    propagacionAnimacion = window.requestAnimationFrame(tickPropagacion);
+  }
+
+  function reproducirPropagacion() {
+    if (!propagacionActiva) {
+      abrirPropagacion();
+    }
+    if (!propagacionActiva || !(propagacionMax > 0)) {
+      return;
+    }
+    if (propagacionTiempo >= propagacionMax) {
+      propagacionTiempo = 0;
+      actualizarPropagacion();
+    }
+    propagacionReproduciendo = true;
+    propagacionUltimo = window.performance
+      ? window.performance.now()
+      : Date.now();
+    propagacionUltimoDibujo = 0;
+    actualizarBotonPlay();
+    propagacionAnimacion = window.requestAnimationFrame(tickPropagacion);
+  }
+
+  function reiniciarPropagacion() {
+    pausarPropagacion();
+    propagacionTiempo = 0;
+    actualizarPropagacion();
+  }
+
+  function abrirPropagacion() {
+    if (propagacionActiva) {
+      return;
+    }
+    if (mapaEstacionesActivo) {
+      mapaEstacionesActivo = false;
+      if (window.RCSMapaDetalle && window.RCSMapaDetalle.ocultarEstaciones) {
+        window.RCSMapaDetalle.ocultarEstaciones();
+      }
+      var botonEstaciones = document.getElementById("btn-estaciones-mapa");
+      if (botonEstaciones) {
+        botonEstaciones.textContent = "Estaciones en el mapa";
+      }
+    }
+    propagacionActiva = true;
+    propagacionTiempo = 0;
+    if (!prepararPropagacion()) {
+      propagacionActiva = false;
+      mostrarEstado(
+        "No hay datos suficientes para propagar las ondas.",
+        "alert-warning"
+      );
+      return;
+    }
+    var controles = document.getElementById("propagacion-controles");
+    if (controles) {
+      controles.classList.remove("d-none");
+      controles.classList.add("d-flex");
+    }
+    var opciones = document.getElementById("mapa-estaciones-opciones");
+    if (opciones) {
+      opciones.classList.remove("d-none");
+    }
+    var boton = document.getElementById("btn-propagacion");
+    if (boton) {
+      boton.textContent = "Ocultar propagación";
+    }
+    var leyenda = document.getElementById("leyenda-estaciones-mapa");
+    if (leyenda) {
+      leyenda.textContent =
+        "▲ observada · △ estimada · gris: pendiente";
+    }
+    actualizarPropagacion();
+    irAlMapa();
+  }
+
+  function cerrarPropagacion() {
+    if (!propagacionActiva) {
+      return;
+    }
+    pausarPropagacion();
+    propagacionActiva = false;
+    if (window.RCSMapaDetalle && window.RCSMapaDetalle.ocultarPropagacion) {
+      window.RCSMapaDetalle.ocultarPropagacion();
+    }
+    var controles = document.getElementById("propagacion-controles");
+    if (controles) {
+      controles.classList.add("d-none");
+      controles.classList.remove("d-flex");
+    }
+    var boton = document.getElementById("btn-propagacion");
+    if (boton) {
+      boton.textContent = "Propagación";
+    }
+    var opciones = document.getElementById("mapa-estaciones-opciones");
+    if (opciones && !mapaEstacionesActivo) {
+      opciones.classList.add("d-none");
+    }
+    var leyenda = document.getElementById("leyenda-estaciones-mapa");
+    if (leyenda) {
+      leyenda.textContent = "▲ pick observado · △ sin arribo";
+    }
+  }
+
+  function alternarPropagacion() {
+    if (propagacionActiva) {
+      cerrarPropagacion();
+    } else {
+      abrirPropagacion();
+    }
+  }
+
   function dibujarMapaEstaciones() {
     if (!mapaEstacionesActivo) {
       return;
@@ -807,16 +1344,20 @@
     if (opciones) {
       opciones.classList.remove("d-none");
     }
+    var leyenda = document.getElementById("leyenda-estaciones-mapa");
+    if (leyenda) {
+      leyenda.textContent = "▲ pick observado · △ sin arribo";
+    }
   }
 
   function alternarMapaEstaciones() {
     if (!mapaEstacionesActivo) {
+      if (propagacionActiva) {
+        cerrarPropagacion();
+      }
       mapaEstacionesActivo = true;
       dibujarMapaEstaciones();
-      var mapa = document.getElementById("mapa-detalle");
-      if (mapa) {
-        mapa.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
+      irAlMapa();
       return;
     }
     mapaEstacionesActivo = false;
@@ -828,8 +1369,12 @@
       boton.textContent = "Estaciones en el mapa";
     }
     var opciones = document.getElementById("mapa-estaciones-opciones");
-    if (opciones) {
+    if (opciones && !propagacionActiva) {
       opciones.classList.add("d-none");
+    }
+    var leyenda = document.getElementById("leyenda-estaciones-mapa");
+    if (leyenda) {
+      leyenda.textContent = "▲ pick observado · △ sin arribo";
     }
   }
 
@@ -889,29 +1434,41 @@
         })
       );
     var maxKm = Math.max.apply(null, [100].concat(distancias || []));
+    var tiemposGrafico = arribos
+      .map(function (arribo) {
+        return Number(arribo.segundos);
+      })
+      .concat(
+        estaciones.map(function (estacion) {
+          return Number(estacion.distancia_km) / vp;
+        })
+      );
+    var maxTChart = Math.max.apply(null, [10].concat(tiemposGrafico || []));
+    maxTChart = maxTChart * 1.08;
+    var tiempoActual = propagacionActiva ? propagacionTiempo : 0;
     var trazas = [
       {
         type: "scatter",
         mode: "lines",
-        name: "P estimada (" + vp.toFixed(1) + " km/s)",
+        name: "Referencia P (" + vp.toFixed(1) + " km/s)",
         x: [0, maxKm],
         y: [0, maxKm / vp],
-        line: { color: "#1f77b4", dash: "dash" },
+        line: { color: "#adb5bd", dash: "dot", width: 1 },
         hoverinfo: "skip",
       },
       {
         type: "scatter",
         mode: "lines",
-        name: "S estimada (" + vs.toFixed(1) + " km/s)",
+        name: "Referencia S (" + vs.toFixed(1) + " km/s)",
         x: [0, maxKm],
         y: [0, maxKm / vs],
-        line: { color: "#ff7f0e", dash: "dash" },
+        line: { color: "#ced4da", dash: "dot", width: 1 },
         hoverinfo: "skip",
       },
       {
         type: "scatter",
         mode: "markers",
-        name: "Picks reales",
+        name: "Picks observados",
         x: arribos.map(function (arribo) {
           return Number(arribo.distancia_km);
         }),
@@ -930,23 +1487,21 @@
           );
         }),
         marker: {
-          size: 8,
+          size: 9,
           color: arribos.map(function (arribo) {
-            var fase = (arribo.fase || "").toUpperCase();
-            if (fase.startsWith("P")) {
-              return "#1f77b4";
-            }
-            if (fase.startsWith("S")) {
-              return "#ff7f0e";
-            }
-            return "#6c757d";
-          }),
-          symbol: arribos.map(function (arribo) {
             return (arribo.modo || "").toLowerCase() === "manual"
-              ? "circle"
-              : "diamond";
+              ? "#0b7285"
+              : "#ffffff";
           }),
-          line: { color: "#ffffff", width: 0.5 },
+          symbol: "triangle-up",
+          line: {
+            color: arribos.map(function (arribo) {
+              return (arribo.modo || "").toLowerCase() === "manual"
+                ? "#ffffff"
+                : "#0b7285";
+            }),
+            width: 1.2,
+          },
         },
         hovertemplate: "%{text}<br>%{x:.1f} km · %{y:.1f} s<extra></extra>",
       },
@@ -966,20 +1521,31 @@
           return (estacion.red || "") + " " + (estacion.estacion || "");
         }),
         marker: {
-          size: 6,
-          color: "#adb5bd",
-          symbol: "circle-open",
+          size: 7,
+          color: "#ffffff",
+          symbol: "triangle-up",
+          line: { color: "#adb5bd", width: 1.2 },
         },
         hovertemplate: "%{text}<br>P estimada · %{y:.1f} s<extra></extra>",
       });
     }
+    trazas.push({
+      type: "scatter",
+      mode: "lines",
+      name: "Tiempo actual",
+      x: [0, maxKm],
+      y: [tiempoActual, tiempoActual],
+      line: { color: "#0b7285", width: 1.5, dash: "dash" },
+      hoverinfo: "skip",
+      showlegend: false,
+    });
     window.Plotly.newPlot(
       contenedorGrafico,
       trazas,
       {
         margin: { l: 60, r: 20, t: 20, b: 55 },
         xaxis: { title: "Distancia (km)" },
-        yaxis: { title: "Tiempo desde el origen (s)" },
+        yaxis: { title: "Tiempo desde el origen (s)", range: [0, maxTChart] },
         hovermode: "closest",
         legend: { orientation: "h" },
       },
@@ -1025,6 +1591,54 @@
         abrirTiemposLlegada();
       });
     }
+    var botonPropagacion = document.getElementById("btn-propagacion");
+    if (botonPropagacion) {
+      botonPropagacion.addEventListener("click", function (evento) {
+        evento.preventDefault();
+        alternarPropagacion();
+      });
+    }
+    var botonPlay = document.getElementById("btn-propagacion-play");
+    if (botonPlay) {
+      botonPlay.addEventListener("click", function (evento) {
+        evento.preventDefault();
+        if (propagacionReproduciendo) {
+          pausarPropagacion();
+        } else {
+          reproducirPropagacion();
+        }
+      });
+    }
+    var sliderPropagacion = document.getElementById("propagacion-tiempo");
+    if (sliderPropagacion) {
+      sliderPropagacion.addEventListener("input", function () {
+        pausarPropagacion();
+        var valor = parseFloat(sliderPropagacion.value);
+        if (!Number.isFinite(valor)) {
+          return;
+        }
+        propagacionTiempo = Math.min(
+          Math.max(valor, 0),
+          propagacionMax
+        );
+        actualizarPropagacion();
+      });
+    }
+    var velocidad = document.getElementById("propagacion-velocidad");
+    if (velocidad) {
+      velocidad.addEventListener("change", function () {
+        var valor = parseFloat(velocidad.value);
+        propagacionVelocidad =
+          Number.isFinite(valor) && valor > 0 ? valor : 1;
+      });
+    }
+    var reiniciar = document.getElementById("btn-propagacion-reiniciar");
+    if (reiniciar) {
+      reiniciar.addEventListener("click", function (evento) {
+        evento.preventDefault();
+        reiniciarPropagacion();
+      });
+    }
     var botonActualizar = document.getElementById("btn-tiempos-actualizar");
     if (botonActualizar) {
       botonActualizar.addEventListener("click", function (evento) {
@@ -1037,6 +1651,9 @@
       todas.addEventListener("change", function () {
         if (mapaEstacionesActivo) {
           dibujarMapaEstaciones();
+        } else if (propagacionActiva) {
+          prepararPropagacion();
+          actualizarPropagacion();
         }
       });
     }

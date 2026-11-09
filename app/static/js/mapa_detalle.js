@@ -80,6 +80,132 @@
     );
   }
 
+  const COLOR_PROPAGACION = "#0b7285";
+  const COLOR_PROPAGACION_TENUE = "#8fb8bf";
+  const COLOR_PENDIENTE = "#c7ced1";
+
+  function svgTriangulo(relleno, borde, tamano) {
+    const lado = tamano || 16;
+    return (
+      '<svg width="' +
+      lado +
+      '" height="' +
+      lado +
+      '" viewBox="0 0 16 16">' +
+      '<polygon points="8,1.5 14.5,14 1.5,14" fill="' +
+      relleno +
+      '" stroke="' +
+      borde +
+      '" stroke-width="1.5" stroke-linejoin="round"></polygon>' +
+      "</svg>"
+    );
+  }
+
+  function colorEstadoPropagacion(estado) {
+    if (estado === "observada") {
+      return COLOR_PROPAGACION;
+    }
+    if (estado === "estimada") {
+      return COLOR_PROPAGACION_TENUE;
+    }
+    return COLOR_PENDIENTE;
+  }
+
+  function claveEstacion(punto) {
+    return (punto.red || "") + "|" + (punto.estacion || "");
+  }
+
+  function popupEstacion(punto) {
+    const partes = [
+      "<strong>" +
+        esc((punto.red || "") + " " + (punto.estacion || "")) +
+        "</strong>",
+    ];
+    if (punto.distancia_km != null) {
+      partes.push("Distancia: " + esc(punto.distancia_km) + " km");
+    }
+    if (punto.estado === "observada" || punto.tipo === "arribo") {
+      const fases = punto.fases || [];
+      fases.forEach(function (fase) {
+        const detalles = [];
+        if (fase.fase) {
+          detalles.push(esc(fase.fase));
+        }
+        if (fase.llegada) {
+          detalles.push(esc(fase.llegada));
+        }
+        if (fase.segundos != null) {
+          detalles.push(Number(fase.segundos).toFixed(1) + " s");
+        }
+        if (fase.modo) {
+          detalles.push(esc(fase.modo));
+        }
+        if (fase.usada) {
+          detalles.push("usada: " + esc(fase.usada));
+        }
+        if (detalles.length) {
+          partes.push(detalles.join(" · "));
+        }
+      });
+    } else {
+      if (punto.estado === "estimada" && punto.llegada != null) {
+        partes.push(
+          "Llegada estimada: " + Number(punto.llegada).toFixed(1) + " s"
+        );
+      } else if (punto.estado === "pendiente") {
+        partes.push("Aún no alcanzada");
+      }
+      if (punto.evidencia) {
+        partes.push("Evidencia: " + esc(punto.evidencia));
+      }
+      if (punto.formas_onda) {
+        partes.push("Formas de onda: " + esc(punto.formas_onda));
+      }
+      if (punto.disponible) {
+        partes.push("Disponible y no usada: " + esc(punto.disponible));
+      }
+      if (punto.streams) {
+        partes.push("Streams: " + esc(punto.streams));
+      }
+    }
+    return partes.join("<br>");
+  }
+
+  function geodesiaDestino(lat, lon, rumbo, distanciaKm) {
+    const radioTierra = 6371.0088;
+    const angulo = distanciaKm / radioTierra;
+    const phi1 = (lat * Math.PI) / 180;
+    const lambda1 = (lon * Math.PI) / 180;
+    const theta = (rumbo * Math.PI) / 180;
+    const phi2 = Math.asin(
+      Math.sin(phi1) * Math.cos(angulo) +
+        Math.cos(phi1) * Math.sin(angulo) * Math.cos(theta)
+    );
+    const lambda2 =
+      lambda1 +
+      Math.atan2(
+        Math.sin(theta) * Math.sin(angulo) * Math.cos(phi1),
+        Math.cos(angulo) - Math.sin(phi1) * Math.sin(phi2)
+      );
+    return [
+      (phi2 * 180) / Math.PI,
+      (((lambda2 * 180) / Math.PI + 540) % 360) - 180,
+    ];
+  }
+
+  function circuloGeo(lat, lon, radioKm, pasos) {
+    const total = pasos || 72;
+    const latitudes = [];
+    const longitudes = [];
+    for (let indice = 0; indice <= total; indice += 1) {
+      const rumbo = (360 * indice) / total;
+      const destino = geodesiaDestino(lat, lon, rumbo, radioKm);
+      latitudes.push(destino[0]);
+      longitudes.push(destino[1]);
+    }
+    return { lat: latitudes, lon: longitudes };
+  }
+
   function valor(valor, sufijo) {
     if (valor === null || valor === undefined || valor === "") {
       return "—";
@@ -857,65 +983,196 @@
       contenedor.on("plotly_unhover", restaurarPrevio);
     });
 
+    let propagacionLista = false;
+    let propagacionPendiente = false;
+    let generacionPropagacion = 0;
+    let indicesPropagacion = null;
+    let ultimoDatosPropagacion = null;
+
+    function estacionesPropagacionValidas(estaciones) {
+      return (estaciones || []).filter(function (punto) {
+        return Number.isFinite(punto.lat) && Number.isFinite(punto.lon);
+      });
+    }
+
+    function datosEstacionesPlotly(estaciones) {
+      const validas = estacionesPropagacionValidas(estaciones);
+      return {
+        valido: validas.length > 0,
+        lat: validas.map(function (punto) {
+          return punto.lat;
+        }),
+        lon: validas.map(function (punto) {
+          return punto.lon;
+        }),
+        text: validas.map(function (punto) {
+          const base = (punto.red || "") + " " + (punto.estacion || "");
+          if (punto.estado === "observada" && punto.llegada != null) {
+            return (
+              base +
+              "<br>observada · " +
+              Number(punto.llegada).toFixed(1) +
+              " s"
+            );
+          }
+          if (punto.estado === "estimada" && punto.llegada != null) {
+            return (
+              base +
+              "<br>estimada · " +
+              Number(punto.llegada).toFixed(1) +
+              " s"
+            );
+          }
+          return base + "<br>pendiente";
+        }),
+        color: validas.map(function (punto) {
+          if (punto.estado === "observada") {
+            return COLOR_PROPAGACION;
+          }
+          if (punto.estado === "estimada") {
+            return "#ffffff";
+          }
+          return "#eef1f2";
+        }),
+        borde: validas.map(function (punto) {
+          if (punto.estado === "observada") {
+            return COLOR_PROPAGACION;
+          }
+          if (punto.estado === "estimada") {
+            return COLOR_PROPAGACION_TENUE;
+          }
+          return COLOR_PENDIENTE;
+        }),
+        tamano: validas.map(function (punto) {
+          if (punto.pulso) {
+            return 12;
+          }
+          if (punto.estado === "pendiente") {
+            return 7;
+          }
+          return 9;
+        }),
+        ancho: validas.map(function (punto) {
+          return punto.pulso ? 2.6 : 1.2;
+        }),
+      };
+    }
+
+    function trazaEstacionesPropagacion(estaciones) {
+      const datosEstaciones = datosEstacionesPlotly(estaciones);
+      return {
+        type: "scattergeo",
+        mode: "markers",
+        name: "Propagación · Estaciones",
+        lat: datosEstaciones.lat,
+        lon: datosEstaciones.lon,
+        text: datosEstaciones.text,
+        marker: {
+          symbol: "triangle-up",
+          size: datosEstaciones.tamano,
+          color: datosEstaciones.color,
+          line: {
+            color: datosEstaciones.borde,
+            width: datosEstaciones.ancho,
+          },
+        },
+        hoverinfo: "text",
+        showlegend: true,
+      };
+    }
+
+    function actualizarPropagacionPlotly(datosPropagacion) {
+      if (!indicesPropagacion || !datosPropagacion) {
+        return;
+      }
+      const epicentro = datosPropagacion.epicentro;
+      if (
+        !epicentro ||
+        !Number.isFinite(epicentro.lat) ||
+        !Number.isFinite(epicentro.lon)
+      ) {
+        return;
+      }
+      const radioKm = Math.max(
+        0,
+        Number(datosPropagacion.radio_km) || 0
+      );
+      const radios = [1, 0.97, 0.94, 0.91];
+      const circulos = radios.map(function (factor) {
+        return circuloGeo(
+          epicentro.lat,
+          epicentro.lon,
+          Math.max(0.01, radioKm * factor),
+          72
+        );
+      });
+      window.Plotly.restyle(
+        contenedor,
+        {
+          lat: circulos.map(function (circulo) {
+            return circulo.lat;
+          }),
+          lon: circulos.map(function (circulo) {
+            return circulo.lon;
+          }),
+        },
+        indicesPropagacion.frentes
+      );
+
+      const datosEstaciones = datosEstacionesPlotly(
+        datosPropagacion.estaciones
+      );
+      window.Plotly.restyle(
+        contenedor,
+        {
+          lat: [datosEstaciones.lat],
+          lon: [datosEstaciones.lon],
+          text: [datosEstaciones.text],
+          "marker.color": [datosEstaciones.color],
+          "marker.line.color": [datosEstaciones.borde],
+          "marker.size": [datosEstaciones.tamano],
+          "marker.line.width": [datosEstaciones.ancho],
+        },
+        [indicesPropagacion.estaciones]
+      );
+    }
+
     window.RCSMapaDetalle = {
       tipo: "plotly",
       mostrarEstaciones: function (puntos) {
         if (!window.Plotly || !puntos || !puntos.length) {
           return;
         }
-        window.RCSMapaDetalle.ocultarEstaciones();
-        const grupos = {
-          "Arribos P": [],
-          "Arribos S": [],
-          "Arribos otras": [],
-          "Sin arribos": [],
-        };
-        puntos.forEach(function (punto) {
-          if (!Number.isFinite(punto.lat) || !Number.isFinite(punto.lon)) {
-            return;
-          }
-          if (punto.tipo === "arribo") {
-            const fase = (punto.fase || "").toUpperCase();
-            if (fase.startsWith("P")) {
-              grupos["Arribos P"].push(punto);
-            } else if (fase.startsWith("S")) {
-              grupos["Arribos S"].push(punto);
-            } else {
-              grupos["Arribos otras"].push(punto);
+        if (!contenedor.data) {
+          window.setTimeout(function () {
+            if (window.RCSMapaDetalle) {
+              window.RCSMapaDetalle.mostrarEstaciones(puntos);
             }
-          } else {
-            grupos["Sin arribos"].push(punto);
-          }
+          }, 200);
+          return;
+        }
+        window.RCSMapaDetalle.ocultarEstaciones();
+        const arribos = puntos.filter(function (punto) {
+          return punto.tipo === "arribo";
         });
-        const colores = {
-          "Arribos P": "#1f77b4",
-          "Arribos S": "#ff7f0e",
-          "Arribos otras": "#6c757d",
-          "Sin arribos": "#9a6a00",
-        };
+        const sinArribos = puntos.filter(function (punto) {
+          return punto.tipo !== "arribo";
+        });
         const trazas = [];
-        Object.keys(grupos).forEach(function (nombre) {
-          const lista = grupos[nombre];
-          if (!lista.length) {
-            return;
-          }
-          const esSinArribos = nombre === "Sin arribos";
+        if (arribos.length) {
           trazas.push({
             type: "scattergeo",
             mode: "markers",
-            name: "Estaciones · " + nombre,
-            lat: lista.map(function (punto) {
+            name: "Estaciones · Arribos",
+            lat: arribos.map(function (punto) {
               return punto.lat;
             }),
-            lon: lista.map(function (punto) {
+            lon: arribos.map(function (punto) {
               return punto.lon;
             }),
-            text: lista.map(function (punto) {
+            text: arribos.map(function (punto) {
               const base =
                 (punto.red || "") + " " + (punto.estacion || "");
-              if (esSinArribos) {
-                return base;
-              }
               const fases = (punto.fases || [])
                 .map(function (fase) {
                   let texto = fase.fase || "";
@@ -934,26 +1191,44 @@
                 ? base + "<br>" + fases.join("<br>")
                 : base;
             }),
-            customdata: lista,
             marker: {
-              size: esSinArribos ? 5 : 7,
-              color: esSinArribos
-                ? lista.map(function (punto) {
-                    if (punto.categoria === "verificado") {
-                      return "#1a7f37";
-                    }
-                    if (punto.categoria === "indicio") {
-                      return "#9a6a00";
-                    }
-                    return "#6c757d";
-                  })
-                : colores[nombre],
-              symbol: esSinArribos ? "circle" : "diamond",
+              symbol: "triangle-up",
+              size: 10,
+              color: COLOR_PROPAGACION,
               line: { color: "#ffffff", width: 0.5 },
             },
             hoverinfo: "text",
+            showlegend: true,
           });
-        });
+        }
+        if (sinArribos.length) {
+          trazas.push({
+            type: "scattergeo",
+            mode: "markers",
+            name: "Estaciones · Sin arribos",
+            lat: sinArribos.map(function (punto) {
+              return punto.lat;
+            }),
+            lon: sinArribos.map(function (punto) {
+              return punto.lon;
+            }),
+            text: sinArribos.map(function (punto) {
+              const base =
+                (punto.red || "") + " " + (punto.estacion || "");
+              return punto.evidencia
+                ? base + "<br>" + punto.evidencia
+                : base;
+            }),
+            marker: {
+              symbol: "triangle-up",
+              size: 8,
+              color: "#ffffff",
+              line: { color: COLOR_PROPAGACION, width: 1.2 },
+            },
+            hoverinfo: "text",
+            showlegend: true,
+          });
+        }
         if (trazas.length) {
           window.Plotly.addTraces(contenedor, trazas);
         }
@@ -965,6 +1240,113 @@
         const indices = [];
         contenedor.data.forEach(function (traza, indice) {
           if ((traza.name || "").indexOf("Estaciones ·") === 0) {
+            indices.push(indice);
+          }
+        });
+        if (indices.length) {
+          window.Plotly.deleteTraces(contenedor, indices);
+        }
+      },
+      mostrarPropagacion: function (datosPropagacion) {
+        if (
+          !window.Plotly ||
+          !datosPropagacion ||
+          !datosPropagacion.epicentro
+        ) {
+          return;
+        }
+        if (!contenedor.data) {
+          window.setTimeout(function () {
+            if (window.RCSMapaDetalle) {
+              window.RCSMapaDetalle.mostrarPropagacion(datosPropagacion);
+            }
+          }, 200);
+          return;
+        }
+        ultimoDatosPropagacion = datosPropagacion;
+        if (propagacionLista) {
+          actualizarPropagacionPlotly(datosPropagacion);
+          return;
+        }
+        if (propagacionPendiente) {
+          return;
+        }
+        propagacionPendiente = true;
+        const generacion = generacionPropagacion;
+        const epicentro = datosPropagacion.epicentro;
+        const radioKm = Math.max(
+          0,
+          Number(datosPropagacion.radio_km) || 0
+        );
+        const radios = [1, 0.97, 0.94, 0.91];
+        const trazas = radios.map(function (factor, indice) {
+          const circulo = circuloGeo(
+            epicentro.lat,
+            epicentro.lon,
+            Math.max(0.01, radioKm * factor),
+            72
+          );
+          return {
+            type: "scattergeo",
+            mode: "lines",
+            name:
+              indice === 0
+                ? "Propagación · Frente"
+                : "Propagación · Frente " + (indice + 1),
+            lat: circulo.lat,
+            lon: circulo.lon,
+            line: {
+              color: COLOR_PROPAGACION,
+              width: indice === 0 ? 2 : 1,
+            },
+            opacity:
+              indice === 0 ? 0.85 : Math.max(0.08, 0.3 - indice * 0.06),
+            hoverinfo: "skip",
+            showlegend: indice === 0,
+          };
+        });
+        trazas.push(trazaEstacionesPropagacion(datosPropagacion.estaciones));
+        window.Plotly.addTraces(contenedor, trazas).then(function () {
+          if (generacion !== generacionPropagacion) {
+            window.RCSMapaDetalle.ocultarPropagacion();
+            return;
+          }
+          const indices = { frentes: [], estaciones: -1 };
+          contenedor.data.forEach(function (traza, indice) {
+            if (traza.name === "Propagación · Estaciones") {
+              indices.estaciones = indice;
+            } else if (
+              (traza.name || "").indexOf("Propagación · Frente") === 0
+            ) {
+              indices.frentes.push(indice);
+            }
+          });
+          if (indices.estaciones < 0 || indices.frentes.length !== 4) {
+            propagacionPendiente = false;
+            return;
+          }
+          indicesPropagacion = indices;
+          propagacionLista = true;
+          propagacionPendiente = false;
+          if (ultimoDatosPropagacion) {
+            actualizarPropagacionPlotly(ultimoDatosPropagacion);
+          }
+        }).catch(function () {
+          propagacionPendiente = false;
+        });
+      },
+      ocultarPropagacion: function () {
+        generacionPropagacion += 1;
+        propagacionLista = false;
+        propagacionPendiente = false;
+        indicesPropagacion = null;
+        ultimoDatosPropagacion = null;
+        if (!window.Plotly || !contenedor || !contenedor.data) {
+          return;
+        }
+        const indices = [];
+        contenedor.data.forEach(function (traza, indice) {
+          if ((traza.name || "").indexOf("Propagación ·") === 0) {
             indices.push(indice);
           }
         });
@@ -1069,6 +1451,21 @@
     }
 
     let capaEstaciones = null;
+    let capaPropagacion = null;
+    let capaFrentes = null;
+    let firmaPropagacion = "";
+    let registrosPropagacion = {};
+    let circulosFrente = [];
+
+    function iconoEstacion(relleno, borde) {
+      return window.L.divIcon({
+        className: "rcs-estacion-icono",
+        html: svgTriangulo(relleno, borde, 16),
+        iconSize: [16, 16],
+        iconAnchor: [8, 15],
+      });
+    }
+
     window.RCSMapaDetalle = {
       tipo: "leaflet",
       mostrarEstaciones: function (puntos) {
@@ -1085,72 +1482,11 @@
             return;
           }
           const esArribo = punto.tipo === "arribo";
-          let color = "#6c757d";
-          if (esArribo) {
-            const fase = (punto.fase || "").toUpperCase();
-            if (fase.startsWith("P")) {
-              color = "#1f77b4";
-            } else if (fase.startsWith("S")) {
-              color = "#ff7f0e";
-            }
-          } else if (punto.categoria === "verificado") {
-            color = "#1a7f37";
-          } else if (punto.categoria === "indicio") {
-            color = "#9a6a00";
-          }
-          const marcador = window.L.circleMarker([punto.lat, punto.lon], {
-            radius: esArribo ? 5 : 4,
-            color: color,
-            fillColor: color,
-            fillOpacity: 0.85,
-            weight: 1,
+          const relleno = esArribo ? COLOR_PROPAGACION : "#ffffff";
+          const marcador = window.L.marker([punto.lat, punto.lon], {
+            icon: iconoEstacion(relleno, COLOR_PROPAGACION),
           });
-          const partes = [
-            "<strong>" +
-              esc((punto.red || "") + " " + (punto.estacion || "")) +
-              "</strong>",
-          ];
-          if (punto.distancia_km != null) {
-            partes.push("Distancia: " + esc(punto.distancia_km) + " km");
-          }
-          if (esArribo) {
-            const fases = punto.fases || [];
-            fases.forEach(function (fase) {
-              const detalles = [];
-              if (fase.fase) {
-                detalles.push(esc(fase.fase));
-              }
-              if (fase.llegada) {
-                detalles.push(esc(fase.llegada));
-              }
-              if (fase.segundos != null) {
-                detalles.push(Number(fase.segundos).toFixed(1) + " s");
-              }
-              if (fase.modo) {
-                detalles.push(esc(fase.modo));
-              }
-              if (fase.usada) {
-                detalles.push("usada: " + esc(fase.usada));
-              }
-              if (detalles.length) {
-                partes.push(detalles.join(" · "));
-              }
-            });
-          } else {
-            if (punto.evidencia) {
-              partes.push("Evidencia: " + esc(punto.evidencia));
-            }
-            if (punto.formas_onda) {
-              partes.push("Formas de onda: " + esc(punto.formas_onda));
-            }
-            if (punto.disponible) {
-              partes.push("Disponible y no usada: " + esc(punto.disponible));
-            }
-            if (punto.streams) {
-              partes.push("Streams: " + esc(punto.streams));
-            }
-          }
-          marcador.bindPopup(partes.join("<br>"));
+          marcador.bindPopup(popupEstacion(punto));
           marcador.addTo(capaEstaciones);
         });
         capaEstaciones.addTo(mapa);
@@ -1160,6 +1496,120 @@
           mapa.removeLayer(capaEstaciones);
           capaEstaciones = null;
         }
+      },
+      mostrarPropagacion: function (datosPropagacion) {
+        if (!datosPropagacion || !datosPropagacion.epicentro) {
+          return;
+        }
+        const estaciones = datosPropagacion.estaciones || [];
+        if (!capaPropagacion) {
+          capaPropagacion = window.L.layerGroup().addTo(mapa);
+          capaFrentes = window.L.layerGroup().addTo(mapa);
+        }
+        const firma = estaciones.map(claveEstacion).join("|");
+        if (firma !== firmaPropagacion) {
+          capaPropagacion.clearLayers();
+          registrosPropagacion = {};
+          firmaPropagacion = firma;
+          estaciones.forEach(function (punto) {
+            if (!Number.isFinite(punto.lat) || !Number.isFinite(punto.lon)) {
+              return;
+            }
+            const marcador = window.L.marker([punto.lat, punto.lon], {
+              icon: iconoEstacion("#ffffff", COLOR_PENDIENTE),
+            });
+            const registro = {
+              marcador: marcador,
+              polygon: null,
+              punto: punto,
+            };
+            marcador.bindPopup(function () {
+              return popupEstacion(registro.punto);
+            });
+            marcador.addTo(capaPropagacion);
+            const elemento = marcador.getElement();
+            registro.polygon = elemento
+              ? elemento.querySelector("polygon")
+              : null;
+            registrosPropagacion[claveEstacion(punto)] = registro;
+          });
+        }
+        estaciones.forEach(function (punto) {
+          const registro = registrosPropagacion[claveEstacion(punto)];
+          if (!registro) {
+            return;
+          }
+          registro.punto = punto;
+          const polygon = registro.polygon;
+          if (!polygon) {
+            return;
+          }
+          const estado = punto.estado || "pendiente";
+          let relleno = "#ffffff";
+          let borde = COLOR_PENDIENTE;
+          if (estado === "observada") {
+            relleno = COLOR_PROPAGACION;
+            borde = COLOR_PROPAGACION;
+          } else if (estado === "estimada") {
+            borde = COLOR_PROPAGACION_TENUE;
+          }
+          polygon.setAttribute("fill", relleno);
+          polygon.setAttribute("stroke", borde);
+          polygon.setAttribute("stroke-width", punto.pulso ? "2.8" : "1.5");
+        });
+
+        const epicentro = datosPropagacion.epicentro;
+        if (
+          !Number.isFinite(epicentro.lat) ||
+          !Number.isFinite(epicentro.lon)
+        ) {
+          return;
+        }
+        if (!circulosFrente.length) {
+          for (let indice = 0; indice < 4; indice += 1) {
+            const circulo = window.L.circle(
+              [epicentro.lat, epicentro.lon],
+              {
+                radius: 0,
+                color: COLOR_PROPAGACION,
+                weight: indice === 0 ? 2 : 1,
+                opacity: indice === 0 ? 0.85 : 0.3 - indice * 0.06,
+                fillColor: COLOR_PROPAGACION,
+                fillOpacity: indice === 0 ? 0.05 : 0,
+                interactive: false,
+              }
+            ).addTo(capaFrentes);
+            circulosFrente.push(circulo);
+          }
+        }
+        const radio =
+          Math.max(0, Number(datosPropagacion.radio_km) || 0) * 1000;
+        const factores = [1, 0.97, 0.94, 0.91];
+        circulosFrente.forEach(function (circulo, indice) {
+          circulo.setLatLng([epicentro.lat, epicentro.lon]);
+          circulo.setRadius(radio * factores[indice]);
+          circulo.setStyle({
+            opacity:
+              radio > 0
+                ? indice === 0
+                  ? 0.85
+                  : Math.max(0.08, 0.3 - indice * 0.06)
+                : 0,
+          });
+        });
+      },
+      ocultarPropagacion: function () {
+        if (capaPropagacion) {
+          mapa.removeLayer(capaPropagacion);
+          capaPropagacion = null;
+        }
+        if (capaFrentes) {
+          mapa.removeLayer(capaFrentes);
+          capaFrentes = null;
+        }
+        registrosPropagacion = {};
+        firmaPropagacion = "";
+        circulosFrente = [];
       },
     };
   }

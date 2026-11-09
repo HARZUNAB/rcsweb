@@ -440,6 +440,23 @@ footer {
   overflow: hidden;
 }
 
+.rcs-estacion-icono {
+  background: transparent;
+  border: 0;
+}
+
+.rcs-estacion-icono svg {
+  display: block;
+  overflow: visible;
+}
+
+#propagacion-controles {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #d7e3e7;
+  border-radius: 0.5rem;
+  background: #f6fafb;
+}
+
 .container-detalle {
   max-width: 100%;
   width: 100%;

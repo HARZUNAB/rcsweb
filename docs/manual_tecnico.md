@@ -923,7 +923,7 @@ confunde con la consulta completa. La clave con `todas=1` es distinta de la
 automática; si el usuario recarga durante una consulta “todas”, el detalle no
 la reanuda, pero la tarea sigue y deja la caché actualizada.
 
-#### Estaciones en el mapa y tiempos de llegada
+#### Estaciones en el mapa, propagación y tiempos de llegada
 
 La revisión calcula dos datos derivados y los expone en el contexto:
 
@@ -950,12 +950,13 @@ los filtros de tabla `solo_disponibles` y `solo_no_usadas`. El radio y **Solo
 cercanas** se aplican en el cliente solo a las estaciones sin arribos; los
 arribos se muestran siempre.
 
-La plantilla `results/_controles_estaciones.html` concentra los dos controles y
+La plantilla `results/_controles_estaciones.html` concentra los controles y
 se incluye desde `_mapa_detalle.html`, justo arriba de `#mapa-detalle`. Solo se
 renderiza si el contexto define `controles_estaciones`; `results/event.html` lo
 asigna a `revision_estaciones`, mientras que `panels/grupo.html` no lo define.
 Así el detalle de un evento único —incluido el que se abre con **Ver** desde
-Paneles— muestra los controles, y el mapa de grupo con varios eventos no.
+Paneles— muestra los controles, y el mapa de grupo con varios eventos no. La
+propagación requiere además que el evento tenga latitud y longitud.
 
 El modal de tiempos y los datos compartidos viven en
 `results/_estaciones_mapa_tiempos.html`, fuera de las solapas. El JSON se
@@ -963,15 +964,65 @@ incluye a nivel de página cuando la fuente no tiene extensión de inventario; s
 la tiene, queda dentro del panel de sin arribos para que se actualice al
 consultar disponibilidad.
 
-`static/js/estaciones.js` enlaza los controles en
-`iniciarMapaTiempos()`, sin depender de la solapa activa. La capa se agrega con
-`window.RCSMapaDetalle`, que `mapa_detalle.js` expone para Leaflet y Plotly:
-todos los arribos y hasta 20 estaciones sin arribos; **Mostrar todas** quita el
-tope de las sin arribos. La gráfica usa Plotly con picks reales y curvas P/S
-estimadas (Vp=6.0 km/s, Vs=3.5 km/s), rotuladas como estimación. Los picks
-manuales se dibujan como círculo y los automáticos como rombo. No se agregan
-rutas HTTP nuevas: los datos ya vienen en el detalle y solo se dibujan bajo
-demanda.
+##### Propagación en el cliente
+
+`static/js/estaciones.js` implementa el controlador de propagación:
+
+1. `datosPropagacion()` toma las estaciones visibles y los arribos, y calcula
+   el **primer arribo por estación**.
+2. `crearEnvolvente()` construye los nudos `(tiempo, distancia)` con el máximo
+   acumulado de distancia, partiendo de `(0, 0)`.
+3. `radioEnvolvente(t)` interpola el radio del frente entre los nudos. Si no
+   hay picks, usa `Vp = 6.0 km/s`.
+4. `tiempoParaDistancia(d)` invierte la envolvente para estimar cuándo el
+   frente alcanza una estación sin pick.
+5. En cada cuadro se marca cada estación como `pendiente`, `observada` o
+   `estimada`, y se pasa una instantánea a `window.RCSMapaDetalle`.
+
+La reproducción usa `requestAnimationFrame` con un avance de
+`maxT / 15` segundos de evento por segundo real, multiplicado por 1x, 2x o 5x.
+Los redibujos se limitan a ~20 por segundo. El control de tiempo también se
+puede arrastrar; al hacerlo se pausa la reproducción.
+
+##### Render del mapa
+
+`mapa_detalle.js` expone en `window.RCSMapaDetalle`:
+
+- `mostrarEstaciones(puntos)` y `ocultarEstaciones()` para la vista estática;
+- `mostrarPropagacion(datos)` y `ocultarPropagacion()` para la animación.
+
+En **Leaflet**:
+
+- cada estación es un `divIcon` con un triángulo SVG;
+- las estaciones se dibujan con `L.marker` y se actualizan cambiando el
+  `fill`/`stroke` del polígono;
+- el frente son cuatro `L.circle` concéntricos (principal y tres estelas), con
+  radio en metros actualizado en cada cuadro.
+
+En **Plotly**:
+
+- las estaciones son trazas `scattergeo` con `symbol: "triangle-up"`;
+- el frente son trazas de línea con un polígono geodésico generado con
+  `circuloGeo()`;
+- las trazas se agregan una vez y se actualizan con `Plotly.restyle`.
+
+El color único es `#0b7285`: relleno para observadas, contorno para estimadas y
+gris para pendientes. No se colorea por fase.
+
+##### Curva de tiempos
+
+La curva usa Plotly con:
+
+- curvas P/S de referencia en gris punteado;
+- picks observados como triángulos azul petróleo (relleno manual, hueco
+  automático);
+- estaciones sin arribos como triángulos huecos grises;
+- una traza `Tiempo actual` que se actualiza con `Plotly.restyle` y sincroniza
+  la línea vertical con la animación.
+
+El eje Y se fija con un rango calculado para que la línea de tiempo no cambie
+la escala durante la reproducción. No se agregan rutas HTTP nuevas: los datos
+ya vienen en el detalle y solo se dibujan bajo demanda.
 
 Estados de evidencia:
 
