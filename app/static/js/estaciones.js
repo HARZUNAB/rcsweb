@@ -945,39 +945,71 @@
     return ultimo.t + (distancia - ultimo.r) / pendiente;
   }
 
-  function actualizarResumenEstimadas(datos) {
-    var nodo = document.getElementById("propagacion-estimadas");
-    if (!nodo || !datos) {
+  function estadoOndasPunto(punto) {
+    if (punto.estado_ondas) {
+      return punto.estado_ondas;
+    }
+    if (punto.tipo === "arribo") {
+      return "observada";
+    }
+    if (punto.disponible === "Sí") {
+      return "disponible";
+    }
+    if (punto.disponible === "No") {
+      return "sin_datos";
+    }
+    return "sin_consultar";
+  }
+
+  function actualizarResumenEstados(puntos) {
+    var resumen = document.getElementById("resumen-estados-estaciones");
+    var propagacion = document.getElementById("propagacion-estimadas");
+    if (!resumen && !propagacion) {
       return;
     }
-    var estimadas = (datos.estaciones || []).filter(function (estacion) {
-      return estacion.tipo !== "arribo";
-    });
-    if (!estimadas.length) {
-      nodo.textContent = "Sin estaciones estimadas en el mapa.";
-      return;
-    }
+    var lista = puntos || [];
+    var observadas = 0;
     var sinConsultar = 0;
     var sinDatos = 0;
     var disponibles = 0;
-    estimadas.forEach(function (estacion) {
-      if (estacion.estado_ondas === "sin_datos") {
+    lista.forEach(function (punto) {
+      var estado = estadoOndasPunto(punto);
+      if (estado === "observada") {
+        observadas += 1;
+      } else if (estado === "sin_datos") {
         sinDatos += 1;
-      } else if (estacion.estado_ondas === "disponible") {
+      } else if (estado === "disponible") {
         disponibles += 1;
       } else {
         sinConsultar += 1;
       }
     });
-    nodo.textContent =
-      "Estimadas: " +
-      estimadas.length +
-      " · sin consultar: " +
-      sinConsultar +
-      " · sin datos: " +
-      sinDatos +
-      " · disponibles no usadas: " +
-      disponibles;
+    var texto = lista.length
+      ? "En el mapa: " +
+        observadas +
+        " observadas · " +
+        sinConsultar +
+        " sin consultar · " +
+        sinDatos +
+        " sin datos · " +
+        disponibles +
+        " disponibles no usadas"
+      : "Sin estaciones en el mapa.";
+    if (resumen) {
+      resumen.textContent = texto;
+    }
+    if (propagacion) {
+      propagacion.textContent = texto;
+    }
+  }
+
+  function mostrarLeyendaEstados(mostrar) {
+    var leyenda = document.getElementById("leyenda-estados-estaciones");
+    if (!leyenda) {
+      return;
+    }
+    leyenda.classList.toggle("d-none", !mostrar);
+    leyenda.classList.toggle("d-flex", mostrar);
   }
 
   function datosPropagacion() {
@@ -1055,12 +1087,7 @@
           evidencia: punto.evidencia || "",
           formas_onda: punto.formas_onda || "",
           disponible: punto.disponible || "",
-          estado_ondas:
-            punto.disponible === "Sí"
-              ? "disponible"
-              : punto.disponible === "No"
-                ? "sin_datos"
-                : "sin_consultar",
+          estado_ondas: estadoOndasPunto(punto),
           streams: punto.streams || "",
           fases: punto.fases || [],
           observado: observado,
@@ -1218,7 +1245,7 @@
       tiempo: propagacionTiempo,
       fuente: datos.fuente,
     });
-    actualizarResumenEstimadas(datos);
+    actualizarResumenEstados(estaciones);
     var reloj = document.getElementById("propagacion-reloj");
     if (reloj) {
       reloj.textContent = "t = " + propagacionTiempo.toFixed(1) + " s";
@@ -1363,11 +1390,7 @@
     if (boton) {
       boton.textContent = "Ocultar propagación";
     }
-    var leyenda = document.getElementById("leyenda-estaciones-mapa");
-    if (leyenda) {
-      leyenda.textContent =
-        "▲ observada · △ sin consultar · △× sin datos · △• disponible no usada";
-    }
+    mostrarLeyendaEstados(true);
     actualizarPropagacion();
     irAlMapa();
   }
@@ -1394,9 +1417,8 @@
     if (opciones && !mapaEstacionesActivo) {
       opciones.classList.add("d-none");
     }
-    var leyenda = document.getElementById("leyenda-estaciones-mapa");
-    if (leyenda) {
-      leyenda.textContent = "▲ pick observado · △ sin arribo";
+    if (!mapaEstacionesActivo) {
+      mostrarLeyendaEstados(false);
     }
   }
 
@@ -1420,7 +1442,9 @@
       );
       return;
     }
-    api.mostrarEstaciones(puntosMapaVisibles());
+    var puntos = puntosMapaVisibles();
+    api.mostrarEstaciones(puntos);
+    actualizarResumenEstados(puntos);
     var boton = document.getElementById("btn-estaciones-mapa");
     if (boton) {
       boton.textContent = "Ocultar estaciones";
@@ -1429,10 +1453,7 @@
     if (opciones) {
       opciones.classList.remove("d-none");
     }
-    var leyenda = document.getElementById("leyenda-estaciones-mapa");
-    if (leyenda) {
-      leyenda.textContent = "▲ pick observado · △ sin arribo";
-    }
+    mostrarLeyendaEstados(true);
   }
 
   function alternarMapaEstaciones() {
@@ -1457,9 +1478,8 @@
     if (opciones && !propagacionActiva) {
       opciones.classList.add("d-none");
     }
-    var leyenda = document.getElementById("leyenda-estaciones-mapa");
-    if (leyenda) {
-      leyenda.textContent = "▲ pick observado · △ sin arribo";
+    if (!propagacionActiva) {
+      mostrarLeyendaEstados(false);
     }
   }
 

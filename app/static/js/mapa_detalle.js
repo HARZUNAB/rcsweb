@@ -1206,6 +1206,12 @@
         const sinArribos = puntos.filter(function (punto) {
           return punto.tipo !== "arribo";
         });
+        const estadoOndas = function (punto) {
+          return (
+            punto.estado_ondas ||
+            (punto.tipo === "arribo" ? "observada" : "sin_consultar")
+          );
+        };
         const trazas = [];
         if (arribos.length) {
           trazas.push({
@@ -1271,10 +1277,75 @@
               symbol: "triangle-up",
               size: 8,
               color: "#ffffff",
-              line: { color: COLOR_PROPAGACION, width: 1.2 },
+              opacity: sinArribos.map(function (punto) {
+                return estadoOndas(punto) === "sin_consultar" ? 0.55 : 1;
+              }),
+              line: {
+                color: sinArribos.map(function (punto) {
+                  const estado = estadoOndas(punto);
+                  if (estado === "sin_datos") {
+                    return "#6c757d";
+                  }
+                  if (estado === "disponible") {
+                    return COLOR_PROPAGACION;
+                  }
+                  return "#ced4da";
+                }),
+                width: sinArribos.map(function (punto) {
+                  return estadoOndas(punto) === "disponible" ? 2 : 1.2;
+                }),
+              },
             },
             hoverinfo: "text",
             showlegend: true,
+          });
+        }
+        const sinDatos = sinArribos.filter(function (punto) {
+          return estadoOndas(punto) === "sin_datos";
+        });
+        if (sinDatos.length) {
+          trazas.push({
+            type: "scattergeo",
+            mode: "markers",
+            name: "Estaciones · Sin datos",
+            lat: sinDatos.map(function (punto) {
+              return punto.lat;
+            }),
+            lon: sinDatos.map(function (punto) {
+              return punto.lon;
+            }),
+            marker: {
+              symbol: "x",
+              size: 7,
+              color: "#6c757d",
+              line: { width: 0 },
+            },
+            hoverinfo: "skip",
+            showlegend: false,
+          });
+        }
+        const disponibles = sinArribos.filter(function (punto) {
+          return estadoOndas(punto) === "disponible";
+        });
+        if (disponibles.length) {
+          trazas.push({
+            type: "scattergeo",
+            mode: "markers",
+            name: "Estaciones · Disponibles",
+            lat: disponibles.map(function (punto) {
+              return punto.lat;
+            }),
+            lon: disponibles.map(function (punto) {
+              return punto.lon;
+            }),
+            marker: {
+              symbol: "circle",
+              size: 5,
+              color: COLOR_PROPAGACION,
+              line: { width: 0 },
+            },
+            hoverinfo: "skip",
+            showlegend: false,
           });
         }
         if (trazas.length) {
@@ -1549,15 +1620,6 @@
     let registrosPropagacion = {};
     let circulosFrente = [];
 
-    function iconoEstacion(relleno, borde) {
-      return window.L.divIcon({
-        className: "rcs-estacion-icono",
-        html: svgTriangulo(relleno, borde, 16),
-        iconSize: [16, 16],
-        iconAnchor: [8, 15],
-      });
-    }
-
     function iconoEstacionPropagacion(relleno, borde) {
       return window.L.divIcon({
         className: "rcs-estacion-icono",
@@ -1571,6 +1633,49 @@
       });
     }
 
+    function estadoOndasDe(punto) {
+      return (
+        punto.estado_ondas ||
+        (punto.tipo === "arribo" ? "observada" : "sin_consultar")
+      );
+    }
+
+    function aplicarBadgeOndas(badge, estado) {
+      if (!badge) {
+        return;
+      }
+      if (estado === "sin_datos") {
+        badge.textContent = "×";
+        badge.className = "rcs-estacion-badge sin-datos";
+      } else if (estado === "disponible") {
+        badge.textContent = "•";
+        badge.className = "rcs-estacion-badge";
+      } else {
+        badge.textContent = "";
+        badge.className = "rcs-estacion-badge";
+      }
+    }
+
+    function aplicarTrazoOndas(polygon, estado, ancho) {
+      if (!polygon) {
+        return;
+      }
+      let dash = "";
+      let opacidad = "1";
+      let grosor = ancho || "1.5";
+      if (estado === "disponible") {
+        grosor = ancho || "2";
+      } else if (estado === "sin_datos") {
+        dash = "2 1.5";
+        opacidad = "0.78";
+      } else if (estado === "sin_consultar") {
+        opacidad = "0.55";
+      }
+      polygon.setAttribute("stroke-dasharray", dash);
+      polygon.setAttribute("opacity", opacidad);
+      polygon.setAttribute("stroke-width", String(grosor));
+    }
+
     window.RCSMapaDetalle = {
       tipo: "leaflet",
       mostrarEstaciones: function (puntos) {
@@ -1581,20 +1686,39 @@
         if (!puntos || !puntos.length) {
           return;
         }
-        capaEstaciones = window.L.layerGroup();
+        capaEstaciones = window.L.layerGroup().addTo(mapa);
         puntos.forEach(function (punto) {
           if (!Number.isFinite(punto.lat) || !Number.isFinite(punto.lon)) {
             return;
           }
-          const esArribo = punto.tipo === "arribo";
-          const relleno = esArribo ? COLOR_PROPAGACION : "#ffffff";
+          const estado = estadoOndasDe(punto);
+          const relleno =
+            estado === "observada" ? COLOR_PROPAGACION : "#ffffff";
+          let borde = COLOR_PROPAGACION;
+          if (estado === "sin_datos") {
+            borde = "#6c757d";
+          } else if (estado === "sin_consultar") {
+            borde = "#ced4da";
+          }
           const marcador = window.L.marker([punto.lat, punto.lon], {
-            icon: iconoEstacion(relleno, COLOR_PROPAGACION),
+            icon: iconoEstacionPropagacion(relleno, borde),
           });
           marcador.bindPopup(popupEstacion(punto));
           marcador.addTo(capaEstaciones);
+          const elemento = marcador.getElement();
+          const polygon = elemento
+            ? elemento.querySelector("polygon")
+            : null;
+          const badge = elemento
+            ? elemento.querySelector(".rcs-estacion-badge")
+            : null;
+          aplicarTrazoOndas(
+            polygon,
+            estado,
+            estado === "disponible" ? "2" : "1.5"
+          );
+          aplicarBadgeOndas(badge, estado);
         });
-        capaEstaciones.addTo(mapa);
       },
       ocultarEstaciones: function () {
         if (capaEstaciones) {
@@ -1664,20 +1788,17 @@
           }
           polygon.setAttribute("fill", relleno);
           polygon.setAttribute("stroke", borde);
-          polygon.setAttribute("stroke-width", punto.pulso ? "2.8" : "1.5");
-          const badge = registro.badge;
-          if (badge) {
-            if (punto.estado_ondas === "sin_datos") {
-              badge.textContent = "×";
-              badge.className = "rcs-estacion-badge sin-datos";
-            } else if (punto.estado_ondas === "disponible") {
-              badge.textContent = "•";
-              badge.className = "rcs-estacion-badge";
-            } else {
-              badge.textContent = "";
-              badge.className = "rcs-estacion-badge";
-            }
-          }
+          const estadoOndas = punto.estado_ondas || "sin_consultar";
+          aplicarTrazoOndas(
+            polygon,
+            estadoOndas,
+            punto.pulso
+              ? "2.8"
+              : estadoOndas === "disponible"
+                ? "2"
+                : "1.5"
+          );
+          aplicarBadgeOndas(registro.badge, estadoOndas);
         });
 
         const epicentro = datosPropagacion.epicentro;

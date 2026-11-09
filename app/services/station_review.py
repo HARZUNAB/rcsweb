@@ -783,6 +783,16 @@ def _datos_mapa_tiempos(
         )
         punto["fase"] = principal["fase"]
 
+    for punto in puntos.values():
+        if punto["tipo"] == "arribo":
+            punto["estado_ondas"] = "observada"
+        elif punto["disponible"] == "Sí":
+            punto["estado_ondas"] = "disponible"
+        elif punto["disponible"] == "No":
+            punto["estado_ondas"] = "sin_datos"
+        else:
+            punto["estado_ondas"] = "sin_consultar"
+
     estaciones_mapa = sorted(
         puntos.values(),
         key=lambda punto: (

@@ -459,13 +459,13 @@ footer {
 
 .rcs-estacion-badge {
   position: absolute;
-  right: -5px;
-  bottom: -5px;
-  font-size: 11px;
+  right: -6px;
+  bottom: -6px;
+  font-size: 13px;
   line-height: 1;
   font-weight: 700;
   color: #0b7285;
-  text-shadow: 0 0 2px #fff, 0 0 2px #fff;
+  text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 0 4px #fff;
 }
 
 .rcs-estacion-badge.sin-datos {

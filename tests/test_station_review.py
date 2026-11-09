@@ -228,9 +228,11 @@ def test_revision_agrupa_y_filtra_no_utilizadas(tmp_path):
     por_estacion = {punto["estacion"]: punto for punto in mapa}
     assert set(por_estacion) == {"ANMO", "LVC"}
     assert por_estacion["ANMO"]["tipo"] == "arribo"
+    assert por_estacion["ANMO"]["estado_ondas"] == "observada"
     assert por_estacion["ANMO"]["fase"] == "P"
     assert len(por_estacion["ANMO"]["fases"]) == 1
     assert por_estacion["LVC"]["tipo"] == "sin_arribo"
+    assert por_estacion["LVC"]["estado_ondas"] == "sin_consultar"
     assert por_estacion["LVC"]["lat"] == -29.1
     assert por_estacion["LVC"]["lon"] == -71.1
     assert por_estacion["LVC"]["categoria"] == "indicio"
@@ -499,6 +501,10 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert 'id="propagacion-consulta-estado"' in html
     assert 'id="consulta-ondas-indicador"' in html
     assert 'id="consulta-ondas-texto"' in html
+    assert 'id="leyenda-estados-estaciones"' in html
+    assert 'id="resumen-estados-estaciones"' in html
+    assert "△× sin datos" in html
+    assert "△• disponible no usada" in html
     assert html.count('id="btn-propagacion"') == 1
     assert html.count('id="propagacion-controles"') == 1
     assert 'id="tiempos-llegada-datos"' in html
@@ -547,11 +553,13 @@ def test_detalle_datos_mapa_y_tiempos(client, login, app):
     por_estacion = {punto["estacion"]: punto for punto in estaciones}
     assert set(por_estacion) == {"ANMO", "LVC"}
     assert por_estacion["LVC"]["tipo"] == "sin_arribo"
+    assert por_estacion["LVC"]["estado_ondas"] == "sin_consultar"
     assert por_estacion["LVC"]["lat"] == -29.1
     assert por_estacion["LVC"]["lon"] == -71.1
     assert por_estacion["LVC"]["distancia_km"] == 12.3
     assert por_estacion["LVC"]["categoria"] == "indicio"
     assert por_estacion["ANMO"]["tipo"] == "arribo"
+    assert por_estacion["ANMO"]["estado_ondas"] == "observada"
     assert por_estacion["ANMO"]["fase"] == "P"
     assert por_estacion["ANMO"]["fases"][0]["modo"] == "Manual"
 

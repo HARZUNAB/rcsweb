@@ -980,15 +980,16 @@ consultar disponibilidad.
    `estimada`, y se pasa una instantánea a `window.RCSMapaDetalle`.
 
 La revisión expone `tiene_estimadas` para mostrar el botón de consulta solo
-cuando hay estaciones sin arribos en el mapa. Cada estación estimada lleva
-además `estado_ondas`, derivado del campo `disponible` que ya entrega la
-revisión:
+cuando hay estaciones sin arribos en el mapa. La revisión agrega
+`estado_ondas` a cada punto de `estaciones_mapa` en
+`_datos_mapa_tiempos()`:
 
-| `disponible` | `estado_ondas` |
+| Situación | `estado_ondas` |
 |---|---|
-| `"Sí"` | `disponible` |
-| `"No"` | `sin_datos` |
-| `"—"` o vacío | `sin_consultar` |
+| punto de tipo `arribo` | `observada` |
+| `disponible == "Sí"` | `disponible` |
+| `disponible == "No"` | `sin_datos` |
+| `disponible == "—"` o vacío | `sin_consultar` |
 
 El botón **Consultar formas de onda** de la barra de propagación no crea un
 flujo nuevo: llama a `encolar(false)`, la misma función que usa la solapa
@@ -997,7 +998,8 @@ flujo nuevo: llama a `encolar(false)`, la misma función que usa la solapa
 sondeo, la actualización del panel y el redibujo. `mostrarEstado` escribe el
 progreso tanto en el panel como en `#propagacion-consulta-estado`, y
 `bloquearBotonesConsulta` habilita/deshabilita los tres botones de consulta.
-`actualizarResumenEstimadas` cuenta las estaciones visibles por estado.
+`actualizarResumenEstados` cuenta las estaciones visibles por estado y actualiza
+la leyenda y el resumen de la barra de propagación.
 
 Además, `mostrarEstado` controla el indicador global
 `#consulta-ondas-indicador`, incluido desde `results/event.html` cuando
@@ -1027,8 +1029,10 @@ En **Leaflet**:
 - cada estación es un `divIcon` con un triángulo SVG;
 - las estaciones se dibujan con `L.marker` y se actualizan cambiando el
   `fill`/`stroke` del polígono;
-- en propagación el icono incluye un badge `×` para `sin_datos` y `•` para
-  `disponible`;
+- el icono incluye un badge `×` para `sin_datos` y `•` para `disponible`, tanto
+  en la vista estática como en propagación;
+- el borde es discontinuo para `sin_datos`, más grueso para `disponible` y la
+  opacidad baja para `sin_consultar`;
 - el frente son cuatro `L.circle` concéntricos (principal y tres estelas), con
   radio en metros actualizado en cada cuadro.
 
@@ -1038,12 +1042,14 @@ En **Plotly**:
 - el frente son trazas de línea con un polígono geodésico generado con
   `circuloGeo()`;
 - los estados de ondas se dibujan como trazas superpuestas con `symbol: "x"` y
-  `symbol: "circle"`;
+  `symbol: "circle"`, tanto en la vista estática como en propagación;
 - las trazas se agregan una vez y se actualizan con `Plotly.restyle`.
 
 El color único es `#0b7285`: relleno para observadas, contorno para estimadas y
-gris para pendientes. No se colorea por fase. La vista estática no muestra los
-badges de ondas; el estado se consulta en el popup.
+gris para pendientes. No se colorea por fase. La leyenda
+`#leyenda-estados-estaciones` y el resumen `#resumen-estados-estaciones` se
+muestran cuando hay una capa activa; el mismo texto se replica en
+`#propagacion-estimadas`.
 
 ##### Curva de tiempos
 

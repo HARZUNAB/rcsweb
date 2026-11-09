@@ -364,13 +364,25 @@ aparecen en los mapas de grupo con varios eventos.
 Agrega una capa de **triángulos** al mapa de planta:
 
 - **triángulo relleno azul petróleo**: estación con pick observado;
-- **triángulo hueco azul petróleo**: estación sin arribos.
+- **triángulo hueco**: estación sin arribos.
 
 Incluye todas las estaciones con arribos y hasta **20 estaciones sin arribos**,
 las más cercanas. La opción **Mostrar todas** quita ese límite. El radio y
 **Solo cercanas** se aplican a las estaciones sin arribos; los arribos se
 muestran siempre. Cada triángulo abre un popup con estación, distancia, fase,
 hora del pick, tiempo desde el origen, modo y uso en la solución.
+
+Los estados de las formas de onda se muestran igual que en propagación:
+
+```text
+▲ observada · △ sin consultar · △× sin datos · △• disponible no usada
+```
+
+Y el resumen:
+
+```text
+En el mapa: 10 observadas · 0 sin consultar · 6 sin datos · 14 disponibles no usadas
+```
 
 #### Propagación
 
@@ -400,7 +412,7 @@ Frente: 152 km · Frente observado
 
 ##### Estado de las estaciones sin arribos
 
-Para las estaciones que no tienen pick, la propagación distingue tres estados
+Tanto **Estaciones en el mapa** como **Propagación** distinguen tres estados
 de disponibilidad de formas de onda:
 
 | Estado | Marca | Significado |
@@ -411,6 +423,8 @@ de disponibilidad de formas de onda:
 
 - El relleno del triángulo sigue indicando si el frente ya la alcanzó.
 - La marca `×` o `•` indica el estado de las ondas.
+- En **sin datos** el borde es discontinuo; en **disponible** es más grueso.
+- En **sin consultar** la estación se ve más tenue.
 - El popup muestra:
   ```text
   Estado de ondas: Sin datos (verificado)
@@ -419,9 +433,10 @@ de disponibilidad de formas de onda:
   ```text
   Estado de ondas: Disponible y no usada
   ```
-- La barra de propagación resume:
+- La leyenda y el resumen están visibles cuando la capa está activa:
   ```text
-  Estimadas: 20 · sin consultar: 5 · sin datos: 12 · disponibles no usadas: 3
+  ▲ observada · △ sin consultar · △× sin datos · △• disponible no usada
+  En el mapa: 10 observadas · 0 sin consultar · 6 sin datos · 14 disponibles no usadas
   ```
 
 El botón **Consultar formas de onda** de la barra de propagación realiza la

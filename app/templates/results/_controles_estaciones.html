@@ -23,12 +23,6 @@
     Propagación
   </button>
   {% endif %}
-  {% if rev.tiene_coordenadas %}
-  <span class="small text-secondary ms-auto"
-        id="leyenda-estaciones-mapa">
-    ▲ pick observado · △ sin arribo
-  </span>
-  {% endif %}
   {% if rev.tiene_tiempos %}
   <button type="button" class="btn btn-sm btn-outline-secondary"
           id="btn-tiempos-llegada">
@@ -36,6 +30,16 @@
   </button>
   {% endif %}
 </div>
+{% if rev.tiene_coordenadas %}
+<div class="d-none flex-wrap align-items-center gap-2 mb-2 small text-secondary"
+     id="leyenda-estados-estaciones">
+  <span title="Tiene un pick observado.">▲ observada</span>
+  <span title="No se consultaron las formas de onda.">△ sin consultar</span>
+  <span title="Se consultaron las ondas y no hay datos.">△× sin datos</span>
+  <span title="Hay formas de onda, pero no tiene pick.">△• disponible no usada</span>
+  <span class="ms-auto" id="resumen-estados-estaciones"></span>
+</div>
+{% endif %}
 {% if rev.tiene_coordenadas and rev.tiene_tiempos and tiene_epicentro %}
 <div class="d-none flex-wrap align-items-center gap-2 mb-2"
      id="propagacion-controles">
