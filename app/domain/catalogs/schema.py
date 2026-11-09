@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.2"
 
 CAPACIDADES = {
     "eventos",
@@ -18,6 +18,7 @@ CAPACIDADES = {
     "arribos",
     "inventario",
     "disponibilidad_ondas",
+    "tensores",
     "excluidos",
     "percibidos",
 }
@@ -166,3 +167,41 @@ class DisponibilidadOnda:
     coverage_to: str | None = None
     checked_at: str | None = None
     error: str = ""
+
+
+@dataclass
+class TensorMomentoCanonico:
+    """Tensor de momento y mecanismo focal de un origen.
+
+    Las componentes y el momento escalar se normalizan a Nm cuando la unidad
+    de origen es conocida. ``moment_units_original`` conserva la unidad tal como
+    vino en la fuente.
+    """
+
+    source_id: str
+    event_id: str
+    origin_id: str
+    tensor_id: str
+    method: str = ""
+    mechanism: str = ""
+    strike1: float | None = None
+    dip1: float | None = None
+    rake1: float | None = None
+    strike2: float | None = None
+    dip2: float | None = None
+    rake2: float | None = None
+    m_rr: float | None = None
+    m_tt: float | None = None
+    m_pp: float | None = None
+    m_rt: float | None = None
+    m_rp: float | None = None
+    m_tp: float | None = None
+    scalar_moment: float | None = None
+    moment_units: str = ""
+    moment_units_original: str = ""
+    moment_magnitude: float | None = None
+    is_preferred: bool = False
+    raw: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return asdict(self)

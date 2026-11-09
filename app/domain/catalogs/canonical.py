@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,11 +19,13 @@ from .schema import (
     ArriboCanonico,
     EstacionSinArribosCanonica,
     EventoCanonico,
+    TensorMomentoCanonico,
 )
 
 EXTENSIONES = {
     "arribos": "arribos.jsonl",
     "estaciones_sin_arribos": "estaciones_sin_arribos.jsonl",
+    "tensores": "tensores.jsonl",
 }
 META = "meta.json"
 
@@ -77,6 +80,10 @@ def ruta_arribos(workspace: Path, source_id: str) -> Path:
 
 def ruta_estaciones_sin_arribos(workspace: Path, source_id: str) -> Path:
     return _ruta(workspace, source_id, EXTENSIONES["estaciones_sin_arribos"])
+
+
+def ruta_tensores(workspace: Path, source_id: str) -> Path:
+    return _ruta(workspace, source_id, EXTENSIONES["tensores"])
 
 
 def ruta_meta(workspace: Path, source_id: str) -> Path:
@@ -178,6 +185,10 @@ def leer_arribos(workspace: Path, source_id: str) -> list[dict]:
 
 def leer_estaciones_sin_arribos(workspace: Path, source_id: str) -> list[dict]:
     return _lineas_jsonl(ruta_estaciones_sin_arribos(workspace, source_id))
+
+
+def leer_tensores(workspace: Path, source_id: str) -> list[dict]:
+    return _lineas_jsonl(ruta_tensores(workspace, source_id))
 
 
 def escribir_registros(ruta: Path, registros: list[dict]) -> None:
@@ -344,6 +355,110 @@ def _extension_sin_arribos(
     return registros
 
 
+UNIDADES_MOMENTO = {
+    "nm": ("Nm", 1.0),
+    "n-m": ("Nm", 1.0),
+    "newton-metro": ("Nm", 1.0),
+    "newtonmetro": ("Nm", 1.0),
+    "dyn-cm": ("Nm", 1e-7),
+    "dyne-cm": ("Nm", 1e-7),
+    "dina-cm": ("Nm", 1e-7),
+    "dyncm": ("Nm", 1e-7),
+    "dynecm": ("Nm", 1e-7),
+    "dinacm": ("Nm", 1e-7),
+}
+
+
+def _unidad_momento(valor) -> tuple[str, tuple[str, float] | None]:
+    original = _texto(valor)
+    limpio = (
+        original.lower()
+        .replace(" ", "")
+        .replace("*", "")
+        .replace("_", "-")
+    )
+    return original, UNIDADES_MOMENTO.get(limpio)
+
+
+def _mw_desde_momento(momento_nm: float | None) -> float | None:
+    if momento_nm is None or momento_nm <= 0:
+        return None
+    return (2.0 / 3.0) * (math.log10(momento_nm) - 9.1)
+
+
+def _extension_tensores(
+    filas: list[dict], source_id: str, por_evento, por_origen
+) -> list[dict]:
+    registros = []
+    for posicion, fila in enumerate(filas):
+        event_id = _resolver_evento(fila, por_evento, por_origen)
+        origin_id = _texto(fila.get("id_origen")) or _texto(
+            fila.get("origin_id")
+        )
+        tensor_id = _texto(fila.get("tensor_id")) or _texto(
+            fila.get("id_tensor")
+        )
+        if not tensor_id:
+            tensor_id = (
+                f"{source_id}:{event_id or 'evento'}:"
+                f"{origin_id or 'origen'}:{posicion}"
+            )
+        original_units, unidad = _unidad_momento(
+            fila.get("moment_units")
+            or fila.get("unidades")
+            or fila.get("units")
+        )
+        factor = unidad[1] if unidad else None
+        canonical_units = unidad[0] if unidad else ""
+
+        def componente(nombre: str) -> float | None:
+            valor = _numero(fila.get(nombre))
+            if valor is None:
+                return None
+            return valor * factor if factor is not None else valor
+
+        scalar_moment = componente("scalar_moment")
+        momento_magnitude = _numero(fila.get("moment_magnitude"))
+        if momento_magnitude is None:
+            momento_magnitude = _numero(fila.get("mw"))
+        if momento_magnitude is None and factor is not None:
+            momento_magnitude = _mw_desde_momento(scalar_moment)
+        preferido = _boleano(fila.get("is_preferred"))
+        if preferido is None:
+            preferido = _boleano(fila.get("preferido"))
+        registros.append(
+            TensorMomentoCanonico(
+                source_id=source_id,
+                event_id=event_id,
+                origin_id=origin_id,
+                tensor_id=tensor_id,
+                method=_texto(fila.get("method"))
+                or _texto(fila.get("metodo")),
+                mechanism=_texto(fila.get("mechanism"))
+                or _texto(fila.get("mecanismo")),
+                strike1=_numero(fila.get("strike1")),
+                dip1=_numero(fila.get("dip1")),
+                rake1=_numero(fila.get("rake1")),
+                strike2=_numero(fila.get("strike2")),
+                dip2=_numero(fila.get("dip2")),
+                rake2=_numero(fila.get("rake2")),
+                m_rr=componente("m_rr"),
+                m_tt=componente("m_tt"),
+                m_pp=componente("m_pp"),
+                m_rt=componente("m_rt"),
+                m_rp=componente("m_rp"),
+                m_tp=componente("m_tp"),
+                scalar_moment=scalar_moment,
+                moment_units=canonical_units,
+                moment_units_original=original_units,
+                moment_magnitude=momento_magnitude,
+                is_preferred=bool(preferido),
+                raw=dict(fila),
+            ).__dict__
+        )
+    return registros
+
+
 def escribir_extensiones(
     workspace: Path,
     source_id: str,
@@ -379,8 +494,10 @@ def escribir_extensiones(
             ruta = workspace / ruta
         filas = _leer_crudo(ruta) if ruta is not None else []
         if clave == "arribos":
-            registros = _extension_arribos(filas, source_id, por_evento, por_origen)
-        else:
+            registros = _extension_arribos(
+                filas, source_id, por_evento, por_origen
+            )
+        elif clave == "estaciones_sin_arribos":
             registros = _extension_sin_arribos(
                 filas, source_id, por_evento, por_origen
             )
@@ -389,6 +506,12 @@ def escribir_extensiones(
                 for numero in (_numero(fila.get("radio_km")) for fila in filas)
                 if numero is not None
             ]
+        elif clave == "tensores":
+            registros = _extension_tensores(
+                filas, source_id, por_evento, por_origen
+            )
+        else:
+            registros = []
         if registros:
             _escribir_jsonl(_ruta(workspace, source_id, nombre), registros)
         estado[clave] = {

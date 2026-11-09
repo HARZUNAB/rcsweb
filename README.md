@@ -55,7 +55,10 @@ El catálogo estándar vive en `app/domain/catalogs/` y se guarda como JSONL en
 
 - **Capa mínima:** fuente, evento, fecha, lat/lon/profundidad, magnitud, agencia,
   analista, estado, preferido/publicado y `raw`.
-- **Extensiones:** `arribos` y `estaciones_sin_arribos` en JSONL, más `meta.json`
+- **Extensiones:** `arribos`, `estaciones_sin_arribos` y `tensores` en JSONL,
+  más `meta.json`. Los tensores se normalizan a Nm y conservan la unidad
+  original; `moment_magnitude` se calcula desde `scalar_moment` cuando es
+  posible.
   con capacidades, radio y presencia de archivos. `station`, `waveform_availability`,
   `station_magnitude` y `tensor` siguen reservadas (se llenan cuando la fuente las
   aporta).

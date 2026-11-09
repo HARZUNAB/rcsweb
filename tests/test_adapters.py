@@ -6,8 +6,11 @@ import json
 
 from app.domain.catalogs.canonical import (
     escribir_desde_csv,
+    escribir_extensiones,
     leer_canonico,
+    leer_tensores,
     ruta_canonica,
+    ruta_tensores,
 )
 from app.domain.catalogs.registry import adaptador, default_primary, formato
 from app.domain.catalogs.schema import SCHEMA_VERSION
@@ -22,7 +25,7 @@ def test_registro_de_formatos():
     assert "inventario" in formato("seiscomp").capacidades
     assert "excluidos" in formato("seisan").capacidades
     assert "percibidos" in formato("eventquery").capacidades
-    assert SCHEMA_VERSION == "1.1"
+    assert SCHEMA_VERSION == "1.2"
 
 
 def test_adaptadores_entregan_plan_y_catalogo():
@@ -87,3 +90,74 @@ def test_catalogo_eventquery_se_marca_publicado(tmp_path):
 
     assert evento["is_published"] is True
     assert evento["status"] == "published"
+
+
+def _workspace_con_evento(tmp_path):
+    workspace = tmp_path / "ws"
+    catalogo = workspace / "datos" / "seiscomp_parametros.csv"
+    catalogo.parent.mkdir(parents=True)
+    catalogo.write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Analista,"
+        "id_evento,id_origen,base_datos\n"
+        "0,2026-10-03 15:53:56,-29.519,-72.594,30.0,2.8,ML,beto,"
+        "csn_test_0001,Origin/20261003155356.000,seiscomp\n",
+        encoding="utf-8",
+    )
+    escribir_desde_csv(workspace, "seiscomp", "seiscomp", catalogo)
+    return workspace
+
+
+def test_extension_tensores_normaliza_unidades(tmp_path):
+    workspace = _workspace_con_evento(tmp_path)
+    tensores = workspace / "datos" / "tensores.csv"
+    tensores.write_text(
+        "id_evento,id_origen,tensor_id,method,mechanism,strike1,dip1,rake1,"
+        "strike2,dip2,rake2,m_rr,m_tt,m_pp,m_rt,m_rp,m_tp,scalar_moment,"
+        "moment_units,is_preferred\n"
+        "csn_test_0001,Origin/20261003155356.000,t-1,SEISCOMP,DC,"
+        "10,20,30,40,50,60,1e25,-1e25,0,0,0,0,1e25,dyn-cm,Si\n",
+        encoding="utf-8",
+    )
+
+    meta = escribir_extensiones(
+        workspace, "seiscomp", "seiscomp", {"tensores": tensores}
+    )
+
+    assert ruta_tensores(workspace, "seiscomp").is_file()
+    registro = leer_tensores(workspace, "seiscomp")[0]
+    assert registro["event_id"] == "seiscomp:000000"
+    assert registro["origin_id"] == "Origin/20261003155356.000"
+    assert registro["tensor_id"] == "t-1"
+    assert registro["method"] == "SEISCOMP"
+    assert registro["mechanism"] == "DC"
+    assert registro["strike1"] == 10.0
+    assert registro["moment_units"] == "Nm"
+    assert registro["moment_units_original"] == "dyn-cm"
+    assert abs(registro["scalar_moment"] - 1e18) < 1.0
+    assert abs(registro["m_rr"] - 1e18) < 1.0
+    assert abs(registro["m_tt"] + 1e18) < 1.0
+    assert abs(registro["moment_magnitude"] - 5.9333333) < 1e-5
+    assert registro["is_preferred"] is True
+    assert meta["extensions"]["tensores"]["present"] is True
+    assert meta["extensions"]["tensores"]["rows"] == 1
+
+
+def test_extension_tensores_unidades_desconocidas(tmp_path):
+    workspace = _workspace_con_evento(tmp_path)
+    tensores = workspace / "datos" / "tensores.csv"
+    tensores.write_text(
+        "id_evento,id_origen,tensor_id,m_rr,scalar_moment\n"
+        "csn_test_0001,Origin/20261003155356.000,t-2,1e25,1e25\n",
+        encoding="utf-8",
+    )
+
+    escribir_extensiones(
+        workspace, "seiscomp", "seiscomp", {"tensores": tensores}
+    )
+
+    registro = leer_tensores(workspace, "seiscomp")[0]
+    assert registro["moment_units"] == ""
+    assert registro["moment_units_original"] == ""
+    assert registro["scalar_moment"] == 1e25
+    assert registro["m_rr"] == 1e25
+    assert registro["moment_magnitude"] is None

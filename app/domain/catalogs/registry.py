@@ -65,6 +65,7 @@ FORMATOS: dict[str, Formato] = {
                 "arribos",
                 "inventario",
                 "disponibilidad_ondas",
+                "tensores",
             }
         ),
         archivo="seiscomp_{inicio}_{fin}.csv",
@@ -78,7 +79,7 @@ FORMATOS: dict[str, Formato] = {
         rol="local",
         adaptador="app.domain.catalogs.adapters.seisan",
         capacidades=frozenset(
-            {"eventos", "origenes", "magnitudes", "excluidos"}
+            {"eventos", "origenes", "magnitudes", "excluidos", "tensores"}
         ),
         archivo="select.out",
         extensiones=("out", "txt", "dat"),

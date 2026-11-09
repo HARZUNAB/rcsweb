@@ -508,7 +508,7 @@ Ejemplo:
 
 ```json
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "sources": [
     {
       "id": "referencia",
@@ -669,6 +669,7 @@ Los contratos de estación, arribo y disponibilidad de onda están definidos en
 | `ArriboCanonico` | `source_id`, `event_id`, `origin_id`, estación/canal, `phase`, `pick_time`, `pick_status`, `weight`, `residual`, `distance_km`, `azimuth`, `snr`, `qc`, `picker_probability`; además `source_event_id`, `pick_id`, corrección, autor/agencia/método del pick, magnitud de estación, inventario y `raw` |
 | `EstacionSinArribosCanonica` | `source_id`, `event_id`, `source_event_id`, `origin_id`, estación/canal, streams vigentes, distancia, inventario, `radio_km`, `actividad_ventana`, `evidencia`, `waveform_status`, cobertura y `raw` |
 | `DisponibilidadOnda` | `source_id`, `event_id`, estación/canal, ventana, `status`, `source`, cobertura, `checked_at`, `error` |
+| `TensorMomentoCanonico` | `source_id`, `event_id`, `origin_id`, `tensor_id`, `method`, `mechanism`, dos planos nodales, componentes `m_rr`…`m_tp`, `scalar_moment`, `moment_units`, `moment_units_original`, `moment_magnitude`, `is_preferred`, `raw` |
 
 #### Extensiones del catálogo
 
@@ -680,6 +681,7 @@ workspace/<job_id>/catalogo/<source_id>/
   eventos.jsonl
   arribos.jsonl
   estaciones_sin_arribos.jsonl
+  tensores.jsonl
   disponibilidad.jsonl      # caché generada por la consulta bajo demanda
   ampliaciones/             # resultados de ampliación contra SeisComp
   meta.json
@@ -689,6 +691,25 @@ workspace/<job_id>/catalogo/<source_id>/
 fecha de generación, el radio de estaciones y qué extensiones están presentes.
 Una extensión ausente no invalida el trabajo: queda con `present: false` y la
 revisión de estaciones muestra «no evaluable» en lugar de ocultar la sección.
+
+#### Tensores de momento
+
+La extensión `tensores.jsonl` guarda el mecanismo focal y el tensor de momento
+de un origen. Se enlaza por `event_id` y `origin_id`; un evento puede tener
+varios tensores y `is_preferred` marca el del origen preferido.
+
+- Las componentes y `scalar_moment` se normalizan a **Nm** cuando la unidad de
+  origen es conocida.
+- `moment_units_original` conserva la unidad tal como vino (`Nm`, `dyn-cm`, …).
+- Si la unidad no se reconoce, los valores se guardan sin convertir y no se
+  calcula `moment_magnitude`.
+- Si no viene `moment_magnitude`, se calcula desde `scalar_moment` en Nm:
+  ```text
+  Mw = (2/3) * (log10(M0) - 9.1)
+  ```
+- La conversión de `dyn-cm` a Nm es `× 1e-7`.
+
+La extensión es opcional: los catálogos 1.1 sin tensores siguen siendo válidos.
 
 La escritura es tolerante a archivos faltantes. Si una fuente declara la
 capacidad `arribos` pero el trabajo no trae los archivos, la app sigue
@@ -1183,7 +1204,7 @@ solicitud sigue avanzando.
 | Trabajos, pasos y artefactos | `jobs`, `job_files`, `job_steps`, `job_artifacts` | Archivos de entrada y logs |
 | Fuentes usadas | `job_sources` | — |
 | Catálogos normalizados | Solo metadatos | `datos/*.csv`, `inputs/*` |
-| Catálogo canónico | Tablas reservadas, no pobladas | `catalogo/<source_id>/eventos.jsonl`, `arribos.jsonl`, `estaciones_sin_arribos.jsonl`, `disponibilidad.jsonl`, `ampliaciones/`, `meta.json` |
+| Catálogo canónico | Tablas reservadas, no pobladas | `catalogo/<source_id>/eventos.jsonl`, `arribos.jsonl`, `estaciones_sin_arribos.jsonl`, `tensores.jsonl`, `disponibilidad.jsonl`, `ampliaciones/`, `meta.json` |
 | Resultados | — | `resultados/*.csv` |
 | Mapas y paneles | — | `plots/`, `paneles/` |
 | Auditoría | `audit_log` | — |
