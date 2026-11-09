@@ -1543,11 +1543,23 @@
       contenedorGrafico,
       trazas,
       {
-        margin: { l: 60, r: 20, t: 20, b: 55 },
-        xaxis: { title: "Distancia (km)" },
-        yaxis: { title: "Tiempo desde el origen (s)", range: [0, maxTChart] },
+        margin: { l: 60, r: 20, t: 100, b: 55 },
+        xaxis: {
+          title: { text: "Distancia (km)", standoff: 10 },
+        },
+        yaxis: {
+          title: { text: "Tiempo desde el origen (s)" },
+          range: [0, maxTChart],
+        },
         hovermode: "closest",
-        legend: { orientation: "h" },
+        legend: {
+          orientation: "h",
+          x: 0,
+          xanchor: "left",
+          y: 1.02,
+          yanchor: "bottom",
+          font: { size: 11 },
+        },
       },
       { responsive: true, displaylogo: false }
     );
