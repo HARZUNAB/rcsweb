@@ -499,6 +499,10 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert 'id="btn-propagacion-consultar"' in html
     assert 'id="propagacion-estimadas"' in html
     assert 'id="propagacion-consulta-estado"' in html
+    assert 'id="propagacion-mostrar-p"' in html
+    assert 'id="propagacion-mostrar-s"' in html
+    assert 'id="propagacion-alcanzadas"' in html
+    assert 'id="propagacion-leyenda-frentes"' in html
     assert 'id="consulta-ondas-indicador"' in html
     assert 'id="consulta-ondas-texto"' in html
     assert 'id="leyenda-estados-estaciones"' in html

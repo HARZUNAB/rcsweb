@@ -774,7 +774,10 @@
   var propagacionUltimo = 0;
   var propagacionUltimoDibujo = 0;
   var VP_PROPAGACION = 6.0;
+  var VS_PROPAGACION = 3.5;
   var DURACION_PROPAGACION = 15;
+  var propagacionMostrarP = true;
+  var propagacionMostrarS = true;
 
   function datosEstacionesMapa() {
     var nodo = document.getElementById("estaciones-mapa-datos");
@@ -876,12 +879,13 @@
     return knots;
   }
 
-  function radioEnvolvente(knots, tiempo) {
+  function radioEnvolvente(knots, tiempo, velocidad) {
+    var vp = velocidad || VP_PROPAGACION;
     if (!Number.isFinite(tiempo) || tiempo <= 0) {
       return 0;
     }
     if (!knots || knots.length < 2) {
-      return VP_PROPAGACION * tiempo;
+      return vp * tiempo;
     }
     for (var indice = 1; indice < knots.length; indice += 1) {
       if (tiempo <= knots[indice].t) {
@@ -903,19 +907,20 @@
     var pendiente =
       deltaUltimo > 0
         ? (ultimo.r - previo.r) / deltaUltimo
-        : VP_PROPAGACION;
+        : vp;
     if (!(pendiente > 0)) {
-      pendiente = VP_PROPAGACION;
+      pendiente = vp;
     }
     return ultimo.r + pendiente * (tiempo - ultimo.t);
   }
 
-  function tiempoParaDistancia(knots, distancia) {
+  function tiempoParaDistancia(knots, distancia, velocidad) {
+    var vp = velocidad || VP_PROPAGACION;
     if (!Number.isFinite(distancia) || distancia <= 0) {
       return 0;
     }
     if (!knots || knots.length < 2) {
-      return distancia / VP_PROPAGACION;
+      return distancia / vp;
     }
     for (var indice = 1; indice < knots.length; indice += 1) {
       if (distancia <= knots[indice].r) {
@@ -938,9 +943,9 @@
     var pendiente =
       deltaTiempo > 0
         ? deltaRadio / deltaTiempo
-        : VP_PROPAGACION;
+        : vp;
     if (!(pendiente > 0)) {
-      pendiente = VP_PROPAGACION;
+      pendiente = vp;
     }
     return ultimo.t + (distancia - ultimo.r) / pendiente;
   }
@@ -1012,6 +1017,45 @@
     leyenda.classList.toggle("d-flex", mostrar);
   }
 
+  function actualizarResumenFrentes(estaciones) {
+    var nodo = document.getElementById("propagacion-alcanzadas");
+    if (!nodo) {
+      return;
+    }
+    var alcanzadasP = 0;
+    var alcanzadasS = 0;
+    var pendientes = 0;
+    (estaciones || []).forEach(function (estacion) {
+      if (estacion.p_estado !== "pendiente") {
+        alcanzadasP += 1;
+      }
+      if (estacion.s_estado !== "pendiente") {
+        alcanzadasS += 1;
+      }
+      if (
+        estacion.p_estado === "pendiente" &&
+        estacion.s_estado === "pendiente"
+      ) {
+        pendientes += 1;
+      }
+    });
+    nodo.textContent =
+      "P alcanzadas: " +
+      alcanzadasP +
+      " · S alcanzadas: " +
+      alcanzadasS +
+      " · pendientes: " +
+      pendientes;
+  }
+
+  function esFaseP(fase) {
+    return /^P/i.test(String(fase || "").trim());
+  }
+
+  function esFaseS(fase) {
+    return /^S/i.test(String(fase || "").trim());
+  }
+
   function datosPropagacion() {
     var puntos = puntosMapaVisibles();
     var tiempos = datosTiemposLlegada();
@@ -1027,19 +1071,51 @@
         Number.isFinite(Number(arribo.distancia_km))
       );
     });
-    var primeros = {};
+    var primerosP = {};
+    var primerosS = {};
     arribos.forEach(function (arribo) {
+      var fase = String(arribo.fase || "");
       var clave = claveEstacion(arribo);
       var segundos = Number(arribo.segundos);
-      if (!(clave in primeros) || segundos < primeros[clave].segundos) {
-        primeros[clave] = {
+      var destino = null;
+      if (esFaseP(fase)) {
+        destino = primerosP;
+      } else if (esFaseS(fase)) {
+        destino = primerosS;
+      }
+      if (!destino) {
+        return;
+      }
+      if (!(clave in destino) || segundos < destino[clave].segundos) {
+        destino[clave] = {
           segundos: segundos,
           distancia_km: Number(arribo.distancia_km),
-          fase: arribo.fase || "",
+          fase: fase,
           modo: arribo.modo || "",
         };
       }
     });
+    function primeroDeFases(fases, probar) {
+      var validas = (fases || [])
+        .filter(function (fase) {
+          return (
+            probar(fase.fase) &&
+            Number.isFinite(Number(fase.segundos))
+          );
+        })
+        .sort(function (a, b) {
+          return Number(a.segundos) - Number(b.segundos);
+        });
+      if (!validas.length) {
+        return null;
+      }
+      return {
+        segundos: Number(validas[0].segundos),
+        distancia_km: null,
+        fase: validas[0].fase || "",
+        modo: validas[0].modo || "",
+      };
+    }
     var estaciones = puntos
       .filter(function (punto) {
         return (
@@ -1049,31 +1125,25 @@
       })
       .map(function (punto) {
         var clave = claveEstacion(punto);
-        var primero = primeros[clave];
-        if (!primero && punto.fases && punto.fases.length) {
-          var validas = punto.fases
-            .filter(function (fase) {
-              return Number.isFinite(Number(fase.segundos));
-            })
-            .sort(function (a, b) {
-              return Number(a.segundos) - Number(b.segundos);
-            });
-          if (validas.length) {
-            primero = {
-              segundos: Number(validas[0].segundos),
-              distancia_km: Number(punto.distancia_km),
-              fase: validas[0].fase || "",
-              modo: validas[0].modo || "",
-            };
-          }
-        }
+        var primeroP =
+          primerosP[clave] || primeroDeFases(punto.fases, esFaseP);
+        var primeroS =
+          primerosS[clave] || primeroDeFases(punto.fases, esFaseS);
         var distancia = Number(punto.distancia_km);
-        if (!Number.isFinite(distancia) && primero) {
-          distancia = Number(primero.distancia_km);
+        if (!Number.isFinite(distancia) && primeroP) {
+          distancia = Number(primeroP.distancia_km);
         }
-        var observado = Boolean(
-          primero &&
-            Number.isFinite(Number(primero.segundos)) &&
+        if (!Number.isFinite(distancia) && primeroS) {
+          distancia = Number(primeroS.distancia_km);
+        }
+        var pObservado = Boolean(
+          primeroP &&
+            Number.isFinite(Number(primeroP.segundos)) &&
+            Number.isFinite(distancia)
+        );
+        var sObservado = Boolean(
+          primeroS &&
+            Number.isFinite(Number(primeroS.segundos)) &&
             Number.isFinite(distancia)
         );
         return {
@@ -1090,32 +1160,56 @@
           estado_ondas: estadoOndasPunto(punto),
           streams: punto.streams || "",
           fases: punto.fases || [],
-          observado: observado,
-          tiempo: observado ? Number(primero.segundos) : null,
+          p_observado: pObservado,
+          p_tiempo: pObservado ? Number(primeroP.segundos) : null,
+          s_observado: sObservado,
+          s_tiempo: sObservado ? Number(primeroS.segundos) : null,
+          observado: pObservado || sObservado,
+          tiempo: pObservado
+            ? Number(primeroP.segundos)
+            : sObservado
+              ? Number(primeroS.segundos)
+              : null,
         };
       });
-    var observados = Object.keys(primeros).map(function (clave) {
-      return primeros[clave];
+    var observadosP = Object.keys(primerosP).map(function (clave) {
+      return primerosP[clave];
     });
-    if (!observados.length) {
-      observados = estaciones
+    var observadosS = Object.keys(primerosS).map(function (clave) {
+      return primerosS[clave];
+    });
+    if (!observadosP.length) {
+      observadosP = estaciones
         .filter(function (estacion) {
-          return estacion.observado;
+          return estacion.p_observado;
         })
         .map(function (estacion) {
           return {
-            segundos: estacion.tiempo,
+            segundos: estacion.p_tiempo,
             distancia_km: estacion.distancia_km,
           };
         });
     }
-    observados.sort(function (a, b) {
+    if (!observadosS.length) {
+      observadosS = estaciones
+        .filter(function (estacion) {
+          return estacion.s_observado;
+        })
+        .map(function (estacion) {
+          return {
+            segundos: estacion.s_tiempo,
+            distancia_km: estacion.distancia_km,
+          };
+        });
+    }
+    observadosP.sort(function (a, b) {
       return Number(a.segundos) - Number(b.segundos);
     });
-    var knots = crearEnvolvente(observados);
-    var maxTiempo = observados.length
-      ? Number(observados[observados.length - 1].segundos)
-      : 0;
+    observadosS.sort(function (a, b) {
+      return Number(a.segundos) - Number(b.segundos);
+    });
+    var knotsP = crearEnvolvente(observadosP);
+    var knotsS = crearEnvolvente(observadosS);
     var distancias = estaciones
       .map(function (estacion) {
         return estacion.distancia_km;
@@ -1124,23 +1218,48 @@
     var maxDistancia = distancias.length
       ? Math.max.apply(null, distancias)
       : 0;
-    if (!(maxTiempo > 0)) {
-      maxTiempo = maxDistancia / VP_PROPAGACION;
+    var maxTP = observadosP.length
+      ? Number(observadosP[observadosP.length - 1].segundos)
+      : 0;
+    var maxTS = observadosS.length
+      ? Number(observadosS[observadosS.length - 1].segundos)
+      : 0;
+    if (!(maxTP > 0)) {
+      maxTP = maxDistancia / VP_PROPAGACION;
+    }
+    if (!(maxTS > 0)) {
+      maxTS = maxDistancia / VS_PROPAGACION;
     }
     if (maxDistancia > 0) {
-      maxTiempo = Math.max(
-        maxTiempo,
-        tiempoParaDistancia(knots, maxDistancia)
+      maxTP = Math.max(
+        maxTP,
+        tiempoParaDistancia(
+          knotsP,
+          maxDistancia,
+          VP_PROPAGACION
+        )
+      );
+      maxTS = Math.max(
+        maxTS,
+        tiempoParaDistancia(
+          knotsS,
+          maxDistancia,
+          VS_PROPAGACION
+        )
       );
     }
+    var maxTiempo = Math.max(maxTP, maxTS);
     maxTiempo = maxTiempo > 0 ? maxTiempo * 1.1 : 10;
     return {
       evento: { lat: latEvento, lon: lonEvento },
       estaciones: estaciones,
-      knots: knots,
+      knotsP: knotsP,
+      knotsS: knotsS,
       vp: VP_PROPAGACION,
+      vs: VS_PROPAGACION,
       maxT: maxTiempo,
-      fuente: observados.length ? "observado" : "estimado",
+      fuenteP: observadosP.length ? "observado" : "estimado",
+      fuenteS: observadosS.length ? "observado" : "estimado",
     };
   }
 
@@ -1195,15 +1314,46 @@
       return;
     }
     var datos = propagacionDatos;
-    var radio = radioEnvolvente(datos.knots, propagacionTiempo);
+    var radioP = radioEnvolvente(
+      datos.knotsP,
+      propagacionTiempo,
+      datos.vp
+    );
+    var radioS = radioEnvolvente(
+      datos.knotsS,
+      propagacionTiempo,
+      datos.vs
+    );
     var estaciones = datos.estaciones.map(function (estacion) {
-      var llegada = estacion.observado
-        ? estacion.tiempo
-        : tiempoParaDistancia(datos.knots, estacion.distancia_km);
-      var alcanzada =
-        Number.isFinite(llegada) && propagacionTiempo >= llegada;
-      var estado = alcanzada
-        ? estacion.observado
+      var pTiempo = estacion.p_observado
+        ? estacion.p_tiempo
+        : Number.isFinite(estacion.distancia_km)
+          ? tiempoParaDistancia(
+              datos.knotsP,
+              estacion.distancia_km,
+              datos.vp
+            )
+          : null;
+      var sTiempo = estacion.s_observado
+        ? estacion.s_tiempo
+        : Number.isFinite(estacion.distancia_km)
+          ? tiempoParaDistancia(
+              datos.knotsS,
+              estacion.distancia_km,
+              datos.vs
+            )
+          : null;
+      var pAlcanzada =
+        Number.isFinite(pTiempo) && propagacionTiempo >= pTiempo;
+      var sAlcanzada =
+        Number.isFinite(sTiempo) && propagacionTiempo >= sTiempo;
+      var pEstado = pAlcanzada
+        ? estacion.p_observado
+          ? "observada"
+          : "estimada"
+        : "pendiente";
+      var sEstado = sAlcanzada
+        ? estacion.s_observado
           ? "observada"
           : "estimada"
         : "pendiente";
@@ -1221,13 +1371,20 @@
         estado_ondas: estacion.estado_ondas,
         streams: estacion.streams,
         fases: estacion.fases,
-        observado: estacion.observado,
-        llegada: llegada,
-        estado: estado,
-        pulso:
-          alcanzada &&
-          Number.isFinite(llegada) &&
-          propagacionTiempo - llegada <= 1.5,
+        p_observado: estacion.p_observado,
+        p_tiempo: pTiempo,
+        p_estado: pEstado,
+        p_pulso:
+          pAlcanzada &&
+          Number.isFinite(pTiempo) &&
+          propagacionTiempo - pTiempo <= 1.5,
+        s_observado: estacion.s_observado,
+        s_tiempo: sTiempo,
+        s_estado: sEstado,
+        s_pulso:
+          sAlcanzada &&
+          Number.isFinite(sTiempo) &&
+          propagacionTiempo - sTiempo <= 1.5,
       };
     });
     var api = window.RCSMapaDetalle;
@@ -1241,31 +1398,50 @@
     var instantanea = {
       epicentro: datos.evento,
       estaciones: estaciones,
-      radio_km: radio,
+      frentes: {
+        p: {
+          radio_km: radioP,
+          mostrar: propagacionMostrarP,
+          fuente: datos.fuenteP,
+        },
+        s: {
+          radio_km: radioS,
+          mostrar: propagacionMostrarS,
+          fuente: datos.fuenteS,
+        },
+      },
       tiempo: propagacionTiempo,
-      fuente: datos.fuente,
     };
     api.mostrarPropagacion(instantanea);
     if (typeof api.mostrarPropagacionPerfil === "function") {
       api.mostrarPropagacionPerfil(instantanea);
     }
     actualizarResumenEstados(estaciones);
+    actualizarResumenFrentes(estaciones);
     var reloj = document.getElementById("propagacion-reloj");
     if (reloj) {
       reloj.textContent = "t = " + propagacionTiempo.toFixed(1) + " s";
     }
     var distancia = document.getElementById("propagacion-distancia");
     if (distancia) {
-      distancia.textContent = "Frente: " + radio.toFixed(0) + " km";
+      var partes = [];
+      if (propagacionMostrarP) {
+        partes.push("P " + radioP.toFixed(0) + " km");
+      }
+      if (propagacionMostrarS) {
+        partes.push("S " + radioS.toFixed(0) + " km");
+      }
+      distancia.textContent = partes.length
+        ? partes.join(" · ")
+        : "Frentes ocultos";
     }
     var fuente = document.getElementById("propagacion-fuente");
     if (fuente) {
       fuente.textContent =
-        datos.fuente === "observado"
-          ? "Frente observado"
-          : "Frente estimado (Vp " +
-            VP_PROPAGACION.toFixed(1) +
-            " km/s)";
+        "P " +
+        (datos.fuenteP === "observado" ? "observado" : "estimado") +
+        " · S " +
+        (datos.fuenteS === "observado" ? "observado" : "estimado");
     }
     var slider = document.getElementById("propagacion-tiempo");
     if (slider) {
@@ -1777,6 +1953,20 @@
         } else {
           reproducirPropagacion();
         }
+      });
+    }
+    var mostrarP = document.getElementById("propagacion-mostrar-p");
+    if (mostrarP) {
+      mostrarP.addEventListener("change", function () {
+        propagacionMostrarP = mostrarP.checked;
+        actualizarPropagacion();
+      });
+    }
+    var mostrarS = document.getElementById("propagacion-mostrar-s");
+    if (mostrarS) {
+      mostrarS.addEventListener("change", function () {
+        propagacionMostrarS = mostrarS.checked;
+        actualizarPropagacion();
       });
     }
     var sliderPropagacion = document.getElementById("propagacion-tiempo");

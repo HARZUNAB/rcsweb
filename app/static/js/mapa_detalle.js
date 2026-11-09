@@ -83,6 +83,8 @@
   const COLOR_PROPAGACION = "#0b7285";
   const COLOR_PROPAGACION_TENUE = "#8fb8bf";
   const COLOR_PENDIENTE = "#c7ced1";
+  const COLOR_P = "#4c6ef5";
+  const COLOR_S = "#f08c00";
 
   function svgTriangulo(relleno, borde, tamano) {
     const lado = tamano || 16;
@@ -173,6 +175,78 @@
       if (punto.streams) {
         partes.push("Streams: " + esc(punto.streams));
       }
+    }
+    return partes.join("<br>");
+  }
+
+  function estadoOndasDePunto(punto) {
+    return (
+      punto.estado_ondas ||
+      (punto.tipo === "arribo" ? "observada" : "sin_consultar")
+    );
+  }
+
+  function textoEstadoOndasPunto(punto) {
+    const estado = estadoOndasDePunto(punto);
+    if (estado === "sin_datos") {
+      return "Estado de ondas: Sin datos (verificado)";
+    }
+    if (estado === "disponible") {
+      return "Estado de ondas: Disponible y no usada";
+    }
+    if (estado === "sin_consultar") {
+      return "Estado de ondas: Sin consultar";
+    }
+    return "";
+  }
+
+  function textoFrente(estado, tiempo, observado) {
+    if (!estado || estado === "pendiente") {
+      return "pendiente";
+    }
+    const tipo = observado ? "observada" : "estimada";
+    if (tiempo === null || tiempo === undefined) {
+      return tipo;
+    }
+    return tipo + " · " + Number(tiempo).toFixed(1) + " s";
+  }
+
+  function popupEstacionPropagacion(punto) {
+    const partes = [
+      "<strong>" +
+        esc((punto.red || "") + " " + (punto.estacion || "")) +
+        "</strong>",
+    ];
+    if (punto.distancia_km != null) {
+      partes.push("Distancia: " + esc(punto.distancia_km) + " km");
+    }
+    partes.push("P: " + textoFrente(punto.p_estado, punto.p_tiempo, punto.p_observado));
+    partes.push("S: " + textoFrente(punto.s_estado, punto.s_tiempo, punto.s_observado));
+    const estadoOndas = textoEstadoOndasPunto(punto);
+    if (estadoOndas) {
+      partes.push(estadoOndas);
+    }
+    if (punto.evidencia) {
+      partes.push("Evidencia: " + esc(punto.evidencia));
+    }
+    if (punto.formas_onda) {
+      partes.push("Formas de onda: " + esc(punto.formas_onda));
+    }
+    if (punto.streams) {
+      partes.push("Streams: " + esc(punto.streams));
+    }
+    return partes.join("<br>");
+  }
+
+  function textoEstacionPropagacion(punto) {
+    const partes = [
+      (punto.red || "") + " " + (punto.estacion || ""),
+      "P: " + textoFrente(punto.p_estado, punto.p_tiempo, punto.p_observado),
+      "S: " + textoFrente(punto.s_estado, punto.s_tiempo, punto.s_observado),
+    ];
+    const estadoOndas = textoEstadoOndasPunto(punto);
+    if (estadoOndas) {
+      partes.push(estadoOndas);
     }
     return partes.join("<br>");
   }
@@ -939,17 +1013,14 @@
 
     function textoEstacionPropagacionPerfil(punto) {
       const lineas = textoEstacionPerfil(punto).split("<br>");
-      if (punto.estado === "observada" && punto.llegada != null) {
-        lineas.push(
-          "Observada · " + Number(punto.llegada).toFixed(1) + " s"
-        );
-      } else if (punto.estado === "estimada" && punto.llegada != null) {
-        lineas.push(
-          "Estimada · " + Number(punto.llegada).toFixed(1) + " s"
-        );
-      } else {
-        lineas.push("Aún no alcanzada");
-      }
+      lineas.push(
+        "P: " +
+          textoFrente(punto.p_estado, punto.p_tiempo, punto.p_observado)
+      );
+      lineas.push(
+        "S: " +
+          textoFrente(punto.s_estado, punto.s_tiempo, punto.s_observado)
+      );
       return lineas.join("<br>");
     }
 
@@ -1167,44 +1238,95 @@
         marker: {
           symbol: "triangle-up",
           size: estaciones.map(function (punto) {
-            if (punto.pulso) {
-              return 12;
-            }
-            return punto.estado === "pendiente" ? 7 : 9;
+            return punto.tipo === "arribo" ? 10 : 8;
           }),
           color: estaciones.map(function (punto) {
-            if (punto.estado === "observada") {
-              return COLOR_PROPAGACION;
-            }
-            if (punto.estado === "estimada") {
-              return "#ffffff";
-            }
-            return "#eef1f2";
+            return estadoOndasDePunto(punto) === "observada"
+              ? COLOR_PROPAGACION
+              : "#ffffff";
           }),
           opacity: estaciones.map(function (punto) {
-            return estadoOndasPerfil(punto) === "sin_consultar"
-              ? 0.55
-              : 1;
+            const estado = estadoOndasDePunto(punto);
+            if (estado === "sin_consultar") {
+              return 0.55;
+            }
+            if (estado === "sin_datos") {
+              return 0.78;
+            }
+            return 1;
           }),
           line: {
             color: estaciones.map(function (punto) {
-              if (punto.estado === "observada") {
+              const estado = estadoOndasDePunto(punto);
+              if (estado === "sin_datos") {
+                return "#6c757d";
+              }
+              if (estado === "disponible" || estado === "observada") {
                 return COLOR_PROPAGACION;
               }
-              if (punto.estado === "estimada") {
-                return COLOR_PROPAGACION_TENUE;
-              }
-              return COLOR_PENDIENTE;
+              return "#ced4da";
             }),
             width: estaciones.map(function (punto) {
-              if (punto.pulso) {
-                return 2.6;
-              }
-              return estadoOndasPerfil(punto) === "disponible" ? 2 : 1.2;
+              const estado = estadoOndasDePunto(punto);
+              return estado === "disponible" || estado === "observada"
+                ? 2
+                : 1.2;
             }),
           },
         },
         hoverinfo: "text",
+        showlegend: false,
+      };
+    }
+
+    function trazaAnilloPropagacionPerfil(
+      estaciones,
+      campo,
+      color,
+      tamano
+    ) {
+      return {
+        type: "scatter",
+        mode: "markers",
+        name:
+          campo === "p_estado"
+            ? "Perfil propagación · Anillos P"
+            : "Perfil propagación · Anillos S",
+        x: estaciones.map(function (punto) {
+          return punto.along_km;
+        }),
+        y: estaciones.map(function (punto) {
+          return punto.elev_km;
+        }),
+        marker: {
+          symbol: "circle-open",
+          size: tamano,
+          color: color,
+          opacity: estaciones.map(function (punto) {
+            const estado = punto[campo];
+            if (estado === "observada") {
+              return 0.95;
+            }
+            if (estado === "estimada") {
+              return 0.45;
+            }
+            return 0;
+          }),
+          line: {
+            color: color,
+            width: estaciones.map(function (punto) {
+              const estado = punto[campo];
+              if (estado === "observada") {
+                return 2;
+              }
+              if (estado === "estimada") {
+                return 1.2;
+              }
+              return 0.5;
+            }),
+          },
+        },
+        hoverinfo: "skip",
         showlegend: false,
       };
     }
@@ -1218,25 +1340,54 @@
       if (!perfilIndices || !window.Plotly) {
         return;
       }
-      const radioKm = Math.max(
-        0.01,
-        Number(datosPropagacion.radio_km) || 0
-      );
+      const frentes = datosPropagacion.frentes || {};
+      const frenteP = frentes.p || {};
+      const frenteS = frentes.s || {};
+      const radioP = Math.max(0, Number(frenteP.radio_km) || 0);
+      const radioS = Math.max(0, Number(frenteS.radio_km) || 0);
       const factores = [1, 0.97, 0.94, 0.91];
-      const circulos = factores.map(function (factor) {
-        return circuloPerfil(centroX, centroY, radioKm * factor);
+      const circulosP = factores.map(function (factor) {
+        return circuloPerfil(
+          centroX,
+          centroY,
+          Math.max(0.01, radioP * factor)
+        );
       });
+      const circulosS = factores.map(function (factor) {
+        return circuloPerfil(
+          centroX,
+          centroY,
+          Math.max(0.01, radioS * factor)
+        );
+      });
+      const opacidadesBase = [0.85, 0.3, 0.24, 0.18];
       window.Plotly.restyle(
         perfil,
         {
-          x: circulos.map(function (circulo) {
+          x: circulosP.map(function (circulo) {
             return circulo.x;
           }),
-          y: circulos.map(function (circulo) {
+          y: circulosP.map(function (circulo) {
             return circulo.y;
           }),
+          opacity:
+            frenteP.mostrar === false ? [0, 0, 0, 0] : opacidadesBase,
         },
-        perfilIndices.frentes
+        perfilIndices.frentesP
+      );
+      window.Plotly.restyle(
+        perfil,
+        {
+          x: circulosS.map(function (circulo) {
+            return circulo.x;
+          }),
+          y: circulosS.map(function (circulo) {
+            return circulo.y;
+          }),
+          opacity:
+            frenteS.mostrar === false ? [0, 0, 0, 0] : opacidadesBase,
+        },
+        perfilIndices.frentesS
       );
       window.Plotly.restyle(
         perfil,
@@ -1254,57 +1405,107 @@
           text: [estaciones.map(textoEstacionPropagacionPerfil)],
           "marker.size": [
             estaciones.map(function (punto) {
-              if (punto.pulso) {
-                return 12;
-              }
-              return punto.estado === "pendiente" ? 7 : 9;
+              return punto.tipo === "arribo" ? 10 : 8;
             }),
           ],
           "marker.color": [
             estaciones.map(function (punto) {
-              if (punto.estado === "observada") {
-                return COLOR_PROPAGACION;
-              }
-              if (punto.estado === "estimada") {
-                return "#ffffff";
-              }
-              return "#eef1f2";
+              return estadoOndasDePunto(punto) === "observada"
+                ? COLOR_PROPAGACION
+                : "#ffffff";
             }),
           ],
           "marker.opacity": [
             estaciones.map(function (punto) {
-              return estadoOndasPerfil(punto) === "sin_consultar"
-                ? 0.55
-                : 1;
+              const estado = estadoOndasDePunto(punto);
+              if (estado === "sin_consultar") {
+                return 0.55;
+              }
+              if (estado === "sin_datos") {
+                return 0.78;
+              }
+              return 1;
             }),
           ],
           "marker.line.color": [
             estaciones.map(function (punto) {
-              if (punto.estado === "observada") {
+              const estado = estadoOndasDePunto(punto);
+              if (estado === "sin_datos") {
+                return "#6c757d";
+              }
+              if (estado === "disponible" || estado === "observada") {
                 return COLOR_PROPAGACION;
               }
-              if (punto.estado === "estimada") {
-                return COLOR_PROPAGACION_TENUE;
-              }
-              return COLOR_PENDIENTE;
+              return "#ced4da";
             }),
           ],
           "marker.line.width": [
             estaciones.map(function (punto) {
-              if (punto.pulso) {
-                return 2.6;
-              }
-              return estadoOndasPerfil(punto) === "disponible" ? 2 : 1.2;
+              const estado = estadoOndasDePunto(punto);
+              return estado === "disponible" || estado === "observada"
+                ? 2
+                : 1.2;
             }),
           ],
         },
         [perfilIndices.estaciones]
       );
+      function actualizarAnillo(indice, campo, visible) {
+        const opacidades = estaciones.map(function (punto) {
+          if (!visible) {
+            return 0;
+          }
+          if (punto[campo] === "observada") {
+            return 0.95;
+          }
+          if (punto[campo] === "estimada") {
+            return 0.45;
+          }
+          return 0;
+        });
+        const anchos = estaciones.map(function (punto) {
+          if (punto[campo] === "observada") {
+            return 2;
+          }
+          if (punto[campo] === "estimada") {
+            return 1.2;
+          }
+          return 0.5;
+        });
+        window.Plotly.restyle(
+          perfil,
+          {
+            x: [
+              estaciones.map(function (punto) {
+                return punto.along_km;
+              }),
+            ],
+            y: [
+              estaciones.map(function (punto) {
+                return punto.elev_km;
+              }),
+            ],
+            "marker.opacity": [opacidades],
+            "marker.line.width": [anchos],
+          },
+          [indice]
+        );
+      }
+      actualizarAnillo(
+        perfilIndices.anillosP,
+        "p_estado",
+        frenteP.mostrar !== false
+      );
+      actualizarAnillo(
+        perfilIndices.anillosS,
+        "s_estado",
+        frenteS.mostrar !== false
+      );
       const sinDatos = estaciones.filter(function (punto) {
-        return estadoOndasPerfil(punto) === "sin_datos";
+        return estadoOndasDePunto(punto) === "sin_datos";
       });
       const disponibles = estaciones.filter(function (punto) {
-        return estadoOndasPerfil(punto) === "disponible";
+        return estadoOndasDePunto(punto) === "disponible";
       });
       window.Plotly.restyle(
         perfil,
@@ -1370,10 +1571,11 @@
       }
       const centroX = evento.along_km;
       const centroY = -evento.prof;
-      const radioKm = Math.max(
-        0.01,
-        Number(datosPropagacion.radio_km) || 0
-      );
+      const frentes = datosPropagacion.frentes || {};
+      const frenteP = frentes.p || {};
+      const frenteS = frentes.s || {};
+      const radioP = Math.max(0, Number(frenteP.radio_km) || 0);
+      const radioS = Math.max(0, Number(frenteS.radio_km) || 0);
       if (perfilPropagacionLista) {
         actualizarPropagacionPerfil(
           datosPropagacion,
@@ -1395,32 +1597,64 @@
       perfilPropagacionPendiente = true;
       const generacion = perfilGeneracion;
       const factores = [1, 0.97, 0.94, 0.91];
-      const trazas = factores.map(function (factor, indice) {
+      const trazas = [];
+      factores.forEach(function (factor, indice) {
         const circulo = circuloPerfil(
           centroX,
           centroY,
-          radioKm * factor
+          Math.max(0.01, radioP * factor)
         );
-        return {
+        trazas.push({
           type: "scatter",
           mode: "lines",
           name:
             indice === 0
-              ? "Perfil propagación · Frente"
-              : "Perfil propagación · Frente " + (indice + 1),
+              ? "Perfil propagación · Frente P"
+              : "Perfil propagación · Frente P " + (indice + 1),
           x: circulo.x,
           y: circulo.y,
           line: {
-            color: COLOR_PROPAGACION,
+            color: COLOR_P,
             width: indice === 0 ? 2 : 1,
           },
           opacity:
             indice === 0 ? 0.85 : Math.max(0.08, 0.3 - indice * 0.06),
           hoverinfo: "skip",
           showlegend: false,
-        };
+        });
+      });
+      factores.forEach(function (factor, indice) {
+        const circulo = circuloPerfil(
+          centroX,
+          centroY,
+          Math.max(0.01, radioS * factor)
+        );
+        trazas.push({
+          type: "scatter",
+          mode: "lines",
+          name:
+            indice === 0
+              ? "Perfil propagación · Frente S"
+              : "Perfil propagación · Frente S " + (indice + 1),
+          x: circulo.x,
+          y: circulo.y,
+          line: {
+            color: COLOR_S,
+            width: indice === 0 ? 2 : 1,
+          },
+          opacity:
+            indice === 0 ? 0.85 : Math.max(0.08, 0.3 - indice * 0.06),
+          hoverinfo: "skip",
+          showlegend: false,
+        });
       });
       trazas.push(trazaEstacionesPropagacionPerfil(estaciones));
+      trazas.push(
+        trazaAnilloPropagacionPerfil(estaciones, "p_estado", COLOR_P, 14)
+      );
+      trazas.push(
+        trazaAnilloPropagacionPerfil(estaciones, "s_estado", COLOR_S, 20)
+      );
       trazas.push({
         type: "scatter",
         mode: "markers",
@@ -1457,29 +1691,44 @@
           return;
         }
         const indices = {
-          frentes: [],
+          frentesP: [],
+          frentesS: [],
           estaciones: -1,
+          anillosP: -1,
+          anillosS: -1,
           sinDatos: -1,
           disponibles: -1,
         };
         (perfil.data || []).forEach(function (traza, indice) {
-          if (traza.name === "Perfil propagación · Estaciones") {
+          const nombre = traza.name || "";
+          if (nombre === "Perfil propagación · Estaciones") {
             indices.estaciones = indice;
-          } else if (traza.name === "Perfil propagación · Sin datos") {
+          } else if (nombre === "Perfil propagación · Anillos P") {
+            indices.anillosP = indice;
+          } else if (nombre === "Perfil propagación · Anillos S") {
+            indices.anillosS = indice;
+          } else if (nombre === "Perfil propagación · Sin datos") {
             indices.sinDatos = indice;
-          } else if (traza.name === "Perfil propagación · Disponibles") {
+          } else if (nombre === "Perfil propagación · Disponibles") {
             indices.disponibles = indice;
           } else if (
-            (traza.name || "").indexOf("Perfil propagación · Frente") === 0
+            nombre.indexOf("Perfil propagación · Frente P") === 0
           ) {
-            indices.frentes.push(indice);
+            indices.frentesP.push(indice);
+          } else if (
+            nombre.indexOf("Perfil propagación · Frente S") === 0
+          ) {
+            indices.frentesS.push(indice);
           }
         });
         if (
           indices.estaciones < 0 ||
+          indices.anillosP < 0 ||
+          indices.anillosS < 0 ||
           indices.sinDatos < 0 ||
           indices.disponibles < 0 ||
-          indices.frentes.length !== 4
+          indices.frentesP.length !== 4 ||
+          indices.frentesS.length !== 4
         ) {
           perfilPropagacionPendiente = false;
           return;
@@ -1804,55 +2053,40 @@
         lon: validas.map(function (punto) {
           return punto.lon;
         }),
-        text: validas.map(function (punto) {
-          const base = (punto.red || "") + " " + (punto.estacion || "");
-          if (punto.estado === "observada" && punto.llegada != null) {
-            return (
-              base +
-              "<br>observada · " +
-              Number(punto.llegada).toFixed(1) +
-              " s"
-            );
-          }
-          if (punto.estado === "estimada" && punto.llegada != null) {
-            return (
-              base +
-              "<br>estimada · " +
-              Number(punto.llegada).toFixed(1) +
-              " s"
-            );
-          }
-          return base + "<br>pendiente";
-        }),
+        text: validas.map(textoEstacionPropagacion),
         color: validas.map(function (punto) {
-          if (punto.estado === "observada") {
-            return COLOR_PROPAGACION;
-          }
-          if (punto.estado === "estimada") {
-            return "#ffffff";
-          }
-          return "#eef1f2";
+          return estadoOndasDePunto(punto) === "observada"
+            ? COLOR_PROPAGACION
+            : "#ffffff";
         }),
         borde: validas.map(function (punto) {
-          if (punto.estado === "observada") {
+          const estado = estadoOndasDePunto(punto);
+          if (estado === "sin_datos") {
+            return "#6c757d";
+          }
+          if (estado === "disponible" || estado === "observada") {
             return COLOR_PROPAGACION;
           }
-          if (punto.estado === "estimada") {
-            return COLOR_PROPAGACION_TENUE;
-          }
-          return COLOR_PENDIENTE;
+          return "#ced4da";
         }),
         tamano: validas.map(function (punto) {
-          if (punto.pulso) {
-            return 12;
-          }
-          if (punto.estado === "pendiente") {
-            return 7;
-          }
-          return 9;
+          return punto.tipo === "arribo" ? 10 : 8;
         }),
         ancho: validas.map(function (punto) {
-          return punto.pulso ? 2.6 : 1.2;
+          const estado = estadoOndasDePunto(punto);
+          return estado === "disponible" || estado === "observada"
+            ? 2
+            : 1.2;
+        }),
+        opacidad: validas.map(function (punto) {
+          const estado = estadoOndasDePunto(punto);
+          if (estado === "sin_consultar") {
+            return 0.55;
+          }
+          if (estado === "sin_datos") {
+            return 0.78;
+          }
+          return 1;
         }),
       };
     }
@@ -1870,6 +2104,7 @@
           symbol: "triangle-up",
           size: datosEstaciones.tamano,
           color: datosEstaciones.color,
+          opacity: datosEstaciones.opacidad,
           line: {
             color: datosEstaciones.borde,
             width: datosEstaciones.ancho,
@@ -1877,6 +2112,54 @@
         },
         hoverinfo: "text",
         showlegend: true,
+      };
+    }
+
+    function trazaAnilloPropagacion(estaciones, campo, color, tamano) {
+      const validas = estacionesPropagacionValidas(estaciones);
+      return {
+        type: "scattergeo",
+        mode: "markers",
+        name:
+          campo === "p_estado"
+            ? "Propagación · Anillos P"
+            : "Propagación · Anillos S",
+        lat: validas.map(function (punto) {
+          return punto.lat;
+        }),
+        lon: validas.map(function (punto) {
+          return punto.lon;
+        }),
+        marker: {
+          symbol: "circle-open",
+          size: tamano,
+          color: color,
+          opacity: validas.map(function (punto) {
+            const estado = punto[campo];
+            if (estado === "observada") {
+              return 0.95;
+            }
+            if (estado === "estimada") {
+              return 0.45;
+            }
+            return 0;
+          }),
+          line: {
+            color: color,
+            width: validas.map(function (punto) {
+              const estado = punto[campo];
+              if (estado === "observada") {
+                return 2;
+              }
+              if (estado === "estimada") {
+                return 1.2;
+              }
+              return 0.5;
+            }),
+          },
+        },
+        hoverinfo: "skip",
+        showlegend: false,
       };
     }
 
@@ -1892,30 +2175,62 @@
       ) {
         return;
       }
-      const radioKm = Math.max(
-        0,
-        Number(datosPropagacion.radio_km) || 0
-      );
-      const radios = [1, 0.97, 0.94, 0.91];
-      const circulos = radios.map(function (factor) {
+      const frentes = datosPropagacion.frentes || {};
+      const frenteP = frentes.p || {};
+      const frenteS = frentes.s || {};
+      const radioP = Math.max(0, Number(frenteP.radio_km) || 0);
+      const radioS = Math.max(0, Number(frenteS.radio_km) || 0);
+      const factores = [1, 0.97, 0.94, 0.91];
+      const circulosP = factores.map(function (factor) {
         return circuloGeo(
           epicentro.lat,
           epicentro.lon,
-          Math.max(0.01, radioKm * factor),
+          Math.max(0.01, radioP * factor),
           72
         );
       });
+      const circulosS = factores.map(function (factor) {
+        return circuloGeo(
+          epicentro.lat,
+          epicentro.lon,
+          Math.max(0.01, radioS * factor),
+          72
+        );
+      });
+      const opacidadesBase = [0.85, 0.3, 0.24, 0.18];
+      const opacidadesP =
+        frenteP.mostrar === false
+          ? [0, 0, 0, 0]
+          : opacidadesBase;
+      const opacidadesS =
+        frenteS.mostrar === false
+          ? [0, 0, 0, 0]
+          : opacidadesBase;
       window.Plotly.restyle(
         contenedor,
         {
-          lat: circulos.map(function (circulo) {
+          lat: circulosP.map(function (circulo) {
             return circulo.lat;
           }),
-          lon: circulos.map(function (circulo) {
+          lon: circulosP.map(function (circulo) {
             return circulo.lon;
           }),
+          opacity: opacidadesP,
         },
-        indicesPropagacion.frentes
+        indicesPropagacion.frentesP
+      );
+      window.Plotly.restyle(
+        contenedor,
+        {
+          lat: circulosS.map(function (circulo) {
+            return circulo.lat;
+          }),
+          lon: circulosS.map(function (circulo) {
+            return circulo.lon;
+          }),
+          opacity: opacidadesS,
+        },
+        indicesPropagacion.frentesS
       );
 
       const datosEstaciones = datosEstacionesPlotly(
@@ -1928,6 +2243,7 @@
           lon: [datosEstaciones.lon],
           text: [datosEstaciones.text],
           "marker.color": [datosEstaciones.color],
+          "marker.opacity": [datosEstaciones.opacidad],
           "marker.line.color": [datosEstaciones.borde],
           "marker.size": [datosEstaciones.tamano],
           "marker.line.width": [datosEstaciones.ancho],
@@ -1938,11 +2254,63 @@
       const validas = estacionesPropagacionValidas(
         datosPropagacion.estaciones
       );
+      function actualizarAnillo(indice, campo, visible) {
+        const opacidades = validas.map(function (punto) {
+          if (!visible) {
+            return 0;
+          }
+          if (punto[campo] === "observada") {
+            return 0.95;
+          }
+          if (punto[campo] === "estimada") {
+            return 0.45;
+          }
+          return 0;
+        });
+        const anchos = validas.map(function (punto) {
+          if (punto[campo] === "observada") {
+            return 2;
+          }
+          if (punto[campo] === "estimada") {
+            return 1.2;
+          }
+          return 0.5;
+        });
+        window.Plotly.restyle(
+          contenedor,
+          {
+            lat: [
+              validas.map(function (punto) {
+                return punto.lat;
+              }),
+            ],
+            lon: [
+              validas.map(function (punto) {
+                return punto.lon;
+              }),
+            ],
+            "marker.opacity": [opacidades],
+            "marker.line.width": [anchos],
+          },
+          [indice]
+        );
+      }
+      actualizarAnillo(
+        indicesPropagacion.anillosP,
+        "p_estado",
+        frenteP.mostrar !== false
+      );
+      actualizarAnillo(
+        indicesPropagacion.anillosS,
+        "s_estado",
+        frenteS.mostrar !== false
+      );
+
       const sinDatos = validas.filter(function (punto) {
-        return punto.estado_ondas === "sin_datos";
+        return estadoOndasDePunto(punto) === "sin_datos";
       });
       const disponibles = validas.filter(function (punto) {
-        return punto.estado_ondas === "disponible";
+        return estadoOndasDePunto(punto) === "disponible";
       });
       window.Plotly.restyle(
         contenedor,
@@ -2186,38 +2554,82 @@
         propagacionPendiente = true;
         const generacion = generacionPropagacion;
         const epicentro = datosPropagacion.epicentro;
-        const radioKm = Math.max(
-          0,
-          Number(datosPropagacion.radio_km) || 0
-        );
+        const frentes = datosPropagacion.frentes || {};
+        const frenteP = frentes.p || {};
+        const frenteS = frentes.s || {};
+        const radioP = Math.max(0, Number(frenteP.radio_km) || 0);
+        const radioS = Math.max(0, Number(frenteS.radio_km) || 0);
         const radios = [1, 0.97, 0.94, 0.91];
-        const trazas = radios.map(function (factor, indice) {
+        const trazas = [];
+        radios.forEach(function (factor, indice) {
           const circulo = circuloGeo(
             epicentro.lat,
             epicentro.lon,
-            Math.max(0.01, radioKm * factor),
+            Math.max(0.01, radioP * factor),
             72
           );
-          return {
+          trazas.push({
             type: "scattergeo",
             mode: "lines",
             name:
               indice === 0
-                ? "Propagación · Frente"
-                : "Propagación · Frente " + (indice + 1),
+                ? "Propagación · Frente P"
+                : "Propagación · Frente P " + (indice + 1),
             lat: circulo.lat,
             lon: circulo.lon,
             line: {
-              color: COLOR_PROPAGACION,
+              color: COLOR_P,
               width: indice === 0 ? 2 : 1,
             },
             opacity:
               indice === 0 ? 0.85 : Math.max(0.08, 0.3 - indice * 0.06),
             hoverinfo: "skip",
             showlegend: indice === 0,
-          };
+          });
+        });
+        radios.forEach(function (factor, indice) {
+          const circulo = circuloGeo(
+            epicentro.lat,
+            epicentro.lon,
+            Math.max(0.01, radioS * factor),
+            72
+          );
+          trazas.push({
+            type: "scattergeo",
+            mode: "lines",
+            name:
+              indice === 0
+                ? "Propagación · Frente S"
+                : "Propagación · Frente S " + (indice + 1),
+            lat: circulo.lat,
+            lon: circulo.lon,
+            line: {
+              color: COLOR_S,
+              width: indice === 0 ? 2 : 1,
+            },
+            opacity:
+              indice === 0 ? 0.85 : Math.max(0.08, 0.3 - indice * 0.06),
+            hoverinfo: "skip",
+            showlegend: indice === 0,
+          });
         });
         trazas.push(trazaEstacionesPropagacion(datosPropagacion.estaciones));
+        trazas.push(
+          trazaAnilloPropagacion(
+            datosPropagacion.estaciones,
+            "p_estado",
+            COLOR_P,
+            14
+          )
+        );
+        trazas.push(
+          trazaAnilloPropagacion(
+            datosPropagacion.estaciones,
+            "s_estado",
+            COLOR_S,
+            20
+          )
+        );
         trazas.push({
           type: "scattergeo",
           mode: "markers",
@@ -2254,29 +2666,44 @@
             return;
           }
           const indices = {
-            frentes: [],
+            frentesP: [],
+            frentesS: [],
             estaciones: -1,
+            anillosP: -1,
+            anillosS: -1,
             sinDatos: -1,
             disponibles: -1,
           };
           contenedor.data.forEach(function (traza, indice) {
-            if (traza.name === "Propagación · Estaciones") {
+            const nombre = traza.name || "";
+            if (nombre === "Propagación · Estaciones") {
               indices.estaciones = indice;
-            } else if (traza.name === "Propagación · Sin datos") {
+            } else if (nombre === "Propagación · Anillos P") {
+              indices.anillosP = indice;
+            } else if (nombre === "Propagación · Anillos S") {
+              indices.anillosS = indice;
+            } else if (nombre === "Propagación · Sin datos") {
               indices.sinDatos = indice;
-            } else if (traza.name === "Propagación · Disponibles") {
+            } else if (nombre === "Propagación · Disponibles") {
               indices.disponibles = indice;
             } else if (
-              (traza.name || "").indexOf("Propagación · Frente") === 0
+              nombre.indexOf("Propagación · Frente P") === 0
             ) {
-              indices.frentes.push(indice);
+              indices.frentesP.push(indice);
+            } else if (
+              nombre.indexOf("Propagación · Frente S") === 0
+            ) {
+              indices.frentesS.push(indice);
             }
           });
           if (
             indices.estaciones < 0 ||
+            indices.anillosP < 0 ||
+            indices.anillosS < 0 ||
             indices.sinDatos < 0 ||
             indices.disponibles < 0 ||
-            indices.frentes.length !== 4
+            indices.frentesP.length !== 4 ||
+            indices.frentesS.length !== 4
           ) {
             propagacionPendiente = false;
             return;
@@ -2408,10 +2835,12 @@
 
     let capaEstaciones = null;
     let capaPropagacion = null;
-    let capaFrentes = null;
+    let capaFrentesP = null;
+    let capaFrentesS = null;
     let firmaPropagacion = "";
     let registrosPropagacion = {};
-    let circulosFrente = [];
+    let circulosFrenteP = [];
+    let circulosFrenteS = [];
 
     function iconoEstacionPropagacion(relleno, borde) {
       return window.L.divIcon({
@@ -2526,7 +2955,8 @@
         const estaciones = datosPropagacion.estaciones || [];
         if (!capaPropagacion) {
           capaPropagacion = window.L.layerGroup().addTo(mapa);
-          capaFrentes = window.L.layerGroup().addTo(mapa);
+          capaFrentesP = window.L.layerGroup().addTo(mapa);
+          capaFrentesS = window.L.layerGroup().addTo(mapa);
         }
         const firma = estaciones.map(claveEstacion).join("|");
         if (firma !== firmaPropagacion) {
@@ -2537,6 +2967,28 @@
             if (!Number.isFinite(punto.lat) || !Number.isFinite(punto.lon)) {
               return;
             }
+            const anilloP = window.L.circleMarker(
+              [punto.lat, punto.lon],
+              {
+                radius: 10,
+                color: COLOR_P,
+                weight: 1.5,
+                fill: false,
+                opacity: 0,
+                interactive: false,
+              }
+            ).addTo(capaPropagacion);
+            const anilloS = window.L.circleMarker(
+              [punto.lat, punto.lon],
+              {
+                radius: 14,
+                color: COLOR_S,
+                weight: 1.5,
+                fill: false,
+                opacity: 0,
+                interactive: false,
+              }
+            ).addTo(capaPropagacion);
             const marcador = window.L.marker([punto.lat, punto.lon], {
               icon: iconoEstacionPropagacion("#ffffff", COLOR_PENDIENTE),
             });
@@ -2544,10 +2996,12 @@
               marcador: marcador,
               polygon: null,
               badge: null,
+              anilloP: anilloP,
+              anilloS: anilloS,
               punto: punto,
             };
             marcador.bindPopup(function () {
-              return popupEstacion(registro.punto);
+              return popupEstacionPropagacion(registro.punto);
             });
             marcador.addTo(capaPropagacion);
             const elemento = marcador.getElement();
@@ -2560,6 +3014,25 @@
             registrosPropagacion[claveEstacion(punto)] = registro;
           });
         }
+        const frentes = datosPropagacion.frentes || {};
+        const pVisible = !frentes.p || frentes.p.mostrar !== false;
+        const sVisible = !frentes.s || frentes.s.mostrar !== false;
+        function actualizarAnillo(anillo, estado, visible, color, radio) {
+          if (!anillo) {
+            return;
+          }
+          if (!visible || !estado || estado === "pendiente") {
+            anillo.setStyle({ opacity: 0 });
+            return;
+          }
+          const observado = estado === "observada";
+          anillo.setRadius(radio);
+          anillo.setStyle({
+            color: color,
+            opacity: observado ? 0.95 : 0.45,
+            weight: observado ? 2 : 1.2,
+          });
+        }
         estaciones.forEach(function (punto) {
           const registro = registrosPropagacion[claveEstacion(punto)];
           if (!registro) {
@@ -2567,31 +3040,41 @@
           }
           registro.punto = punto;
           const polygon = registro.polygon;
-          if (!polygon) {
-            return;
+          const estadoOndas = estadoOndasDe(punto);
+          if (polygon) {
+            const relleno =
+              estadoOndas === "observada"
+                ? COLOR_PROPAGACION
+                : "#ffffff";
+            let borde = COLOR_PROPAGACION;
+            if (estadoOndas === "sin_datos") {
+              borde = "#6c757d";
+            } else if (estadoOndas === "sin_consultar") {
+              borde = "#ced4da";
+            }
+            polygon.setAttribute("fill", relleno);
+            polygon.setAttribute("stroke", borde);
+            aplicarTrazoOndas(
+              polygon,
+              estadoOndas,
+              estadoOndas === "disponible" ? "2" : "1.5"
+            );
           }
-          const estado = punto.estado || "pendiente";
-          let relleno = "#ffffff";
-          let borde = COLOR_PENDIENTE;
-          if (estado === "observada") {
-            relleno = COLOR_PROPAGACION;
-            borde = COLOR_PROPAGACION;
-          } else if (estado === "estimada") {
-            borde = COLOR_PROPAGACION_TENUE;
-          }
-          polygon.setAttribute("fill", relleno);
-          polygon.setAttribute("stroke", borde);
-          const estadoOndas = punto.estado_ondas || "sin_consultar";
-          aplicarTrazoOndas(
-            polygon,
-            estadoOndas,
-            punto.pulso
-              ? "2.8"
-              : estadoOndas === "disponible"
-                ? "2"
-                : "1.5"
-          );
           aplicarBadgeOndas(registro.badge, estadoOndas);
+          actualizarAnillo(
+            registro.anilloP,
+            punto.p_estado,
+            pVisible,
+            COLOR_P,
+            10
+          );
+          actualizarAnillo(
+            registro.anilloS,
+            punto.s_estado,
+            sVisible,
+            COLOR_S,
+            14
+          );
         });
 
         const epicentro = datosPropagacion.epicentro;
@@ -2601,51 +3084,67 @@
         ) {
           return;
         }
-        if (!circulosFrente.length) {
+        function crearFrentes(capa, circulos, color) {
+          if (circulos.length) {
+            return;
+          }
           for (let indice = 0; indice < 4; indice += 1) {
             const circulo = window.L.circle(
               [epicentro.lat, epicentro.lon],
               {
                 radius: 0,
-                color: COLOR_PROPAGACION,
+                color: color,
                 weight: indice === 0 ? 2 : 1,
                 opacity: indice === 0 ? 0.85 : 0.3 - indice * 0.06,
-                fillColor: COLOR_PROPAGACION,
+                fillColor: color,
                 fillOpacity: indice === 0 ? 0.05 : 0,
                 interactive: false,
               }
-            ).addTo(capaFrentes);
-            circulosFrente.push(circulo);
+            ).addTo(capa);
+            circulos.push(circulo);
           }
         }
-        const radio =
-          Math.max(0, Number(datosPropagacion.radio_km) || 0) * 1000;
+        crearFrentes(capaFrentesP, circulosFrenteP, COLOR_P);
+        crearFrentes(capaFrentesS, circulosFrenteS, COLOR_S);
+        const radioP =
+          Math.max(0, Number((frentes.p || {}).radio_km) || 0) * 1000;
+        const radioS =
+          Math.max(0, Number((frentes.s || {}).radio_km) || 0) * 1000;
         const factores = [1, 0.97, 0.94, 0.91];
-        circulosFrente.forEach(function (circulo, indice) {
-          circulo.setLatLng([epicentro.lat, epicentro.lon]);
-          circulo.setRadius(radio * factores[indice]);
-          circulo.setStyle({
-            opacity:
-              radio > 0
-                ? indice === 0
-                  ? 0.85
-                  : Math.max(0.08, 0.3 - indice * 0.06)
-                : 0,
+        function actualizarFrentes(circulos, radio, visible) {
+          circulos.forEach(function (circulo, indice) {
+            circulo.setLatLng([epicentro.lat, epicentro.lon]);
+            circulo.setRadius(radio * factores[indice]);
+            circulo.setStyle({
+              opacity:
+                visible && radio > 0
+                  ? indice === 0
+                    ? 0.85
+                    : Math.max(0.08, 0.3 - indice * 0.06)
+                  : 0,
+            });
           });
-        });
+        }
+        actualizarFrentes(circulosFrenteP, radioP, pVisible);
+        actualizarFrentes(circulosFrenteS, radioS, sVisible);
       },
       ocultarPropagacion: function () {
         if (capaPropagacion) {
           mapa.removeLayer(capaPropagacion);
           capaPropagacion = null;
         }
-        if (capaFrentes) {
-          mapa.removeLayer(capaFrentes);
-          capaFrentes = null;
+        if (capaFrentesP) {
+          mapa.removeLayer(capaFrentesP);
+          capaFrentesP = null;
+        }
+        if (capaFrentesS) {
+          mapa.removeLayer(capaFrentesS);
+          capaFrentesS = null;
         }
         registrosPropagacion = {};
         firmaPropagacion = "";
-        circulosFrente = [];
+        circulosFrenteP = [];
+        circulosFrenteS = [];
       },
     };
   }

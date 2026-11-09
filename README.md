@@ -116,19 +116,20 @@ sidecar consulta los streams por lotes de 300.
 Cuando el detalle de un evento único tiene coordenadas o tiempos en el canónico,
 aparecen tres acciones bajo demanda **justo arriba del mapa de planta**:
 **Estaciones en el mapa** dibuja triángulos para los arribos observados y las
-estaciones sin arribos; **Propagación** reproduce el tren de ondas desde el
-epicentro con anillos, play/pausa, 1x/2x/5x y control de tiempo; **Tiempos de
-llegada** abre una curva distancia-tiempo con picks en un solo color, curvas de
-referencia y una línea de tiempo sincronizada. Los estados de ondas se muestran
-en ambas vistas con triángulos, marcas `×`/`•`, leyenda y conteos. Desde la
-barra de propagación se pueden **consultar las formas de onda** de las estaciones
-estimadas: el resultado las marca como sin consultar, sin datos verificados o
-disponibles y no usadas. La consulta reutiliza el mismo flujo y los mismos
-límites que la solapa **Sin arribos**, y un indicador global muestra el avance y
-el tiempo transcurrido desde cualquiera de los dos puntos de consulta. Las mismas
-capas se aplican al **mapa de perfil**: estaciones proyectadas sobre la sección
-(hasta 150 km de la línea), frente proyectado y nota de exclusión. Nada se
-dibuja hasta que el usuario pulsa el botón. Los controles también aparecen al
+estaciones sin arribos; **Propagación** reproduce los frentes **P** y **S** desde
+el epicentro con anillos azul/naranja, interruptores independientes,
+play/pausa, 1x/2x/5x y control de tiempo; **Tiempos de llegada** abre una curva
+distancia-tiempo con picks en un solo color, curvas de referencia y una línea de
+tiempo sincronizada. Los estados de ondas se muestran en ambas vistas con
+triángulos, marcas `×`/`•`, leyenda y conteos. Desde la barra de propagación se
+pueden **consultar las formas de onda** de las estaciones estimadas: el resultado
+las marca como sin consultar, sin datos verificados o disponibles y no usadas.
+La consulta reutiliza el mismo flujo y los mismos límites que la solapa **Sin
+arribos**, y un indicador global muestra el avance y el tiempo transcurrido desde
+cualquiera de los dos puntos de consulta. Las mismas capas se aplican al **mapa
+de perfil**: estaciones proyectadas sobre la sección (hasta 150 km de la línea),
+frentes P/S proyectados y nota de exclusión. Nada se dibuja hasta que el usuario
+pulsa el botón. Los controles también aparecen al
 abrir un evento desde Paneles con **Ver**, porque usan el mismo detalle; no
 aparecen en los mapas de grupo con varios eventos.
 

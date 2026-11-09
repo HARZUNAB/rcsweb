@@ -386,29 +386,39 @@ En el mapa: 10 observadas · 0 sin consultar · 6 sin datos · 14 disponibles no
 
 #### Propagación
 
-Muestra cómo avanza el **tren de ondas** desde el epicentro hacia las
+Muestra cómo avanzan los **frentes P y S** desde el epicentro hacia las
 estaciones.
 
 ```text
-▶ Reproducir   t = 24.3 s   [=====|======]   1x   Reiniciar
-Frente: 152 km · Frente observado
+▶ Reproducir   [✓] P   [✓] S   t = 24.3 s   [=====|======]   1x   Reiniciar
+P 374 km · S 179 km
+P alcanzadas: 27 · S alcanzadas: 27 · pendientes: 3
 ```
 
-- Salen anillos del frente desde el epicentro.
-- El frente principal se acompaña de anillos secundarios tenues.
-- Las estaciones se encienden cuando el frente las alcanza:
-  - **triángulo relleno**: alcanzada por un pick observado;
-  - **triángulo hueco**: alcanzada por estimación;
-  - **triángulo gris tenue**: todavía no alcanzada;
-  - halo breve en el instante de llegada.
+- **Frente P**, azul: avanza más rápido.
+- **Frente S**, naranja: avanza más lento, detrás de la P.
+- Cada frente tiene su anillo principal y anillos secundarios tenues.
 - **Reproducir / Pausar** controla la animación.
 - **1x / 2x / 5x** cambia la velocidad.
 - El control de tiempo también se puede arrastrar manualmente.
 - **Reiniciar** vuelve a t = 0.
 - La reproducción completa dura unos **15 segundos a 1x**.
-- El frente se calcula con el **primer arribo de cada estación**.
-- Si no hay picks suficientes, se usa **Vp = 6.0 km/s** como respaldo.
-- El rótulo indica si el frente es observado o estimado.
+- Los interruptores **P** y **S** muestran u ocultan cada frente.
+- El rótulo indica el radio actual de cada frente y si es observado o
+  estimado.
+- El resumen muestra cuántas estaciones alcanzó cada frente y cuántas siguen
+  pendientes.
+
+Cada estación se enciende en dos etapas:
+
+- **anillo azul**: llegó la P;
+- **anillo naranja**: llegó la S;
+- **anillo sólido**: llegada observada;
+- **anillo tenue**: llegada estimada.
+
+Los tiempos P y S se calculan con el **primer pick de cada fase**. Si faltan
+picks de una fase, se usa la envolvente de esa fase o la velocidad de respaldo:
+`Vp = 6.0 km/s` y `Vs = 3.5 km/s`.
 
 ##### Estado de las estaciones sin arribos
 
@@ -421,7 +431,8 @@ de disponibilidad de formas de onda:
 | **Sin datos (verificado)** | `×` | Se consultaron las ondas y no hay. La estación no estaba grabando o no hay datos. |
 | **Disponible y no usada** | `•` | Hay formas de onda, pero la estación no tiene pick. Estaba operativa. |
 
-- El relleno del triángulo sigue indicando si el frente ya la alcanzó.
+- Los anillos **P** y **S** indican si cada frente ya la alcanzó.
+- El triángulo conserva el estado de ondas.
 - La marca `×` o `•` indica el estado de las ondas.
 - En **sin datos** el borde es discontinuo; en **disponible** es más grueso.
 - En **sin consultar** la estación se ve más tenue.

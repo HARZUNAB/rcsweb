@@ -727,6 +727,7 @@ def test_ruta_detalle_grupo_perfil(client, login, monkeypatch):
     assert 'id="consulta-ondas-indicador"' not in html
     assert 'id="leyenda-estados-estaciones"' not in html
     assert 'id="perfil-estaciones-nota"' not in html
+    assert 'id="propagacion-mostrar-p"' not in html
 
 
 def test_ruta_detalle_grupo_territorio_sin_perfil(client, login, monkeypatch):
@@ -754,6 +755,7 @@ def test_ruta_detalle_grupo_territorio_sin_perfil(client, login, monkeypatch):
     assert 'id="consulta-ondas-indicador"' not in html
     assert 'id="leyenda-estados-estaciones"' not in html
     assert 'id="perfil-estaciones-nota"' not in html
+    assert 'id="propagacion-mostrar-p"' not in html
 
 
 def test_ruta_detalle_grupo_inexistente(client, login, monkeypatch):

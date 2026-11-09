@@ -968,16 +968,20 @@ consultar disponibilidad.
 
 `static/js/estaciones.js` implementa el controlador de propagación:
 
-1. `datosPropagacion()` toma las estaciones visibles y los arribos, y calcula
-   el **primer arribo por estación**.
-2. `crearEnvolvente()` construye los nudos `(tiempo, distancia)` con el máximo
-   acumulado de distancia, partiendo de `(0, 0)`.
-3. `radioEnvolvente(t)` interpola el radio del frente entre los nudos. Si no
-   hay picks, usa `Vp = 6.0 km/s`.
-4. `tiempoParaDistancia(d)` invierte la envolvente para estimar cuándo el
-   frente alcanza una estación sin pick.
-5. En cada cuadro se marca cada estación como `pendiente`, `observada` o
-   `estimada`, y se pasa una instantánea a `window.RCSMapaDetalle`.
+1. `datosPropagacion()` toma las estaciones visibles y los arribos, y separa
+   los picks **P** y **S** por estación.
+2. `crearEnvolvente()` construye los nudos `(tiempo, distancia)` de cada fase
+   con el máximo acumulado, partiendo de `(0, 0)`.
+3. `radioEnvolvente(t, velocidad)` interpola el radio de cada frente. Si no hay
+   picks de una fase, usa `Vp = 6.0 km/s` o `Vs = 3.5 km/s`.
+4. `tiempoParaDistancia(d, velocidad)` invierte la envolvente para estimar
+   cuándo cada frente alcanza una estación sin pick.
+5. En cada cuadro se calcula `p_estado` y `s_estado` (`pendiente`,
+   `observada` o `estimada`) y se envía una instantánea con `frentes.p` y
+   `frentes.s` a `window.RCSMapaDetalle`.
+6. Los interruptores `#propagacion-mostrar-p` y `#propagacion-mostrar-s`
+   controlan la visibilidad de cada frente; `actualizarResumenFrentes()`
+   actualiza el conteo de alcanzadas y pendientes.
 
 La revisión expone `tiene_estimadas` para mostrar el botón de consulta solo
 cuando hay estaciones sin arribos en el mapa. La revisión agrega
@@ -1009,8 +1013,8 @@ llama a `ocultarIndicadorConsulta()`. Como ambos puntos de consulta pasan por
 `encolar()` y `mostrarEstado()`, el indicador aparece desde **Sin arribos**,
 **Consultar todas** o **Propagación** sin lógica adicional.
 
-La consulta no genera tiempos de arribo: la estación sigue siendo `estimada`
-para el frente. Solo cambia la certeza sobre la disponibilidad de ondas.
+La consulta no genera tiempos de arribo: si una fase no tiene pick, su llegada
+sigue siendo estimada. Solo cambia la certeza sobre la disponibilidad de ondas.
 
 La reproducción usa `requestAnimationFrame` con un avance de
 `maxT / 15` segundos de evento por segundo real, multiplicado por 1x, 2x o 5x.
@@ -1033,23 +1037,28 @@ En **Leaflet**:
   en la vista estática como en propagación;
 - el borde es discontinuo para `sin_datos`, más grueso para `disponible` y la
   opacidad baja para `sin_consultar`;
-- el frente son cuatro `L.circle` concéntricos (principal y tres estelas), con
-  radio en metros actualizado en cada cuadro.
+- los anillos P/S son `L.circleMarker` concéntricos: azul para P y naranja para
+  S, sólidos si son observados y tenues si son estimados;
+- los frentes son dos grupos de cuatro `L.circle`: `capaFrentesP` y
+  `capaFrentesS`, actualizados con `frentes.p.radio_km` y
+  `frentes.s.radio_km`.
 
 En **Plotly**:
 
 - las estaciones son trazas `scattergeo` con `symbol: "triangle-up"`;
-- el frente son trazas de línea con un polígono geodésico generado con
+- los frentes P y S son trazas de línea con un polígono geodésico generado con
   `circuloGeo()`;
+- los anillos P/S son trazas `symbol: "circle-open"` con opacidad según
+  `p_estado`/`s_estado`;
 - los estados de ondas se dibujan como trazas superpuestas con `symbol: "x"` y
   `symbol: "circle"`, tanto en la vista estática como en propagación;
 - las trazas se agregan una vez y se actualizan con `Plotly.restyle`.
 
-El color único es `#0b7285`: relleno para observadas, contorno para estimadas y
-gris para pendientes. No se colorea por fase. La leyenda
+El color de los picks/estaciones sigue siendo `#0b7285`. Los frentes usan
+`#4c6ef5` para P y `#f08c00` para S. La leyenda
 `#leyenda-estados-estaciones` y el resumen `#resumen-estados-estaciones` se
-muestran cuando hay una capa activa; el mismo texto se replica en
-`#propagacion-estimadas`.
+muestran cuando hay una capa activa; `#propagacion-leyenda-frentes` explica los
+anillos y `#propagacion-alcanzadas` muestra el conteo por frente.
 
 ##### Perfil
 
@@ -1075,9 +1084,11 @@ La proyección usa la polilínea del slab (`slab_lat`, `slab_lon`, `slab_p`):
 
 En el perfil, las estaciones se dibujan como triángulos en
 `(along_km, elevación)`, con las mismas trazas superpuestas `x`/`circle` para
-los estados de ondas. La propagación agrega cuatro círculos
-`Perfil propagación · Frente` centrados en el evento seleccionado, usando
-`along_km` y `-prof`, con el mismo `radio_km` y tiempo que la planta. El evento
+los estados de ondas. La propagación agrega dos grupos de cuatro círculos
+`Perfil propagación · Frente P` y `Perfil propagación · Frente S`, centrados en
+el evento seleccionado, usando `along_km` y `-prof`, con los radios P/S y el
+mismo tiempo que la planta. También agrega las trazas
+`Perfil propagación · Anillos P` y `Perfil propagación · Anillos S`. El evento
 se elige por `rol` (`local` o `seleccionado`) y, si no existe, por el primero
 con `along_km` y `prof` válidos.
 

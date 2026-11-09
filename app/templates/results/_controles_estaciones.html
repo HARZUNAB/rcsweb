@@ -47,13 +47,27 @@
           id="btn-propagacion-play">
     Reproducir
   </button>
+  <div class="form-check form-check-inline mb-0">
+    <input class="form-check-input" type="checkbox"
+           id="propagacion-mostrar-p" checked>
+    <label class="form-check-label small" for="propagacion-mostrar-p">
+      P
+    </label>
+  </div>
+  <div class="form-check form-check-inline mb-0">
+    <input class="form-check-input" type="checkbox"
+           id="propagacion-mostrar-s" checked>
+    <label class="form-check-label small" for="propagacion-mostrar-s">
+      S
+    </label>
+  </div>
   <input type="range" class="form-range" id="propagacion-tiempo"
          min="0" max="10" step="0.1" value="0"
          style="flex: 1 1 220px; max-width: 320px;"
          aria-label="Tiempo de propagación">
   <span class="small fw-semibold" id="propagacion-reloj">t = 0.0 s</span>
   <span class="small text-secondary" id="propagacion-distancia">
-    Frente: 0 km
+    P 0 km · S 0 km
   </span>
   <select class="form-select form-select-sm" id="propagacion-velocidad"
           style="width: auto;" aria-label="Velocidad de reproducción">
@@ -66,6 +80,12 @@
     Reiniciar
   </button>
   <span class="small text-secondary" id="propagacion-fuente"></span>
+  <div class="w-100 d-flex flex-wrap align-items-center gap-2">
+    <span class="small text-secondary" id="propagacion-alcanzadas"></span>
+    <span class="small text-secondary" id="propagacion-leyenda-frentes">
+      P azul · S naranja · anillo sólido: observado · tenue: estimado
+    </span>
+  </div>
   {% if rev.puede_consultar and rev.tiene_estimadas %}
   <div class="w-100 d-flex flex-wrap align-items-center gap-2">
     <button type="button" class="btn btn-sm btn-outline-secondary"
