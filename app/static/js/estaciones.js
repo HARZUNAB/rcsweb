@@ -1575,6 +1575,10 @@
       );
     var maxTChart = Math.max.apply(null, [10].concat(tiemposGrafico || []));
     maxTChart = maxTChart * 1.08;
+    var xEtiquetaP = Math.min(maxTChart * vp * 0.82, maxKm * 0.9);
+    var yEtiquetaP = xEtiquetaP / vp;
+    var xEtiquetaS = Math.min(maxTChart * vs * 0.72, maxKm * 0.9);
+    var yEtiquetaS = xEtiquetaS / vs;
     var tiempoActual = propagacionActiva ? propagacionTiempo : 0;
     var trazas = [
       {
@@ -1583,7 +1587,7 @@
         name: "Referencia P (" + vp.toFixed(1) + " km/s)",
         x: [0, maxKm],
         y: [0, maxKm / vp],
-        line: { color: "#adb5bd", dash: "dot", width: 1 },
+        line: { color: "#4c6ef5", dash: "dash", width: 1.5 },
         hoverinfo: "skip",
       },
       {
@@ -1592,7 +1596,7 @@
         name: "Referencia S (" + vs.toFixed(1) + " km/s)",
         x: [0, maxKm],
         y: [0, maxKm / vs],
-        line: { color: "#ced4da", dash: "dot", width: 1 },
+        line: { color: "#f08c00", dash: "dot", width: 1.5 },
         hoverinfo: "skip",
       },
       {
@@ -1690,6 +1694,30 @@
           yanchor: "bottom",
           font: { size: 11 },
         },
+        annotations: [
+          {
+            x: xEtiquetaP,
+            y: yEtiquetaP,
+            text: "P",
+            showarrow: false,
+            xanchor: "center",
+            yanchor: "bottom",
+            font: { color: "#4c6ef5", size: 12 },
+            bgcolor: "rgba(255,255,255,0.85)",
+            borderpad: 1,
+          },
+          {
+            x: xEtiquetaS,
+            y: yEtiquetaS,
+            text: "S",
+            showarrow: false,
+            xanchor: "center",
+            yanchor: "top",
+            font: { color: "#f08c00", size: 12 },
+            bgcolor: "rgba(255,255,255,0.85)",
+            borderpad: 1,
+          },
+        ],
       },
       { responsive: true, displaylogo: false }
     );

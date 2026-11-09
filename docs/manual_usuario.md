@@ -490,7 +490,8 @@ Abre una gráfica de distancia contra tiempo desde el origen del evento:
 - relleno si el pick es manual y hueco si es automático;
 - **estaciones sin arribos**: triángulos huecos grises con su tiempo P
   estimado;
-- **curvas P y S**: líneas grises punteadas de referencia;
+- **curvas P y S**: P en azul discontinuo y S en naranja punteado, con
+  etiquetas directas **P** y **S**;
 - **línea vertical**: marca el tiempo actual de la propagación.
 
 Funciona aunque el evento no tenga estaciones sin arribos. Los campos **Vp** y

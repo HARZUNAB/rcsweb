@@ -1090,7 +1090,8 @@ interfieren con el índice de la traza de eventos.
 
 La curva usa Plotly con:
 
-- curvas P/S de referencia en gris punteado;
+- curvas P/S de referencia: P azul `#4c6ef5` discontinua y S naranja
+  `#f08c00` punteada, con anotaciones directas **P** y **S**;
 - picks observados como triángulos azul petróleo (relleno manual, hueco
   automático);
 - estaciones sin arribos como triángulos huecos grises;
