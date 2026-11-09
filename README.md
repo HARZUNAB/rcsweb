@@ -113,11 +113,14 @@ sobre las estaciones nuevas. La consulta de ondas se limita por defecto a las
 150 estaciones más cercanas visibles; **Consultar todas** omite ese tope y el
 sidecar consulta los streams por lotes de 300.
 
-Cuando el evento y sus estaciones traen coordenadas, la solapa **Sin arribos**
-ofrece dos acciones bajo demanda: **Estaciones en el mapa** agrega una capa de
-marcadores al mapa (20 más cercanas por defecto, con opción **Mostrar todas**) y
-**Tiempos de llegada** abre una curva distancia-tiempo con picks reales y curvas
-P/S estimadas. Nada se dibuja hasta que el usuario pulsa el botón.
+Cuando el detalle de un evento único tiene coordenadas o tiempos en el canónico,
+aparecen dos acciones bajo demanda **justo arriba del mapa de planta**:
+**Estaciones en el mapa** agrega todos los arribos —coloreados por fase— y hasta
+20 estaciones sin arribos, con opción **Mostrar todas**; **Tiempos de llegada**
+abre una curva distancia-tiempo con picks reales y curvas P/S estimadas. Nada se
+dibuja hasta que el usuario pulsa el botón. Los controles también aparecen al
+abrir un evento desde Paneles con **Ver**, porque usan el mismo detalle; no
+aparecen en los mapas de grupo con varios eventos.
 
 Variables principales en `.env`:
 

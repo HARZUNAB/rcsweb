@@ -344,34 +344,53 @@ RCS_DISPONIBILIDAD_MAX_STREAMS=5000
 
 ### Estaciones en el mapa y tiempos de llegada
 
-Cuando el evento y sus estaciones traen coordenadas, aparecen dos botones
-opcionales en la solapa **Sin arribos**:
+En el **detalle de un evento único**, cuando el canónico trae las coordenadas o
+los tiempos necesarios, aparecen dos controles **justo arriba del mapa de
+planta**:
 
 - **Estaciones en el mapa**
 - **Tiempos de llegada**
 
-No se dibuja nada al abrir el detalle: cada botón trabaja solo cuando se pulsa.
-Si faltan las coordenadas, los botones no aparecen.
+No se dibuja nada al abrir el detalle: cada control trabaja solo cuando se
+pulsa. Si faltan las coordenadas, no aparece el botón del mapa; si faltan los
+tiempos, no aparece el de tiempos.
 
-**Estaciones en el mapa** agrega una capa de marcadores al mapa de la página. Por
-defecto muestra las **20 estaciones más cercanas** de la lista visible; la opción
-**Mostrar todas** quita ese límite. La capa respeta el radio y el filtro **Solo
-cercanas**. Los colores son los mismos de la tabla: verde verificado, ámbar
-indicio y gris sin evidencia o sin consultar. Cada marcador muestra estación,
-distancia, evidencia, formas de onda y streams. El botón cambia a **Ocultar
-estaciones** para quitar la capa.
+Los controles también están disponibles al abrir un evento desde **Paneles**
+con el botón **Ver**, porque esa acción abre el mismo detalle del evento. No
+aparecen en los mapas de grupo con varios eventos.
+
+**Estaciones en el mapa** agrega una capa de marcadores al mapa de planta. La
+capa incluye:
+
+- **todas las estaciones con arribos**, coloreadas por fase:
+  - P: azul;
+  - S: naranja;
+  - otras fases: gris;
+- hasta **20 estaciones sin arribos**, las más cercanas, con los colores de
+  evidencia de la tabla.
+
+La opción **Mostrar todas** quita el límite de 20 para las estaciones sin
+arribos. El radio y **Solo cercanas** se aplican a las estaciones sin arribos;
+los arribos se muestran siempre. Cada marcador de arribo indica estación,
+distancia, fase, hora del pick, tiempo desde el origen, si es manual o
+automático y si se usó en la solución. El botón cambia a **Ocultar estaciones**
+para quitar la capa.
 
 **Tiempos de llegada** abre una gráfica de distancia contra tiempo desde el
 origen del evento. Muestra:
 
-- los picks reales como puntos (círculo si son manuales, rombo si son
-  automáticos);
+- los picks reales de las lecturas de fase como puntos;
+- P en azul y S en naranja;
+- círculo si el pick es manual y rombo si es automático;
 - las curvas P y S estimadas con velocidad constante;
-- hasta 20 estaciones sin arribos con su tiempo P estimado.
+- hasta 20 estaciones sin arribos con su tiempo P estimado, excluyendo las que
+  ya tienen un pick.
 
-Los campos **Vp** y **Vs** permiten ajustar las velocidades; **Actualizar**
-redibuja. Las curvas son una **estimación** con velocidad constante, no un
-modelo de tierra real.
+Funciona aunque el evento no tenga estaciones sin arribos. Los campos **Vp** y
+**Vs** permiten ajustar las velocidades; **Actualizar** redibuja. Las curvas son
+una **estimación** con velocidad constante, no un modelo de tierra real.
+
+La animación de propagación de las ondas queda para una etapa posterior.
 
 ### Colores de “Sin arribos”
 

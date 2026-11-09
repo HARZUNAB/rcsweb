@@ -95,7 +95,7 @@ FILA_BASE_AMPLIADA_2 = dict(
 )
 
 
-def _poblar(workspace, *, extensiones: bool = True):
+def _poblar(workspace, *, extensiones: bool = True, con_sin_arribos: bool = True):
     (workspace / "datos").mkdir(parents=True, exist_ok=True)
     (workspace / "files").mkdir(parents=True, exist_ok=True)
     raw = workspace / "files" / "seiscomp_20261001000000_20261031235959.csv"
@@ -117,7 +117,8 @@ def _poblar(workspace, *, extensiones: bool = True):
     sin_arribos = (
         workspace / "files" / "seiscomp_20261001000000_20261031235959_no_picadas.csv"
     )
-    sin_arribos.write_text(SIN_ARRIBOS, encoding="utf-8")
+    if con_sin_arribos:
+        sin_arribos.write_text(SIN_ARRIBOS, encoding="utf-8")
     escribir_extensiones(
         workspace,
         "seiscomp",
@@ -126,6 +127,8 @@ def _poblar(workspace, *, extensiones: bool = True):
             "arribos": "files/seiscomp_20261001000000_20261031235959_fases.csv",
             "estaciones_sin_arribos": (
                 "files/seiscomp_20261001000000_20261031235959_no_picadas.csv"
+                if con_sin_arribos
+                else None
             ),
         },
     )
@@ -220,11 +223,16 @@ def test_revision_agrupa_y_filtra_no_utilizadas(tmp_path):
     assert revision["tiene_coordenadas"] is True
     assert revision["tiene_tiempos"] is True
     mapa = revision["estaciones_mapa"]
-    assert len(mapa) == 1
-    assert mapa[0]["estacion"] == "LVC"
-    assert mapa[0]["lat"] == -29.1
-    assert mapa[0]["lon"] == -71.1
-    assert mapa[0]["categoria"] == "indicio"
+    assert len(mapa) == 2
+    por_estacion = {punto["estacion"]: punto for punto in mapa}
+    assert set(por_estacion) == {"ANMO", "LVC"}
+    assert por_estacion["ANMO"]["tipo"] == "arribo"
+    assert por_estacion["ANMO"]["fase"] == "P"
+    assert len(por_estacion["ANMO"]["fases"]) == 1
+    assert por_estacion["LVC"]["tipo"] == "sin_arribo"
+    assert por_estacion["LVC"]["lat"] == -29.1
+    assert por_estacion["LVC"]["lon"] == -71.1
+    assert por_estacion["LVC"]["categoria"] == "indicio"
 
     tiempos = revision["tiempos_llegada"]
     assert tiempos["event_time"] == "2026-10-03 15:53:56"
@@ -235,6 +243,7 @@ def test_revision_agrupa_y_filtra_no_utilizadas(tmp_path):
     assert arribos_tiempo["ANMO"]["segundos"] == 24.123
     assert arribos_tiempo["ML02"]["segundos"] == 29.0
     assert arribos_tiempo["ANMO"]["distancia_km"] > 100
+    assert [fila["estacion"] for fila in tiempos["estaciones"]] == ["LVC"]
 
     columnas_sin, filas_sin = filas_para_csv(revision, "sin_arribos")
     assert "Streams vigentes" in columnas_sin
@@ -256,6 +265,29 @@ def test_revision_agrupa_y_filtra_no_utilizadas(tmp_path):
     assert len(filas) == 1
     assert filas[0][:2] == ["CI", "ML02"]
     assert "No" in filas[0]
+
+
+def test_revision_solo_arribos_alimenta_mapa_y_tiempos(tmp_path):
+    workspace = _poblar(tmp_path / "ws", con_sin_arribos=False)
+    evento = {
+        "event_id": "seiscomp:000000",
+        "source_event_id": "csn_test_0001",
+        "event_time": "2026-10-03 15:53:56",
+        "latitude": -29.519,
+        "longitude": -72.594,
+    }
+
+    revision = revisar_evento(workspace, "seiscomp", evento)
+
+    assert revision["estado"] == "ok"
+    assert revision["sin_arribos"] == []
+    assert revision["tiene_coordenadas"] is True
+    assert revision["tiene_tiempos"] is True
+    mapa = revision["estaciones_mapa"]
+    assert {punto["estacion"] for punto in mapa} == {"ANMO"}
+    assert all(punto["tipo"] == "arribo" for punto in mapa)
+    assert revision["tiempos_llegada"]["estaciones"] == []
+    assert len(revision["tiempos_llegada"]["arribos"]) == 2
 
 
 def test_revision_no_evaluable_si_falta_el_archivo(tmp_path):
@@ -377,9 +409,12 @@ def _job(app, creado_por=None):
     return job
 
 
-def _job_con_revision(app):
+def _job_con_revision(app, *, con_sin_arribos: bool = True):
     job = _job(app)
-    workspace = _poblar(app.config["WORKSPACE_ROOT"] / job.id)
+    workspace = _poblar(
+        app.config["WORKSPACE_ROOT"] / job.id,
+        con_sin_arribos=con_sin_arribos,
+    )
     resultados = workspace / "resultados"
     resultados.mkdir(parents=True, exist_ok=True)
     (resultados / "no_publicados_seiscomp.csv").write_text(
@@ -446,6 +481,12 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert 'id="btn-tiempos-llegada"' in html
     assert 'id="modal-tiempos"' in html
     assert 'id="estaciones-mapa-datos"' in html
+    assert html.index('id="controles-estaciones-mapa"') < html.index(
+        'id="mapa-detalle"'
+    )
+    assert html.count('id="btn-estaciones-mapa"') == 1
+    assert html.count('id="btn-tiempos-llegada"') == 1
+    assert html.count('id="modal-tiempos"') == 1
     assert 'id="tiempos-llegada-datos"' in html
 
     respuesta = client.get(
@@ -488,12 +529,17 @@ def test_detalle_datos_mapa_y_tiempos(client, login, app):
     ).get_data(as_text=True)
 
     estaciones = _json_embebido(html, "estaciones-mapa-datos")
-    assert len(estaciones) == 1
-    assert estaciones[0]["estacion"] == "LVC"
-    assert estaciones[0]["lat"] == -29.1
-    assert estaciones[0]["lon"] == -71.1
-    assert estaciones[0]["distancia_km"] == 12.3
-    assert estaciones[0]["categoria"] == "indicio"
+    assert len(estaciones) == 2
+    por_estacion = {punto["estacion"]: punto for punto in estaciones}
+    assert set(por_estacion) == {"ANMO", "LVC"}
+    assert por_estacion["LVC"]["tipo"] == "sin_arribo"
+    assert por_estacion["LVC"]["lat"] == -29.1
+    assert por_estacion["LVC"]["lon"] == -71.1
+    assert por_estacion["LVC"]["distancia_km"] == 12.3
+    assert por_estacion["LVC"]["categoria"] == "indicio"
+    assert por_estacion["ANMO"]["tipo"] == "arribo"
+    assert por_estacion["ANMO"]["fase"] == "P"
+    assert por_estacion["ANMO"]["fases"][0]["modo"] == "Manual"
 
     tiempos = _json_embebido(html, "tiempos-llegada-datos")
     assert tiempos["event_time"] == "2026-10-03 15:53:56"
@@ -502,6 +548,34 @@ def test_detalle_datos_mapa_y_tiempos(client, login, app):
     assert set(arribos) == {"ANMO", "ML02"}
     assert arribos["ANMO"]["segundos"] == 24.123
     assert arribos["ANMO"]["distancia_km"] > 100
+    assert [fila["estacion"] for fila in tiempos["estaciones"]] == ["LVC"]
+
+
+def test_detalle_solo_arribos_muestra_controles(client, login, app):
+    job = _job_con_revision(app, con_sin_arribos=False)
+    login()
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/no_publicados/seiscomp/0"
+    ).get_data(as_text=True)
+
+    assert 'id="controles-estaciones-mapa"' in html
+    assert html.index('id="controles-estaciones-mapa"') < html.index(
+        'id="mapa-detalle"'
+    )
+    assert html.count('id="btn-estaciones-mapa"') == 1
+    assert html.count('id="btn-tiempos-llegada"') == 1
+    assert html.count('id="modal-tiempos"') == 1
+    assert 'id="estaciones-mapa-datos"' in html
+    assert 'id="tiempos-llegada-datos"' in html
+
+    estaciones = _json_embebido(html, "estaciones-mapa-datos")
+    assert {punto["estacion"] for punto in estaciones} == {"ANMO"}
+    assert all(punto["tipo"] == "arribo" for punto in estaciones)
+
+    tiempos = _json_embebido(html, "tiempos-llegada-datos")
+    assert tiempos["estaciones"] == []
+    assert len(tiempos["arribos"]) == 2
 
 
 def test_descarga_respeta_visibilidad_del_analista(client, login, app):

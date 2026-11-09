@@ -39,26 +39,6 @@
            href="{{ url_for('results.estaciones_csv', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, tipo='sin-arribos', disponibles=1 if revision_estaciones.solo_disponibles else none, radio_km=revision_estaciones.radio_mostrar, cerca_km=revision_estaciones.cerca_km, solo_cercanas=1 if revision_estaciones.solo_cercanas else none, ampliado=revision_estaciones.ampliado or none) }}">
           Descargar estaciones sin arribos
         </a>
-        {% if revision_estaciones.tiene_coordenadas and puntos_mapa %}
-        <button type="button" class="btn btn-sm btn-outline-secondary"
-                id="btn-estaciones-mapa">
-          Estaciones en el mapa
-        </button>
-        <div class="form-check form-switch d-none mb-0 align-self-center"
-             id="mapa-estaciones-opciones">
-          <input class="form-check-input" type="checkbox"
-                 id="mapa-estaciones-todas">
-          <label class="form-check-label small" for="mapa-estaciones-todas">
-            Mostrar todas
-          </label>
-        </div>
-        {% endif %}
-        {% if revision_estaciones.tiene_tiempos %}
-        <button type="button" class="btn btn-sm btn-outline-secondary"
-                id="btn-tiempos-llegada">
-          Tiempos de llegada
-        </button>
-        {% endif %}
       {% endif %}
     </div>
   </div>
@@ -269,51 +249,6 @@
       </div>
     </div>
   </div>
-  {% if revision_estaciones.tiene_tiempos %}
-  <div class="modal fade" id="modal-tiempos" tabindex="-1"
-       aria-labelledby="modal-tiempos-titulo" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2 class="modal-title fs-6" id="modal-tiempos-titulo">
-            Tiempos de llegada
-          </h2>
-          <button type="button" class="btn-close"
-                  data-bs-dismiss="modal" aria-label="Cerrar"></button>
-        </div>
-        <div class="modal-body">
-          <div class="row g-2 align-items-end mb-3">
-            <div class="col-auto">
-              <label class="form-label small mb-0" for="tiempos-vp">
-                Vp (km/s)
-              </label>
-              <input class="form-control form-control-sm" id="tiempos-vp"
-                     type="number" min="0.1" step="0.1" value="6.0">
-            </div>
-            <div class="col-auto">
-              <label class="form-label small mb-0" for="tiempos-vs">
-                Vs (km/s)
-              </label>
-              <input class="form-control form-control-sm" id="tiempos-vs"
-                     type="number" min="0.1" step="0.1" value="3.5">
-            </div>
-            <div class="col-auto">
-              <button type="button" class="btn btn-sm btn-outline-secondary"
-                      id="btn-tiempos-actualizar">
-                Actualizar
-              </button>
-            </div>
-          </div>
-          <div id="grafico-tiempos" style="height: 420px;"></div>
-          <div class="small text-secondary mt-2">
-            Curvas P/S estimadas con velocidad constante. Los puntos son picks
-            reales.
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
   {% if revision_estaciones.tiene_coordenadas %}
   <script type="application/json"
           id="estaciones-mapa-datos">{{ revision_estaciones.estaciones_mapa|tojson }}</script>

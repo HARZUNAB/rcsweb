@@ -927,40 +927,51 @@ la reanuda, pero la tarea sigue y deja la caché actualizada.
 
 La revisión calcula dos datos derivados y los expone en el contexto:
 
-- `tiene_coordenadas`: hay al menos una estación sin arribos con
-  `station_latitude` y `station_longitude`;
-- `tiene_tiempos`: hay `event_time` y coordenadas del evento o de estaciones.
+- `tiene_coordenadas`: hay al menos una estación con coordenadas, sea de un
+  arribo o de una estación sin arribos;
+- `tiene_tiempos`: hay `event_time` y al menos un arribo graficable o una
+  estación sin arribos con distancia.
 
-`station_review` arma además:
+`station_review._datos_mapa_tiempos()` arma:
 
-- `estaciones_mapa`: red, estación, lat/lon, distancia, categoría de evidencia,
-  formas de onda y streams;
-- `tiempos_llegada`: `event_time`, posición del evento, estaciones y arribos con
-  `distancia_km` y `segundos`.
+- `estaciones_mapa`: puntos agrupados por `(red, estación)`. Si la estación
+  tiene arribos, el punto es de tipo `arribo` y contiene `fases` con fase, hora,
+  segundos, modo y uso en la solución. Si no tiene arribos, el punto es de tipo
+  `sin_arribo` y conserva la categoría de evidencia, formas de onda y streams.
+  Las distancias de los arribos se calculan con haversine; si faltan
+  coordenadas, se usa el valor canónico (`distance_km`, en grados) multiplicado
+  por 111.19.
+- `tiempos_llegada`: `event_time`, posición del evento, `arribos` individuales
+  con `distancia_km` y `segundos`, y `estaciones` sin arribos que no tengan ya
+  un pick, para no duplicar puntos en la curva.
 
-Las distancias de los arribos se calculan con haversine entre la posición del
-evento y la estación. Si faltan coordenadas, se usa el valor canónico
-(`distance_km`, expresado en grados) multiplicado por 111.19. Los segundos se
-obtienen de `pick_time - event_time` con `_instante()`.
+Los datos se calculan con las listas **completas** del evento, antes de aplicar
+los filtros de tabla `solo_disponibles` y `solo_no_usadas`. El radio y **Solo
+cercanas** se aplican en el cliente solo a las estaciones sin arribos; los
+arribos se muestran siempre.
 
-La plantilla `results/_estaciones_sin_arribos.html`:
+La plantilla `results/_controles_estaciones.html` concentra los dos controles y
+se incluye desde `_mapa_detalle.html`, justo arriba de `#mapa-detalle`. Solo se
+renderiza si el contexto define `controles_estaciones`; `results/event.html` lo
+asigna a `revision_estaciones`, mientras que `panels/grupo.html` no lo define.
+Así el detalle de un evento único —incluido el que se abre con **Ver** desde
+Paneles— muestra los controles, y el mapa de grupo con varios eventos no.
 
-- muestra **Estaciones en el mapa** solo si `tiene_coordenadas` y hay mapa
-  interactivo;
-- muestra **Tiempos de llegada** solo si `tiene_tiempos`;
-- incluye los datos como JSON embebido (`#estaciones-mapa-datos` y
-  `#tiempos-llegada-datos`).
+El modal de tiempos y los datos compartidos viven en
+`results/_estaciones_mapa_tiempos.html`, fuera de las solapas. El JSON se
+incluye a nivel de página cuando la fuente no tiene extensión de inventario; si
+la tiene, queda dentro del panel de sin arribos para que se actualice al
+consultar disponibilidad.
 
-`static/js/estaciones.js` no dibuja nada al cargar: los botones son la única
-entrada. La capa se agrega con `window.RCSMapaDetalle`, que `mapa_detalle.js`
-expone para Leaflet y Plotly. Por defecto se muestran 20 estaciones; **Mostrar
-todas** quita el tope y la capa se redibuja al cambiar los filtros o al
-actualizar la disponibilidad.
-
-La gráfica de tiempos usa Plotly con picks reales y curvas P/S estimadas
-(Vp=6.0 km/s, Vs=3.5 km/s), rotuladas como estimación. Los picks manuales se
-dibujan como círculo y los automáticos como rombo. No se agregan rutas HTTP
-nuevas: los datos ya vienen en el detalle y solo se dibujan bajo demanda.
+`static/js/estaciones.js` enlaza los controles en
+`iniciarMapaTiempos()`, sin depender de la solapa activa. La capa se agrega con
+`window.RCSMapaDetalle`, que `mapa_detalle.js` expone para Leaflet y Plotly:
+todos los arribos y hasta 20 estaciones sin arribos; **Mostrar todas** quita el
+tope de las sin arribos. La gráfica usa Plotly con picks reales y curvas P/S
+estimadas (Vp=6.0 km/s, Vs=3.5 km/s), rotuladas como estimación. Los picks
+manuales se dibujan como círculo y los automáticos como rombo. No se agregan
+rutas HTTP nuevas: los datos ya vienen en el detalle y solo se dibujan bajo
+demanda.
 
 Estados de evidencia:
 

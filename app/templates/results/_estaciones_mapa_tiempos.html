@@ -1,0 +1,57 @@
+{% if revision_estaciones and revision_estaciones.tiene_tiempos %}
+<div class="modal fade" id="modal-tiempos" tabindex="-1"
+     aria-labelledby="modal-tiempos-titulo" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-6" id="modal-tiempos-titulo">
+          Tiempos de llegada
+        </h2>
+        <button type="button" class="btn-close"
+                data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2 align-items-end mb-3">
+          <div class="col-auto">
+            <label class="form-label small mb-0" for="tiempos-vp">
+              Vp (km/s)
+            </label>
+            <input class="form-control form-control-sm" id="tiempos-vp"
+                   type="number" min="0.1" step="0.1" value="6.0">
+          </div>
+          <div class="col-auto">
+            <label class="form-label small mb-0" for="tiempos-vs">
+              Vs (km/s)
+            </label>
+            <input class="form-control form-control-sm" id="tiempos-vs"
+                   type="number" min="0.1" step="0.1" value="3.5">
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    id="btn-tiempos-actualizar">
+              Actualizar
+            </button>
+          </div>
+        </div>
+        <div id="grafico-tiempos" style="height: 420px;"></div>
+        <div class="small text-secondary mt-2">
+          Curvas P/S estimadas con velocidad constante. Los puntos son picks
+          reales: P azul, S naranja; círculo si son manuales y rombo si son
+          automáticos. Las estaciones sin arribos se muestran con su tiempo P
+          estimado.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% if revision_estaciones and not revision_estaciones.tiene_sin_arribos %}
+{% if revision_estaciones.tiene_coordenadas %}
+<script type="application/json"
+        id="estaciones-mapa-datos">{{ revision_estaciones.estaciones_mapa|tojson }}</script>
+{% endif %}
+{% if revision_estaciones.tiene_tiempos %}
+<script type="application/json"
+        id="tiempos-llegada-datos">{{ revision_estaciones.tiempos_llegada|tojson }}</script>
+{% endif %}
+{% endif %}

@@ -505,14 +505,6 @@
     radio.addEventListener("input", programar);
     cerca.addEventListener("input", programar);
     solo.addEventListener("change", aplicar);
-    var todasMapa = document.getElementById("mapa-estaciones-todas");
-    if (todasMapa) {
-      todasMapa.addEventListener("change", function () {
-        if (mapaEstacionesActivo) {
-          dibujarMapaEstaciones();
-        }
-      });
-    }
     sinLimite.addEventListener("change", function () {
       radio.disabled = sinLimite.checked;
       if (sinLimite.checked) {
@@ -723,6 +715,7 @@
   }
 
   var mapaEstacionesActivo = false;
+  var mapaTiemposIniciado = false;
 
   function datosEstacionesMapa() {
     var nodo = document.getElementById("estaciones-mapa-datos");
@@ -771,7 +764,13 @@
     if (!Number.isFinite(cerca)) {
       cerca = 50;
     }
-    var puntos = datos.filter(function (punto) {
+    var arribos = datos.filter(function (punto) {
+      return punto.tipo === "arribo";
+    });
+    var sinArribos = datos.filter(function (punto) {
+      if (punto.tipo === "arribo") {
+        return false;
+      }
       var distancia = Number(punto.distancia_km);
       if (solo) {
         return Number.isFinite(distancia) && distancia <= cerca;
@@ -782,9 +781,9 @@
       return true;
     });
     if (!todas) {
-      puntos = puntos.slice(0, 20);
+      sinArribos = sinArribos.slice(0, 20);
     }
-    return puntos;
+    return arribos.concat(sinArribos);
   }
 
   function dibujarMapaEstaciones() {
@@ -869,9 +868,17 @@
         Number.isFinite(Number(arribo.segundos))
       );
     });
+    var clavesArribo = {};
+    arribos.forEach(function (arribo) {
+      clavesArribo[(arribo.red || "") + "|" + (arribo.estacion || "")] = true;
+    });
     var estaciones = (datos.estaciones || [])
       .filter(function (estacion) {
-        return Number.isFinite(Number(estacion.distancia_km));
+        var clave = (estacion.red || "") + "|" + (estacion.estacion || "");
+        return (
+          Number.isFinite(Number(estacion.distancia_km)) &&
+          !clavesArribo[clave]
+        );
       })
       .slice(0, 20);
     var distancias = arribos
@@ -999,6 +1006,42 @@
     instancia.show();
   }
 
+  function iniciarMapaTiempos() {
+    if (mapaTiemposIniciado) {
+      return;
+    }
+    mapaTiemposIniciado = true;
+    var botonMapa = document.getElementById("btn-estaciones-mapa");
+    if (botonMapa) {
+      botonMapa.addEventListener("click", function (evento) {
+        evento.preventDefault();
+        alternarMapaEstaciones();
+      });
+    }
+    var botonTiempos = document.getElementById("btn-tiempos-llegada");
+    if (botonTiempos) {
+      botonTiempos.addEventListener("click", function (evento) {
+        evento.preventDefault();
+        abrirTiemposLlegada();
+      });
+    }
+    var botonActualizar = document.getElementById("btn-tiempos-actualizar");
+    if (botonActualizar) {
+      botonActualizar.addEventListener("click", function (evento) {
+        evento.preventDefault();
+        dibujarTiemposLlegada();
+      });
+    }
+    var todas = document.getElementById("mapa-estaciones-todas");
+    if (todas) {
+      todas.addEventListener("change", function () {
+        if (mapaEstacionesActivo) {
+          dibujarMapaEstaciones();
+        }
+      });
+    }
+  }
+
   function iniciarPanel() {
     panel = document.getElementById("panel-sin-arribos");
     contenedor = document.getElementById("panel-sin-arribos-contenido");
@@ -1008,24 +1051,6 @@
     iniciarModalStreams();
     iniciarFiltrosSinArribos();
     panel.addEventListener("click", function (evento) {
-      var botonMapa = evento.target.closest("#btn-estaciones-mapa");
-      if (botonMapa) {
-        evento.preventDefault();
-        alternarMapaEstaciones();
-        return;
-      }
-      var botonTiempos = evento.target.closest("#btn-tiempos-llegada");
-      if (botonTiempos) {
-        evento.preventDefault();
-        abrirTiemposLlegada();
-        return;
-      }
-      var botonActualizar = evento.target.closest("#btn-tiempos-actualizar");
-      if (botonActualizar) {
-        evento.preventDefault();
-        dibujarTiemposLlegada();
-        return;
-      }
       var botonTodas = evento.target.closest("#btn-disponibilidad-todas");
       if (botonTodas) {
         evento.preventDefault();
@@ -1057,6 +1082,7 @@
 
   window.addEventListener("DOMContentLoaded", function () {
     activarTabDesdeHash();
+    iniciarMapaTiempos();
     iniciarPanel();
   });
 })();

@@ -864,32 +864,99 @@
           return;
         }
         window.RCSMapaDetalle.ocultarEstaciones();
-        const traza = {
-          type: "scattergeo",
-          mode: "markers",
-          name: "Estaciones sin arribos",
-          lat: puntos.map(function (punto) { return punto.lat; }),
-          lon: puntos.map(function (punto) { return punto.lon; }),
-          text: puntos.map(function (punto) {
-            return (punto.red || "") + " " + (punto.estacion || "");
-          }),
-          customdata: puntos,
-          marker: {
-            size: 5,
-            color: puntos.map(function (punto) {
-              if (punto.categoria === "verificado") {
-                return "#1a7f37";
-              }
-              if (punto.categoria === "indicio") {
-                return "#9a6a00";
-              }
-              return "#6c757d";
-            }),
-            line: { color: "#ffffff", width: 0.5 },
-          },
-          hoverinfo: "text",
+        const grupos = {
+          "Arribos P": [],
+          "Arribos S": [],
+          "Arribos otras": [],
+          "Sin arribos": [],
         };
-        window.Plotly.addTraces(contenedor, traza);
+        puntos.forEach(function (punto) {
+          if (!Number.isFinite(punto.lat) || !Number.isFinite(punto.lon)) {
+            return;
+          }
+          if (punto.tipo === "arribo") {
+            const fase = (punto.fase || "").toUpperCase();
+            if (fase.startsWith("P")) {
+              grupos["Arribos P"].push(punto);
+            } else if (fase.startsWith("S")) {
+              grupos["Arribos S"].push(punto);
+            } else {
+              grupos["Arribos otras"].push(punto);
+            }
+          } else {
+            grupos["Sin arribos"].push(punto);
+          }
+        });
+        const colores = {
+          "Arribos P": "#1f77b4",
+          "Arribos S": "#ff7f0e",
+          "Arribos otras": "#6c757d",
+          "Sin arribos": "#9a6a00",
+        };
+        const trazas = [];
+        Object.keys(grupos).forEach(function (nombre) {
+          const lista = grupos[nombre];
+          if (!lista.length) {
+            return;
+          }
+          const esSinArribos = nombre === "Sin arribos";
+          trazas.push({
+            type: "scattergeo",
+            mode: "markers",
+            name: "Estaciones · " + nombre,
+            lat: lista.map(function (punto) {
+              return punto.lat;
+            }),
+            lon: lista.map(function (punto) {
+              return punto.lon;
+            }),
+            text: lista.map(function (punto) {
+              const base =
+                (punto.red || "") + " " + (punto.estacion || "");
+              if (esSinArribos) {
+                return base;
+              }
+              const fases = (punto.fases || [])
+                .map(function (fase) {
+                  let texto = fase.fase || "";
+                  if (fase.segundos != null) {
+                    texto += " " + Number(fase.segundos).toFixed(1) + " s";
+                  }
+                  if (fase.modo) {
+                    texto += " · " + fase.modo;
+                  }
+                  return texto.trim();
+                })
+                .filter(function (texto) {
+                  return texto !== "";
+                });
+              return fases.length
+                ? base + "<br>" + fases.join("<br>")
+                : base;
+            }),
+            customdata: lista,
+            marker: {
+              size: esSinArribos ? 5 : 7,
+              color: esSinArribos
+                ? lista.map(function (punto) {
+                    if (punto.categoria === "verificado") {
+                      return "#1a7f37";
+                    }
+                    if (punto.categoria === "indicio") {
+                      return "#9a6a00";
+                    }
+                    return "#6c757d";
+                  })
+                : colores[nombre],
+              symbol: esSinArribos ? "circle" : "diamond",
+              line: { color: "#ffffff", width: 0.5 },
+            },
+            hoverinfo: "text",
+          });
+        });
+        if (trazas.length) {
+          window.Plotly.addTraces(contenedor, trazas);
+        }
       },
       ocultarEstaciones: function () {
         if (!window.Plotly || !contenedor || !contenedor.data) {
@@ -897,7 +964,7 @@
         }
         const indices = [];
         contenedor.data.forEach(function (traza, indice) {
-          if (traza.name === "Estaciones sin arribos") {
+          if ((traza.name || "").indexOf("Estaciones ·") === 0) {
             indices.push(indice);
           }
         });
@@ -1017,14 +1084,22 @@
           if (!Number.isFinite(punto.lat) || !Number.isFinite(punto.lon)) {
             return;
           }
+          const esArribo = punto.tipo === "arribo";
           let color = "#6c757d";
-          if (punto.categoria === "verificado") {
+          if (esArribo) {
+            const fase = (punto.fase || "").toUpperCase();
+            if (fase.startsWith("P")) {
+              color = "#1f77b4";
+            } else if (fase.startsWith("S")) {
+              color = "#ff7f0e";
+            }
+          } else if (punto.categoria === "verificado") {
             color = "#1a7f37";
           } else if (punto.categoria === "indicio") {
             color = "#9a6a00";
           }
           const marcador = window.L.circleMarker([punto.lat, punto.lon], {
-            radius: 4,
+            radius: esArribo ? 5 : 4,
             color: color,
             fillColor: color,
             fillOpacity: 0.85,
@@ -1038,17 +1113,42 @@
           if (punto.distancia_km != null) {
             partes.push("Distancia: " + esc(punto.distancia_km) + " km");
           }
-          if (punto.evidencia) {
-            partes.push("Evidencia: " + esc(punto.evidencia));
-          }
-          if (punto.formas_onda) {
-            partes.push("Formas de onda: " + esc(punto.formas_onda));
-          }
-          if (punto.disponible) {
-            partes.push("Disponible y no usada: " + esc(punto.disponible));
-          }
-          if (punto.streams) {
-            partes.push("Streams: " + esc(punto.streams));
+          if (esArribo) {
+            const fases = punto.fases || [];
+            fases.forEach(function (fase) {
+              const detalles = [];
+              if (fase.fase) {
+                detalles.push(esc(fase.fase));
+              }
+              if (fase.llegada) {
+                detalles.push(esc(fase.llegada));
+              }
+              if (fase.segundos != null) {
+                detalles.push(Number(fase.segundos).toFixed(1) + " s");
+              }
+              if (fase.modo) {
+                detalles.push(esc(fase.modo));
+              }
+              if (fase.usada) {
+                detalles.push("usada: " + esc(fase.usada));
+              }
+              if (detalles.length) {
+                partes.push(detalles.join(" · "));
+              }
+            });
+          } else {
+            if (punto.evidencia) {
+              partes.push("Evidencia: " + esc(punto.evidencia));
+            }
+            if (punto.formas_onda) {
+              partes.push("Formas de onda: " + esc(punto.formas_onda));
+            }
+            if (punto.disponible) {
+              partes.push("Disponible y no usada: " + esc(punto.disponible));
+            }
+            if (punto.streams) {
+              partes.push("Streams: " + esc(punto.streams));
+            }
           }
           marcador.bindPopup(partes.join("<br>"));
           marcador.addTo(capaEstaciones);

@@ -417,6 +417,7 @@
 {% set url_offline = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, mapa='offline') %}
 {% set url_online = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, mapa='online') %}
 {% set puede_exportar = puede('resultados.exportar') %}
+{% set controles_estaciones = revision_estaciones %}
 {% include "_mapa_detalle.html" %}
 {% else %}
 <div class="card border-0 shadow-sm">
@@ -439,6 +440,9 @@
          alt="Planta y perfil del evento" loading="lazy">
   </div>
 </div>
+{% endif %}
+{% if revision_estaciones and (revision_estaciones.tiene_coordenadas or revision_estaciones.tiene_tiempos) %}
+{% include "results/_estaciones_mapa_tiempos.html" %}
 {% endif %}
 {% endblock %}
 

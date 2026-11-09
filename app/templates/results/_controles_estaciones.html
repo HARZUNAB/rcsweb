@@ -1,0 +1,29 @@
+{% set rev = controles_estaciones|default(none) %}
+{% if rev and (rev.tiene_coordenadas or rev.tiene_tiempos) %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2"
+     id="controles-estaciones-mapa">
+  {% if rev.tiene_coordenadas %}
+  <button type="button" class="btn btn-sm btn-outline-secondary"
+          id="btn-estaciones-mapa">
+    Estaciones en el mapa
+  </button>
+  <div class="form-check form-switch mb-0 d-none"
+       id="mapa-estaciones-opciones">
+    <input class="form-check-input" type="checkbox"
+           id="mapa-estaciones-todas">
+    <label class="form-check-label small" for="mapa-estaciones-todas">
+      Mostrar todas
+    </label>
+  </div>
+  <span class="small text-secondary ms-auto">
+    Arribos: P azul · S naranja · sin arribos: color por evidencia
+  </span>
+  {% endif %}
+  {% if rev.tiene_tiempos %}
+  <button type="button" class="btn btn-sm btn-outline-secondary"
+          id="btn-tiempos-llegada">
+    Tiempos de llegada
+  </button>
+  {% endif %}
+</div>
+{% endif %}

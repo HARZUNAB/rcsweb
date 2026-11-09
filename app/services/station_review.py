@@ -597,6 +597,248 @@ def _vacio(
     }
 
 
+def _agregar_texto(punto: dict, campo: str, valor: str) -> None:
+    """Agrega un valor único a un campo de texto separado por ``; ``."""
+    valor = _texto(valor)
+    if not valor:
+        return
+    actual = punto.get(campo, "")
+    partes = [parte for parte in actual.split("; ") if parte]
+    if valor not in partes:
+        partes.append(valor)
+    punto[campo] = "; ".join(partes)
+
+
+RANGO_CATEGORIA = {
+    "verificado": 3,
+    "indicio": 2,
+    "sin_evidencia": 1,
+    "normal": 0,
+}
+
+
+def _datos_mapa_tiempos(
+    evento: dict | None,
+    arribos: list[dict],
+    sin_arribos: list[dict],
+) -> dict:
+    """Datos del mapa de estaciones y de la curva distancia-tiempo.
+
+    Agrupa por estación: una estación con arribos se muestra como arribo y no
+    se duplica como estación sin arribos. Las distancias de los arribos se
+    calculan por haversine y, si faltan coordenadas, se usa el valor canónico
+    en grados.
+    """
+    event_time = _texto((evento or {}).get("event_time"))
+    instante_evento = _instante(event_time)
+    if instante_evento is not None:
+        event_time = instante_evento.isoformat(sep=" ")
+    event_lat = _numero((evento or {}).get("latitude"))
+    event_lon = _numero((evento or {}).get("longitude"))
+
+    arribos_tiempo = []
+    for fila in arribos:
+        lat, lon = fila.get("lat"), fila.get("lon")
+        distancia = _distancia_km(event_lat, event_lon, lat, lon)
+        if distancia is None:
+            grados = _numero(fila.get("distancia"))
+            if grados is not None:
+                distancia = abs(grados) * 111.19
+        segundos = None
+        instante_pick = _instante(fila.get("llegada"))
+        if instante_evento and instante_pick:
+            segundos = (instante_pick - instante_evento).total_seconds()
+        if distancia is None and segundos is None:
+            continue
+        arribos_tiempo.append(
+            {
+                "red": fila.get("red", ""),
+                "estacion": fila.get("estacion", ""),
+                "fase": fila.get("fase", ""),
+                "llegada": fila.get("llegada", ""),
+                "modo": fila.get("modo", ""),
+                "usada": fila.get("usada", ""),
+                "lat": lat,
+                "lon": lon,
+                "distancia_km": distancia,
+                "segundos": segundos,
+            }
+        )
+
+    puntos: dict[tuple[str, str], dict] = {}
+    arribos_por_clave: dict[tuple[str, str], list[dict]] = {}
+    for arribo in arribos_tiempo:
+        clave = (arribo["red"], arribo["estacion"])
+        arribos_por_clave.setdefault(clave, []).append(arribo)
+        if arribo["lat"] is None or arribo["lon"] is None:
+            continue
+        punto = puntos.get(clave)
+        if punto is None:
+            punto = {
+                "tipo": "arribo",
+                "red": arribo["red"],
+                "estacion": arribo["estacion"],
+                "lat": arribo["lat"],
+                "lon": arribo["lon"],
+                "distancia_km": arribo["distancia_km"],
+                "categoria": "arribo",
+                "fase": "",
+                "evidencia": "",
+                "formas_onda": "",
+                "disponible": "",
+                "streams": "",
+                "fases": [],
+            }
+            puntos[clave] = punto
+        elif punto["distancia_km"] is None and arribo["distancia_km"] is not None:
+            punto["distancia_km"] = arribo["distancia_km"]
+        punto["fases"].append(
+            {
+                "fase": arribo["fase"],
+                "llegada": arribo["llegada"],
+                "segundos": arribo["segundos"],
+                "modo": arribo["modo"],
+                "usada": arribo["usada"],
+            }
+        )
+
+    claves_arribo = set(arribos_por_clave)
+    for fila in sin_arribos:
+        lat, lon = fila.get("lat"), fila.get("lon")
+        if lat is None or lon is None:
+            continue
+        clave = (fila.get("red", ""), fila.get("estacion", ""))
+        if clave in claves_arribo:
+            if clave not in puntos:
+                punto = {
+                    "tipo": "arribo",
+                    "red": fila.get("red", ""),
+                    "estacion": fila.get("estacion", ""),
+                    "lat": lat,
+                    "lon": lon,
+                    "distancia_km": fila.get("distancia_num"),
+                    "categoria": "arribo",
+                    "fase": "",
+                    "evidencia": "",
+                    "formas_onda": "",
+                    "disponible": "",
+                    "streams": "",
+                    "fases": [],
+                }
+                for arribo in arribos_por_clave[clave]:
+                    punto["fases"].append(
+                        {
+                            "fase": arribo["fase"],
+                            "llegada": arribo["llegada"],
+                            "segundos": arribo["segundos"],
+                            "modo": arribo["modo"],
+                            "usada": arribo["usada"],
+                        }
+                    )
+                puntos[clave] = punto
+            continue
+        punto = puntos.get(clave)
+        if punto is None:
+            punto = {
+                "tipo": "sin_arribo",
+                "red": fila.get("red", ""),
+                "estacion": fila.get("estacion", ""),
+                "lat": lat,
+                "lon": lon,
+                "distancia_km": fila.get("distancia_num"),
+                "categoria": fila.get("_categoria", "normal"),
+                "fase": "",
+                "evidencia": "",
+                "formas_onda": "",
+                "disponible": "",
+                "streams": "",
+                "fases": [],
+            }
+            puntos[clave] = punto
+        categoria = fila.get("_categoria", "normal")
+        if RANGO_CATEGORIA.get(categoria, 0) > RANGO_CATEGORIA.get(
+            punto["categoria"], 0
+        ):
+            punto["categoria"] = categoria
+        if punto["distancia_km"] is None:
+            punto["distancia_km"] = fila.get("distancia_num")
+        _agregar_texto(punto, "evidencia", fila.get("evidencia", ""))
+        _agregar_texto(punto, "formas_onda", fila.get("formas_onda", ""))
+        _agregar_texto(punto, "streams", fila.get("streams_ids", ""))
+        if fila.get("disponible") == "Sí":
+            punto["disponible"] = "Sí"
+        elif not punto["disponible"]:
+            punto["disponible"] = fila.get("disponible", "")
+
+    for punto in puntos.values():
+        if punto["tipo"] != "arribo" or not punto["fases"]:
+            continue
+        principal = min(
+            punto["fases"],
+            key=lambda fase: (
+                fase["segundos"] is None,
+                fase["segundos"] or 0.0,
+            ),
+        )
+        punto["fase"] = principal["fase"]
+
+    estaciones_mapa = sorted(
+        puntos.values(),
+        key=lambda punto: (
+            punto["tipo"] != "arribo",
+            punto["distancia_km"] is None,
+            punto["distancia_km"] or 0.0,
+            punto["estacion"],
+        ),
+    )
+
+    estaciones_tiempo = []
+    vistos_tiempo: set[tuple[str, str]] = set()
+    for fila in sin_arribos:
+        clave = (fila.get("red", ""), fila.get("estacion", ""))
+        if clave in claves_arribo or clave in vistos_tiempo:
+            continue
+        distancia = fila.get("distancia_num")
+        if distancia is None:
+            continue
+        vistos_tiempo.add(clave)
+        estaciones_tiempo.append(
+            {
+                "red": fila.get("red", ""),
+                "estacion": fila.get("estacion", ""),
+                "distancia_km": distancia,
+                "categoria": fila.get("_categoria", "normal"),
+                "evidencia": fila.get("evidencia", ""),
+            }
+        )
+    estaciones_tiempo.sort(key=lambda estacion: estacion["distancia_km"])
+
+    graficables = [
+        arribo
+        for arribo in arribos_tiempo
+        if arribo["distancia_km"] is not None
+        and arribo["segundos"] is not None
+    ]
+    tiene_coordenadas = bool(estaciones_mapa)
+    tiene_tiempos = bool(event_time) and bool(graficables or estaciones_tiempo)
+    tiempos_llegada = (
+        {
+            "event_time": event_time,
+            "evento": {"lat": event_lat, "lon": event_lon},
+            "estaciones": estaciones_tiempo,
+            "arribos": arribos_tiempo,
+        }
+        if tiene_tiempos
+        else {}
+    )
+    return {
+        "tiene_coordenadas": tiene_coordenadas,
+        "tiene_tiempos": tiene_tiempos,
+        "estaciones_mapa": estaciones_mapa,
+        "tiempos_llegada": tiempos_llegada,
+    }
+
+
 def revisar_evento(
     workspace: Path,
     source_id: str,
@@ -708,6 +950,8 @@ def revisar_evento(
     puede_consultar = puede_consultar_base and any(
         fila.get("_streams") for fila in sin_arribos
     )
+    arribos_mapa = list(arribos)
+    sin_arribos_mapa = list(sin_arribos)
     if solo_disponibles:
         sin_arribos = [
             fila for fila in sin_arribos if fila.get("disponible_no_usada") is True
@@ -737,70 +981,8 @@ def revisar_evento(
         if fila.get("_estado_disponibilidad")
         == availability.ESTADO_NO_CONSULTADO
     )
-    event_time = _texto((evento or {}).get("event_time"))
-    instante_evento = _instante(event_time)
-    if instante_evento is not None:
-        event_time = instante_evento.isoformat(sep=" ")
-    event_lat = _numero((evento or {}).get("latitude"))
-    event_lon = _numero((evento or {}).get("longitude"))
-    estaciones_mapa = []
-    for fila in sin_arribos:
-        lat, lon = fila.get("lat"), fila.get("lon")
-        if lat is None or lon is None:
-            continue
-        estaciones_mapa.append(
-            {
-                "red": fila.get("red", ""),
-                "estacion": fila.get("estacion", ""),
-                "lat": lat,
-                "lon": lon,
-                "distancia_km": fila.get("distancia_num"),
-                "categoria": fila.get("_categoria", "normal"),
-                "evidencia": fila.get("evidencia", ""),
-                "formas_onda": fila.get("formas_onda", ""),
-                "disponible": fila.get("disponible", ""),
-                "streams": fila.get("streams_ids", ""),
-            }
-        )
-    arribos_tiempo = []
-    for fila in arribos:
-        lat, lon = fila.get("lat"), fila.get("lon")
-        distancia = _distancia_km(event_lat, event_lon, lat, lon)
-        if distancia is None:
-            grados = _numero(fila.get("distancia"))
-            if grados is not None:
-                distancia = abs(grados) * 111.19
-        segundos = None
-        instante_pick = _instante(fila.get("llegada"))
-        if instante_evento and instante_pick:
-            segundos = (instante_pick - instante_evento).total_seconds()
-        if distancia is None and segundos is None:
-            continue
-        arribos_tiempo.append(
-            {
-                "red": fila.get("red", ""),
-                "estacion": fila.get("estacion", ""),
-                "fase": fila.get("fase", ""),
-                "llegada": fila.get("llegada", ""),
-                "modo": fila.get("modo", ""),
-                "usada": fila.get("usada", ""),
-                "lat": lat,
-                "lon": lon,
-                "distancia_km": distancia,
-                "segundos": segundos,
-            }
-        )
-    tiene_coordenadas = bool(estaciones_mapa)
-    tiene_tiempos = bool(event_time) and bool(estaciones_mapa or arribos_tiempo)
-    tiempos_llegada = (
-        {
-            "event_time": event_time,
-            "evento": {"lat": event_lat, "lon": event_lon},
-            "estaciones": estaciones_mapa,
-            "arribos": arribos_tiempo,
-        }
-        if tiene_tiempos
-        else {}
+    datos_mapa = _datos_mapa_tiempos(
+        evento, arribos_mapa, sin_arribos_mapa
     )
     return {
         "fuente": source_id,
@@ -831,10 +1013,10 @@ def revisar_evento(
         "consulta_omitidas": consulta_omitidas,
         "consulta_pendientes": consulta_pendientes,
         "consulta_requiere_todas": consulta_omitidas > 0,
-        "tiene_coordenadas": tiene_coordenadas,
-        "tiene_tiempos": tiene_tiempos,
-        "estaciones_mapa": estaciones_mapa,
-        "tiempos_llegada": tiempos_llegada,
+        "tiene_coordenadas": datos_mapa["tiene_coordenadas"],
+        "tiene_tiempos": datos_mapa["tiene_tiempos"],
+        "estaciones_mapa": datos_mapa["estaciones_mapa"],
+        "tiempos_llegada": datos_mapa["tiempos_llegada"],
         **filtros,
     }
 
