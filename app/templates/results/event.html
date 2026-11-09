@@ -444,6 +444,9 @@
 {% if revision_estaciones and (revision_estaciones.tiene_coordenadas or revision_estaciones.tiene_tiempos) %}
 {% include "results/_estaciones_mapa_tiempos.html" %}
 {% endif %}
+{% if revision_estaciones %}
+{% include "results/_indicador_consulta_ondas.html" %}
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

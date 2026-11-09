@@ -1,0 +1,10 @@
+{% if revision_estaciones and revision_estaciones.puede_consultar %}
+<div id="consulta-ondas-indicador"
+     class="consulta-ondas-indicador d-none d-print-none"
+     role="status" aria-live="polite">
+  <div class="d-flex align-items-center gap-2 bg-dark text-white rounded-pill px-3 py-2 shadow">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span id="consulta-ondas-texto" class="small"></span>
+  </div>
+</div>
+{% endif %}

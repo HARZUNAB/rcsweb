@@ -497,6 +497,8 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert 'id="btn-propagacion-consultar"' in html
     assert 'id="propagacion-estimadas"' in html
     assert 'id="propagacion-consulta-estado"' in html
+    assert 'id="consulta-ondas-indicador"' in html
+    assert 'id="consulta-ondas-texto"' in html
     assert html.count('id="btn-propagacion"') == 1
     assert html.count('id="propagacion-controles"') == 1
     assert 'id="tiempos-llegada-datos"' in html
@@ -681,6 +683,7 @@ def test_detalle_muestra_no_evaluable_sin_archivos(client, login, app):
     assert "Este trabajo no incluye la revisión de estaciones." in html
     assert 'id="btn-estaciones-mapa"' not in html
     assert 'id="btn-tiempos-llegada"' not in html
+    assert 'id="consulta-ondas-indicador"' not in html
 
 
 def test_detalle_no_muestra_revision_sin_capacidad(

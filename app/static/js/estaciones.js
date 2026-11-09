@@ -54,6 +54,25 @@
     return document.getElementById("disponibilidad-estado");
   }
 
+  function mostrarIndicadorConsulta(texto) {
+    var indicador = document.getElementById("consulta-ondas-indicador");
+    if (!indicador) {
+      return;
+    }
+    var textoEl = document.getElementById("consulta-ondas-texto");
+    if (textoEl) {
+      textoEl.textContent = texto || "Consultando formas de onda…";
+    }
+    indicador.classList.remove("d-none");
+  }
+
+  function ocultarIndicadorConsulta() {
+    var indicador = document.getElementById("consulta-ondas-indicador");
+    if (indicador) {
+      indicador.classList.add("d-none");
+    }
+  }
+
   function mostrarEstado(texto, clase) {
     var aviso = estadoElemento();
     if (aviso) {
@@ -75,6 +94,11 @@
       }
       propagacion.className = "small " + color;
       propagacion.textContent = texto;
+    }
+    if (clase === "alert-info") {
+      mostrarIndicadorConsulta(texto);
+    } else {
+      ocultarIndicadorConsulta();
     }
   }
 

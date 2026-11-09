@@ -999,6 +999,14 @@ progreso tanto en el panel como en `#propagacion-consulta-estado`, y
 `bloquearBotonesConsulta` habilita/deshabilita los tres botones de consulta.
 `actualizarResumenEstimadas` cuenta las estaciones visibles por estado.
 
+Además, `mostrarEstado` controla el indicador global
+`#consulta-ondas-indicador`, incluido desde `results/event.html` cuando
+`puede_consultar`. Con `alert-info` llama a `mostrarIndicadorConsulta()` y
+muestra el spinner y el texto con tiempo y avance; con éxito, warning o error
+llama a `ocultarIndicadorConsulta()`. Como ambos puntos de consulta pasan por
+`encolar()` y `mostrarEstado()`, el indicador aparece desde **Sin arribos**,
+**Consultar todas** o **Propagación** sin lógica adicional.
+
 La consulta no genera tiempos de arribo: la estación sigue siendo `estimada`
 para el frente. Solo cambia la certeza sobre la disponibilidad de ondas.
 

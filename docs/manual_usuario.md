@@ -430,6 +430,17 @@ mismos límites y mismo sondeo. Al terminar, se actualizan el panel, el mapa y
 el contador. Las estaciones que queden fuera de la consulta permanecen como
 **sin consultar**.
 
+Al iniciar la consulta, desde cualquiera de los dos botones, aparece un
+**indicador fijo en la esquina inferior derecha** con un spinner y el tiempo
+transcurrido:
+
+```text
+⟳ Consultando 44 de 44 estaciones… (12 s)
+```
+
+El indicador permanece visible aunque cambie de solapa o esté mirando el mapa,
+y desaparece al terminar, al fallar o al quedar detenida la consulta.
+
 La consulta de formas de onda **no entrega un tiempo de arribo**. Por eso la
 estación sigue siendo **estimada** para la propagación; lo que cambia es la
 certeza sobre si había datos y no se usó, o si no hay datos.

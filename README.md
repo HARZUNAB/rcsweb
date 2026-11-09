@@ -123,9 +123,11 @@ referencia y una línea de tiempo sincronizada. Desde la barra de propagación s
 pueden **consultar las formas de onda** de las estaciones estimadas: el resultado
 las marca como sin consultar, sin datos verificados o disponibles y no usadas.
 La consulta reutiliza el mismo flujo y los mismos límites que la solapa **Sin
-arribos**. Nada se dibuja hasta que el usuario pulsa el botón. Los controles
-también aparecen al abrir un evento desde Paneles con **Ver**, porque usan el
-mismo detalle; no aparecen en los mapas de grupo con varios eventos.
+arribos**, y un indicador global muestra el avance y el tiempo transcurrido desde
+cualquiera de los dos puntos de consulta. Nada se dibuja hasta que el usuario
+pulsa el botón. Los controles también aparecen al abrir un evento desde Paneles
+con **Ver**, porque usan el mismo detalle; no aparecen en los mapas de grupo con
+varios eventos.
 
 Variables principales en `.env`:
 
