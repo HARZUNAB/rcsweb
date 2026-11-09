@@ -22,7 +22,7 @@ def test_registro_de_formatos():
     assert "inventario" in formato("seiscomp").capacidades
     assert "excluidos" in formato("seisan").capacidades
     assert "percibidos" in formato("eventquery").capacidades
-    assert SCHEMA_VERSION == "1.0"
+    assert SCHEMA_VERSION == "1.1"
 
 
 def test_adaptadores_entregan_plan_y_catalogo():

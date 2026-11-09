@@ -10,7 +10,12 @@ celery = Celery(
     "rcsweb",
     broker=os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0"),
     backend=os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1"),
-    imports=("tasks.jobs", "tasks.catalogs"),
+    imports=(
+        "tasks.jobs",
+        "tasks.catalogs",
+        "tasks.availability",
+        "tasks.amplification",
+    ),
 )
 
 celery.conf.update(

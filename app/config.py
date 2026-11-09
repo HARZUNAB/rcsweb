@@ -60,6 +60,23 @@ class Config:
     CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
     CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
 
+    # Servicio auxiliar de disponibilidad de formas de onda
+    RCS_DISPONIBILIDAD_URL = os.environ.get(
+        "RCS_DISPONIBILIDAD_URL", ""
+    ).strip()
+    RCS_DISPONIBILIDAD_TOKEN = os.environ.get(
+        "RCS_DISPONIBILIDAD_TOKEN", ""
+    ).strip()
+    RCS_DISPONIBILIDAD_TIMEOUT = int(
+        os.environ.get("RCS_DISPONIBILIDAD_TIMEOUT") or 240
+    )
+    RCS_DISPONIBILIDAD_MAX_ESTACIONES = int(
+        os.environ.get("RCS_DISPONIBILIDAD_MAX_ESTACIONES") or 150
+    )
+    RCS_DISPONIBILIDAD_MAX_STREAMS = int(
+        os.environ.get("RCS_DISPONIBILIDAD_MAX_STREAMS") or 5000
+    )
+
 
 class TestConfig(Config):
     TESTING = True

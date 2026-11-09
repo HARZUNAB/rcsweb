@@ -507,3 +507,45 @@ footer {
     animation: none;
   }
 }
+
+/* Revisión de estaciones: colores y negritas del proyecto base. */
+.pick-manual-usada,
+.table > tbody > tr.pick-manual-usada > td {
+  color: #c0392b;
+  font-weight: 700;
+}
+
+.pick-manual-sin-usar,
+.table > tbody > tr.pick-manual-sin-usar > td {
+  color: #b9770e;
+}
+
+.no-picada-verificada,
+.table > tbody > tr.no-picada-verificada > td {
+  background-color: #d4f5dd;
+  color: #14532d;
+  font-weight: 700;
+}
+
+.no-picada-verificada-lejos,
+.table > tbody > tr.no-picada-verificada-lejos > td {
+  color: #1a7f37;
+}
+
+.no-picada-indicio,
+.table > tbody > tr.no-picada-indicio > td {
+  background-color: #fff4d6;
+  color: #7a4b00;
+  font-weight: 700;
+}
+
+.no-picada-indicio-lejos,
+.table > tbody > tr.no-picada-indicio-lejos > td {
+  color: #9a6a00;
+}
+
+.no-picada-sin-evidencia,
+.table > tbody > tr.no-picada-sin-evidencia > td {
+  font-weight: 700;
+}
+

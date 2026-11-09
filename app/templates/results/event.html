@@ -223,6 +223,196 @@
 </div>
 {% endif %}
 
+{% if revision_estaciones %}
+<div class="card border-0 shadow-sm mb-3" id="estaciones">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+      <div>
+        <h2 class="h6 text-uppercase text-secondary mb-1">Revisión de estaciones</h2>
+        <div class="small text-secondary">
+          Arribos de la solución y estaciones del inventario que quedaron sin arribos.
+        </div>
+      </div>
+    </div>
+
+    {% if revision_estaciones.estado == 'no_evaluable' %}
+    <div class="alert alert-light border mb-0" role="status">
+      <strong>No evaluable:</strong> {{ revision_estaciones.motivo }}
+    </div>
+    {% else %}
+    <details class="mb-3">
+      <summary class="small text-secondary">Qué significa cada columna</summary>
+      <div class="row small mt-2 g-2">
+        <div class="col-12 col-lg-6">
+          <dl class="row mb-0">
+            <dt class="col-5 fw-normal text-secondary">Fase</dt>
+            <dd class="col-7 mb-1">Nombre de la fase sísmica (P, S, etc.).</dd>
+            <dt class="col-5 fw-normal text-secondary">Llegada</dt>
+            <dd class="col-7 mb-1">Hora UTC del arribo.</dd>
+            <dt class="col-5 fw-normal text-secondary">Loc</dt>
+            <dd class="col-7 mb-1">Código de localización SEED.</dd>
+            <dt class="col-5 fw-normal text-secondary">Canal</dt>
+            <dd class="col-7 mb-1">Código de canal SEED.</dd>
+            <dt class="col-5 fw-normal text-secondary">Resid. (s)</dt>
+            <dd class="col-7 mb-1">Diferencia entre el tiempo observado y el teórico.</dd>
+            <dt class="col-5 fw-normal text-secondary">Azimut (°)</dt>
+            <dd class="col-7 mb-1">Ángulo desde el epicentro hacia la estación.</dd>
+            <dt class="col-5 fw-normal text-secondary">Dist. (°)</dt>
+            <dd class="col-7 mb-1">Distancia angular epicentro-estación.</dd>
+            <dt class="col-5 fw-normal text-secondary">Usada</dt>
+            <dd class="col-7 mb-1">Si el arribo entró en la solución.</dd>
+            <dt class="col-5 fw-normal text-secondary">Tipo</dt>
+            <dd class="col-7 mb-1">Pick manual o automático.</dd>
+            <dt class="col-5 fw-normal text-secondary">Peso</dt>
+            <dd class="col-7 mb-1">Peso del arribo en la solución, de 0 a 1.</dd>
+            <dt class="col-5 fw-normal text-secondary">SNR</dt>
+            <dd class="col-7 mb-1">Relación señal/ruido de la señal del pick.</dd>
+            <dt class="col-5 fw-normal text-secondary">QC</dt>
+            <dd class="col-7 mb-1">Control de calidad: aprobado, rechazado o sin evaluar.</dd>
+          </dl>
+        </div>
+        <div class="col-12 col-lg-6">
+          <dl class="row mb-0">
+            <dt class="col-5 fw-normal text-secondary">Mag. est.</dt>
+            <dd class="col-7 mb-1">Magnitud calculada por la estación.</dd>
+            <dt class="col-5 fw-normal text-secondary">Tipo mag.</dt>
+            <dd class="col-7 mb-1">Tipo de magnitud de estación.</dd>
+            <dt class="col-5 fw-normal text-secondary">Resid. mag.</dt>
+            <dd class="col-7 mb-1">Residual de la magnitud de estación.</dd>
+            <dt class="col-5 fw-normal text-secondary">Lugar / Elev.</dt>
+            <dd class="col-7 mb-1">Lugar y elevación de la estación.</dd>
+            <dt class="col-5 fw-normal text-secondary">Dist. (km)</dt>
+            <dd class="col-7 mb-1">Distancia epicentro-estación en kilómetros.</dd>
+            <dt class="col-5 fw-normal text-secondary">Streams</dt>
+            <dd class="col-7 mb-1">Streams vigentes. Se muestra el de referencia; use «Ver todos» para la lista completa.</dd>
+            <dt class="col-5 fw-normal text-secondary">Evidencia</dt>
+            <dd class="col-7 mb-1">Verificado, indicio, sin evidencia o sin consultar.</dd>
+            <dt class="col-5 fw-normal text-secondary">Formas de onda</dt>
+            <dd class="col-7 mb-1">SDS, tiempo real, sin datos o no consultado.</dd>
+            <dt class="col-5 fw-normal text-secondary">Cobertura</dt>
+            <dd class="col-7 mb-1">Intervalo con formas de onda encontradas.</dd>
+            <dt class="col-5 fw-normal text-secondary">Disp. no usada</dt>
+            <dd class="col-7 mb-1">Sí cuando hay formas de onda y la estación no tiene arribos en la solución.</dd>
+            <dt class="col-5 fw-normal text-secondary">Actividad ±2 h</dt>
+            <dd class="col-7 mb-1">Otros eventos en los que la estación picó dentro de ±2 h. Es un indicio, no una prueba.</dd>
+            <dt class="col-5 fw-normal text-secondary">País</dt>
+            <dd class="col-7 mb-1">País de la estación.</dd>
+          </dl>
+        </div>
+      </div>
+    </details>
+    {% set base_url = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver) %}
+    {% set url_solo_no_usadas = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, no_usadas=1) %}
+    <ul class="nav nav-tabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-arribos" data-bs-toggle="tab"
+                data-bs-target="#panel-arribos" type="button" role="tab"
+                aria-controls="panel-arribos" aria-selected="true">
+          Con arribos
+          <span class="badge text-bg-secondary">{{ revision_estaciones.resumen.arribos }}</span>
+        </button>
+      </li>
+      {% if revision_estaciones.tiene_sin_arribos %}
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-sin-arribos" data-bs-toggle="tab"
+                data-bs-target="#panel-sin-arribos" type="button" role="tab"
+                aria-controls="panel-sin-arribos" aria-selected="false">
+          Sin arribos
+          <span class="badge text-bg-secondary">{{ revision_estaciones.resumen.sin_arribos }}</span>
+        </button>
+      </li>
+      {% endif %}
+    </ul>
+    <div class="tab-content border border-top-0 rounded-bottom p-3">
+      <div class="tab-pane fade show active" id="panel-arribos" role="tabpanel"
+           aria-labelledby="tab-arribos">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <div class="small text-secondary">{{ revision_estaciones.resumen.texto }}</div>
+          <div class="d-flex flex-wrap gap-2">
+            {% if revision_estaciones.solo_no_usadas %}
+            <a class="btn btn-sm btn-outline-secondary" href="{{ base_url }}">
+              Quitar filtro
+            </a>
+            {% else %}
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_solo_no_usadas }}">
+              Solo no utilizadas
+            </a>
+            {% endif %}
+            {% if revision_estaciones.grupos %}
+            <a class="btn btn-sm btn-outline-primary" download
+               href="{{ url_for('results.estaciones_csv', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, tipo='arribos', no_usadas=1 if revision_estaciones.solo_no_usadas else none) }}">
+              Descargar arribos
+            </a>
+            {% endif %}
+          </div>
+        </div>
+        {% if revision_estaciones.solo_no_usadas %}
+        <div class="alert alert-light border small py-2">
+          Mostrando solo los arribos que la solución no utilizó.
+        </div>
+        {% endif %}
+        <div class="small mb-2">
+          <strong>Colores de las llegadas:</strong>
+          <span class="pick-manual-usada ms-2">
+            Rojo y negrita: pick manual usado en la solución
+          </span>
+          <span class="pick-manual-sin-usar ms-2">
+            Ámbar: pick manual no usado
+          </span>
+          <span class="ms-2">Sin resaltado: pick automático</span>
+          <div class="text-secondary mt-1">
+            El color indica la procedencia del pick, no su calidad.
+          </div>
+        </div>
+        {% if revision_estaciones.grupos %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                {% for clave, titulo in revision_estaciones.columnas_arribos %}
+                <th>{{ titulo }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for grupo in revision_estaciones.grupos %}
+              <tr class="table-light">
+                <td colspan="{{ revision_estaciones.columnas_arribos|length }}">
+                  <strong>{{ grupo.etiqueta }}</strong>
+                  <span class="text-secondary small">
+                    {{ grupo.total }} arribo{{ '' if grupo.total == 1 else 's' }}
+                    · {{ grupo.usadas }} usada{{ '' if grupo.usadas == 1 else 's' }}
+                    {% if grupo.no_usadas %}· {{ grupo.no_usadas }} sin usar{% endif %}
+                  </span>
+                </td>
+              </tr>
+              {% for item in grupo.filas %}
+              <tr class="{{ item.get('_clase', '') }}">
+                {% for clave, titulo in revision_estaciones.columnas_arribos %}
+                <td>{{ item.get(clave, '') or '—' }}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-secondary small">No hay arribos para mostrar con este filtro.</div>
+        {% endif %}
+      </div>
+      {% if revision_estaciones.tiene_sin_arribos %}
+      <div class="tab-pane fade" id="panel-sin-arribos" role="tabpanel"
+           aria-labelledby="tab-sin-arribos">
+        {% include "results/_estaciones_sin_arribos.html" %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 {% if puntos_mapa %}
 {% set url_offline = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, mapa='offline') %}
 {% set url_online = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, mapa='online') %}
@@ -253,6 +443,9 @@
 {% endblock %}
 
 {% block scripts %}
+{% if revision_estaciones %}
+<script src="{{ url_for('static', filename='js/estaciones.js') }}"></script>
+{% endif %}
 {% if mapa_modo == 'online' and puntos_mapa %}
 <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
 {% endif %}

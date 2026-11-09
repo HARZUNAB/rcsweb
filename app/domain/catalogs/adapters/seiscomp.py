@@ -44,6 +44,13 @@ class Adaptador(Base):
     def catalogo(self, job, referencia: str) -> str:
         return "datos/seiscomp_parametros.csv"
 
+    def extensiones(self, job, referencia: str) -> dict[str, str]:
+        base = f"seiscomp_{job.inicio14}_{job.fin14}"
+        return {
+            "arribos": f"{base}_fases.csv",
+            "estaciones_sin_arribos": f"{base}_no_picadas.csv",
+        }
+
     def archivo_no_publicados(self, source_id: str) -> str:
         return "no_pub_desde_2_5_seiscomp_estricto.csv"
 

@@ -1,13 +1,14 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 
-.PHONY: help up down restart logs ps shell test lint fmt init-db migrate ping-db restore-csn clean
+.PHONY: help up down restart logs ps shell test lint fmt init-db migrate ping-db restore-csn clean disponibilidad
 
 help:
 	@echo "Objetivos disponibles:"
 	@echo "  make up          Aplica migraciones y levanta web, worker, db y redis"
 	@echo "  make down        Detiene los servicios (conserva datos)"
 	@echo "  make restart     Reinicia web y worker"
+	@echo "  make disponibilidad  Construye y levanta el servicio de formas de onda"
 	@echo "  make logs        Sigue los logs de todos los servicios"
 	@echo "  make ps          Estado de los servicios"
 	@echo "  make shell       Shell dentro del contenedor web"
@@ -28,6 +29,9 @@ down:
 
 restart:
 	$(COMPOSE) restart web worker
+
+disponibilidad:
+	$(COMPOSE) up -d --build disponibilidad
 
 logs:
 	$(COMPOSE) logs -f

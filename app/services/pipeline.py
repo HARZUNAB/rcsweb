@@ -25,8 +25,9 @@ from pathlib import Path
 from flask import current_app
 
 from ..domain.catalogs import manifest as fuentes_manifest
-from ..domain.catalogs.canonical import escribir_desde_csv
+from ..domain.catalogs.canonical import escribir_desde_csv, escribir_extensiones
 from ..domain.catalogs.registry import adaptador as obtener_adaptador
+from ..domain.catalogs.registry import formato as formato_info
 from ..extensions import db
 from ..models import Job, JobArtifact, JobStep
 from .audit import registrar
@@ -331,14 +332,34 @@ def _planes_a_pasos(
             ) -> None:
                 if _post is not None:
                     _post(workspace)
-                ruta = Path(workspace) / _adapter.catalogo(job, eventquery)
+                raiz = Path(workspace)
+                ruta = raiz / _adapter.catalogo(job, eventquery)
+                try:
+                    crudo = formato_info(_formato).archivo.format(
+                        inicio=job.inicio14, fin=job.fin14
+                    )
+                except (KeyError, ValueError):
+                    crudo = ""
                 escribir_desde_csv(
-                    Path(workspace),
+                    raiz,
                     _source_id,
                     _formato,
                     ruta,
                     es_referencia=_es_referencia,
+                    ruta_cruda=(raiz / crudo) if crudo else None,
                 )
+                try:
+                    extensiones = _adapter.extensiones(job, eventquery)
+                except (AttributeError, ValueError):
+                    extensiones = {}
+                if extensiones:
+                    escribir_extensiones(
+                        raiz,
+                        _source_id,
+                        _formato,
+                        extensiones,
+                        radio_km=getattr(job, "station_radius_km", None),
+                    )
 
             post = _post
 

@@ -48,6 +48,11 @@ def ruta_workspace(job_id: str) -> Path:
     return raiz / str(job_id)
 
 
+def ruta_solicitud(request_id: str) -> Path:
+    raiz = Path(current_app.config["WORKSPACE_ROOT"]).resolve()
+    return raiz / "solicitudes" / str(request_id)
+
+
 def crear_workspace(job_id: str) -> Path:
     workspace = ruta_workspace(job_id)
     for nombre in SUBDIRECTORIOS:
@@ -101,6 +106,10 @@ def preparar_entradas(job: Job) -> Path:
     """Copia los uploads a los nombres canónicos y enlaza los insumos."""
     workspace = crear_workspace(job.id)
     formatos = {source.kind: source.format_efectivo for source in job.sources}
+    from ..domain.catalogs import manifest as fuentes_manifest
+    from ..domain.catalogs.registry import adaptador as obtener_adaptador
+
+    referencia = fuentes_manifest.referencia().id
     for archivo in job.files:
         destino = workspace / archivo.stored_name
         if not destino.is_file():
@@ -110,8 +119,48 @@ def preparar_entradas(job: Job) -> Path:
         objetivo = workspace / canonico
         if not objetivo.exists():
             shutil.copy2(destino, objetivo)
+        _traer_extensiones(
+            job, workspace, archivo.kind, formato, referencia, obtener_adaptador
+        )
     enlazar_insumos(workspace)
     return workspace
+
+
+def _traer_extensiones(
+    job: Job,
+    workspace: Path,
+    kind: str,
+    formato: str,
+    referencia: str,
+    obtener_adaptador,
+) -> None:
+    """Copia las extensiones disponibles junto a la entrada canónica.
+
+    En solicitudes SSH los archivos ``_fases.csv`` y ``_no_picadas.csv`` viven
+    en ``solicitudes/<id>/files``. En cargas manuales solo existen si el usuario
+    los dejó junto al archivo principal. Si no están, el trabajo sigue: la app
+    mostrará «no evaluable» en la revisión de estaciones.
+    """
+    try:
+        adapter = obtener_adaptador(formato)
+        extensiones = adapter.extensiones(job, referencia)
+    except (ValueError, AttributeError):
+        return
+    for relativa in extensiones.values():
+        objetivo = workspace / relativa
+        if objetivo.is_file():
+            continue
+        nombre = Path(relativa).name
+        candidatos = [workspace / "inputs" / f"{kind}__{nombre}"]
+        if job.catalog_request_id:
+            candidatos.append(
+                ruta_solicitud(job.catalog_request_id) / "files" / nombre
+            )
+        candidatos.append(workspace / "files" / nombre)
+        for candidato in candidatos:
+            if candidato.is_file():
+                shutil.copy2(candidato, objetivo)
+                break
 
 
 def ruta_log(workspace: Path) -> Path:

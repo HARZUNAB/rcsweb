@@ -222,6 +222,156 @@ Más abajo está el perfil de subducción.
   - con varias soluciones cercanas se acerca lo necesario para distinguirlas;
   - si el grupo está disperso, mantiene todos los eventos a la vista.
 
+## Revisión de estaciones
+
+En el detalle de un evento de una fuente local aparece la sección **Revisión de
+estaciones**, con dos solapas:
+
+- **Con arribos:** muestra los arribos de la solución agrupados por estación. El
+  botón **Solo no utilizadas** deja a la vista únicamente los arribos que la
+  solución no usó; **Quitar filtro** vuelve a la lista completa.
+- **Sin arribos:** muestra las estaciones del inventario que quedaron dentro del
+  radio de exportación y no tienen arribos en el evento. «Sin arribos» **no**
+  significa «no grabó»: significa que la fuente no registra una llegada de esa
+  estación para este evento.
+
+Para saber si una estación **estaba grabando y no se usó**, la consulta de formas
+de onda se inicia automáticamente al abrir la solapa **Sin arribos**. La
+consulta revisa el archivo SDS y, si no encuentra datos, el tiempo real.
+
+Mientras corre:
+
+- la tabla sin verificar se muestra de inmediato;
+- aparece el estado **Consulta en curso**;
+- se puede seguir usando la página o cambiar de solapa;
+- al terminar, la tabla se actualiza en el lugar y aparece el aviso
+  **Disponibilidad actualizada**, sin recargar toda la página.
+
+Si se cambia de evento o se recarga la página, la consulta continúa en segundo
+plano. Al volver, se retoma el estado o se muestra directamente el resultado
+guardado en caché.
+
+El botón **Consultar formas de onda** permite iniciar la consulta manualmente.
+Cuando ya hay resultados, cambia a **Volver a consultar formas de onda** para
+actualizarlos.
+
+Después de la consulta:
+
+- **Formas de onda** indica **SDS**, **Tiempo real**, **Sin datos** o
+  **No consultado**.
+- **Evidencia** distingue **Verificado (SDS)**, **Verificado (tiempo real)**,
+  **Indicio (actividad)**, **Sin evidencia** y **Sin consultar**.
+- **Disp. no usada** queda en **Sí** cuando hay formas de onda.
+- El filtro **Solo disponibles no usadas** deja únicamente las estaciones que
+  estaban grabando y no se usaron en la solución.
+- Las filas verificadas se resaltan en verde; las que solo tienen indicio por
+  actividad, en ámbar.
+
+La solapa **Sin arribos** solo aparece si la fuente declara esa capacidad. Cada
+tabla se puede descargar como CSV y la descarga respeta el filtro activo.
+
+La tabla usa encabezados cortos. El bloque **«Qué significa cada columna»**, que
+aparece arriba de las tablas, explica los términos técnicos: **QC**, **SNR**,
+**Resid.**, **Azimut**, **Dist.**, **Peso**, **Actividad ±2 h**, **Cobertura**,
+**Evidencia** y **Disp. no usada**. Los valores de tipo de pick y control de
+calidad se muestran traducidos: **Manual**, **Automático**, **Aprobado**,
+**Rechazado** y **Sin evaluar**.
+
+La columna **Streams** muestra el stream de referencia de la estación. Si hay
+más de uno, el enlace **Ver todos** abre la lista completa en una ventana. El
+CSV conserva la lista completa de streams, no solo el de referencia.
+
+### Filtros de “Sin arribos”
+
+Sobre la tabla hay tres controles:
+
+- **Radio a mostrar (km):** recorta la lista ya exportada. Por defecto usa el
+  radio con el que se generó el trabajo. Si se indica un radio mayor, al pulsar
+  **Aplicar** se consulta el inventario de SeisComp y se abre una vista
+  ampliada.
+- **Resaltar cerca ≤ (km):** cambia los colores y las negritas. No recorta la
+  lista. Por defecto son 50 km.
+- **Solo cercanas:** deja únicamente las estaciones dentro del umbral de
+  cercanía.
+- **Sin límite:** consulta el inventario de SeisComp sin tope de distancia.
+
+Los filtros locales se aplican en el momento. El botón **Aplicar** sirve como
+respaldo si el navegador no ejecuta JavaScript. La línea de estado indica
+cuántas estaciones se muestran y cuántas quedaron resaltadas. La descarga CSV
+respeta los mismos filtros.
+
+### Vista ampliada contra la base
+
+Cuando el radio supera el exportado o se marca **Sin límite**, la aplicación
+recalcula las estaciones contra el inventario vigente de SeisComp. Mientras
+consulta muestra:
+
+```text
+Consultando la base de SeisComp…
+```
+
+Al terminar, la misma página muestra la **vista ampliada**, con un aviso y un
+enlace **Volver a la lista exportada**. La tabla ampliada conserva los filtros,
+los colores, la leyenda, las descargas y el botón **Consultar formas de onda**.
+
+La ampliación consulta inventario y actividad; **no** comprueba formas de onda.
+Para saber si una estación ampliada estaba grabando, use después **Consultar
+formas de onda**.
+
+Si el evento no trae la base de datos de origen, la ampliación no estará
+disponible y habrá que reexportar la ventana con la versión actual.
+
+### Límite de la consulta de formas de onda
+
+Consultar las ondas de una lista ampliada puede tardar mucho. Por eso:
+
+- por defecto se consultan las estaciones **visibles** y, si hay más de 150, las
+  **150 más cercanas**;
+- las estaciones que quedan fuera del límite permanecen como **No consultado**;
+- si hay estaciones omitidas, aparece **Consultar todas (N)**;
+- **Consultar todas** pide confirmación, se ejecuta por lotes en segundo plano y
+  puede tardar varios minutos.
+
+La línea de estado indica cuántas estaciones se están consultando. Al terminar,
+si quedaron estaciones fuera del límite, se muestra un aviso.
+
+Los límites se pueden ajustar en `.env`:
+
+```dotenv
+RCS_DISPONIBILIDAD_MAX_ESTACIONES=150
+RCS_DISPONIBILIDAD_MAX_STREAMS=5000
+```
+
+### Colores de “Sin arribos”
+
+| Condición | Significado |
+|---|---|
+| **Cerca y verificado con ondas** | Fondo verde y negrita: estaba grabando y no se usó. |
+| **Cerca y con indicio por actividad** | Fondo ámbar y negrita: probablemente operaba, pero es una deducción. |
+| **Cerca y sin evidencia** | Solo negrita: se consultaron las ondas y no hay, ni actividad. Posible caída. |
+| **Lejos y verificado** | Texto verde, sin fondo. |
+| **Lejos y con indicio** | Texto ámbar, sin fondo. |
+| Lejos sin evidencia, o sin consultar | Sin resaltado. |
+
+### Colores de “Con arribos”
+
+| Condición | Estilo |
+|---|---|
+| Pick **manual usado** en la solución | Rojo y negrita. |
+| Pick **manual no usado** | Ámbar. |
+| Pick automático | Sin resaltado. |
+
+El color indica la procedencia del pick, no su calidad.
+
+Si la fuente declara la revisión pero el trabajo no trae los archivos
+necesarios, la sección muestra **No evaluable** con un motivo genérico. Los
+trabajos generados antes de esta versión también quedan como **No evaluable**,
+porque no se reprocesan.
+
+Si el servicio de formas de onda no está disponible en el entorno, el botón no
+aparece y la revisión de estaciones sigue funcionando con el estado
+**No consultado**.
+
 ## Paneles sismotectónicos
 
 Los paneles agrupan los eventos por perfil de subducción y, cuando no tienen

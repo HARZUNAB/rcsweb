@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 
 CAPACIDADES = {
     "eventos",
@@ -38,6 +38,15 @@ class EventoCanonico:
     status: str = ""
     is_preferred: bool = True
     is_published: bool = False
+    # Identidad de la fila en el archivo crudo. Permite enlazar los arribos y
+    # las estaciones sin arribos, que traen ``id_evento`` e ``id_origen``,
+    # sin depender de una tabla relacional.
+    source_event_id: str = ""
+    origin_id: str = ""
+    # Base de datos de SeisComp de la que salió la solución. Se usa para
+    # recalcular el inventario de estaciones al ampliar el radio.
+    database: str = ""
+    raw_index: int | None = None
     raw: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -83,6 +92,62 @@ class ArriboCanonico:
     snr: float | None = None
     qc: str = ""
     picker_probability: float | None = None
+    # Identidad en la fuente. ``event_id`` es el id canónico del evento y
+    # ``source_event_id`` el identificador que trae el archivo de arribos.
+    source_event_id: str = ""
+    pick_id: str = ""
+    time_correction_s: float | None = None
+    pick_author: str = ""
+    pick_agency: str = ""
+    pick_method: str = ""
+    station_magnitude: float | None = None
+    station_magnitude_type: str = ""
+    has_station_magnitude: str = ""
+    station_magnitude_residual: float | None = None
+    station_latitude: float | None = None
+    station_longitude: float | None = None
+    station_elevation_m: float | None = None
+    station_place: str = ""
+    station_country: str = ""
+    database: str = ""
+    raw: dict = field(default_factory=dict)
+
+
+@dataclass
+class EstacionSinArribosCanonica:
+    """Estación del inventario que no tiene arribos en el evento revisado.
+
+    No significa que no haya grabado: la exportación solo sabe qué estaciones
+    estaban configuradas dentro del radio y no aparecen en la solución.
+    """
+
+    source_id: str
+    event_id: str
+    source_event_id: str
+    origin_id: str
+    network: str
+    station: str
+    location: str
+    channel: str
+    streams: str = ""
+    stream_ids: str = ""
+    distance_km: float | None = None
+    station_latitude: float | None = None
+    station_longitude: float | None = None
+    station_elevation_m: float | None = None
+    station_place: str = ""
+    station_country: str = ""
+    radio_km: float | None = None
+    activity_window: int | None = None
+    evidence: str = ""
+    waveform_status: str = "NO_CONSULTADO"
+    availability_source: str = ""
+    coverage_from: str | None = None
+    coverage_to: str | None = None
+    raw: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
 @dataclass

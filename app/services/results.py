@@ -377,7 +377,15 @@ def _limpiar_columna(nombre: str) -> str:
 def leer_csv(ruta: Path) -> tuple[list[str], list[dict]]:
     with ruta.open(encoding="utf-8-sig", newline="") as archivo:
         lector = csv.DictReader(archivo)
-        columnas = [_limpiar_columna(c) for c in (lector.fieldnames or [])]
+        crudas = lector.fieldnames or []
+        columnas = [_limpiar_columna(c) for c in crudas]
+        # La primera columna sin nombre es el índice de la fila original. Se
+        # conserva como dato privado para enlazar el evento de la fuente con sus
+        # arribos y estaciones; no se muestra ni se exporta.
+        columna_indice = next(
+            (clave for clave in crudas if _limpiar_columna(clave) == ""),
+            None,
+        )
         filas = []
         for cruda in lector:
             fila = {}
@@ -385,6 +393,10 @@ def leer_csv(ruta: Path) -> tuple[list[str], list[dict]]:
                 limpia = _limpiar_columna(clave)
                 if limpia:
                     fila[limpia] = valor if valor is not None else ""
+            if columna_indice is not None:
+                indice = str(cruda.get(columna_indice) or "").strip()
+                if indice.isdigit():
+                    fila["_indice_crudo"] = int(indice)
             filas.append(fila)
     return [c for c in columnas if c], filas
 

@@ -43,6 +43,15 @@ class Adaptador:
         """Ruta relativa del CSV plano normalizado de esta fuente."""
         raise NotImplementedError
 
+    def extensiones(self, job, referencia: str) -> dict[str, str]:
+        """Archivos adicionales junto a la entrada, por clave canónica.
+
+        Las claves son ``arribos`` y ``estaciones_sin_arribos``. Las rutas son
+        relativas al workspace del trabajo. Una fuente que no aporta
+        estaciones devuelve un diccionario vacío.
+        """
+        return {}
+
     def prefijo_salida(self, source_id: str) -> str:
         return self.prefijo or f"{source_id}_"
 

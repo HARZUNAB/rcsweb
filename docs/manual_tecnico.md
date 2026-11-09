@@ -134,7 +134,7 @@ Los diagramas se regeneran con:
 | Seguridad | `users`, `audit_log` | Cuentas, roles y registro de acciones |
 | Solicitudes | `catalog_requests`, `catalog_request_files` | Pedidos de catálogos y archivos asociados |
 | Trabajos | `jobs`, `job_files`, `job_sources`, `job_steps`, `job_artifacts` | Ejecución, insumos, fuentes, pasos y descargas |
-| Catálogo canónico reservado | `catalog_events`, `stations`, `arrivals`, `waveform_availability` | Esquema futuro para eventos, estaciones, arribos y ondas |
+| Catálogo canónico reservado | `catalog_events`, `stations`, `arrivals`, `waveform_availability` | Esquema futuro; en esta versión los eventos, arribos y estaciones se guardan en archivos JSONL del workspace |
 | Migraciones | `alembic_version` | Revisión aplicada por Alembic |
 
 La relación de propiedad es `jobs.created_by_id → users.id`. Los trabajos
@@ -508,7 +508,7 @@ Ejemplo:
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "sources": [
     {
       "id": "referencia",
@@ -616,7 +616,13 @@ Columnas mínimas que valida la app:
 
 Los adaptadores normalizan a `Fecha_Hora`, `Latitud`, `Longitud`, `Prof.`,
 `Mag.`, `Tipo_mag.` y `Analista`. El catálogo canónico agrega `source_id`,
-`event_id`, `agency`, `status`, `is_preferred`, `is_published` y `raw`.
+`event_id`, `agency`, `status`, `is_preferred`, `is_published`, `raw`,
+`source_event_id`, `origin_id`, `database` y `raw_index`. `source_event_id` y
+`origin_id` conservan la identidad de la fila en la exportación original;
+`database` indica la base de SeisComp de la que salió la solución; `raw_index`
+es la
+posición de esa fila, recuperada de la columna 0 del CSV normalizado. Esos tres
+campos permiten enlazar las extensiones de estaciones sin una tabla relacional.
 
 `job_sources` registra las fuentes locales del trabajo: `kind`, `format`,
 `role`, `priority`, `capabilities` y el `catalog_file_id` cuando el archivo vino
@@ -648,6 +654,10 @@ Cada línea es un objeto `EventoCanonico`:
 | `status` | texto | `published` o `reported` |
 | `is_preferred` | booleano | Solución preferida |
 | `is_published` | booleano | Publicado en Eventquery |
+| `source_event_id` | texto | Identificador del evento en la exportación original |
+| `origin_id` | texto | Origen preferido de la solución en la fuente |
+| `database` | texto | Base de SeisComp de la que salió la solución |
+| `raw_index` | entero | Posición de la fila en el archivo crudo |
 | `raw` | JSON | Fila original normalizada |
 
 Los contratos de estación, arribo y disponibilidad de onda están definidos en
@@ -656,8 +666,280 @@ Los contratos de estación, arribo y disponibilidad de onda están definidos en
 | Contrato | Campos principales |
 |---|---|
 | `EstacionCanonica` | `source_id`, `network`, `station`, `location`, `channel`, coordenadas, elevación, profundidad, vigencia, `sample_rate`, `response`, `status` |
-| `ArriboCanonico` | `source_id`, `event_id`, `origin_id`, estación/canal, `phase`, `pick_time`, `pick_status`, `weight`, `residual`, `distance_km`, `azimuth`, `snr`, `qc`, `picker_probability` |
+| `ArriboCanonico` | `source_id`, `event_id`, `origin_id`, estación/canal, `phase`, `pick_time`, `pick_status`, `weight`, `residual`, `distance_km`, `azimuth`, `snr`, `qc`, `picker_probability`; además `source_event_id`, `pick_id`, corrección, autor/agencia/método del pick, magnitud de estación, inventario y `raw` |
+| `EstacionSinArribosCanonica` | `source_id`, `event_id`, `source_event_id`, `origin_id`, estación/canal, streams vigentes, distancia, inventario, `radio_km`, `actividad_ventana`, `evidencia`, `waveform_status`, cobertura y `raw` |
 | `DisponibilidadOnda` | `source_id`, `event_id`, estación/canal, ventana, `status`, `source`, cobertura, `checked_at`, `error` |
+
+#### Extensiones del catálogo
+
+Además de `eventos.jsonl`, cada fuente puede escribir extensiones opcionales en
+la misma carpeta:
+
+```text
+workspace/<job_id>/catalogo/<source_id>/
+  eventos.jsonl
+  arribos.jsonl
+  estaciones_sin_arribos.jsonl
+  disponibilidad.jsonl      # caché generada por la consulta bajo demanda
+  ampliaciones/             # resultados de ampliación contra SeisComp
+  meta.json
+```
+
+`meta.json` registra la versión del contrato, el formato, las capacidades, la
+fecha de generación, el radio de estaciones y qué extensiones están presentes.
+Una extensión ausente no invalida el trabajo: queda con `present: false` y la
+revisión de estaciones muestra «no evaluable» en lugar de ocultar la sección.
+
+La escritura es tolerante a archivos faltantes. Si una fuente declara la
+capacidad `arribos` pero el trabajo no trae los archivos, la app sigue
+funcionando y explica el motivo con un mensaje genérico.
+
+#### Revisión de estaciones por evento
+
+El detalle de un evento local muestra la sección **Revisión de estaciones**
+cuando la fuente declara la capacidad `arribos`. La sección se arma con
+`app/services/station_review.py` y tiene dos solapas:
+
+- **Con arribos:** llegadas de la solución agrupadas por estación, con fase,
+  hora, canal, residual, azimut, distancia, uso, procedencia del pick, peso, SNR,
+  magnitud de estación, QC e inventario. El filtro **Solo no utilizadas** deja
+  únicamente los arribos que la solución no usó.
+- **Sin arribos:** estaciones del inventario que quedaron dentro del radio de
+  exportación y no tienen arribos en el origen preferido. La sección recuerda
+  que «sin arribos» no significa «no grabó»: indica solo que la estación estaba
+  configurada y no aparece en la solución. La columna **Formas de onda** y el
+  botón **Consultar formas de onda** permiten verificar si la estación estaba
+  grabando; sin esa consulta, el estado es **No consultado**.
+
+Las tablas usan encabezados cortos y un glosario plegable (**«Qué significa
+cada columna»**), sin tooltips de encabezado para no recargar la interfaz. Los
+valores de tipo de pick y control de calidad se traducen a **Manual**,
+**Automático**, **Aprobado**, **Rechazado** y **Sin evaluar**. La columna
+**Streams** muestra solo el stream de referencia; el enlace **Ver todos** abre
+la lista completa en un modal. El CSV conserva la lista completa en la columna
+`streams_vigentes`.
+
+#### Filtros y categorías visuales
+
+Los filtros de **Sin arribos** viajan por la URL:
+
+| Parámetro | Uso |
+|---|---|
+| `radio_km` | Radio de recorte de la lista; se limita al radio exportado |
+| `cerca_km` | Umbral de cercanía para colores y negritas; por defecto 50 km |
+| `solo_cercanas=1` | Deja solo las filas dentro de `cerca_km` |
+| `disponibles=1` | Filtro existente de disponibles y no usadas |
+
+`station_review._filtros_sin_arribos()` calcula `radio_exportado`,
+`radio_mostrar`, `radio_limitado`, `mostradas`, `resaltadas` y `texto_estado`.
+Las filas no se eliminan del servicio para el render: el parcial las incluye
+todas y el JavaScript las oculta o muestra. El CSV sí se filtra en el servidor
+con `filas_visibles()`.
+
+Cada fila de sin arribos lleva `_categoria`:
+
+| Categoría | Condición | Clase CSS |
+|---|---|---|
+| `verificado` | Hay formas de onda (`CON_DATOS`) | `no-picada-verificada` (cerca) o `no-picada-verificada-lejos` |
+| `indicio` | Evidencia por actividad ±2 h | `no-picada-indicio` (cerca) o `no-picada-indicio-lejos` |
+| `sin_evidencia` | Se consultó y no hay ondas ni actividad | `no-picada-sin-evidencia` solo si está cerca |
+| `normal` | Sin consultar o lejos sin evidencia | Sin clase |
+
+Los colores y las negritas siguen al proyecto base:
+
+- cerca y verificado: fondo verde y negrita;
+- cerca e indicio: fondo ámbar y negrita;
+- cerca y sin evidencia: solo negrita;
+- lejos y verificado: texto verde;
+- lejos e indicio: texto ámbar;
+- sin consultar: sin resaltado.
+
+En **Con arribos**, cada fila recibe `pick-manual-usada` si el pick manual entró
+en la solución, `pick-manual-sin-usar` si quedó fuera, y ninguna clase si es
+automático.
+
+Reglas de visualización:
+
+- Si la fuente no declara `arribos`, la sección no se muestra.
+- Si la fuente declara `arribos` pero faltan los archivos canónicos, se muestra
+  **No evaluable** con un motivo genérico, sin nombres de fuente.
+- Si la fuente declara `inventario`, se muestra la solapa **Sin arribos**; si no
+  lo declara, solo se muestra **Con arribos**.
+- Los trabajos anteriores a esta versión no se reprocesan: quedan como
+  **No evaluable**.
+- El enlace entre la fila de resultados y el evento canónico usa primero
+  `raw_index` (columna 0 del CSV) y, si no está, el identificador del evento o
+  una coincidencia de tiempo y posición.
+- Las descargas de arribos y estaciones sin arribos respetan el filtro activo y
+  los permisos del detalle. Un analista o usuario de consulta solo puede
+  descargar los eventos que tiene permitidos.
+
+#### Disponibilidad de formas de onda
+
+El contenedor `web` no tiene `scart`, el archivo SDS ni el recordstream. Por eso
+la consulta real corre en un servicio auxiliar (`disponibilidad`) construido
+con `Dockerfile.disponibilidad` sobre Ubuntu 24.04, la misma base del SeisComp
+del host.
+
+El servicio monta en solo lectura:
+
+```text
+${SEISCOMP_HOST_ROOT}  → /opt/seiscomp
+${SDS_HOST_ROOT}       → /mnt/sds
+```
+
+y configura el entorno equivalente a `seiscomp print env`:
+
+```dotenv
+SEISCOMP_ROOT=/opt/seiscomp
+PATH=/opt/seiscomp/bin:...
+LD_LIBRARY_PATH=/opt/seiscomp/lib
+PYTHONPATH=/app:/opt/seiscomp/lib/python
+RCS_SDS_ROOT=/mnt/sds/archive
+RCS_RECORDSTREAM=            # vacío: se lee global.cfg
+```
+
+API interna, sin puerto publicado:
+
+| Método | Ruta | Uso |
+|---|---|---|
+| `GET` | `/health` | `scart`, SDS y recordstream disponibles |
+| `POST` | `/consultar` | Consulta una lista de streams para una hora de evento |
+
+`POST /consultar` recibe:
+
+```json
+{
+  "event_time": "2026-10-22T00:00:00",
+  "streams": ["AI.DSPA.02.BHZ"]
+}
+```
+
+y devuelve el estado por stream (`CON_DATOS`, `SIN_DATOS` o `NO_CONSULTADO`),
+la fuente (`SDS` o `RECORDSTREAM`) y la cobertura encontrada. La ventana es de
+±10 minutos alrededor del evento.
+
+Flujo:
+
+1. Al abrir la solapa **Sin arribos**, el detalle encola
+   `tasks.consultar_disponibilidad` en Celery si no hay caché ni una consulta en
+   curso.
+2. El worker llama al servicio auxiliar.
+3. El servicio ejecuta `core/disponibilidad.py` y consulta primero SDS y luego
+   tiempo real.
+4. El worker aplica el resultado y escribe
+   `catalogo/<source_id>/disponibilidad.jsonl`.
+5. El detalle consulta el estado de la tarea y, al terminar, recibe el HTML del
+   parcial `_estaciones_sin_arribos.html` y lo reemplaza en el lugar, sin
+   recargar la página. Luego muestra el aviso **Disponibilidad actualizada**.
+
+El estado de la consulta se guarda en Redis:
+
+```text
+rcs:disponibilidad:<job_id>:<event_id>  →  <task_id>
+```
+
+- `SET NX EX` evita lanzar dos consultas del mismo evento.
+- El TTL es de 15 minutos.
+- La tarea borra la clave al terminar, incluso si falla.
+- Si el usuario recarga o navega, el detalle lee la clave y reanuda el polling.
+- Si ya existe la caché, no se vuelve a consultar.
+
+El botón **Volver a consultar** fuerza una consulta nueva. Los enlaces de
+descarga llevan `download` para que el overlay de navegación no quede visible
+mientras el navegador descarga el CSV.
+
+#### Ampliación contra la base de SeisComp
+
+Cuando el radio pedido supera el de exportación o se marca **Sin límite**, la
+app recalcula el inventario vigente contra la base de SeisComp. Esta consulta
+**no** la hace el sidecar: corre en el worker, que ya tiene `psycopg2` y las
+credenciales `SEISCOMP_DB_*`.
+
+La tarea `tasks.ampliar_sin_arribos`:
+
+1. expone `SEISCOMP_DB_*` como `RCS_DB_*` durante la consulta;
+2. fuerza la conexión de solo lectura, como el runner de SeisComp;
+3. llama a `core/exporta_ventana_seiscomp.no_picadas_de_evento_desde_base(...)`;
+4. convierte las filas al contrato canónico;
+5. escribe:
+   ```text
+   catalogo/<source_id>/ampliaciones/<evento>_<clave>.jsonl
+   ```
+   donde `<clave>` es `sinlimite` o `radio500`.
+
+El estado se guarda en Redis:
+
+```text
+rcs:ampliacion:<job_id>:<event_id>:<clave>  →  <task_id>
+```
+
+con TTL de 15 minutos. La tarea borra la clave al terminar.
+
+La vista ampliada se sirve en la misma página con el parámetro:
+
+```text
+.../detalle?...&ampliado=sinlimite
+.../detalle?...&ampliado=radio500
+```
+
+El detalle lee el archivo de ampliación y reutiliza el parcial de estaciones,
+los filtros, los colores, la descarga CSV y la consulta de formas de onda. El
+CSV y la consulta de disponibilidad reciben el mismo parámetro `ampliado`, y la
+clave de Redis de disponibilidad incluye la vista para no mezclar la lista
+exportada con la ampliada.
+
+La ampliación necesita que el evento canónico tenga `database` y
+`source_event_id`. Los trabajos nuevos los traen; si falta `database`, se usa
+`SEISCOMP_DB_NAME`. Un evento sin esos datos muestra un error claro y requiere
+reexportar.
+
+La ampliación devuelve inventario y actividad, no formas de onda. Una vez
+abierta la vista ampliada, **Consultar formas de onda** funciona igual sobre sus
+estaciones.
+
+#### Límite y troceo de la consulta de ondas
+
+Para listas ampliadas grandes se aplica un límite antes de consultar:
+
+- `station_review.seleccionar_disponibilidad()` filtra las filas visibles
+  (radio y “Solo cercanas”) y prioriza las más cercanas.
+- Por defecto se consultan como máximo `RCS_DISPONIBILIDAD_MAX_ESTACIONES`
+  estaciones (150).
+- `RCS_DISPONIBILIDAD_MAX_STREAMS` (5000) es el máximo duro de streams.
+- Las filas omitidas quedan en `NO_CONSULTADO`; no se eliminan.
+- El enlace **Consultar todas** envía `todas=1`: omite el tope de estaciones,
+  pero sigue respetando el máximo de streams.
+- La interfaz muestra cuántas se consultan y cuántas quedan fuera.
+
+El sidecar divide los streams en lotes de 300 (`TAMANO_LOTE`) y une los
+resultados. Cada lote consulta SDS y tiempo real con su propio timeout de 20 s.
+El cliente web espera hasta `RCS_DISPONIBILIDAD_TIMEOUT` (240 s) y la interfaz
+hasta 300 s para “Consultar todas”.
+
+La clave de Redis de disponibilidad incluye la vista y los filtros
+(`availability.vista_clave()`), de modo que una consulta filtrada no se
+confunde con la consulta completa. La clave con `todas=1` es distinta de la
+automática; si el usuario recarga durante una consulta “todas”, el detalle no
+la reanuda, pero la tarea sigue y deja la caché actualizada.
+
+Estados de evidencia:
+
+| Estado | Significado |
+|---|---|
+| `VERIFICADO` / **Verificado (SDS)** | Hay formas de onda: estaba grabando y no se usó |
+| `VERIFICADO` / **Verificado (tiempo real)** | Hay formas de onda en el recordstream |
+| `INDICIO` | Picó otros eventos dentro de ±2 h; es una deducción |
+| `SIN_EVIDENCIA` | Se consultaron las ondas y no hay, ni actividad |
+| `NO_CONSULTADO` | No se consultaron las ondas |
+
+La columna **Disp. no usada** queda en **Sí** solo cuando
+`waveform_status == CON_DATOS`. El filtro **Solo disponibles no usadas** usa ese
+valor. El CSV incluye **Formas de onda**, **Evidencia**, **Cobertura** y
+**Disponible y no usada**.
+
+Si el servicio auxiliar no está configurado o no responde, la interfaz muestra
+un mensaje claro y no oculta la revisión de estaciones.
 
 #### Contrato canónico de resultados
 
@@ -711,7 +993,7 @@ solicitud sigue avanzando.
 | Trabajos, pasos y artefactos | `jobs`, `job_files`, `job_steps`, `job_artifacts` | Archivos de entrada y logs |
 | Fuentes usadas | `job_sources` | — |
 | Catálogos normalizados | Solo metadatos | `datos/*.csv`, `inputs/*` |
-| Catálogo canónico | Tablas reservadas, no pobladas | `catalogo/<source_id>/eventos.jsonl` |
+| Catálogo canónico | Tablas reservadas, no pobladas | `catalogo/<source_id>/eventos.jsonl`, `arribos.jsonl`, `estaciones_sin_arribos.jsonl`, `disponibilidad.jsonl`, `ampliaciones/`, `meta.json` |
 | Resultados | — | `resultados/*.csv` |
 | Mapas y paneles | — | `plots/`, `paneles/` |
 | Auditoría | `audit_log` | — |

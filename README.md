@@ -55,8 +55,9 @@ El catálogo estándar vive en `app/domain/catalogs/` y se guarda como JSONL en
 
 - **Capa mínima:** fuente, evento, fecha, lat/lon/profundidad, magnitud, agencia,
   analista, estado, preferido/publicado y `raw`.
-- **Extensiones:** `station`, `arrival`, `waveform_availability`,
-  `station_magnitude` y `tensor` (tablas creadas; se llenan cuando la fuente las
+- **Extensiones:** `arribos` y `estaciones_sin_arribos` en JSONL, más `meta.json`
+  con capacidades, radio y presencia de archivos. `station`, `waveform_availability`,
+  `station_magnitude` y `tensor` siguen reservadas (se llenan cuando la fuente las
   aporta).
 - **Capacidades por formato:** eventos, orígenes, magnitudes, arribos,
   inventario, disponibilidad de ondas y excluidos.
@@ -66,9 +67,65 @@ El catálogo estándar vive en `app/domain/catalogs/` y se guarda como JSONL en
   El dump CSN, cuando se integre, tendrá picks pero no inventario ni
   disponibilidad.
 
-La tarea **“disponible y no picada”** se calcula cruzando inventario activo,
-arribos del origen preferido y disponibilidad de formas de onda. Si falta una
-capacidad, se muestra “no evaluable”.
+El detalle de cada evento local incluye **Revisión de estaciones** con dos
+solapas: **Con arribos** (filtrable por *Solo no utilizadas*) y **Sin arribos**
+(estaciones del inventario dentro del radio). Si la fuente declara la capacidad
+pero el trabajo no trae los archivos, se muestra **No evaluable** con un motivo
+genérico. La tarea **“disponible y no picada”** se calcula cruzando inventario
+activo, arribos del origen preferido y disponibilidad de formas de onda.
+
+## Disponibilidad de formas de onda
+
+La consulta real a SDS y tiempo real la hace un contenedor auxiliar llamado
+`disponibilidad`, porque el contenedor web no tiene `scart` ni acceso al archivo
+SDS. El servicio monta en solo lectura:
+
+- `/mnt/sds` → `/mnt/sds`
+- `/home/hriquelmez/seiscomp` → `/opt/seiscomp`
+
+Se levanta con:
+
+```bash
+sudo docker compose up -d --build
+```
+
+o solo el servicio auxiliar con:
+
+```bash
+make disponibilidad
+```
+
+La consulta se inicia automáticamente al abrir la solapa **Sin arribos** y corre
+en Celery: el worker llama al servicio por HTTP y la tabla se actualiza en el
+lugar cuando termina, sin recargar la página. El resultado se guarda en
+`workspace/<job>/catalogo/<source_id>/disponibilidad.jsonl` y se muestra en la
+solapa **Sin arribos** como **SDS**, **Tiempo real**, **Sin datos** o
+**No consultado**. La columna **Disp. no usada** y su filtro permiten
+separar las estaciones que estaban grabando y no se usaron en la solución.
+
+La solapa **Sin arribos** también permite ampliar el inventario contra la base
+de SeisComp. El botón **Sin límite** o un radio mayor al exportado encola
+`tasks.ampliar_sin_arribos` en el worker, que usa
+`no_picadas_de_evento_desde_base` y guarda el resultado en
+`workspace/<job>/catalogo/<source_id>/ampliaciones/`. La vista ampliada
+reutiliza la misma tabla, filtros y colores, y permite consultar formas de onda
+sobre las estaciones nuevas. La consulta de ondas se limita por defecto a las
+150 estaciones más cercanas visibles; **Consultar todas** omite ese tope y el
+sidecar consulta los streams por lotes de 300.
+
+Variables principales en `.env`:
+
+```dotenv
+SEISCOMP_HOST_ROOT=/home/hriquelmez/seiscomp
+SDS_HOST_ROOT=/mnt/sds
+RCS_DISPONIBILIDAD_URL=http://disponibilidad:8010
+RCS_DISPONIBILIDAD_TOKEN=<token compartido>
+RCS_DISPONIBILIDAD_TIMEOUT=70
+RCS_RECORDSTREAM=
+```
+
+Si `RCS_RECORDSTREAM` queda vacío, se lee el `recordstream` desde
+`global.cfg`.
 
 ## Solicitudes por SSH
 
@@ -417,6 +474,7 @@ Seisan. El trabajo de demostración conserva sus resultados.
 |---|---|---|
 | `web` | 8000 | Flask (debug) / Gunicorn (imagen) |
 | `worker` | — | Celery |
+| `disponibilidad` | — | Consulta SDS/tiempo real con `scart` (sidecar) |
 | `db` | 5434 | PostgreSQL 16 |
 | `redis` | 6380 | Broker de Celery |
 
@@ -442,11 +500,12 @@ rcsweb/
 │   │   └── queue.py         # encolado en Celery
 │   ├── templates/           # Jinja2 + Bootstrap
 │   └── static/              # CSS, JS y vendor (Bootstrap, HTMX)
-├── tasks/                   # Celery
+├── tasks/                   # Celery (pipeline, catálogos, disponibilidad)
 ├── tests/                   # pytest
 ├── samples/                 # dataset de muestra reproducible
 ├── workspace/               # un directorio por trabajo (ignorado)
 ├── Dockerfile
+├── Dockerfile.disponibilidad
 └── docker-compose.yml
 ```
 

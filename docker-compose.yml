@@ -102,6 +102,28 @@ services:
       disable: true
     command: ["celery", "-A", "tasks.celery_app:celery", "worker", "--loglevel=INFO", "--concurrency=1"]
 
+  disponibilidad:
+    build:
+      context: .
+      dockerfile: Dockerfile.disponibilidad
+    container_name: rcsweb-disponibilidad
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SEISCOMP_ROOT: /opt/seiscomp
+      RCS_SDS_ROOT: /mnt/sds/archive
+      RCS_RECORDSTREAM: ${RCS_RECORDSTREAM:-}
+      RCS_DISPONIBILIDAD_TOKEN: ${RCS_DISPONIBILIDAD_TOKEN:-}
+    volumes:
+      - ${SEISCOMP_HOST_ROOT:-/home/hriquelmez/seiscomp}:/opt/seiscomp:ro
+      - ${SDS_HOST_ROOT:-/mnt/sds}:/mnt/sds:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health').read()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
 volumes:
   pgdata:
   redisdata:

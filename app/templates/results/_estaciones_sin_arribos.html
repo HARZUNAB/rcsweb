@@ -1,0 +1,252 @@
+{% set url_sin_todas = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, no_usadas=1 if revision_estaciones.solo_no_usadas else none) %}
+{% set url_solo_disponibles = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, no_usadas=1 if revision_estaciones.solo_no_usadas else none, disponibles=1) %}
+{% set url_sin_ampliado = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, no_usadas=1 if revision_estaciones.solo_no_usadas else none, disponibles=1 if revision_estaciones.solo_disponibles else none) %}
+<div id="panel-sin-arribos-contenido"
+     data-puede-consultar="{{ 1 if revision_estaciones.puede_consultar else 0 }}"
+     data-consultada="{{ 1 if revision_estaciones.disponibilidad_consultada else 0 }}"
+     data-tarea="{{ revision_estaciones.consulta_tarea or '' }}"
+     data-volver="{{ volver }}"
+     data-no-usadas="{{ 1 if revision_estaciones.solo_no_usadas else 0 }}"
+     data-disponibles="{{ 1 if revision_estaciones.solo_disponibles else 0 }}"
+     data-radio-exportado="{{ revision_estaciones.radio_exportado_texto or '' }}"
+     data-cerca-km="{{ revision_estaciones.cerca_km_texto }}"
+     data-ampliado="{{ revision_estaciones.ampliado or '' }}"
+     data-url-encolar="{{ url_for('results.consultar_estaciones_disponibilidad', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, ampliado=revision_estaciones.ampliado or none) }}"
+     data-url-estado="{{ url_for('results.estado_estaciones_disponibilidad', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, task_id='__TASK__', ampliado=revision_estaciones.ampliado or none) }}"
+     data-url-ampliar="{{ url_for('results.ampliar_estaciones', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila) }}"
+     data-url-ampliar-estado="{{ url_for('results.estado_ampliacion', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, task_id='__TASK__') }}">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <div class="small text-secondary">{{ revision_estaciones.resumen.texto_sin_arribos }}</div>
+    <div class="d-flex flex-wrap gap-2">
+      {% if revision_estaciones.sin_arribos %}
+        {% if revision_estaciones.puede_consultar %}
+        <button type="button" class="btn btn-sm btn-outline-primary"
+                id="btn-disponibilidad">
+          {% if revision_estaciones.disponibilidad_consultada %}
+          Volver a consultar formas de onda
+          {% else %}
+          Consultar formas de onda
+          {% endif %}
+        </button>
+        {% if revision_estaciones.consulta_omitidas and revision_estaciones.consulta_omitidas > 0 and revision_estaciones.consulta_pendientes > 0 %}
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                id="btn-disponibilidad-todas">
+          Consultar todas ({{ revision_estaciones.consulta_total }})
+        </button>
+        {% endif %}
+        {% endif %}
+        <a class="btn btn-sm btn-outline-primary" download
+           href="{{ url_for('results.estaciones_csv', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, tipo='sin-arribos', disponibles=1 if revision_estaciones.solo_disponibles else none, radio_km=revision_estaciones.radio_mostrar, cerca_km=revision_estaciones.cerca_km, solo_cercanas=1 if revision_estaciones.solo_cercanas else none, ampliado=revision_estaciones.ampliado or none) }}">
+          Descargar estaciones sin arribos
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  {% if revision_estaciones.ampliado %}
+  <div class="alert alert-info small py-2">
+    <strong>Vista ampliada contra la base de SeisComp</strong>
+    {% if revision_estaciones.ampliado_radio %}
+    (≤ {{ revision_estaciones.ampliado_radio|round|int }} km).
+    {% else %}
+    (sin límite).
+    {% endif %}
+    <a href="{{ url_sin_ampliado }}">Volver a la lista exportada</a>
+  </div>
+  {% endif %}
+  {% if revision_estaciones.puede_consultar or revision_estaciones.tiene_sin_arribos %}
+  <div id="disponibilidad-estado"
+       class="alert alert-light border small py-2 d-none"
+       role="status" aria-live="polite"></div>
+  {% endif %}
+  {% if revision_estaciones.disponibilidad_consultada %}
+  <div class="d-flex flex-wrap gap-2 mb-2">
+    {% if revision_estaciones.solo_disponibles %}
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_sin_todas }}">
+      Quitar filtro
+    </a>
+    {% else %}
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_solo_disponibles }}">
+      Solo disponibles no usadas ({{ revision_estaciones.resumen.disponibles }})
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+  <div class="alert alert-light border small py-2">
+    «Sin arribos» no significa «no grabó»: la fuente solo registra que la
+    estación estaba configurada dentro del radio y no aparece en la solución.
+    {% if revision_estaciones.puede_consultar %}
+    La disponibilidad de formas de onda se consulta automáticamente la primera
+    vez; use <strong>Volver a consultar</strong> para actualizarla.
+    {% endif %}
+    {% if revision_estaciones.aviso_sin_arribos %}
+    <br>{{ revision_estaciones.aviso_sin_arribos }}
+    {% endif %}
+  </div>
+  <div class="small mb-2">
+    <strong>
+      Colores (cerca = ≤
+      <span id="leyenda-cerca">{{ revision_estaciones.cerca_km_texto }}</span> km):
+    </strong>
+    <span class="no-picada-verificada px-1">
+      Verificado con ondas: grabó y no se usó
+    </span>
+    <span class="no-picada-indicio px-1">
+      Indicio por actividad: pudo operar
+    </span>
+    <span class="no-picada-sin-evidencia px-1">
+      Sin evidencia: posible caída
+    </span>
+    <div class="text-secondary mt-1">
+      Más lejos:
+      <span class="no-picada-verificada-lejos">verde = verificado</span>,
+      <span class="no-picada-indicio-lejos">ámbar = indicio</span>.
+      «Sin consultar» no se resalta.
+    </div>
+  </div>
+  <form id="filtros-sin-arribos" class="row g-2 align-items-end mb-2"
+        method="get"
+        action="{{ url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila) }}">
+    <input type="hidden" name="volver" value="{{ volver }}">
+    {% if revision_estaciones.solo_no_usadas %}
+    <input type="hidden" name="no_usadas" value="1">
+    {% endif %}
+    {% if revision_estaciones.solo_disponibles %}
+    <input type="hidden" name="disponibles" value="1">
+    {% endif %}
+    {% if revision_estaciones.ampliado %}
+    <input type="hidden" name="ampliado" value="{{ revision_estaciones.ampliado }}">
+    {% endif %}
+    <div class="col-auto">
+      <label class="form-label small mb-0" for="filtro-radio">
+        Radio a mostrar (km)
+      </label>
+      <input class="form-control form-control-sm" id="filtro-radio"
+             name="radio_km" type="number" min="1" step="1"
+             value="{{ revision_estaciones.radio_mostrar_texto or '' }}">
+    </div>
+    <div class="col-auto">
+      <label class="form-label small mb-0" for="filtro-cerca">
+        Resaltar cerca ≤ (km)
+      </label>
+      <input class="form-control form-control-sm" id="filtro-cerca"
+             name="cerca_km" type="number" min="1" step="1"
+             value="{{ revision_estaciones.cerca_km_texto }}">
+    </div>
+    <div class="col-auto">
+      <div class="form-check mt-3">
+        <input class="form-check-input" type="checkbox" id="filtro-solo"
+               name="solo_cercanas" value="1"
+               {% if revision_estaciones.solo_cercanas %}checked{% endif %}>
+        <label class="form-check-label small" for="filtro-solo">
+          Solo cercanas
+        </label>
+      </div>
+    </div>
+    <div class="col-auto">
+      <div class="form-check mt-3">
+        <input class="form-check-input" type="checkbox"
+               id="filtro-sin-limite" name="sin_limite" value="1">
+        <label class="form-check-label small" for="filtro-sin-limite">
+          Sin límite
+        </label>
+      </div>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-sm btn-outline-secondary" type="submit">
+        Aplicar
+      </button>
+    </div>
+    <div class="col-12">
+      <div class="small text-secondary" id="filtros-estado">
+        {{ revision_estaciones.texto_estado }}
+      </div>
+      <div class="small text-warning d-none" id="filtro-radio-aviso"></div>
+    </div>
+    {% if revision_estaciones.radio_limitado %}
+    <div class="col-12">
+      <div class="alert alert-warning small py-2 mb-0">
+        El radio supera el de exportación
+        ({{ revision_estaciones.radio_exportado_texto }} km).
+        Use <strong>Sin límite</strong> para consultar la base de SeisComp.
+      </div>
+    </div>
+    {% endif %}
+  </form>
+  <noscript>
+    <div class="small text-secondary mb-2">
+      La ampliación contra la base de SeisComp requiere JavaScript. Los
+      filtros locales siguen funcionando.
+    </div>
+  </noscript>
+  {% if revision_estaciones.sin_arribos %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          {% for clave, titulo in revision_estaciones.columnas_sin_arribos %}
+          <th>{{ titulo }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in revision_estaciones.sin_arribos %}
+        {% set categoria = item.get('_categoria', 'normal') %}
+        {% set distancia = item.get('_distancia') %}
+        {% set cerca = distancia is not none and distancia <= revision_estaciones.cerca_km %}
+        {% set fuera_radio = revision_estaciones.radio_mostrar is not none and (distancia is none or distancia > revision_estaciones.radio_mostrar) %}
+        {% set fuera_solo = revision_estaciones.solo_cercanas and (distancia is none or distancia > revision_estaciones.cerca_km) %}
+        <tr class="{% if categoria == 'verificado' %}{% if cerca %}no-picada-verificada{% else %}no-picada-verificada-lejos{% endif %}{% elif categoria == 'indicio' %}{% if cerca %}no-picada-indicio{% else %}no-picada-indicio-lejos{% endif %}{% elif categoria == 'sin_evidencia' and cerca %}no-picada-sin-evidencia{% endif %}{% if fuera_radio or fuera_solo %} d-none{% endif %}"
+            data-distancia="{% if distancia is not none %}{{ distancia }}{% endif %}"
+            data-categoria="{{ categoria }}">
+          {% for clave, titulo in revision_estaciones.columnas_sin_arribos %}
+          {% if clave == 'stream_ref' %}
+          <td>
+            {{ item.get('stream_ref', '') or '—' }}
+            {% if ';' in item.get('streams_ids', '') %}
+            <button type="button"
+                    class="btn btn-link btn-sm p-0 ms-1 align-baseline"
+                    data-bs-toggle="modal"
+                    data-bs-target="#modal-streams"
+                    data-station="{{ item.get('red', '') }} {{ item.get('estacion', '') }}"
+                    data-streams="{{ item.get('streams_ids', '') }}">
+              Ver todos
+            </button>
+            {% endif %}
+          </td>
+          {% else %}
+          <td>{{ item.get(clave, '') or '—' }}</td>
+          {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-secondary small">
+    {% if revision_estaciones.solo_disponibles %}
+    No hay estaciones disponibles y no usadas para este evento.
+    {% else %}
+    No hay estaciones sin arribos para este evento.
+    {% endif %}
+  </div>
+  {% endif %}
+  <div class="modal fade" id="modal-streams" tabindex="-1"
+       aria-labelledby="modal-streams-titulo" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title fs-6" id="modal-streams-titulo">
+            Streams vigentes
+          </h2>
+          <button type="button" class="btn-close"
+                  data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <pre id="modal-streams-lista" class="small mb-0"
+               style="white-space: pre-wrap;"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

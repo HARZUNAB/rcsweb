@@ -1,0 +1,52 @@
+# Servicio auxiliar de disponibilidad de formas de onda.
+#
+# Se basa en Ubuntu 24.04 para que coincidan las librerías del SeisComp que se
+# monta desde el host (boost 1.83, ICU, OpenSSL, libpython3.12). El contenedor
+# web usa una imagen slim que no tiene esas dependencias.
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+	python3-numpy \
+        libpython3.12 \
+        libboost-thread1.83.0 \
+        libboost-iostreams1.83.0 \
+        libboost-filesystem1.83.0 \
+        libboost-program-options1.83.0 \
+        libxml2 \
+        libexpat1 \
+        libssl3t64 \
+        libicu74 \
+        libbz2-1.0 \
+        liblzma5 \
+        libzstd1 \
+        zlib1g \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY core ./core
+COPY app/services/availability_service.py ./availability_service.py
+
+RUN chown -R 1000:1000 /app
+
+USER 1000:1000
+
+ENV PYTHONPATH=/app:/opt/seiscomp/lib/python \
+    PYTHONUNBUFFERED=1 \
+    HOME=/tmp \
+    PYTHONDONTWRITEBYTECODE=1 \
+    SEISCOMP_ROOT=/opt/seiscomp \
+    RCS_SDS_ROOT=/mnt/sds/archive \
+    LD_LIBRARY_PATH=/opt/seiscomp/lib \
+    PATH=/opt/seiscomp/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+EXPOSE 8010
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health').read()"
+
+CMD ["python3", "availability_service.py"]

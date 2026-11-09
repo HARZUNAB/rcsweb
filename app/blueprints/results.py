@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
+import os
 import re
 import zipfile
-from io import BytesIO
+from io import BytesIO, StringIO
 
 from flask import (
     Blueprint,
     abort,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -19,11 +22,15 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
+from tasks.amplification import ampliar_sin_arribos
+from tasks.availability import consultar_disponibilidad
+from tasks.celery_app import celery
+
 from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..models import Job
 from ..security import permiso_requerido, puede_ver_trabajo
-from ..services import catalog_export, colores
+from ..services import amplification, availability, catalog_export, colores
 from ..services.analysts import (
     campos_analista,
     codigos_usuario,
@@ -63,6 +70,12 @@ from ..services.results import (
 )
 from ..services.results import (
     exportar_seleccionados as exportar_seleccionados_csv,
+)
+from ..services.station_review import (
+    filas_para_csv,
+    filas_visibles,
+    revisar_fila,
+    seleccionar_disponibilidad,
 )
 from ..services.ubicacion import clasificar as clasificar_ubicacion
 from ..services.workspace import ruta_workspace
@@ -1193,6 +1206,39 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
             contexto["fila"], current_user
         ):
             abort(403)
+    revision_estaciones = revisar_fila(
+        ruta_workspace(job.id),
+        tabla,
+        opcion,
+        contexto["fila"],
+        solo_no_usadas=request.args.get("no_usadas") == "1",
+        solo_disponibles=request.args.get("disponibles") == "1",
+        radio_km=_numero_param("radio_km"),
+        cerca_km=_numero_param("cerca_km", 50.0),
+        solo_cercanas=request.args.get("solo_cercanas") == "1",
+        ampliado=request.args.get("ampliado") or None,
+    )
+    if revision_estaciones and revision_estaciones.get("puede_consultar"):
+        event_id = str(
+            (revision_estaciones.get("evento") or {}).get("event_id") or ""
+        )
+        vista_consulta = availability.vista_clave(
+            ampliado=revision_estaciones.get("ampliado") or "",
+            radio_km=revision_estaciones.get("radio_mostrar"),
+            cerca_km=revision_estaciones.get("cerca_km", 50.0),
+            solo_cercanas=revision_estaciones.get("solo_cercanas", False),
+            disponibles=revision_estaciones.get("solo_disponibles", False),
+            todas=False,
+        )
+        revision_estaciones["consulta_tarea"] = (
+            availability.tarea_en_curso(
+                job.id,
+                event_id,
+                vista=vista_consulta,
+            )
+            if event_id
+            else ""
+        )
     parametro = PARAMETROS[tabla]
     volver = request.args.get("volver", "")
     if not volver.startswith("/") or volver.startswith("//"):
@@ -1287,5 +1333,561 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         leyenda_mapa=leyenda,
         mapa_modo=mapa_modo,
         titulo_columna=titulo_columna,
+        revision_estaciones=revision_estaciones,
         **contexto,
     )
+
+
+def _numero_param(nombre: str, defecto=None):
+    """Parámetro numérico de la URL, o el valor por defecto."""
+    valor = request.args.get(nombre, "").strip().replace(",", ".")
+    if not valor:
+        return defecto
+    try:
+        return float(valor)
+    except ValueError:
+        return defecto
+
+
+def _numero_valor(texto, defecto=None):
+    """Convierte un valor de formulario o URL a número."""
+    if texto is None:
+        return defecto
+    limpio = str(texto).strip().replace(",", ".")
+    if not limpio:
+        return defecto
+    try:
+        return float(limpio)
+    except ValueError:
+        return defecto
+
+
+def _valor_bool(texto) -> bool:
+    return str(texto or "").strip().lower() in {
+        "1",
+        "true",
+        "on",
+        "si",
+        "sí",
+    }
+
+
+def _contexto_fila(job: Job, tabla: str, opcion: str, fila: int) -> dict:
+    """Valida la fila de detalle y sus permisos, sin leer las extensiones."""
+    if tabla not in TABLAS:
+        abort(404)
+    claves = [clave for clave, _titulo in _opciones(tabla, job)]
+    if opcion not in claves:
+        abort(404)
+    archivo = _archivo_tabla(tabla, opcion, job)
+    if not archivo:
+        abort(404)
+    leido = leer_filas(ruta_workspace(job.id), archivo)
+    if leido is None:
+        abort(404)
+    _columnas, filas = leido
+    if fila < 0 or fila >= len(filas):
+        abort(404)
+    contexto = construir_detalle(tabla, archivo, filas, fila)
+    if usuario_restringido(current_user):
+        if tabla == "catalogos" or not evento_visible(
+            contexto["fila"], current_user
+        ):
+            abort(403)
+    return contexto
+
+
+def _revision_de_fila(
+    job: Job,
+    tabla: str,
+    opcion: str,
+    fila: int,
+    *,
+    solo_no_usadas: bool = False,
+    solo_disponibles: bool = False,
+    radio_km: float | None = None,
+    cerca_km: float = 50.0,
+    solo_cercanas: bool = False,
+    ampliado: str | None = None,
+) -> dict | None:
+    contexto = _contexto_fila(job, tabla, opcion, fila)
+    return revisar_fila(
+        ruta_workspace(job.id),
+        tabla,
+        opcion,
+        contexto["fila"],
+        solo_no_usadas=solo_no_usadas,
+        solo_disponibles=solo_disponibles,
+        radio_km=radio_km,
+        cerca_km=cerca_km,
+        solo_cercanas=solo_cercanas,
+        ampliado=ampliado,
+    )
+
+
+@results_bp.get(
+    "/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>/estaciones/<tipo>.csv"
+)
+@login_required
+@permiso_requerido("catalogos.ver")
+def estaciones_csv(job_id: str, tabla: str, opcion: str, fila: int, tipo: str):
+    """Descarga los arribos o las estaciones sin arribos de un evento."""
+    if tipo not in ("arribos", "sin-arribos"):
+        abort(404)
+    job = _job(job_id)
+    revision = _revision_de_fila(
+        job,
+        tabla,
+        opcion,
+        fila,
+        solo_no_usadas=request.args.get("no_usadas") == "1",
+        solo_disponibles=request.args.get("disponibles") == "1",
+        radio_km=_numero_param("radio_km"),
+        cerca_km=_numero_param("cerca_km", 50.0),
+        solo_cercanas=request.args.get("solo_cercanas") == "1",
+        ampliado=request.args.get("ampliado") or None,
+    )
+    if not revision or revision.get("estado") != "ok":
+        abort(404)
+    if tipo == "sin-arribos" and not revision.get("tiene_sin_arribos"):
+        abort(404)
+
+    if tipo == "sin-arribos":
+        revision["sin_arribos"] = filas_visibles(
+            revision.get("sin_arribos") or [],
+            radio_km=revision.get("radio_mostrar"),
+            cerca_km=revision.get("cerca_km", 50.0),
+            solo_cercanas=revision.get("solo_cercanas", False),
+        )
+
+    columnas, datos = filas_para_csv(
+        revision, "arribos" if tipo == "arribos" else "sin_arribos"
+    )
+    if not datos:
+        abort(404)
+
+    salida = StringIO()
+    salida.write("\ufeff")
+    escritor = csv.writer(salida)
+    escritor.writerow(columnas)
+    escritor.writerows(datos)
+    nombre = (
+        f"estaciones_{tipo}_{opcion}_{job.inicio14[:8]}_{job.fin14[:8]}.csv"
+    )
+    registrar(
+        "download",
+        entity=nombre,
+        meta={
+            "tabla": tabla,
+            "fuente": revision.get("fuente"),
+            "filas": len(datos),
+        },
+    )
+    return send_file(
+        BytesIO(salida.getvalue().encode("utf-8")),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=nombre,
+    )
+
+
+@results_bp.post(
+    "/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>"
+    "/estaciones/disponibilidad"
+)
+@login_required
+@permiso_requerido("catalogos.ver")
+def consultar_estaciones_disponibilidad(
+    job_id: str, tabla: str, opcion: str, fila: int
+):
+    """Encola la consulta de formas de onda del evento."""
+    job = _job(job_id)
+    radio_km = _numero_valor(request.values.get("radio_km"))
+    cerca_km = _numero_valor(request.values.get("cerca_km"), 50.0)
+    solo_cercanas = _valor_bool(request.values.get("solo_cercanas"))
+    solo_disponibles = _valor_bool(request.values.get("disponibles"))
+    ampliado = str(request.values.get("ampliado") or "") or None
+    todas = _valor_bool(request.values.get("todas"))
+    revision = _revision_de_fila(
+        job,
+        tabla,
+        opcion,
+        fila,
+        solo_disponibles=solo_disponibles,
+        radio_km=radio_km,
+        cerca_km=cerca_km,
+        solo_cercanas=solo_cercanas,
+        ampliado=ampliado,
+    )
+    if not revision or revision.get("estado") != "ok":
+        abort(404)
+    if not revision.get("tiene_sin_arribos"):
+        abort(404)
+    if not revision.get("puede_consultar"):
+        return jsonify(
+            {
+                "estado": "error",
+                "mensaje": (
+                    "La consulta de formas de onda no está disponible "
+                    "en este entorno."
+                ),
+            }
+        ), 503
+
+    filas, total, omitidas = seleccionar_disponibilidad(
+        revision.get("sin_arribos") or [],
+        radio_km=revision.get("radio_mostrar"),
+        cerca_km=revision.get("cerca_km", 50.0),
+        solo_cercanas=revision.get("solo_cercanas", False),
+        todas=todas,
+        max_estaciones=availability.max_estaciones(),
+        max_streams=availability.max_streams(),
+    )
+    if not filas:
+        return jsonify(
+            {
+                "estado": "error",
+                "mensaje": (
+                    "No hay estaciones visibles para consultar. "
+                    "Revise el radio o el filtro Solo cercanas."
+                ),
+            }
+        ), 400
+
+    evento = revision.get("evento") or {}
+    event_id = str(evento.get("event_id") or "")
+    event_time = str(evento.get("event_time") or "")
+    if not event_id or not event_time:
+        return jsonify(
+            {"estado": "error", "mensaje": "El evento no tiene hora canónica."}
+        ), 400
+
+    vista = availability.vista_clave(
+        ampliado=ampliado or "",
+        radio_km=revision.get("radio_mostrar"),
+        cerca_km=revision.get("cerca_km", 50.0),
+        solo_cercanas=revision.get("solo_cercanas", False),
+        disponibles=solo_disponibles,
+        todas=todas,
+    )
+    existente = availability.tarea_en_curso(
+        job.id, event_id, vista=vista
+    )
+    if existente:
+        return jsonify({"estado": "en_curso", "task_id": existente}), 200
+
+    try:
+        tarea = consultar_disponibilidad.delay(
+            job.id,
+            revision.get("fuente"),
+            event_id,
+            event_time,
+            filas,
+            vista=vista,
+        )
+    except Exception:  # noqa: BLE001 - el usuario necesita un mensaje claro
+        return jsonify(
+            {
+                "estado": "error",
+                "mensaje": (
+                    "No se pudo encolar la consulta de formas de onda. "
+                    "Revise el worker y Redis."
+                ),
+            }
+        ), 503
+
+    task_id, creada = availability.registrar_tarea(
+        job.id, event_id, tarea.id, vista
+    )
+    registrar(
+        "availability.query",
+        entity=job.id,
+        meta={
+            "tabla": tabla,
+            "fuente": revision.get("fuente"),
+            "evento": event_id,
+            "estaciones": len(filas),
+            "total": total,
+            "omitidas": omitidas,
+            "todas": todas,
+            "vista": vista,
+        },
+    )
+    if not creada:
+        return jsonify({"estado": "en_curso", "task_id": task_id}), 200
+    return jsonify(
+        {
+            "estado": "encolada",
+            "task_id": tarea.id,
+            "total": total,
+            "consultadas": len(filas),
+            "omitidas": omitidas,
+            "todas": todas,
+        }
+    ), 202
+
+
+@results_bp.get(
+    "/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>"
+    "/estaciones/disponibilidad/<task_id>"
+)
+@login_required
+@permiso_requerido("catalogos.ver")
+def estado_estaciones_disponibilidad(
+    job_id: str, tabla: str, opcion: str, fila: int, task_id: str
+):
+    """Estado de una consulta de disponibilidad encolada."""
+    job = _job(job_id)
+    _contexto_fila(job, tabla, opcion, fila)
+    resultado = celery.AsyncResult(task_id)
+    estado = resultado.state
+    datos = {"estado": estado}
+    if estado == "PROGRESS":
+        datos["fase"] = str((resultado.info or {}).get("fase") or "")
+    elif estado == "SUCCESS":
+        valor = resultado.result or {}
+        if isinstance(valor, dict) and valor.get("estado") == "ok":
+            datos.update({"estado": "ok", "resultado": valor})
+            volver = request.args.get("volver", "")
+            if not volver.startswith("/") or volver.startswith("//"):
+                volver = url_for(
+                    ENDPOINTS[tabla],
+                    job_id=job.id,
+                    **{PARAMETROS[tabla]: opcion},
+                )
+            revision = _revision_de_fila(
+                job,
+                tabla,
+                opcion,
+                fila,
+                solo_no_usadas=request.args.get("no_usadas") == "1",
+                solo_disponibles=request.args.get("disponibles") == "1",
+                radio_km=_numero_param("radio_km"),
+                cerca_km=_numero_param("cerca_km", 50.0),
+                solo_cercanas=request.args.get("solo_cercanas") == "1",
+                ampliado=request.args.get("ampliado") or None,
+            )
+            if revision:
+                revision["consulta_tarea"] = ""
+                datos["html"] = render_template(
+                    "results/_estaciones_sin_arribos.html",
+                    job=job,
+                    tabla=tabla,
+                    opcion=opcion,
+                    indice_fila=fila,
+                    volver=volver,
+                    revision_estaciones=revision,
+                )
+        else:
+            datos.update(
+                {
+                    "estado": "error",
+                    "mensaje": str(
+                        valor.get("mensaje")
+                        if isinstance(valor, dict)
+                        else "La consulta no devolvió un resultado válido."
+                    ),
+                }
+            )
+    elif estado == "FAILURE":
+        datos.update(
+            {
+                "estado": "error",
+                "mensaje": "La consulta de formas de onda falló en el worker.",
+            }
+        )
+    return jsonify(datos)
+
+
+@results_bp.post(
+    "/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>"
+    "/estaciones/ampliar"
+)
+@login_required
+@permiso_requerido("catalogos.ver")
+def ampliar_estaciones(job_id: str, tabla: str, opcion: str, fila: int):
+    """Encola la ampliación del inventario contra la base de SeisComp."""
+    job = _job(job_id)
+    revision = _revision_de_fila(job, tabla, opcion, fila)
+    if not revision or revision.get("estado") != "ok":
+        abort(404)
+    if not revision.get("tiene_sin_arribos"):
+        abort(404)
+    if not amplification.configurada():
+        return jsonify(
+            {
+                "estado": "error",
+                "mensaje": (
+                    "La base de SeisComp no está configurada en este entorno."
+                ),
+            }
+        ), 503
+
+    evento = revision.get("evento") or {}
+    event_id = str(evento.get("event_id") or "")
+    id_origen = str(evento.get("origin_id") or "")
+    base = str(evento.get("database") or "") or os.environ.get(
+        "SEISCOMP_DB_NAME", "seiscomp2"
+    )
+    event_time = str(evento.get("event_time") or "")
+    latitud = evento.get("latitude")
+    longitud = evento.get("longitude")
+    if (
+        not event_id
+        or not event_time
+        or latitud is None
+        or longitud is None
+    ):
+        return jsonify(
+            {
+                "estado": "error",
+                "mensaje": (
+                    "El evento no tiene la hora o las coordenadas necesarias "
+                    "para ampliar."
+                ),
+            }
+        ), 400
+
+    sin_limite = str(request.values.get("sin_limite") or "").lower() in {
+        "1",
+        "true",
+        "on",
+        "si",
+        "sí",
+    }
+    texto_radio = str(request.values.get("radio_km") or "").strip()
+    try:
+        radio = float(texto_radio.replace(",", ".")) if texto_radio else None
+    except ValueError:
+        radio = None
+    if not sin_limite and (radio is None or radio <= 0):
+        return jsonify(
+            {
+                "estado": "error",
+                "mensaje": "Indique un radio válido o marque Sin límite.",
+            }
+        ), 400
+    if sin_limite:
+        radio = None
+
+    clave = amplification.clave_radio(radio)
+    existente = amplification.tarea_en_curso(job.id, event_id, clave)
+    if existente:
+        return jsonify(
+            {"estado": "en_curso", "task_id": existente, "clave": clave}
+        ), 200
+
+    picadas = [
+        [grupo.get("red", ""), grupo.get("estacion", "")]
+        for grupo in revision.get("grupos", [])
+    ]
+    try:
+        tarea = ampliar_sin_arribos.delay(
+            job.id,
+            revision.get("fuente"),
+            event_id,
+            base,
+            id_origen,
+            event_time,
+            float(latitud),
+            float(longitud),
+            picadas,
+            radio,
+        )
+    except Exception:  # noqa: BLE001 - el usuario necesita un mensaje claro
+        return jsonify(
+            {
+                "estado": "error",
+                "mensaje": (
+                    "No se pudo encolar la ampliación. Revise el worker y Redis."
+                ),
+            }
+        ), 503
+
+    task_id, creada = amplification.registrar_tarea(
+        job.id, event_id, clave, tarea.id
+    )
+    registrar(
+        "availability.amplify",
+        entity=job.id,
+        meta={
+            "tabla": tabla,
+            "fuente": revision.get("fuente"),
+            "evento": event_id,
+            "radio": radio,
+            "sin_limite": sin_limite,
+            "clave": clave,
+        },
+    )
+    if not creada:
+        return jsonify(
+            {"estado": "en_curso", "task_id": task_id, "clave": clave}
+        ), 200
+    return jsonify(
+        {"estado": "encolada", "task_id": tarea.id, "clave": clave}
+    ), 202
+
+
+@results_bp.get(
+    "/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>"
+    "/estaciones/ampliar/<task_id>"
+)
+@login_required
+@permiso_requerido("catalogos.ver")
+def estado_ampliacion(
+    job_id: str, tabla: str, opcion: str, fila: int, task_id: str
+):
+    """Estado de una ampliación encolada."""
+    job = _job(job_id)
+    _contexto_fila(job, tabla, opcion, fila)
+    resultado = celery.AsyncResult(task_id)
+    estado = resultado.state
+    datos = {"estado": estado}
+    if estado == "PROGRESS":
+        datos["fase"] = str((resultado.info or {}).get("fase") or "")
+    elif estado == "SUCCESS":
+        valor = resultado.result or {}
+        if isinstance(valor, dict) and valor.get("estado") == "ok":
+            volver = request.args.get("volver", "")
+            if not volver.startswith("/") or volver.startswith("//"):
+                volver = url_for(
+                    ENDPOINTS[tabla],
+                    job_id=job.id,
+                    **{PARAMETROS[tabla]: opcion},
+                )
+            url = url_for(
+                "results.detalle",
+                job_id=job.id,
+                tabla=tabla,
+                opcion=opcion,
+                fila=fila,
+                volver=volver,
+                ampliado=valor.get("clave"),
+            )
+            datos.update(
+                {
+                    "estado": "ok",
+                    "url": url,
+                    "clave": valor.get("clave", ""),
+                    "filas": valor.get("filas", 0),
+                }
+            )
+        else:
+            datos.update(
+                {
+                    "estado": "error",
+                    "mensaje": str(
+                        valor.get("mensaje")
+                        if isinstance(valor, dict)
+                        else "La ampliación no devolvió un resultado válido."
+                    ),
+                }
+            )
+    elif estado == "FAILURE":
+        datos.update(
+            {
+                "estado": "error",
+                "mensaje": "La ampliación contra la base falló en el worker.",
+            }
+        )
+    return jsonify(datos)

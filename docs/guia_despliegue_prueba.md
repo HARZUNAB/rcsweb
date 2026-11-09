@@ -111,9 +111,21 @@ CARTOPY_DATA_DIR_HOST=/home/hriquelmez/datos/cartopy
 CARTOPY_DATA_DIR=/data/cartopy
 
 SESSION_COOKIE_SECURE=1
+
+# Disponibilidad de formas de onda (sidecar)
+SEISCOMP_HOST_ROOT=/home/hriquelmez/seiscomp
+SDS_HOST_ROOT=/mnt/sds
+RCS_DISPONIBILIDAD_URL=http://disponibilidad:8010
+RCS_DISPONIBILIDAD_TOKEN=<otra clave larga>
+RCS_DISPONIBILIDAD_TIMEOUT=240
+RCS_DISPONIBILIDAD_MAX_ESTACIONES=150
+RCS_DISPONIBILIDAD_MAX_STREAMS=5000
+RCS_RECORDSTREAM=
 ```
 
-`SESSION_COOKIE_SECURE=1` se usa porque la URL de Tailscale será HTTPS.
+`SESSION_COOKIE_SECURE=1` se usa porque la URL de Tailscale será HTTPS. El
+sidecar `disponibilidad` necesita leer el SeisComp y el SDS del host; por eso se
+montan en solo lectura. No se publica ningún puerto del sidecar.
 
 Si el tester va a crear trabajos reales, configure también las fuentes SSH y SeisComp con credenciales de prueba o de solo lectura. No use credenciales de escritura de producción.
 
@@ -150,6 +162,9 @@ services:
 
   worker:
     container_name: rcsweb-test-worker
+
+  disponibilidad:
+    container_name: rcsweb-test-disponibilidad
 ```
 
 Este archivo:
@@ -181,6 +196,8 @@ Verificar:
 ```bash
 sudo docker compose -p rcsweb-test ps
 curl -fsS http://127.0.0.1:8001/health
+sudo docker compose -p rcsweb-test exec disponibilidad \
+  python3 -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8010/health').read().decode())"
 ```
 
 Ver logs si algo falla:
@@ -449,6 +466,17 @@ sudo docker compose \
   -f docker-compose.yml \
   -f docker-compose.test.yml \
   up -d --build
+```
+
+La primera vez que se despliega esta versión hay que reconstruir para crear el
+servicio `disponibilidad`:
+
+```bash
+sudo docker compose \
+  -p rcsweb-test \
+  -f docker-compose.yml \
+  -f docker-compose.test.yml \
+  up -d --build disponibilidad web worker
 ```
 
 Si cambió `.env` o `docker-compose.test.yml`, recrear los contenedores:

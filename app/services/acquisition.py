@@ -23,7 +23,7 @@ from ..models import (
 from .audit import registrar
 from .queue import encolar_trabajo
 from .validators import validar_fuente
-from .workspace import crear_workspace
+from .workspace import crear_workspace, ruta_solicitud
 
 SUBDIRECTORIOS = ("files", "logs", "trabajo", "inputs")
 
@@ -41,11 +41,6 @@ class _Log:
             return
         with self.ruta.open("a", encoding="utf-8") as archivo:
             archivo.write(linea + "\n")
-
-
-def ruta_solicitud(request_id: str) -> Path:
-    raiz = Path(current_app.config["WORKSPACE_ROOT"]).resolve()
-    return raiz / "solicitudes" / str(request_id)
 
 
 def preparar_workspace(request_id: str) -> Path:
