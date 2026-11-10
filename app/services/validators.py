@@ -15,6 +15,9 @@ RE_EVENTO_SEISAN = re.compile(
     r"^\s*(\d{4})\s+(\d{1,2})\s+(\d{1,2})\s+"
     r"(\d{1,4})\s+(\d{1,2}(?:\.\d+)?)"
 )
+RE_CABECERA_SEISAN = re.compile(
+    r"^\s*(\d{4})-(\d{2})-(\d{2})-(\d{4})-(\d{2})"
+)
 
 COLUMNAS_EVENTQUERY = ("time", "lat", "lon", "depth", "mag", "tipo_mag", "ref", "perc")
 ALIASES_EVENTQUERY = {
@@ -188,32 +191,48 @@ def validar_seisan(ruta: Path, periodo_inicio=None, periodo_fin=None) -> dict:
         resultado["errores"].append("El archivo está vacío.")
         return resultado
 
-    instantes = []
+    instantes_cabecera = []
+    instantes_evento = []
     try:
         with ruta.open(encoding="latin-1", errors="replace") as archivo:
             for linea in archivo:
+                cabecera = RE_CABECERA_SEISAN.match(linea)
+                if cabecera:
+                    anio, mes, dia, hhmm, segundo = cabecera.groups()
+                    try:
+                        instante = datetime.datetime(
+                            int(anio),
+                            int(mes),
+                            int(dia),
+                            int(hhmm) // 100,
+                            int(hhmm) % 100,
+                            int(segundo),
+                        )
+                    except ValueError:
+                        continue
+                    instantes_cabecera.append(instante)
+                    continue
                 coincidencia = RE_EVENTO_SEISAN.match(linea)
                 if not coincidencia:
                     continue
                 anio, mes, dia, hhmm, segundo = coincidencia.groups()
                 try:
-                    hora = int(hhmm) // 100
-                    minuto = int(hhmm) % 100
                     instante = datetime.datetime(
                         int(anio),
                         int(mes),
                         int(dia),
-                        hora,
-                        minuto,
+                        int(hhmm) // 100,
+                        int(hhmm) % 100,
                         int(float(segundo)),
                     )
                 except ValueError:
                     continue
-                instantes.append(instante)
+                instantes_evento.append(instante)
     except OSError as exc:
         resultado["errores"].append(f"No se pudo leer select.out: {exc}")
         return resultado
 
+    instantes = instantes_cabecera or instantes_evento
     resultado["eventos"] = len(instantes)
     if not instantes:
         resultado["errores"].append(

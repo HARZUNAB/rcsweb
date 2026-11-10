@@ -67,7 +67,30 @@ def test_validar_seisan(samples):
     resultado = validar_fuente("seisan", samples / "select.out", INICIO, FIN)
 
     assert resultado["ok"] is True
-    assert resultado["eventos"] == 4
+    assert resultado["eventos"] == 5
+    assert resultado["errores"] == []
+
+
+def test_validar_seisan_formato_crudo(tmp_path):
+    archivo = tmp_path / "select.out"
+    archivo.write_text(
+        " 2025  326 0024 19.2QL -21.081 -69.000112.6  GUC 10 0.2 2.7LGUC                1\n"
+        " 2025-03-26-0024-19M.GUC___136                                                 6\n"
+        " 2025  326 0115 20.20L -22.000 -70.000 10.0             3.2L                   1\n"
+        " 2025-03-26-0115-20M.GUC___033                                                 6\n",
+        encoding="latin-1",
+    )
+
+    resultado = validar_fuente(
+        "seisan",
+        archivo,
+        datetime(2025, 3, 26),
+        datetime(2025, 3, 31),
+    )
+
+    assert resultado["ok"] is True
+    assert resultado["eventos"] == 2
+    assert resultado["desde"].startswith("2025-03-26")
     assert resultado["errores"] == []
 
 
