@@ -308,7 +308,6 @@ def construir_soluciones(
             fila.get("tipo_mag_local"),
             fila.get("analista", ""),
             rol="local",
-            fila=indice,
         )
         publicado = _solucion(
             fuentes_manifest.referencia().id,
@@ -321,7 +320,6 @@ def construir_soluciones(
             analista=analista_publicado,
             rol="publicado",
             analista_etiqueta="Analista probable",
-            fila=indice,
         )
         return [s for s in (local, publicado) if s is not None]
 
@@ -374,7 +372,6 @@ def construir_soluciones(
         analista_etiqueta=(
             "Analista probable" if fila.get("Analista probable") else "Analista"
         ),
-        fila=indice,
     )
     return [solucion] if solucion is not None else []
 

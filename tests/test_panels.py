@@ -721,6 +721,14 @@ def test_ruta_detalle_grupo_perfil(client, login, monkeypatch):
     assert 'id="grupo-descargar-csv"' in html
     assert "grupo=perfil" in html
     assert "ident=P001" in html
+    datos_mapa = json.loads(
+        re.search(
+            r'<script type="application/json" id="mapa-datos">(.*?)</script>',
+            html,
+            re.S,
+        ).group(1)
+    )
+    assert any(punto.get("url") for punto in datos_mapa)
     assert 'id="controles-estaciones-mapa"' not in html
     assert 'id="btn-propagacion"' not in html
     assert 'id="btn-propagacion-consultar"' not in html

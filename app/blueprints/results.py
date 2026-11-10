@@ -1261,15 +1261,6 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
     )
     for punto in puntos:
         punto["frontera"] = texto_frontera_coords(punto["lat"], punto["lon"])
-        if punto.get("fila") is not None:
-            punto["url"] = url_for(
-                "results.detalle",
-                job_id=job.id,
-                tabla=tabla,
-                opcion=opcion,
-                fila=punto["fila"],
-                volver=volver,
-            )
     frontera_evento = next(
         (punto["frontera"] for punto in puntos if punto["frontera"] != "—"),
         "—",
