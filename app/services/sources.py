@@ -148,6 +148,33 @@ def prefijo_compara(codigo: str) -> str:
     return fuente(codigo).prefijo_compara
 
 
+def disponibilidad_fuentes(fuentes, usuario=None) -> dict:
+    """Rango de fechas de las fuentes que se consultan directamente.
+
+    Un fallo de conexión no rompe el formulario: la fuente queda sin rango y
+    el alta mostrará el error al validar el período.
+    """
+    from flask import current_app
+
+    datos = {}
+    for fuente_def in fuentes:
+        if fuente_def.requires_file:
+            continue
+        adapter = adaptador(fuente_def.id)
+        if not getattr(adapter, "soporta_disponibilidad", False):
+            continue
+        try:
+            datos[fuente_def.id] = adapter.disponibilidad(usuario)
+        except Exception as exc:  # noqa: BLE001 - se informa en la tarjeta
+            current_app.logger.warning(
+                "No se pudo consultar el rango de %s: %s",
+                fuente_def.id,
+                exc,
+            )
+            datos[fuente_def.id] = None
+    return datos
+
+
 __all__ = [
     "FUENTES",
     "REFERENCIA",
@@ -156,6 +183,7 @@ __all__ = [
     "capacidades",
     "default_primary",
     "definicion",
+    "disponibilidad_fuentes",
     "es_local",
     "es_referencia",
     "etiqueta",

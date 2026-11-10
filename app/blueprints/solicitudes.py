@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, time
+from types import SimpleNamespace
 
 from flask import (
     Blueprint,
@@ -15,9 +16,9 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
-from sqlalchemy.orm import selectinload
 
 from ..domain.catalogs import manifest as fuentes_manifest
+from ..domain.catalogs.registry import adaptador as obtener_adaptador
 from ..extensions import db
 from ..forms import ReintentarForm, SolicitudForm
 from ..models import CatalogRequest, CatalogRequestFile, Job, nuevo_uuid
@@ -35,10 +36,12 @@ from ..services.audit import registrar
 from ..services.queue import encolar_solicitud
 from ..services.seiscomp import probar_conexion
 from ..services.source_selection import (
+    advertencia_en,
     error_en,
     leer_formulario,
     opciones_formulario,
 )
+from ..services.sources import disponibilidad_fuentes
 
 solicitudes_bp = Blueprint("solicitudes", __name__, url_prefix="/solicitudes")
 
@@ -120,34 +123,8 @@ def _puede_reintentar(solicitud: CatalogRequest) -> bool:
 @login_required
 @permiso_requerido("solicitudes.ver")
 def lista():
-    consulta = (
-        db.select(CatalogRequest)
-        .options(selectinload(CatalogRequest.requested_by))
-        .order_by(CatalogRequest.created_at.desc())
-    )
-    if not alcance_total(current_user):
-        consulta = consulta.where(
-            CatalogRequest.requested_by_id == current_user.id
-        )
-    solicitudes = (
-        db.session.execute(consulta.limit(50)).scalars().all()
-    )
-    ids = [solicitud.id for solicitud in solicitudes]
-    con_job = set()
-    if ids:
-        con_job = set(
-            db.session.execute(
-                db.select(Job.catalog_request_id).where(
-                    Job.catalog_request_id.in_(ids)
-                )
-            ).scalars()
-        )
-    for solicitud in solicitudes:
-        solicitud.estado_inicial = _estado_inicial(solicitud)
-        solicitud.estado_final = _estado_final(
-            solicitud, solicitud.id in con_job
-        )
-    return render_template("solicitudes/list.html", solicitudes=solicitudes)
+    """El historial visible vive en Trabajos; esta ruta queda como alias."""
+    return redirect(url_for("dashboard.index"))
 
 
 @solicitudes_bp.route("/nueva", methods=["GET", "POST"])
@@ -155,24 +132,33 @@ def lista():
 @permiso_requerido("solicitudes.crear")
 def nueva():
     referencia = fuentes_manifest.referencia()
-    descargables = fuentes_manifest.descargables()
+    descargables = tuple(fuentes_manifest.descargables())
+    directas = tuple(
+        fuente
+        for fuente in fuentes_manifest.locales()
+        if not fuente.requires_file
+    )
+    todas = descargables + directas
     seiscomp_ok = seiscomp_configurada()
     fuente_conexion = next(
         (fuente for fuente in descargables if fuente.availability == "seiscomp"),
         None,
     )
+    disponibilidad = disponibilidad_fuentes(directas, current_user)
 
     def disponible(fuente) -> bool:
         if fuente.availability == "seiscomp":
             return seiscomp_ok
+        if not fuente.requires_file:
+            return disponibilidad.get(fuente.id) is not None
         return True
 
     form = SolicitudForm()
     form.primary_source.choices = [
-        (fuente.id, fuente.label) for fuente in descargables
+        (fuente.id, fuente.label) for fuente in todas
     ]
     if request.method == "GET":
-        candidatas = [fuente for fuente in descargables if disponible(fuente)]
+        candidatas = [fuente for fuente in todas if disponible(fuente)]
         predeterminada = fuentes_manifest.default_primary()
         elegida = next(
             (fuente for fuente in candidatas if fuente.id == predeterminada),
@@ -180,16 +166,18 @@ def nueva():
         )
         form.primary_source.data = elegida.id if elegida else ""
         fuentes_form = opciones_formulario(
-            descargables, {elegida.id} if elegida else set()
+            todas,
+            {fuente.id for fuente in candidatas},
+            alias_por_defecto=True,
         )
     else:
-        fuentes_form = leer_formulario(descargables)
+        fuentes_form = leer_formulario(todas)
 
     if request.method == "POST" and not (request.form.get("primary_source") or "").strip():
         predeterminada = fuentes_manifest.default_primary()
         form.primary_source.data = (
             predeterminada
-            or (descargables[0].id if descargables else "")
+            or (todas[0].id if todas else "")
         )
 
     if form.validate_on_submit():
@@ -200,8 +188,8 @@ def nueva():
         if not seleccionadas:
             error_en(
                 fuentes_form,
-                descargables[0],
-                "Seleccione al menos una fuente local para descargar.",
+                todas[0] if todas else referencia,
+                "Seleccione al menos una fuente local para descargar o consultar.",
             )
             valido = False
         for opcion in seleccionadas:
@@ -231,13 +219,56 @@ def nueva():
         else:
             principal = ""
 
+        # Validación de fuentes directas, como Central.
+        if valido:
+            inicio = form.period_start.data
+            fin = form.period_end.data
+            pseudo = SimpleNamespace(
+                period_start=datetime.combine(inicio, time.min, tzinfo=UTC),
+                period_end=datetime.combine(fin, time(23, 59, 59), tzinfo=UTC),
+                created_by_id=current_user.id,
+            )
+            for opcion in seleccionadas:
+                fuente_def = opcion["fuente"]
+                if fuente_def.requires_file:
+                    continue
+                adapter = obtener_adaptador(fuente_def.format)
+                adapter.source_id = fuente_def.id
+                resultado = adapter.validar_periodo(
+                    pseudo, disponibilidad.get(fuente_def.id)
+                )
+                if not resultado.get("ok"):
+                    error_en(
+                        fuentes_form,
+                        fuente_def,
+                        " ".join(resultado.get("errores", [])),
+                    )
+                    valido = False
+                elif resultado.get("eventos", 0) == 0:
+                    mensaje = " ".join(resultado.get("advertencias", []))
+                    if len(seleccionadas) == 1:
+                        error_en(fuentes_form, fuente_def, mensaje)
+                        valido = False
+                    else:
+                        advertencia_en(fuentes_form, fuente_def, mensaje)
+
         if valido:
             inicio = form.period_start.data
             fin = form.period_end.data
             requiere_radio = any(
-                opcion["fuente"].requires_radius for opcion in seleccionadas
+                opcion["fuente"].requires_radius
+                for opcion in seleccionadas
             )
             radio_km = form.radio_km.data if requiere_radio else None
+            directas_seleccionadas = [
+                {
+                    "id": opcion["fuente"].id,
+                    "alias": opcion["alias"] or opcion["fuente"].label,
+                    "format": opcion["fuente"].format,
+                }
+                for opcion in seleccionadas
+                if not opcion["fuente"].requires_file
+            ]
             solicitud = CatalogRequest(
                 id=nuevo_uuid(),
                 mode="ssh",
@@ -247,6 +278,7 @@ def nueva():
                 progress=0,
                 current_step="En cola",
                 primary_source=principal,
+                direct_sources=directas_seleccionadas or None,
                 station_radius_km=radio_km,
                 requested_by_id=current_user.id,
                 server=form.server.data.strip(),
@@ -266,6 +298,8 @@ def nueva():
             ]
             for opcion in seleccionadas:
                 fuente_def = opcion["fuente"]
+                if not fuente_def.requires_file:
+                    continue
                 archivos.append(
                     CatalogRequestFile(
                         request_id=solicitud.id,
@@ -288,7 +322,14 @@ def nueva():
                     "servidor": solicitud.server,
                     "usuario": solicitud.remote_user,
                     "catalogos": [referencia.id]
-                    + [opcion["fuente"].id for opcion in seleccionadas],
+                    + [
+                        opcion["fuente"].id
+                        for opcion in seleccionadas
+                        if opcion["fuente"].requires_file
+                    ],
+                    "directas": [
+                        item["id"] for item in directas_seleccionadas
+                    ],
                     "principal": principal,
                     "radio_km": radio_km,
                 },
@@ -296,7 +337,8 @@ def nueva():
             try:
                 encolar_solicitud(solicitud.id, form.password.data)
                 flash(
-                    "Solicitud encolada. La descarga se actualiza automáticamente.",
+                    "Solicitud encolada. La descarga y la creación del trabajo "
+                    "son automáticas.",
                     "success",
                 )
             except Exception as exc:  # noqa: BLE001
@@ -316,12 +358,15 @@ def nueva():
         "solicitudes/new.html",
         form=form,
         fuentes=fuentes_form,
+        directas=directas,
+        disponibilidad=disponibilidad,
         seiscomp_ok=seiscomp_ok,
         fuente_conexion=fuente_conexion,
-        radio_disponible=any(fuente.requires_radius for fuente in descargables),
+        radio_disponible=any(
+            fuente.requires_radius for fuente in descargables
+        ),
         referencia=referencia,
     )
-
 
 @solicitudes_bp.post("/probar-seiscomp")
 @login_required
@@ -358,6 +403,27 @@ def _iso_utc(valor) -> str:
     return valor.astimezone(UTC).isoformat()
 
 
+def _directas(solicitud: CatalogRequest) -> list[dict]:
+    items = []
+    for item in solicitud.direct_sources or []:
+        if isinstance(item, str):
+            kind, alias, formato = item, "", ""
+        else:
+            kind = str(item.get("id") or "")
+            alias = str(item.get("alias") or "")
+            formato = str(item.get("format") or "")
+        fuente = fuentes_manifest.por_id(kind)
+        items.append(
+            {
+                "kind": kind,
+                "alias": alias or (fuente.label if fuente else kind),
+                "format": formato or (fuente.format if fuente else ""),
+                "label": fuente.label if fuente else kind,
+            }
+        )
+    return items
+
+
 def _contexto(request_id: str) -> dict:
     solicitud = _solicitud(request_id)
     job = _job_de(solicitud)
@@ -369,6 +435,7 @@ def _contexto(request_id: str) -> dict:
         "estado_final": _estado_final(solicitud, job is not None),
         "log": log_solicitud(solicitud.id),
         "etiquetas": fuentes_manifest.etiquetas(),
+        "directas": _directas(solicitud),
         "form_reintento": ReintentarForm(),
         "puede_reintentar": _puede_reintentar(solicitud),
         "activa": solicitud.status in ("queued", "running"),

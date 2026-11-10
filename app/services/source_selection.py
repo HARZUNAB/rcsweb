@@ -12,15 +12,18 @@ from ..domain.catalogs.manifest import Fuente
 def opciones_formulario(
     fuentes: tuple[Fuente, ...],
     incluir_por_defecto: set[str] | None = None,
+    *,
+    alias_por_defecto: bool = False,
 ) -> list[dict]:
     incluidas = incluir_por_defecto or set()
     return [
         {
             "fuente": fuente,
             "incluir": fuente.id in incluidas,
-            "alias": "",
+            "alias": fuente.label if alias_por_defecto else "",
             "archivo": None,
             "error": "",
+            "advertencia": "",
         }
         for fuente in fuentes
     ]
@@ -43,6 +46,7 @@ def leer_formulario(fuentes: tuple[Fuente, ...]) -> list[dict]:
                 "alias": (request.form.get(f"alias_{fuente.id}") or "").strip(),
                 "archivo": request.files.get(fuente.id),
                 "error": "",
+                "advertencia": "",
             }
         )
     return opciones
@@ -67,6 +71,13 @@ def error_en(opciones: list[dict], fuente: Fuente, mensaje: str) -> None:
             return
 
 
+def advertencia_en(opciones: list[dict], fuente: Fuente, mensaje: str) -> None:
+    for opcion in opciones:
+        if opcion["fuente"].id == fuente.id:
+            opcion["advertencia"] = mensaje
+            return
+
+
 def fuente_por_id(opciones: list[dict], identificador: str) -> dict | None:
     return next(
         (opcion for opcion in opciones if opcion["fuente"].id == identificador),
@@ -75,6 +86,7 @@ def fuente_por_id(opciones: list[dict], identificador: str) -> dict | None:
 
 
 __all__ = [
+    "advertencia_en",
     "error_en",
     "extension_permitida",
     "fuente_por_id",

@@ -5,9 +5,10 @@ from __future__ import annotations
 from flask import Blueprint, render_template
 from flask_login import current_user, login_required
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 
 from ..extensions import db
-from ..models import Job
+from ..models import CatalogRequest, Job
 from ..security import alcance_total, permiso_requerido
 
 dashboard_bp = Blueprint("dashboard", __name__)
@@ -38,4 +39,39 @@ def index():
         "fallidos": por_estado.get("failed", 0),
     }
 
-    return render_template("dashboard/index.html", trabajos=trabajos, stats=stats)
+    consulta_descargas = (
+        db.select(CatalogRequest)
+        .options(selectinload(CatalogRequest.requested_by))
+        .where(
+            CatalogRequest.status.in_(
+                ("queued", "running", "failed", "partial")
+            )
+        )
+        .order_by(CatalogRequest.created_at.desc())
+        .limit(10)
+    )
+    if not ver_todos:
+        consulta_descargas = consulta_descargas.where(
+            CatalogRequest.requested_by_id == current_user.id
+        )
+    descargas = db.session.execute(consulta_descargas).scalars().all()
+    ids = [descarga.id for descarga in descargas]
+    con_job = set()
+    if ids:
+        con_job = set(
+            db.session.execute(
+                db.select(Job.catalog_request_id).where(
+                    Job.catalog_request_id.in_(ids)
+                )
+            ).scalars()
+        )
+    descargas = [
+        descarga for descarga in descargas if descarga.id not in con_job
+    ]
+
+    return render_template(
+        "dashboard/index.html",
+        trabajos=trabajos,
+        stats=stats,
+        descargas=descargas,
+    )

@@ -50,7 +50,7 @@ def test_alta_de_trabajo_queda_registrada(client, samples, sin_celery):
             "eventquery.csv",
         ),
     }
-    client.post("/jobs/new", data=datos, content_type="multipart/form-data")
+    client.post("/jobs/new/subir", data=datos, content_type="multipart/form-data")
 
     registro = db.session.execute(db.select(AuditLog).filter_by(action="job.create")).scalar_one()
     assert registro.entity

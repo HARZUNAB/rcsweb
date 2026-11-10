@@ -94,7 +94,7 @@ def test_subida_muestra_fuentes_del_manifiesto(client, login, tmp_path, monkeypa
     _manifiesto(tmp_path, monkeypatch)
     login()
 
-    html = client.get("/jobs/new").get_data(as_text=True)
+    html = client.get("/jobs/new/subir").get_data(as_text=True)
 
     assert "Referencia X" in html
     assert "Local A" in html
@@ -140,7 +140,7 @@ def test_alta_con_fuente_nueva(client, login, sin_celery, tmp_path, monkeypatch)
     }
 
     respuesta = client.post(
-        "/jobs/new", data=datos, content_type="multipart/form-data"
+        "/jobs/new/subir", data=datos, content_type="multipart/form-data"
     )
 
     assert respuesta.status_code == 302
@@ -395,9 +395,9 @@ def test_formulario_oculta_archivo_para_fuente_sin_archivo(
     _manifiesto_con_fuente_sin_archivo(tmp_path, monkeypatch)
     login()
 
-    html = client.get("/jobs/new").get_data(as_text=True)
+    html = client.get("/jobs/new/subir").get_data(as_text=True)
 
-    assert "Nuevo trabajo" in html
+    assert "Subir catálogos" in html
     assert "No requiere archivo." in html
     assert 'name="central_tmp"' not in html
     assert "central_{inicio}_{fin}.csv" in html
@@ -433,7 +433,7 @@ def test_alta_con_fuente_sin_archivo(
     }
 
     respuesta = client.post(
-        "/jobs/new", data=datos, content_type="multipart/form-data"
+        "/jobs/new/subir", data=datos, content_type="multipart/form-data"
     )
 
     assert respuesta.status_code == 302
@@ -510,7 +510,7 @@ def test_rango_de_fechas_en_la_tarjeta(client, login, tmp_path, monkeypatch):
     )
     login()
 
-    html = client.get("/jobs/new").get_data(as_text=True)
+    html = client.get("/jobs/new/subir").get_data(as_text=True)
 
     assert "Rango disponible en la base" in html
     assert "18/09/1982" in html
@@ -532,7 +532,7 @@ def test_rango_no_disponible_no_rompe_el_formulario(
     )
     login()
 
-    html = client.get("/jobs/new").get_data(as_text=True)
+    html = client.get("/jobs/new/subir").get_data(as_text=True)
 
     assert "Nuevo trabajo" in html
     assert "No se pudo consultar el rango disponible" in html
@@ -569,7 +569,7 @@ def test_sin_eventos_en_la_unica_fuente_deja_borrador(
     }
 
     respuesta = client.post(
-        "/jobs/new", data=datos, content_type="multipart/form-data"
+        "/jobs/new/subir", data=datos, content_type="multipart/form-data"
     )
 
     assert respuesta.status_code == 302
@@ -620,7 +620,7 @@ def test_sin_eventos_con_otra_fuente_encola(
     }
 
     respuesta = client.post(
-        "/jobs/new", data=datos, content_type="multipart/form-data"
+        "/jobs/new/subir", data=datos, content_type="multipart/form-data"
     )
 
     assert respuesta.status_code == 302

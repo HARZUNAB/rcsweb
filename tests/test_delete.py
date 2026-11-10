@@ -98,12 +98,6 @@ def test_eliminar_trabajo_marca_solicitud(client, login):
     assert "fue eliminado" in detalle
     assert f"Eliminado el {fecha}" in detalle
 
-    lista = client.get("/solicitudes/").get_data(as_text=True)
-    assert "Estado inicial" in lista
-    assert "Estado final" in lista
-    assert "Trabajo eliminado" in lista
-    assert fecha in lista
-
 
 def test_solicitud_con_trabajo_vigente(client, login):
     login()
@@ -116,9 +110,6 @@ def test_solicitud_con_trabajo_vigente(client, login):
     assert "Trabajo vigente" in detalle
     assert "Eliminado el" not in detalle
 
-    lista = client.get("/solicitudes/").get_data(as_text=True)
-    assert "Trabajo vigente" in lista
-
 
 def test_solicitud_sin_trabajo(client, login):
     login()
@@ -126,9 +117,6 @@ def test_solicitud_sin_trabajo(client, login):
 
     detalle = client.get(f"/solicitudes/{solicitud.id}").get_data(as_text=True)
     assert "Sin trabajo" in detalle
-
-    lista = client.get("/solicitudes/").get_data(as_text=True)
-    assert "Sin trabajo" in lista
 
 
 def test_no_elimina_trabajo_activo(client, login):

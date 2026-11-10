@@ -34,9 +34,9 @@ def test_nuevo_requiere_login(client):
 def test_pagina_subida_es_secundaria(client, login):
     login()
 
-    html = client.get("/jobs/new").get_data(as_text=True)
+    html = client.get("/jobs/new/subir").get_data(as_text=True)
 
-    assert "Nuevo trabajo" in html
+    assert "Subir catálogos" in html
     assert "La forma habitual es descargar los catálogos del servidor" in html
     assert 'href="/solicitudes/nueva"' in html
 
@@ -44,7 +44,7 @@ def test_pagina_subida_es_secundaria(client, login):
 def test_subida_no_muestra_jerga_de_transporte(client, login):
     login()
 
-    html = client.get("/jobs/new").get_data(as_text=True)
+    html = client.get("/jobs/new/subir").get_data(as_text=True)
 
     assert "SSH" not in html
     assert "SCP" not in html
@@ -54,7 +54,7 @@ def test_crear_trabajo_encola_y_guarda_archivos(client, login, samples, sin_cele
     login()
     datos = _datos_formulario(samples)
 
-    respuesta = client.post("/jobs/new", data=datos, content_type="multipart/form-data")
+    respuesta = client.post("/jobs/new/subir", data=datos, content_type="multipart/form-data")
 
     assert respuesta.status_code == 302
     job = db.session.execute(db.select(Job)).scalar_one()
@@ -95,7 +95,7 @@ def test_crear_trabajo_seiscomp_por_defecto(client, login, samples, sin_celery):
         ),
     }
 
-    client.post("/jobs/new", data=datos, content_type="multipart/form-data")
+    client.post("/jobs/new/subir", data=datos, content_type="multipart/form-data")
 
     job = db.session.execute(db.select(Job)).scalar_one()
     assert job.status == "queued"
@@ -119,7 +119,7 @@ def test_sin_fuente_local_no_crea_trabajo(client, login, samples, sin_celery):
         ),
     }
 
-    respuesta = client.post("/jobs/new", data=datos, content_type="multipart/form-data")
+    respuesta = client.post("/jobs/new/subir", data=datos, content_type="multipart/form-data")
 
     assert respuesta.status_code == 200
     assert "al menos una fuente local" in respuesta.get_data(as_text=True)
@@ -140,7 +140,7 @@ def test_validacion_invalida_deja_trabajo_en_borrador(client, login, samples, si
         "eventquery": (open(malo, "rb"), "eventquery_invalido.csv"),
     }
 
-    respuesta = client.post("/jobs/new", data=datos, content_type="multipart/form-data")
+    respuesta = client.post("/jobs/new/subir", data=datos, content_type="multipart/form-data")
 
     assert respuesta.status_code == 302
     job = db.session.execute(db.select(Job)).scalar_one()
@@ -159,7 +159,7 @@ def test_periodo_invalido_no_crea_trabajo(client, login, samples, sin_celery):
     datos = _datos_formulario(samples)
     datos["period_end"] = "2026-09-01"
 
-    respuesta = client.post("/jobs/new", data=datos, content_type="multipart/form-data")
+    respuesta = client.post("/jobs/new/subir", data=datos, content_type="multipart/form-data")
 
     assert respuesta.status_code == 200
     assert "posterior" in respuesta.get_data(as_text=True)
@@ -236,7 +236,7 @@ def test_periodo_se_guarda_en_utc(client, login, samples, sin_celery):
     login()
     datos = _datos_formulario(samples)
 
-    client.post("/jobs/new", data=datos, content_type="multipart/form-data")
+    client.post("/jobs/new/subir", data=datos, content_type="multipart/form-data")
 
     job = db.session.execute(db.select(Job)).scalar_one()
     assert job.period_start.day == 1
@@ -274,3 +274,43 @@ def test_detalle_muestra_advertencias_de_fuentes(client, login):
 
     assert "Advertencias de fuentes" in html
     assert "no tiene eventos" in html
+
+
+def test_jobs_new_redirige_a_solicitud(client, login):
+    login()
+
+    respuesta = client.get("/jobs/new")
+
+    assert respuesta.status_code == 302
+    assert respuesta.headers["Location"].endswith("/solicitudes/nueva")
+
+
+def test_dashboard_muestra_descargas_en_curso(client, login):
+    from app.models import CatalogRequest
+
+    login()
+    solicitud = CatalogRequest(
+        id=nuevo_uuid(),
+        mode="ssh",
+        period_start=datetime(2026, 10, 1, tzinfo=UTC),
+        period_end=datetime(2026, 10, 31, 23, 59, 59, tzinfo=UTC),
+        status="running",
+        current_step="Descargando catálogos",
+        server="10.54.217.9",
+        remote_user="sysopr",
+    )
+    db.session.add(solicitud)
+    db.session.commit()
+
+    html = client.get("/").get_data(as_text=True)
+
+    assert "Preparando catálogos" in html
+    assert "Descargando catálogos" in html
+    assert f"/solicitudes/{solicitud.id}" in html
+
+    solicitud.status = "failed"
+    solicitud.error = "Fallo de prueba"
+    db.session.commit()
+
+    html = client.get("/").get_data(as_text=True)
+    assert "Descarga fallida" in html

@@ -9,7 +9,6 @@ from pathlib import Path
 from flask import (
     Blueprint,
     abort,
-    current_app,
     flash,
     redirect,
     render_template,
@@ -37,6 +36,7 @@ from ..services.source_selection import (
     leer_formulario,
     opciones_formulario,
 )
+from ..services.sources import disponibilidad_fuentes
 from ..services.validators import validar_fuente
 from ..services.workspace import (
     crear_workspace,
@@ -91,30 +91,18 @@ def _contexto_detalle(job: Job) -> dict:
 
 
 def _disponibilidad_fuentes(definiciones) -> dict:
-    """Rango informativo de las fuentes que se consultan directamente.
-
-    Un fallo de conexión no rompe el formulario: la fuente queda sin rango y
-    el alta mostrará el error al validar el período.
-    """
-    datos = {}
-    for fuente in definiciones:
-        if fuente.requires_file:
-            continue
-        adapter = obtener_adaptador(fuente.format)
-        adapter.source_id = fuente.id
-        if not getattr(adapter, "soporta_disponibilidad", False):
-            continue
-        try:
-            datos[fuente.id] = adapter.disponibilidad(current_user)
-        except Exception as exc:  # noqa: BLE001 - se informa en la tarjeta
-            current_app.logger.warning(
-                "No se pudo consultar el rango de %s: %s", fuente.id, exc
-            )
-            datos[fuente.id] = None
-    return datos
+    """Rango informativo de las fuentes que se consultan directamente."""
+    return disponibilidad_fuentes(definiciones, current_user)
 
 
-@jobs_bp.route("/new", methods=["GET", "POST"])
+@jobs_bp.get("/new")
+@login_required
+def nuevo_redirige():
+    """La entrada por defecto es solicitar los catálogos al servidor."""
+    return redirect(url_for("solicitudes.nueva"))
+
+
+@jobs_bp.route("/new/subir", methods=["GET", "POST"])
 @login_required
 @permiso_requerido("trabajos.crear")
 def nuevo():

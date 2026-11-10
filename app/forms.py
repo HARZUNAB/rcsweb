@@ -154,7 +154,7 @@ class SolicitudForm(FlaskForm):
         choices=[],
         validators=[DataRequired()],
     )
-    submit = SubmitField("Solicitar y descargar")
+    submit = SubmitField("Solicitar y crear trabajo")
 
     def validate_period_end(self, field):  # noqa: N802 - API de WTForms
         if self.period_start.data and field.data and field.data < self.period_start.data:

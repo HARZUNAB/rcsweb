@@ -79,6 +79,7 @@ class CatalogRequest(db.Model):
     progress: Mapped[int] = mapped_column(Integer, default=0)
     current_step: Mapped[str | None] = mapped_column(String(80))
     primary_source: Mapped[str | None] = mapped_column(String(32))
+    direct_sources: Mapped[list | None] = mapped_column(JSON)
     station_radius_km: Mapped[int | None] = mapped_column(Integer)
     requested_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     server: Mapped[str | None] = mapped_column(String(255))

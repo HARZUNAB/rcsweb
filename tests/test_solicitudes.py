@@ -210,7 +210,7 @@ def test_solicitud_ofrece_subida_secundaria(client, login):
     html = client.get("/solicitudes/nueva").get_data(as_text=True)
 
     assert "Nuevo trabajo" in html
-    assert 'href="/jobs/new"' in html
+    assert 'href="/jobs/new/subir"' in html
 
 
 def test_nueva_por_defecto_sin_seiscomp(client, login, monkeypatch):
@@ -237,7 +237,7 @@ def test_nueva_por_defecto_elige_seiscomp_si_esta_configurado(client, login, mon
     html = client.get("/solicitudes/nueva").get_data(as_text=True)
 
     assert "checked" in _input(html, "incluir_seiscomp")
-    assert "checked" not in _input(html, "incluir_seisan")
+    assert "checked" in _input(html, "incluir_seisan")
     marcado = [radio for radio in _radios(html) if "checked" in radio]
     assert len(marcado) == 1
     assert 'value="seiscomp"' in marcado[0]
@@ -406,7 +406,6 @@ def test_lista_y_detalle(client, login, app):
     login()
     solicitud = _solicitud(app)
 
-    assert client.get("/solicitudes/").status_code == 200
     respuesta = client.get(f"/solicitudes/{solicitud.id}")
     assert respuesta.status_code == 200
     assert "10.54.217.9" in respuesta.get_data(as_text=True)
@@ -428,9 +427,6 @@ def test_detalle_muestra_indicador_de_descarga(client, login, app):
     assert "data-solicitud-inicio=" in html
     assert "Progreso" in html
     assert "42%" in html
-
-    lista = client.get("/solicitudes/").get_data(as_text=True)
-    assert "estado-trabajando" in lista
 
 
 def test_ejecutar_solicitud_crea_job(app, monkeypatch):
@@ -491,11 +487,6 @@ def test_lista_solicitudes_identifica_creador(app, client, login):
     propia = _solicitud(app, creador_id=maria.id)
     login()
 
-    html = client.get("/solicitudes/").get_data(as_text=True)
-
-    assert "<th>Creador</th>" in html
-    assert "maria" in html
-
     detalle = client.get(f"/solicitudes/{propia.id}").get_data(as_text=True)
     assert "solicitada por" in detalle
     assert "maria" in detalle
@@ -512,11 +503,8 @@ def test_supervisor_identifica_creador_de_solicitud(app, client):
         data={"username": "supervisora", "password": "secret"},
     )
 
-    lista = client.get("/solicitudes/").get_data(as_text=True)
     detalle = client.get(f"/solicitudes/{solicitud.id}").get_data(as_text=True)
 
-    assert "Creador" in lista
-    assert "supervisora" in lista
     assert "solicitada por" in detalle
     assert "supervisora" in detalle
 
@@ -707,3 +695,112 @@ def test_reintentar_limpia_el_progreso(app):
     acquisition.reintentar_solicitud(solicitud.id, "secreto")
 
     assert all(archivo.progress == 0 for archivo in solicitud.files)
+
+
+def test_nueva_preselecciona_todos_y_central(client, login, monkeypatch):
+    monkeypatch.setattr(
+        "app.blueprints.solicitudes.seiscomp_configurada", lambda: True
+    )
+    monkeypatch.setattr(
+        "app.domain.catalogs.adapters.central.Adaptador.disponibilidad",
+        lambda self, usuario=None: {
+            "desde": datetime(1982, 9, 18, tzinfo=UTC),
+            "hasta": datetime(2025, 3, 31, tzinfo=UTC),
+        },
+    )
+    login()
+
+    html = client.get("/solicitudes/nueva").get_data(as_text=True)
+
+    assert "checked" in _input(html, "incluir_seiscomp")
+    assert "checked" in _input(html, "incluir_seisan")
+    assert "checked" in _input(html, "incluir_central")
+    assert 'value="SeisComp"' in html
+    assert 'value="Seisan"' in html
+    assert 'value="Central"' in html
+    assert "Solicitar y crear trabajo" in html
+    assert 'href="/jobs/new/subir"' in html
+    assert "Rango disponible en la base" in html
+    assert "18/09/1982" in html
+    assert "31/03/2025" in html
+
+
+def test_nueva_solicitud_guarda_fuente_directa(client, login, monkeypatch):
+    monkeypatch.setattr(
+        "app.blueprints.solicitudes.seiscomp_configurada", lambda: True
+    )
+    monkeypatch.setattr(
+        "app.domain.catalogs.adapters.central.Adaptador.validar_periodo",
+        lambda self, job, rango=None: {
+            "codigo": "central",
+            "ok": True,
+            "errores": [],
+            "advertencias": [],
+            "eventos": 10,
+            "desde": None,
+            "hasta": None,
+        },
+    )
+    monkeypatch.setattr(
+        "app.blueprints.solicitudes.encolar_solicitud", lambda *_: None
+    )
+    login()
+
+    respuesta = client.post(
+        "/solicitudes/nueva",
+        data={
+            "period_start": "2026-10-01",
+            "period_end": "2026-10-31",
+            "server": "10.54.217.9",
+            "remote_user": "sysopr",
+            "password": "secreto",
+            "incluir_seiscomp": "y",
+            "incluir_central": "y",
+            "primary_source": "seiscomp",
+            "alias_seiscomp": "SeisComp octubre",
+            "alias_central": "Central octubre",
+        },
+    )
+
+    assert respuesta.status_code == 302
+    solicitud = db.session.execute(db.select(CatalogRequest)).scalar_one()
+    assert solicitud.direct_sources == [
+        {
+            "id": "central",
+            "alias": "Central octubre",
+            "format": "local_db",
+        }
+    ]
+    assert {archivo.kind for archivo in solicitud.files} == {
+        "eventquery",
+        "seiscomp",
+    }
+
+
+def test_ejecutar_solicitud_incluye_fuente_directa(app, monkeypatch):
+    solicitud = _solicitud(app)
+    solicitud.direct_sources = [
+        {"id": "central", "alias": "Central", "format": "local_db"}
+    ]
+    solicitud.primary_source = "central"
+    db.session.commit()
+    encolados = []
+    monkeypatch.setattr(
+        "app.services.acquisition._cargar_traer_catalogos",
+        lambda: _traer_catalogos_falso(True),
+    )
+    monkeypatch.setattr(
+        "app.services.acquisition.encolar_trabajo",
+        lambda job_id: encolados.append(job_id),
+    )
+
+    resultado = ejecutar_solicitud(solicitud.id, "secreto")
+
+    assert resultado["estado"] == "done"
+    job = db.session.execute(db.select(Job)).scalar_one()
+    fuentes = {source.kind: source for source in job.sources}
+    assert "central" in fuentes
+    assert fuentes["central"].format == "local_db"
+    assert fuentes["central"].role == "local_principal"
+    assert "tensores" in fuentes["central"].capacidades
+    assert encolados == [job.id]

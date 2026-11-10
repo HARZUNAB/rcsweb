@@ -200,25 +200,60 @@ def _guardar_archivo(
 
 def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
     referencia = fuentes_manifest.referencia()
-    locales = [
-        archivo
-        for archivo in request.files
-        if archivo.kind != referencia.id
-        and archivo.status == "ok"
-        and archivo.stored_path
-    ]
+    locales = []
+    for archivo in request.files:
+        if (
+            archivo.kind != referencia.id
+            and archivo.status == "ok"
+            and archivo.stored_path
+        ):
+            definicion = fuentes_manifest.por_id(archivo.kind)
+            locales.append(
+                {
+                    "kind": archivo.kind,
+                    "format": archivo.format
+                    or (definicion.format if definicion else archivo.kind),
+                    "alias": archivo.display_name
+                    or (definicion.label if definicion else archivo.kind),
+                    "definicion": definicion,
+                }
+            )
+    for item in request.direct_sources or []:
+        if isinstance(item, str):
+            kind, alias, formato = item, "", ""
+        else:
+            kind = str(item.get("id") or "")
+            alias = str(item.get("alias") or "")
+            formato = str(item.get("format") or "")
+        definicion = fuentes_manifest.por_id(kind)
+        if definicion is None or definicion.requires_file:
+            continue
+        if any(local["kind"] == definicion.id for local in locales):
+            continue
+        locales.append(
+            {
+                "kind": definicion.id,
+                "format": formato or definicion.format,
+                "alias": alias or definicion.label,
+                "definicion": definicion,
+            }
+        )
     if not locales:
         raise RuntimeError("La solicitud no tiene ninguna fuente local válida.")
 
+    kinds = {local["kind"] for local in locales}
     principal = request.primary_source
-    if principal not in {archivo.kind for archivo in locales}:
+    if principal not in kinds:
         predeterminada = fuentes_manifest.default_primary()
         principal = (
-            predeterminada
-            if predeterminada in {archivo.kind for archivo in locales}
-            else locales[0].kind
+            predeterminada if predeterminada in kinds else locales[0]["kind"]
         )
-    locales.sort(key=lambda archivo: (0 if archivo.kind == principal else 1, archivo.kind))
+    locales.sort(
+        key=lambda local: (
+            0 if local["kind"] == principal else 1,
+            local["kind"],
+        )
+    )
 
     job = Job(
         id=nuevo_uuid(),
@@ -247,19 +282,19 @@ def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
             capabilities=sorted(referencia.capacidades),
         )
     )
-    for indice, archivo in enumerate(locales, start=1):
-        definicion = fuentes_manifest.por_id(archivo.kind)
-        formato = archivo.format or (definicion.format if definicion else archivo.kind)
-        alias = archivo.display_name or (
-            definicion.label if definicion else archivo.kind
-        )
+    for indice, local in enumerate(locales, start=1):
+        definicion = local["definicion"]
         db.session.add(
             JobSource(
                 job_id=job.id,
-                kind=archivo.kind,
-                alias=alias,
-                format=formato,
-                role=("local_principal" if archivo.kind == principal else "local_secundaria"),
+                kind=local["kind"],
+                alias=local["alias"],
+                format=local["format"],
+                role=(
+                    "local_principal"
+                    if local["kind"] == principal
+                    else "local_secundaria"
+                ),
                 priority=indice,
                 capabilities=sorted(
                     definicion.capacidades if definicion else frozenset()
@@ -296,7 +331,7 @@ def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
             "solicitud": request.id,
             "inicio": job.inicio14,
             "fin": job.fin14,
-            "fuentes": [archivo.kind for archivo in locales],
+            "fuentes": [local["kind"] for local in locales],
             "principal": principal,
             "radio_km": request.station_radius_km,
         },

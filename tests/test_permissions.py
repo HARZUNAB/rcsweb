@@ -115,7 +115,7 @@ def test_etiquetas_y_alcance():
 def test_consulta_es_solo_lectura(client, usuarios):
     _login(client, "consulta")
     assert client.get("/").status_code == 200
-    assert client.get("/jobs/new").status_code == 403
+    assert client.get("/jobs/new/subir").status_code == 403
     assert client.get("/solicitudes/nueva").status_code == 403
     assert client.get("/admin/auditoria").status_code == 403
     assert client.get("/admin/usuarios").status_code == 403
@@ -125,7 +125,7 @@ def test_supervisor_ve_auditoria_pero_no_usuarios(client, usuarios):
     _login(client, "supervisor")
     assert client.get("/admin/auditoria").status_code == 200
     assert client.get("/admin/usuarios").status_code == 403
-    assert client.get("/jobs/new").status_code == 200
+    assert client.get("/jobs/new/subir").status_code == 200
 
 
 def test_admin_ve_usuarios(client, usuarios):
@@ -147,14 +147,15 @@ def test_navegacion_segun_rol(client, usuarios):
     _login(client, "supervisor")
     html = client.get("/").get_data(as_text=True)
     assert "Nuevo trabajo" in html
-    assert "Solicitar catálogos" in html
+    assert "Solicitar catálogos" not in html
     assert "Auditoría" in html
     assert ">Usuarios<" not in html
     assert "Supervisor" in html
 
     _login(client, "analista")
     html = client.get("/").get_data(as_text=True)
-    assert ">Solicitudes<" in html
+    assert "Nuevo trabajo" in html
+    assert ">Solicitudes<" not in html
     assert "Auditoría" not in html
     assert ">Usuarios<" not in html
 

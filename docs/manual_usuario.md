@@ -62,62 +62,43 @@ Al ingresar verá el resumen de trabajos y la lista de los más recientes.
 
 Hay dos formas de iniciar un trabajo.
 
-### Solicitar catálogos
+### Nuevo trabajo
 
-Use **Solicitar catálogos** cuando la aplicación deba conectarse al servidor
-para descargar los archivos.
+Use **Nuevo trabajo** para solicitar los catálogos al servidor. Es la forma
+habitual: la descarga y la creación del trabajo son automáticas.
 
-![Solicitud de catálogos](img/solicitud.png)
+![Nuevo trabajo](img/solicitud.png)
 
-1. Indique el período.
-2. Complete los datos del servidor y la contraseña SSH.
-3. Elija las fuentes disponibles en la configuración.
-4. Defina el radio de estaciones.
-5. Envíe la solicitud.
+1. Indique el período, el servidor y las credenciales.
+2. **Eventquery** se descarga siempre como referencia.
+3. Los catálogos disponibles aparecen preseleccionados.
+4. Puede cambiar los **nombres sugeridos** de cada fuente.
+5. **Central** aparece como fuente directa, también preseleccionada. La tarjeta
+   muestra el rango de fechas disponible en la base. Si el período queda fuera y
+   hay otros catálogos, la solicitud se crea igual y Central no aporta eventos.
+   Si Central es la única fuente local, el alta se rechaza para no crear un
+   trabajo vacío. Si la base no está configurada, Central aparece sin seleccionar
+   y se muestra el aviso de rango no disponible.
+6. Elija la fuente principal.
+7. Envíe **Solicitar y crear trabajo**.
 
-La fuente de referencia se descarga siempre como catálogo de referencia; no es
-una fuente local de Resultados.
+Mientras se descargan los catálogos, el trabajo aparece en **Trabajos** como
+**“Preparando catálogos”**. Si la descarga falla, aparece como **“Descarga
+fallida”** y puede reintentarse desde el detalle. El detalle muestra el
+progreso, el tiempo transcurrido y el avance de cada catálogo.
 
-La contraseña SSH se usa solo para la descarga y no se guarda.
-
-Mientras un catálogo se está descargando, el estado muestra un spinner y un
-pulso lento, y la página se actualiza cada 2 segundos. Así se distingue una
-descarga en curso de una pantalla detenida.
-
-La tarjeta de progreso también muestra el **tiempo transcurrido** y cada
-catálogo tiene su propio **porcentaje de avance**. Si el catálogo informa
-etapas internas, el porcentaje avanza con ellas; si no, se mantiene el estado
-de descarga y el reloj.
-
-El listado muestra **Estado inicial** y **Estado final**:
-
-- **Estado inicial**: la descarga o solicitud, por ejemplo Terminada, Fallida,
-  Parcial, En cola o Descargando.
-- **Estado final**:
-  - **Trabajo vigente**: el trabajo asociado existe y se puede consultar.
-  - **Trabajo eliminado**: el trabajo existió, pero fue eliminado.
-  - **Preparando trabajo**: la solicitud está en curso y todavía no generó el
-    trabajo.
-  - **Sin trabajo**: la solicitud no generó un trabajo.
-
-La columna **Creador** identifica al usuario que creó cada solicitud. El
-supervisor y el administrador ven las solicitudes de todos los usuarios; el
-analista y el perfil de consulta solo ven las propias. Si la solicitud es
-anterior a este campo, el creador aparece como `—`.
-
-La columna **Eliminado** muestra la fecha en que se eliminó el trabajo, o `—`
-si sigue vigente. El estado de descarga puede seguir siendo **Terminada**,
-porque la descarga sí se completó; el estado final indica qué pasó con el
-trabajo asociado.
+La contraseña SSH se usa solo para la descarga y no se guarda. La fuente de
+referencia se descarga siempre como catálogo de referencia; no es una fuente
+local de Resultados.
 
 ![Descarga en curso](img/descarga.png)
 
-### Nuevo trabajo
+### Subir catálogos
 
-Use **Nuevo trabajo** cuando ya tenga los archivos en su equipo o cuando quiera
-consultar una fuente directa, como Central.
+Use **Subir catálogos** cuando ya tenga los archivos en su equipo. Se accede
+desde el botón **Subir catálogos** de Nuevo trabajo.
 
-![Nuevo trabajo](img/subir.png)
+![Subir catálogos](img/subir.png)
 
 1. Seleccione el catálogo de referencia.
 2. Agregue las fuentes locales disponibles según corresponda.
@@ -131,7 +112,7 @@ consultar una fuente directa, como Central.
    igual y Central no aporta eventos. Si Central es la única fuente local, el
    alta se rechaza para no crear un trabajo vacío.
 6. Indique el período y la fuente principal.
-7. Envíe el formulario.
+7. Envíe **Validar y crear trabajo**.
 
 Si falta un archivo, la conexión falla o el contenido no es válido, el trabajo
 queda en **Borrador** con el detalle del problema. Corrija el archivo o el

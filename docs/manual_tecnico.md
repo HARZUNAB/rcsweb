@@ -214,6 +214,7 @@ lógicas del catálogo canónico.
 | `progress` | Integer | No | — | Porcentaje de avance |
 | `current_step` | String(80) | Sí | — | Paso actual |
 | `primary_source` | String(32) | Sí | — | Fuente principal |
+| `direct_sources` | JSON | Sí | — | Fuentes directas sin archivo, como Central |
 | `station_radius_km` | Integer | Sí | — | Radio de estaciones |
 | `requested_by_id` | Integer | Sí | FK → `users.id` | Usuario solicitante |
 | `server` | String(255) | Sí | — | Servidor SSH |
@@ -666,6 +667,13 @@ eventos, publicados y no publicados:
   fuente declare la unidad.
 - La conexión se abre con `default_transaction_read_only=on`.
 - No se agrega ni se modifica ninguna tabla de la base central.
+
+En **Nuevo trabajo**, Central se preselecciona como fuente directa. Si la
+conexión no está configurada, aparece sin seleccionar y se muestra el aviso de
+rango no disponible. La solicitud guarda las fuentes directas en
+`catalog_requests.direct_sources` y, cuando termina la descarga, crea el
+`JobSource` de Central sin `JobFile`. Central también puede incluirse en la
+alternativa **Subir catálogos**.
 
 Permisos:
 

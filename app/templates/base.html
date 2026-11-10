@@ -30,19 +30,10 @@
           <a class="nav-link" href="{{ url_for('dashboard.index') }}">Trabajos</a>
         </li>
         {% endif %}
-        {% if puede('solicitudes.crear') %}
+        {% if puede('solicitudes.crear') or puede('trabajos.crear') %}
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('solicitudes.nueva') }}">Solicitar catálogos</a>
-        </li>
-        {% endif %}
-        {% if puede('solicitudes.ver') %}
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('solicitudes.lista') }}">Solicitudes</a>
-        </li>
-        {% endif %}
-        {% if puede('trabajos.crear') %}
-        <li class="nav-item">
-          <a class="nav-link text-white-50" href="{{ url_for('jobs.nuevo') }}">Nuevo trabajo</a>
+          <a class="nav-link text-white-50"
+             href="{% if puede('solicitudes.crear') %}{{ url_for('solicitudes.nueva') }}{% else %}{{ url_for('jobs.nuevo') }}{% endif %}">Nuevo trabajo</a>
         </li>
         {% endif %}
         {% if puede('auditoria.ver') %}

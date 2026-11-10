@@ -254,16 +254,22 @@ La tabla `tensor` no declara unidades de momento. Los valores se conservan tal
 como vienen y `moment_magnitude` no se calcula hasta que la fuente declare la
 unidad.
 
-En el formulario **Nuevo trabajo**, Central no muestra input de archivo. El
-nombre sugerido de la extracción se muestra en la tarjeta y se resuelve con el
-período elegido. También se muestra el rango global de fechas de la base, que es
-informativo y se cachea 5 minutos:
+En el formulario **Nuevo trabajo**, Central se preselecciona como **fuente
+directa**. El nombre sugerido es editable y el rango global de fechas de la base
+se muestra como información, con caché de 5 minutos. Si la conexión no está
+configurada, Central aparece sin seleccionar y se muestra el aviso de rango no
+disponible.
 
-- si el período queda fuera y hay otras fuentes locales, el trabajo se crea
-  igual y Central aporta un catálogo vacío;
+- si el período queda fuera y hay otros catálogos seleccionados, la solicitud se
+  crea igual y Central aporta un catálogo vacío;
 - si Central es la única fuente local y el período no tiene eventos, el alta
   falla para no crear un trabajo vacío;
 - un error de conexión o credenciales siempre es error.
+
+La solicitud guarda las fuentes directas en `catalog_requests.direct_sources`.
+Cuando termina la descarga, se crea el `JobSource` de Central sin `JobFile`.
+Central también se puede incluir en la alternativa **Subir catálogos**, donde se
+ve el mismo rango y el nombre sugerido de la extracción.
 
 Permisos y comparación:
 
@@ -302,15 +308,18 @@ make clean                # detener y borrar volúmenes
 
 ## Flujo de uso
 
-1. **Solicitar catálogos** (flujo principal): período, servidor, contraseña SSH,
-   fuentes y radio de estaciones. Descarga eventquery/Seisan y exporta SeisComp.
-2. **Nuevo trabajo** (alternativa secundaria): si los archivos ya están en
-   disco, se suben desde `/jobs/new` con eventquery y una o más fuentes locales
-   (SeisComp y/o Seisan). También permite incluir **Central**, que no requiere
-   archivo y consulta la base CSN en modo de solo lectura. Se valida el contenido
-   o la conexión antes de encolar.
+1. **Nuevo trabajo** (flujo principal): período, servidor, contraseña SSH,
+   fuentes y radio de estaciones. Se descarga eventquery y los catálogos
+   seleccionados; **Central** se incluye como fuente directa. La descarga y la
+   creación del trabajo son automáticas.
+2. **Subir catálogos** (alternativa): si los archivos ya están en disco, se
+   suben desde `/jobs/new/subir` con eventquery y una o más fuentes locales
+   (SeisComp, Seisan y/o Central). Se valida el contenido o la conexión antes de
+   encolar.
 3. El trabajo se encola en Celery. La página de detalle muestra progreso, pasos y
-   log en vivo (polling HTMX cada 2 s).
+   log en vivo (polling HTMX cada 2 s). Las descargas en curso aparecen en
+   **Trabajos** como **“Preparando catálogos”**; las fallidas, como
+   **“Descarga fallida”**.
 4. Al terminar: tarjetas con conteos, tablas paginables con búsqueda, filtros
    por columna, orden y exportación del resultado filtrado.
 5. Cada fila muestra una **ficha de ubicación** compacta (Chile
@@ -320,9 +329,9 @@ make clean                # detener y borrar volúmenes
    clasificación, mapa de planta y perfil, y en repetidos el grupo completo de
    duplicados.
 6. Se puede cancelar un trabajo en cola o en ejecución.
-6. La sección **Auditoría** (administradores y supervisores) registra login,
+7. La sección **Auditoría** (administradores y supervisores) registra login,
    alta, cancelación, fin/fallo y descargas.
-7. Un trabajo terminado, fallido o cancelado puede **eliminarse** desde el panel
+8. Un trabajo terminado, fallido o cancelado puede **eliminarse** desde el panel
    o el detalle (creador, administrador o supervisor); se borran sus resultados
    y su workspace.
 
