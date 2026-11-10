@@ -166,3 +166,40 @@ def test_preparar_arribos_escribe_canonico_y_revisa(tmp_path, monkeypatch):
     estaciones = {punto["estacion"] for punto in revision["estaciones_mapa"]}
     assert "PB01" in estaciones
     assert "PB09" not in estaciones
+
+
+def test_revisar_fila_seisan_en_repetidos(tmp_path, monkeypatch):
+    from app.services.station_review import revisar_fila
+
+    workspace = _workspace(tmp_path, monkeypatch)
+    adaptador = seisan.Adaptador()
+    adaptador.source_id = "seisan"
+    job = _job()
+    adaptador._preparar_arribos(job, workspace)
+    escribir_desde_csv(
+        workspace, "seisan", "seisan", workspace / "datos" / "salida_collect.csv"
+    )
+    escribir_extensiones(
+        workspace,
+        "seisan",
+        "seisan",
+        {"arribos": adaptador._ruta_fases(job)},
+    )
+
+    revision = revisar_fila(
+        workspace,
+        "repetidos",
+        "seisan_estricto",
+        {
+            "fecha_hora": "2025-03-26 00:24:19",
+            "latitud": "-21.081",
+            "longitud": "-69.000",
+        },
+    )
+
+    assert revision is not None
+    assert revision["tiene_coordenadas"] is True
+    assert revision["tiene_tiempos"] is True
+    assert any(
+        punto["estacion"] == "PB01" for punto in revision["estaciones_mapa"]
+    )
