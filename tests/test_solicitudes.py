@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import shutil
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 from app.extensions import db
@@ -17,7 +17,12 @@ from app.models import (
     nuevo_uuid,
 )
 from app.services import acquisition
-from app.services.acquisition import ejecutar_solicitud, preparar_workspace
+from app.services.acquisition import (
+    ejecutar_solicitud,
+    preparar_workspace,
+    reconciliar_solicitudes_estancadas,
+)
+from app.services.workspace import ruta_solicitud
 
 SAMPLES = __import__("pathlib").Path(__file__).resolve().parent.parent / "samples"
 INICIO = "20261001000000"
@@ -804,3 +809,100 @@ def test_ejecutar_solicitud_incluye_fuente_directa(app, monkeypatch):
     assert fuentes["central"].role == "local_principal"
     assert "tensores" in fuentes["central"].capacidades
     assert encolados == [job.id]
+
+
+def test_reconciliar_solicitudes_estancadas(app):
+    vieja = _solicitud(app, status="queued")
+    vieja.created_at = datetime.now(UTC) - timedelta(hours=3)
+    reciente = _solicitud(app, status="queued")
+    terminada = _solicitud(app, status="done")
+    db.session.commit()
+
+    total = reconciliar_solicitudes_estancadas()
+
+    assert total == 1
+    db.session.expire_all()
+    vieja = db.session.get(CatalogRequest, vieja.id)
+    assert vieja.status == "failed"
+    assert vieja.current_step == "Interrumpida"
+    assert "no hay una descarga activa" in (vieja.error or "")
+    assert db.session.get(CatalogRequest, reciente.id).status == "queued"
+    assert db.session.get(CatalogRequest, terminada.id).status == "done"
+
+
+def test_cli_reconcile_requests(app):
+    solicitud = _solicitud(app, status="running")
+    solicitud.created_at = datetime.now(UTC) - timedelta(hours=5)
+    db.session.commit()
+
+    resultado = app.test_cli_runner().invoke(args=["reconcile-requests"])
+
+    assert resultado.exit_code == 0
+    assert "1" in resultado.output
+    db.session.expire_all()
+    assert db.session.get(CatalogRequest, solicitud.id).status == "failed"
+
+
+def test_eliminar_solicitud_sin_trabajo(app, client, login):
+    solicitud = _solicitud(app, status="failed")
+    workspace = ruta_solicitud(solicitud.id)
+    assert workspace.exists()
+    login()
+
+    respuesta = client.post(f"/solicitudes/{solicitud.id}/eliminar")
+
+    assert respuesta.status_code == 302
+    assert db.session.get(CatalogRequest, solicitud.id) is None
+    assert not workspace.exists()
+    registro = db.session.execute(
+        db.select(AuditLog).filter_by(action="catalog.delete")
+    ).scalar_one()
+    assert registro.entity == solicitud.id
+
+
+def test_eliminar_solicitud_con_trabajo_no_borra(app, client, login):
+    solicitud = _solicitud(app, status="done")
+    job = Job(
+        id=nuevo_uuid(),
+        period_start=datetime(2026, 10, 1, tzinfo=UTC),
+        period_end=datetime(2026, 10, 31, 23, 59, 59, tzinfo=UTC),
+        status="done",
+        catalog_request_id=solicitud.id,
+    )
+    db.session.add(job)
+    db.session.commit()
+    login()
+
+    respuesta = client.post(f"/solicitudes/{solicitud.id}/eliminar")
+
+    assert respuesta.status_code == 302
+    assert db.session.get(CatalogRequest, solicitud.id) is not None
+
+
+def test_eliminar_solicitud_activa_no_borra(app, client, login):
+    solicitud = _solicitud(app, status="queued")
+    login()
+
+    respuesta = client.post(f"/solicitudes/{solicitud.id}/eliminar")
+
+    assert respuesta.status_code == 302
+    assert db.session.get(CatalogRequest, solicitud.id) is not None
+
+
+def test_analista_no_elimina_solicitud(app, client):
+    analista = User(username="analista_elimina", role="analista")
+    analista.set_password("secret")
+    db.session.add(analista)
+    db.session.commit()
+    solicitud = _solicitud(
+        app, status="failed", creador_id=analista.id
+    )
+    client.post(
+        "/login",
+        data={"username": "analista_elimina", "password": "secret"},
+    )
+
+    respuesta = client.post(f"/solicitudes/{solicitud.id}/eliminar")
+
+    assert respuesta.status_code == 403
+    assert db.session.get(CatalogRequest, solicitud.id) is not None

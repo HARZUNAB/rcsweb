@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from ..extensions import db
 from ..models import CatalogRequest, Job
 from ..security import alcance_total, permiso_requerido
+from ..services.acquisition import reconciliar_solicitudes_estancadas
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -38,6 +39,8 @@ def index():
         "terminados": por_estado.get("done", 0),
         "fallidos": por_estado.get("failed", 0),
     }
+
+    reconciliar_solicitudes_estancadas()
 
     consulta_descargas = (
         db.select(CatalogRequest)

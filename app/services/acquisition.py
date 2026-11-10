@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from flask import current_app
@@ -66,6 +66,42 @@ def log_solicitud(request_id: str, max_lineas: int = 200) -> list[str]:
         and "Permanently added" not in linea
     ]
     return lineas[-max_lineas:]
+
+
+def reconciliar_solicitudes_estancadas(horas: int = 2) -> int:
+    """Marca como fallidas las descargas que ya no tienen tarea activa.
+
+    Una solicitud ``queued`` o ``running`` que supera el umbral se considera
+    interrumpida: el worker pudo reiniciarse y la tarea de Celery ya no existe.
+    Queda como fallida para que el usuario pueda reintentarla o eliminarla.
+    """
+    limite = datetime.now(UTC) - timedelta(hours=horas)
+    solicitudes = (
+        db.session.execute(
+            db.select(CatalogRequest).where(
+                CatalogRequest.status.in_(("queued", "running")),
+                CatalogRequest.created_at < limite,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not solicitudes:
+        return 0
+    ahora = datetime.now(UTC)
+    for solicitud in solicitudes:
+        solicitud.status = "failed"
+        solicitud.current_step = "Interrumpida"
+        solicitud.error = (
+            "Solicitud interrumpida: no hay una descarga activa. "
+            "Reintente desde el detalle."
+        )
+        solicitud.finished_at = ahora
+    db.session.commit()
+    current_app.logger.warning(
+        "Solicitudes estancadas marcadas como fallidas: %s", len(solicitudes)
+    )
+    return len(solicitudes)
 
 
 def _sha256(ruta: Path) -> str:

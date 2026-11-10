@@ -87,6 +87,10 @@ Mientras se descargan los catálogos, el trabajo aparece en **Trabajos** como
 fallida”** y puede reintentarse desde el detalle. El detalle muestra el
 progreso, el tiempo transcurrido y el avance de cada catálogo.
 
+Si una descarga queda interrumpida, se marca automáticamente como fallida
+después de 2 horas sin tarea activa. Un administrador o supervisor puede
+**Eliminar solicitud** desde el detalle cuando no tiene un trabajo asociado.
+
 La contraseña SSH se usa solo para la descarga y no se guarda. La fuente de
 referencia se descarga siempre como catálogo de referencia; no es una fuente
 local de Resultados.

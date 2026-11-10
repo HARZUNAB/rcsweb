@@ -34,6 +34,7 @@ def register_cli(app: Flask) -> None:
     app.cli.add_command(reset_password)
     app.cli.add_command(list_users)
     app.cli.add_command(delete_job)
+    app.cli.add_command(reconcile_requests)
     app.cli.add_command(sources)
 
 
@@ -249,3 +250,13 @@ def delete_job(job_id: str) -> None:
     except JobNoEliminable as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(f"Trabajo '{job_id}' eliminado.")
+
+
+@click.command("reconcile-requests")
+@with_appcontext
+def reconcile_requests() -> None:
+    """Marca como fallidas las solicitudes de descarga estancadas."""
+    from .services.acquisition import reconciliar_solicitudes_estancadas
+
+    total = reconciliar_solicitudes_estancadas()
+    click.echo(f"Solicitudes estancadas marcadas como fallidas: {total}")

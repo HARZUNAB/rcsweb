@@ -347,7 +347,9 @@ make clean                # detener y borrar volúmenes
 3. El trabajo se encola en Celery. La página de detalle muestra progreso, pasos y
    log en vivo (polling HTMX cada 2 s). Las descargas en curso aparecen en
    **Trabajos** como **“Preparando catálogos”**; las fallidas, como
-   **“Descarga fallida”**.
+   **“Descarga fallida”**. Las solicitudes que superan 2 horas sin tarea activa
+   se marcan automáticamente como fallidas. Administrador y supervisor pueden
+   eliminar una solicitud sin trabajo asociado.
 4. Al terminar: tarjetas con conteos, tablas paginables con búsqueda, filtros
    por columna, orden y exportación del resultado filtrado.
 5. Cada fila muestra una **ficha de ubicación** compacta (Chile

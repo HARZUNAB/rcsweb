@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from datetime import UTC, datetime, time
 from types import SimpleNamespace
 
@@ -42,6 +43,7 @@ from ..services.source_selection import (
     opciones_formulario,
 )
 from ..services.sources import disponibilidad_fuentes
+from ..services.workspace import ruta_solicitud
 
 solicitudes_bp = Blueprint("solicitudes", __name__, url_prefix="/solicitudes")
 
@@ -438,6 +440,11 @@ def _contexto(request_id: str) -> dict:
         "directas": _directas(solicitud),
         "form_reintento": ReintentarForm(),
         "puede_reintentar": _puede_reintentar(solicitud),
+        "puede_eliminar": (
+            alcance_total(current_user)
+            and job is None
+            and solicitud.status not in ("queued", "running")
+        ),
         "activa": solicitud.status in ("queued", "running"),
         "inicio_reloj": _iso_utc(solicitud.started_at or solicitud.created_at),
         "fin_reloj": _iso_utc(solicitud.finished_at),
@@ -471,3 +478,39 @@ def reintentar(request_id: str):
         db.session.commit()
         flash("No se pudo encolar el reintento.", "danger")
     return redirect(url_for("solicitudes.detalle", request_id=solicitud.id))
+
+
+@solicitudes_bp.post("/<request_id>/eliminar")
+@login_required
+@permiso_requerido("solicitudes.gestionar")
+def eliminar(request_id: str):
+    solicitud = _solicitud(request_id)
+    if not alcance_total(current_user):
+        abort(403)
+    if _job_de(solicitud) is not None:
+        flash(
+            "No se puede eliminar una solicitud con trabajo asociado.",
+            "warning",
+        )
+        return redirect(url_for("solicitudes.detalle", request_id=solicitud.id))
+    if solicitud.status in ("queued", "running"):
+        flash("No se puede eliminar una solicitud activa.", "warning")
+        return redirect(url_for("solicitudes.detalle", request_id=solicitud.id))
+
+    workspace = ruta_solicitud(solicitud.id)
+    registrar(
+        "catalog.delete",
+        entity=solicitud.id,
+        meta={
+            "estado": solicitud.status,
+            "servidor": solicitud.server,
+            "usuario": solicitud.remote_user,
+            "inicio": solicitud.inicio14,
+            "fin": solicitud.fin14,
+        },
+    )
+    db.session.delete(solicitud)
+    db.session.commit()
+    shutil.rmtree(workspace, ignore_errors=True)
+    flash("Solicitud eliminada.", "success")
+    return redirect(url_for("dashboard.index"))

@@ -166,6 +166,18 @@
     </div>
   </div>
 
+  {% if puede_eliminar %}
+  <form method="post"
+        action="{{ url_for('solicitudes.eliminar', request_id=solicitud.id) }}"
+        class="mb-3"
+        onsubmit="return confirm('¿Eliminar esta solicitud y su workspace?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-sm btn-outline-danger" type="submit">
+      Eliminar solicitud
+    </button>
+  </form>
+  {% endif %}
+
   {% if directas %}
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">

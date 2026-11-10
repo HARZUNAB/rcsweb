@@ -1314,6 +1314,24 @@ progreso general como el promedio de los archivos de la solicitud. Si un
 handler no reporta fracciones, el archivo mantiene su estado y el reloj de la
 solicitud sigue avanzando.
 
+#### Solicitudes estancadas y eliminación
+
+Al abrir **Trabajos** se ejecuta `reconciliar_solicitudes_estancadas(horas=2)`.
+Una solicitud `queued` o `running` con más de 2 horas se marca como `failed`,
+con el mensaje «Solicitud interrumpida: no hay una descarga activa». Así deja de
+aparecer como «Preparando catálogos» y queda disponible para reintentar.
+
+También se puede ejecutar manualmente:
+
+```bash
+flask --app app reconcile-requests
+```
+
+El detalle de la solicitud permite **Eliminar solicitud** a administradores y
+supervisores cuando no tiene un trabajo asociado y no está activa. La ruta es
+`POST /solicitudes/<id>/eliminar`; registra `catalog.delete` y borra el registro,
+sus archivos y su workspace.
+
 #### Qué se guarda en cada lugar
 
 | Dato | PostgreSQL | Workspace |
