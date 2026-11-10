@@ -234,12 +234,40 @@ La fuente **Central** se declara en el manifiesto sin archivo:
 }
 ```
 
-El nombre de la variable de conexión viene de `dsn_env`, no del código. En
-`.env`:
+El nombre de la variable de conexión viene de `dsn_env`, no del código. La
+conexión se guarda **fuera del repositorio**, junto a los datos del CSN:
+
+```text
+/home/hriquelmez/datos/csn/credenciales.env
+```
+
+con:
 
 ```dotenv
-RCS_CENTRAL_DSN=postgresql://usuario_ro:clave@host:5433/csn_test
+RCS_CENTRAL_DSN=postgresql://rcs_central_ro:clave@host:5433/csn_test
 ```
+
+`web` y `worker` la cargan como `env_file` adicional en `docker-compose.yml`:
+
+```yaml
+env_file:
+  - .env
+  - path: ${DATOS_PATH_HOST}/csn/credenciales.env
+    required: false
+```
+
+Si el archivo no existe, la app arranca igual y Central queda sin configurar.
+Para ejecución local con `.venv`, cárguelo antes de iniciar Flask y Celery:
+
+```bash
+set -a
+source /home/hriquelmez/datos/csn/credenciales.env
+set +a
+```
+
+El usuario `rcs_central_ro` se crea una sola vez en la base con permisos de
+`SELECT` y `default_transaction_read_only=on`. No se usa `aprende_app` ni las
+credenciales del proyecto `aprende` en tiempo de ejecución.
 
 La app abre la conexión con `default_transaction_read_only=on` y solo ejecuta
 `SELECT`. No crea ni modifica tablas. El adaptador exporta a archivos

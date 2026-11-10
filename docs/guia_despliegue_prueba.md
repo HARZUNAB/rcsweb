@@ -129,6 +129,33 @@ montan en solo lectura. No se publica ningún puerto del sidecar.
 
 Si el tester va a crear trabajos reales, configure también las fuentes SSH y SeisComp con credenciales de prueba o de solo lectura. No use credenciales de escritura de producción.
 
+### Base central CSN (opcional)
+
+Solo si el tester usará la fuente **Central**:
+
+1. Crear el rol de solo lectura en la base CSN:
+   ```sql
+   CREATE ROLE rcs_central_ro LOGIN PASSWORD '...';
+   ALTER ROLE rcs_central_ro SET default_transaction_read_only = on;
+   GRANT CONNECT ON DATABASE csn_test TO rcs_central_ro;
+   GRANT USAGE ON SCHEMA public TO rcs_central_ro;
+   GRANT SELECT ON ALL TABLES IN SCHEMA public TO rcs_central_ro;
+   ALTER DEFAULT PRIVILEGES IN SCHEMA public
+     GRANT SELECT ON TABLES TO rcs_central_ro;
+   ```
+2. Guardar la conexión fuera del repositorio, junto a los datos del CSN:
+   ```bash
+   sudo -u rcswebtest nano ${DATOS_PATH_HOST}/csn/credenciales.env
+   sudo -u rcswebtest chmod 600 ${DATOS_PATH_HOST}/csn/credenciales.env
+   ```
+   con:
+   ```dotenv
+   RCS_CENTRAL_DSN=postgresql://rcs_central_ro:...@host:5432/csn_test
+   ```
+3. El `docker-compose.yml` carga ese archivo como `env_file` opcional para
+   `web` y `worker`. Si no existe, la app arranca sin Central y el resto de las
+   fuentes funciona normalmente.
+
 ## Crear el compose de prueba
 
 En `/home/rcswebtest/rcsweb` crear:

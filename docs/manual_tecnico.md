@@ -668,6 +668,45 @@ eventos, publicados y no publicados:
 - La conexión se abre con `default_transaction_read_only=on`.
 - No se agrega ni se modifica ninguna tabla de la base central.
 
+La conexión se guarda fuera del repositorio, junto a los datos del CSN:
+
+```text
+/home/hriquelmez/datos/csn/credenciales.env
+```
+
+con `RCS_CENTRAL_DSN=postgresql://rcs_central_ro:...@host:5433/csn_test`. `web` y
+`worker` la cargan como `env_file` adicional:
+
+```yaml
+env_file:
+  - .env
+  - path: ${DATOS_PATH_HOST}/csn/credenciales.env
+    required: false
+```
+
+Si el archivo no existe, la app arranca igual y Central queda sin configurar.
+Para ejecución local con `.venv`, cárguelo antes de iniciar Flask y Celery:
+
+```bash
+set -a
+source /home/hriquelmez/datos/csn/credenciales.env
+set +a
+```
+
+El rol se crea una sola vez en la base:
+
+```sql
+CREATE ROLE rcs_central_ro LOGIN PASSWORD '...';
+ALTER ROLE rcs_central_ro SET default_transaction_read_only = on;
+GRANT CONNECT ON DATABASE csn_test TO rcs_central_ro;
+GRANT USAGE ON SCHEMA public TO rcs_central_ro;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO rcs_central_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT ON TABLES TO rcs_central_ro;
+```
+
+No se usan credenciales de `aprende` en tiempo de ejecución.
+
 En **Nuevo trabajo**, Central se preselecciona como fuente directa. Si la
 conexión no está configurada, aparece sin seleccionar y se muestra el aviso de
 rango no disponible. La solicitud guarda las fuentes directas en

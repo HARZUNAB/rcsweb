@@ -38,7 +38,10 @@ services:
     build: .
     container_name: rcsweb-web
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - .env
+      - path: ${DATOS_PATH_HOST}/csn/credenciales.env
+        required: false
     environment:
       FLASK_APP: app
       FLASK_DEBUG: "1"
@@ -76,7 +79,10 @@ services:
     build: .
     container_name: rcsweb-worker
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - .env
+      - path: ${DATOS_PATH_HOST}/csn/credenciales.env
+        required: false
     environment:
       PYTHONPATH: /app
       MPLBACKEND: Agg

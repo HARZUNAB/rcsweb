@@ -25,4 +25,7 @@ workspace/*
 .idea/
 .vscode/
 
+*.swp
+*.swo
+
 core_data/
