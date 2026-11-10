@@ -585,7 +585,9 @@ def _workspace_canonico_central(tmp_path):
                 "llegada_us": "630000",
                 "est_lat": -29.9773,
                 "est_lon": -70.094,
-                "est_vigencia": "current",
+                "est_lista": "seiscomp_inventory",
+                "est_vigencia": "event_epoch",
+                "software": "SeisComP3",
             }
         ],
     )
@@ -635,10 +637,14 @@ def test_revisar_fila_central_en_las_tres_tablas(tmp_path):
         assert revision["estado"] == "ok", tabla
         assert revision["tiene_coordenadas"] is True, tabla
         assert revision["tiene_tiempos"] is True, tabla
-        assert any(
-            punto["estacion"] == "CO01"
+        punto = next(
+            punto
             for punto in revision["estaciones_mapa"]
-        ), tabla
+            if punto["estacion"] == "CO01"
+        )
+        assert punto["est_lista"] == "Inventario SeisComp", tabla
+        assert punto["est_vigencia"] == "event_epoch", tabla
+        assert punto["software"] == "SeisComP3", tabla
 
 
 def test_elegir_origen_local_prefiere_solucion_revisada():

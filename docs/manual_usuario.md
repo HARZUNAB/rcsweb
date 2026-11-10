@@ -365,7 +365,10 @@ Incluye todas las estaciones con arribos y hasta **20 estaciones sin arribos**,
 las más cercanas. La opción **Mostrar todas** quita ese límite. El radio y
 **Solo cercanas** se aplican a las estaciones sin arribos; los arribos se
 muestran siempre. Cada triángulo abre un popup con estación, distancia, fase,
-hora del pick, tiempo desde el origen, modo y uso en la solución.
+hora del pick, tiempo desde el origen, modo y uso en la solución. Cuando el
+origen lo informa, el popup también muestra **Listado**, **Vigencia** y
+**Procesado por**: de qué archivo o inventario salió la coordenada, si es una
+lista actual o de la época del evento, y qué sistema procesó el origen.
 
 Los estados de las formas de onda se muestran igual que en propagación:
 

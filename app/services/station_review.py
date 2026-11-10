@@ -249,6 +249,23 @@ def _coincide(registro: dict, evento: dict) -> bool:
     return False
 
 
+def _listado_estacion(arribo: dict) -> tuple[str, str, str]:
+    """Procedencia de la coordenada de estación, si el adaptador la guardó."""
+    raw = arribo.get("raw") or {}
+    lista = _texto(raw.get("est_lista"))
+    if lista.lower() == "seiscomp_inventory":
+        lista = "Inventario SeisComp"
+    if not lista:
+        base = _texto(arribo.get("database"))
+        if base:
+            lista = f"Inventario SeisComp ({base})"
+    return (
+        lista,
+        _texto(raw.get("est_vigencia")),
+        _texto(raw.get("software")),
+    )
+
+
 def _fila_arribo(arribo: dict) -> dict:
     modo = _texto(arribo.get("pick_status"))
     qc = _texto(arribo.get("qc"))
@@ -261,6 +278,7 @@ def _fila_arribo(arribo: dict) -> dict:
         )
     else:
         clase = ""
+    est_lista, est_vigencia, software = _listado_estacion(arribo)
     fila = {
         "red": _texto(arribo.get("network")),
         "estacion": _texto(arribo.get("station")),
@@ -288,6 +306,9 @@ def _fila_arribo(arribo: dict) -> dict:
         "elevacion": _numero_texto(arribo.get("station_elevation_m"), 0),
         "lat": _numero(arribo.get("station_latitude")),
         "lon": _numero(arribo.get("station_longitude")),
+        "est_lista": est_lista,
+        "est_vigencia": est_vigencia,
+        "software": software,
         "_usada": arribo.get("is_used_in_solution"),
         "_azimut": _numero(arribo.get("azimuth")),
         "_clase": clase,
@@ -663,6 +684,9 @@ def _datos_mapa_tiempos(
                 "lon": lon,
                 "distancia_km": distancia,
                 "segundos": segundos,
+                "est_lista": fila.get("est_lista", ""),
+                "est_vigencia": fila.get("est_vigencia", ""),
+                "software": fila.get("software", ""),
             }
         )
 
@@ -688,11 +712,17 @@ def _datos_mapa_tiempos(
                 "formas_onda": "",
                 "disponible": "",
                 "streams": "",
+                "est_lista": "",
+                "est_vigencia": "",
+                "software": "",
                 "fases": [],
             }
             puntos[clave] = punto
         elif punto["distancia_km"] is None and arribo["distancia_km"] is not None:
             punto["distancia_km"] = arribo["distancia_km"]
+        _agregar_texto(punto, "est_lista", arribo.get("est_lista", ""))
+        _agregar_texto(punto, "est_vigencia", arribo.get("est_vigencia", ""))
+        _agregar_texto(punto, "software", arribo.get("software", ""))
         punto["fases"].append(
             {
                 "fase": arribo["fase"],
@@ -724,9 +754,21 @@ def _datos_mapa_tiempos(
                     "formas_onda": "",
                     "disponible": "",
                     "streams": "",
+                    "est_lista": "",
+                    "est_vigencia": "",
+                    "software": "",
                     "fases": [],
                 }
                 for arribo in arribos_por_clave[clave]:
+                    _agregar_texto(
+                        punto, "est_lista", arribo.get("est_lista", "")
+                    )
+                    _agregar_texto(
+                        punto, "est_vigencia", arribo.get("est_vigencia", "")
+                    )
+                    _agregar_texto(
+                        punto, "software", arribo.get("software", "")
+                    )
                     punto["fases"].append(
                         {
                             "fase": arribo["fase"],
@@ -753,6 +795,9 @@ def _datos_mapa_tiempos(
                 "formas_onda": "",
                 "disponible": "",
                 "streams": "",
+                "est_lista": "",
+                "est_vigencia": "",
+                "software": "",
                 "fases": [],
             }
             puntos[clave] = punto

@@ -117,6 +117,24 @@
     return (punto.red || "") + "|" + (punto.estacion || "");
   }
 
+  function textoListadoEstacion(punto) {
+    const partes = [];
+    if (punto.est_lista) {
+      partes.push("Listado: " + esc(punto.est_lista));
+    } else if (punto.tipo !== "arribo") {
+      partes.push("Listado: inventario de estaciones de la fuente");
+    }
+    if (punto.est_vigencia === "current") {
+      partes.push("Vigencia: listado actual, sin vigencia histórica");
+    } else if (punto.est_vigencia === "event_epoch") {
+      partes.push("Vigencia: época del evento");
+    }
+    if (punto.software) {
+      partes.push("Procesado por: " + esc(punto.software));
+    }
+    return partes.join("<br>");
+  }
+
   function popupEstacion(punto) {
     const partes = [
       "<strong>" +
@@ -125,6 +143,10 @@
     ];
     if (punto.distancia_km != null) {
       partes.push("Distancia: " + esc(punto.distancia_km) + " km");
+    }
+    const listado = textoListadoEstacion(punto);
+    if (listado) {
+      partes.push(listado);
     }
     if (punto.estado === "observada" || punto.tipo === "arribo") {
       const fases = punto.fases || [];
@@ -220,6 +242,10 @@
     if (punto.distancia_km != null) {
       partes.push("Distancia: " + esc(punto.distancia_km) + " km");
     }
+    const listado = textoListadoEstacion(punto);
+    if (listado) {
+      partes.push(listado);
+    }
     partes.push("P: " + textoFrente(punto.p_estado, punto.p_tiempo, punto.p_observado));
     partes.push("S: " + textoFrente(punto.s_estado, punto.s_tiempo, punto.s_observado));
     const estadoOndas = textoEstadoOndasPunto(punto);
@@ -247,6 +273,10 @@
     const estadoOndas = textoEstadoOndasPunto(punto);
     if (estadoOndas) {
       partes.push(estadoOndas);
+    }
+    const listado = textoListadoEstacion(punto);
+    if (listado) {
+      partes.push(listado);
     }
     return partes.join("<br>");
   }
@@ -2402,9 +2432,15 @@
                 .filter(function (texto) {
                   return texto !== "";
                 });
-              return fases.length
-                ? base + "<br>" + fases.join("<br>")
-                : base;
+              const lineas = [base];
+              const listado = textoListadoEstacion(punto);
+              if (listado) {
+                lineas.push(listado);
+              }
+              if (fases.length) {
+                lineas.push(fases.join("<br>"));
+              }
+              return lineas.join("<br>");
             }),
             marker: {
               symbol: "triangle-up",
@@ -2430,9 +2466,15 @@
             text: sinArribos.map(function (punto) {
               const base =
                 (punto.red || "") + " " + (punto.estacion || "");
-              return punto.evidencia
-                ? base + "<br>" + punto.evidencia
-                : base;
+              const lineas = [base];
+              const listado = textoListadoEstacion(punto);
+              if (listado) {
+                lineas.push(listado);
+              }
+              if (punto.evidencia) {
+                lineas.push(punto.evidencia);
+              }
+              return lineas.join("<br>");
             }),
             marker: {
               symbol: "triangle-up",

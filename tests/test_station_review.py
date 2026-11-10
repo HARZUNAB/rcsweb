@@ -231,6 +231,8 @@ def test_revision_agrupa_y_filtra_no_utilizadas(tmp_path):
     assert por_estacion["ANMO"]["tipo"] == "arribo"
     assert por_estacion["ANMO"]["estado_ondas"] == "observada"
     assert por_estacion["ANMO"]["fase"] == "P"
+    assert por_estacion["ANMO"]["est_lista"] == "Inventario SeisComp (seiscomp)"
+    assert por_estacion["ANMO"]["est_vigencia"] == ""
     assert len(por_estacion["ANMO"]["fases"]) == 1
     assert por_estacion["LVC"]["tipo"] == "sin_arribo"
     assert por_estacion["LVC"]["estado_ondas"] == "sin_consultar"
@@ -566,6 +568,7 @@ def test_detalle_datos_mapa_y_tiempos(client, login, app):
     assert por_estacion["ANMO"]["tipo"] == "arribo"
     assert por_estacion["ANMO"]["estado_ondas"] == "observada"
     assert por_estacion["ANMO"]["fase"] == "P"
+    assert por_estacion["ANMO"]["est_lista"] == "Inventario SeisComp (seiscomp)"
     assert por_estacion["ANMO"]["fases"][0]["modo"] == "Manual"
 
     tiempos = _json_embebido(html, "tiempos-llegada-datos")

@@ -166,6 +166,14 @@ def test_preparar_arribos_escribe_canonico_y_revisa(tmp_path, monkeypatch):
     estaciones = {punto["estacion"] for punto in revision["estaciones_mapa"]}
     assert "PB01" in estaciones
     assert "PB09" not in estaciones
+    pb01 = next(
+        punto
+        for punto in revision["estaciones_mapa"]
+        if punto["estacion"] == "PB01"
+    )
+    assert pb01["est_lista"] == "STATION0.HYP"
+    assert pb01["est_vigencia"] == "current"
+    assert pb01["software"] == "seisan"
 
 
 def test_revisar_fila_seisan_en_repetidos(tmp_path, monkeypatch):

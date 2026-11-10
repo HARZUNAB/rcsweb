@@ -912,6 +912,13 @@ coordenadas. No hay código específico por fuente: Seisan, Central y SeisComp
 usan la misma revisión y el mismo JavaScript. Si una fuente declara `arribos`
 pero el trabajo no trae el archivo, la sección muestra «no evaluable».
 
+La procedencia de la coordenada se conserva en `raw` y no se agrega al contrato:
+`est_lista` indica el archivo o inventario usado, `est_vigencia` distingue
+`current` de `event_epoch`, y `software` indica el sistema que procesó el
+origen. El popup de la estación muestra esos datos; si el arribo no trae
+`est_lista` pero sí `database`, se muestra el inventario de SeisComp de esa
+base. Los puntos sin arribos muestran «inventario de estaciones de la fuente».
+
 #### Filtros y categorías visuales
 
 Los filtros de **Sin arribos** viajan por la URL:
