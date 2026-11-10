@@ -64,8 +64,9 @@ Hay dos formas de iniciar un trabajo.
 
 ### Nuevo trabajo
 
-Use **Nuevo trabajo** para solicitar los catálogos al servidor. Es la forma
-habitual: la descarga y la creación del trabajo son automáticas.
+Use el botón **Nuevo trabajo** de la página **Trabajos** para solicitar los
+catálogos al servidor. Es la forma habitual: la descarga y la creación del
+trabajo son automáticas.
 
 ![Nuevo trabajo](img/solicitud.png)
 

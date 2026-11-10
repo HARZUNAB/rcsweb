@@ -48,10 +48,12 @@ def test_puntos_mapa_no_actualizados():
         contexto["fila"],
         "seisan",
         analista_publicado="SeisComp: cris; Seisan: beto",
+        indice=0,
     )
 
     assert len(puntos) == 2
     assert {p["fuente"] for p in puntos} == {"seisan", "eventquery"}
+    assert all(p["fila"] == 0 for p in puntos)
     assert puntos[0]["fuente"] == "seisan"
     assert puntos[0]["dist_km"] == 0.1
     assert puntos[0]["comparacion"] is True
@@ -72,12 +74,13 @@ def test_puntos_mapa_no_actualizados_sin_publicado_usa_local():
     fila["lat_eventquery"] = ""
     fila["lon_eventquery"] = ""
 
-    puntos = puntos_mapa("no_actualizados", fila, "seisan")
+    puntos = puntos_mapa("no_actualizados", fila, "seisan", indice=0)
 
     assert len(puntos) == 1
     assert puntos[0]["fuente"] == "seisan"
     assert puntos[0]["comparacion"] is False
     assert puntos[0]["referencia"] is False
+    assert puntos[0]["fila"] == 0
 
 
 def test_puntos_mapa_repetidos_referencia_en_cero():
@@ -104,6 +107,8 @@ def test_puntos_mapa_repetidos_referencia_en_cero():
     assert puntos[0]["referencia"] is True
     assert puntos[1]["comparacion"] is True
     assert puntos[1]["referencia"] is False
+    assert puntos[0]["fila"] == 0
+    assert puntos[1]["fila"] == 1
 
 
 def test_puntos_mapa_evento_unico_sin_comparacion():
@@ -118,12 +123,13 @@ def test_puntos_mapa_evento_unico_sin_comparacion():
         "Estado": "Revisado",
         "Percep.": "",
     }
-    puntos = puntos_mapa("no_publicados", fila, "eventquery")
+    puntos = puntos_mapa("no_publicados", fila, "eventquery", indice=0)
 
     assert len(puntos) == 1
     assert puntos[0]["comparacion"] is False
     assert puntos[0]["referencia"] is False
     assert puntos[0]["dist_km"] == 0.0
+    assert puntos[0]["fila"] == 0
 
 
 def test_puntos_mapa_catalogo_eventquery_usa_analista_probable():
@@ -138,11 +144,12 @@ def test_puntos_mapa_catalogo_eventquery_usa_analista_probable():
         "Percep.": "",
     }
 
-    puntos = puntos_mapa("catalogos", fila, "eventquery")
+    puntos = puntos_mapa("catalogos", fila, "eventquery", indice=0)
 
     assert len(puntos) == 1
     assert puntos[0]["analista"] == "SeisComp: cris; Seisan: beto"
     assert puntos[0]["analista_etiqueta"] == "Analista probable"
+    assert puntos[0]["fila"] == 0
 
 
 def test_distancia_del_encabezado_solo_en_tablas_comparadas():
@@ -246,6 +253,18 @@ def test_ruta_detalle_renderiza(app, client, login, tmp_path):
     assert "Comparación de parámetros" in html
     assert "Latitud" in html
     assert "Alta" in html
+    datos = json.loads(
+        re.search(
+            r'<script type="application/json" id="mapa-datos">(.*?)</script>',
+            html,
+            re.S,
+        ).group(1)
+    )
+    assert all(punto["fila"] == 0 for punto in datos)
+    assert all(
+        "/resultados/no_actualizados/seisan/0" in punto["url"]
+        for punto in datos
+    )
 
     assert client.get(f"/jobs/{job.id}/resultados/no_actualizados/seisan/99").status_code == 404
 
@@ -309,6 +328,10 @@ def test_detalle_no_actualizados_publicado_muestra_analista_probable(
     assert publicado["analista_etiqueta"] == "Analista probable"
     assert local["analista"] == "beto"
     assert local["analista_etiqueta"] == "Analista"
+    assert publicado["fila"] == 0
+    assert local["fila"] == 0
+    assert "/resultados/no_actualizados/seisan/0" in publicado["url"]
+    assert "/resultados/no_actualizados/seisan/0" in local["url"]
 
 
 def test_clave_evento_empareja_mapa_y_perfil():

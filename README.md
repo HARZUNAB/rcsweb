@@ -336,10 +336,10 @@ make clean                # detener y borrar volúmenes
 
 ## Flujo de uso
 
-1. **Nuevo trabajo** (flujo principal): período, servidor, contraseña SSH,
-   fuentes y radio de estaciones. Se descarga eventquery y los catálogos
-   seleccionados; **Central** se incluye como fuente directa. La descarga y la
-   creación del trabajo son automáticas.
+1. **Nuevo trabajo** (botón en **Trabajos**, flujo principal): período, servidor,
+   contraseña SSH, fuentes y radio de estaciones. Se descarga eventquery y los
+   catálogos seleccionados; **Central** se incluye como fuente directa. La
+   descarga y la creación del trabajo son automáticas.
 2. **Subir catálogos** (alternativa): si los archivos ya están en disco, se
    suben desde `/jobs/new/subir` con eventquery y una o más fuentes locales
    (SeisComp, Seisan y/o Central). Se valida el contenido o la conexión antes de
