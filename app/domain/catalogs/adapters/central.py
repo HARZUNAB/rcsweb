@@ -12,16 +12,21 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import logging
 import os
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from flask import current_app
 
+from .. import arribos_csv
 from .. import manifest as fuentes_manifest
+from ..stations import ResolutorEstaciones, azimut_grados, distancia_km
 from .base import Adaptador as Base
 from .base import PasoPlan
+
+LOG = logging.getLogger(__name__)
 
 ESTADOS = {
     "reviewed": "Revisado",
@@ -68,6 +73,72 @@ COLUMNAS_TENSORES = (
     "moment_units",
     "is_preferred",
 )
+
+# Orígenes locales con picks. Se usan para los eventos publicados, cuyo origen
+# preferido es la solución publicada y no trae las llegadas.
+CONSULTA_ORIGENES_CON_PICKS = """
+SELECT o.event_id,
+       o.origin_id,
+       o.software,
+       o.author,
+       o.status,
+       o.origin_time,
+       o.latitude,
+       o.longitude,
+       o.creation_time
+  FROM origin o
+ WHERE o.origin_time >= %s
+   AND o.origin_time <= %s
+   AND EXISTS (
+       SELECT 1 FROM pick p WHERE p.origin_id = o.origin_id
+   )
+"""
+
+CONSULTA_PICKS = """
+SELECT p.origin_id,
+       p.pick_id,
+       p.channel,
+       p.pick_time,
+       p.phase,
+       p.polarity,
+       p.uncertainty,
+       p.probability,
+       p.weight,
+       p.pick_status
+  FROM pick p
+ WHERE p.origin_id = ANY(%s)
+ ORDER BY p.origin_id, p.pick_time, p.pick_id
+"""
+
+
+def _lotes(valores: list, tamano: int):
+    for inicio in range(0, len(valores), tamano):
+        yield valores[inicio : inicio + tamano]
+
+
+def _elegir_origen_local(evento: dict, candidatos: list[dict]) -> dict | None:
+    """Origen local que coincide con la solución preferida publicada."""
+    mejores = []
+    for candidato in candidatos:
+        origen = candidato.get("origin_time")
+        preferido = evento.get("origin_time")
+        if origen is None or preferido is None:
+            continue
+        diferencia = abs((origen - preferido).total_seconds())
+        if diferencia > 1.0:
+            continue
+        if abs(candidato.get("latitude", 0.0) - evento.get("latitude", 0.0)) > 0.01:
+            continue
+        if abs(candidato.get("longitude", 0.0) - evento.get("longitude", 0.0)) > 0.01:
+            continue
+        creacion = candidato.get("creation_time")
+        prioridad = creacion.timestamp() if creacion is not None else 0.0
+        estado = str(candidato.get("status") or "").upper()
+        revisado = 1 if estado in {"REVIEWED", "FINAL", "CONFIRMED"} else 0
+        mejores.append((-revisado, diferencia, -prioridad, candidato))
+    if not mejores:
+        return None
+    return min(mejores, key=lambda item: (item[0], item[1], item[2]))[3]
 
 
 def _texto(valor) -> str:
@@ -143,7 +214,7 @@ class Adaptador(Base):
     tipo = "db"
     soporta_disponibilidad = True
     capacidades = frozenset(
-        {"eventos", "origenes", "magnitudes", "tensores"}
+        {"eventos", "origenes", "magnitudes", "arribos", "tensores"}
     )
 
     def _definicion(self):
@@ -238,21 +309,39 @@ class Adaptador(Base):
     def catalogo(self, job, referencia: str) -> str:
         return self._ruta_parametros()
 
+    def _ruta_fases(self, job) -> str:
+        return f"datos/central_{job.inicio14}_{job.fin14}_fases.csv"
+
+    def _archivo_con_filas(self, ruta: Path) -> bool:
+        if not ruta.is_file():
+            return False
+        try:
+            with ruta.open(encoding="utf-8") as archivo:
+                return sum(1 for _ in archivo) > 1
+        except OSError:
+            return False
+
     def extensiones(self, job, referencia: str, workspace=None) -> dict[str, str]:
-        ruta = Path(workspace) / self._ruta_tensores() if workspace else None
-        if ruta is not None:
-            if not ruta.is_file():
-                return {}
-            with ruta.open(encoding="utf-8", newline="") as archivo:
-                if sum(1 for _ in archivo) <= 1:
-                    return {}
-        return {"tensores": self._ruta_tensores()}
+        extensiones: dict[str, str] = {}
+        if workspace is None:
+            return extensiones
+        raiz = Path(workspace)
+        if self._archivo_con_filas(raiz / self._ruta_tensores()):
+            extensiones["tensores"] = self._ruta_tensores()
+        if job is not None and self._archivo_con_filas(raiz / self._ruta_fases(job)):
+            extensiones["arribos"] = self._ruta_fases(job)
+        return extensiones
 
     def exportar(self, workspace: Path, job) -> None:
         """Consulta la base y deja el CSV normalizado en el workspace."""
         inicio, fin = _periodo(job)
         eventos, tensores = self._consultar(inicio, fin)
         eventos, tensores = self._filtrar_por_usuario(job, eventos, tensores)
+        try:
+            arribos = self._consultar_arribos(inicio, fin, eventos)
+        except Exception:  # noqa: BLE001
+            LOG.exception("No se pudieron exportar los arribos de la base central.")
+            arribos = []
 
         destino = workspace / self._ruta_parametros()
         destino.parent.mkdir(parents=True, exist_ok=True)
@@ -307,6 +396,12 @@ class Adaptador(Base):
                     ]
                 )
 
+        ruta_fases = workspace / self._ruta_fases(job)
+        if arribos:
+            arribos_csv.escribir(ruta_fases, arribos)
+        elif ruta_fases.is_file():
+            ruta_fases.unlink()
+
     def _usuario(self, job):
         creador_id = getattr(job, "created_by_id", None)
         if not creador_id:
@@ -357,8 +452,13 @@ class Adaptador(Base):
                            o.latitude,
                            o.longitude,
                            o.depth,
+                           o.software,
                            m.magnitude_value,
-                           m.magnitude_type
+                           m.magnitude_type,
+                           EXISTS (
+                               SELECT 1 FROM pick p
+                                WHERE p.origin_id = o.origin_id
+                           ) AS tiene_picks
                       FROM event e
                       JOIN origin o ON o.origin_id = e.preferred_origin_id
                       LEFT JOIN magnitude m
@@ -402,6 +502,145 @@ class Adaptador(Base):
                 )
                 tensores = cursor.fetchall()
         return eventos, tensores
+
+    def _consultar_arribos(
+        self, inicio: datetime, fin: datetime, eventos: list[dict]
+    ) -> list[dict]:
+        """Arribos del origen que corresponde a cada evento.
+
+        Si el origen preferido trae picks, se usa directamente (evento no
+        publicado). Si no, se busca el origen local que coincide con la
+        solución publicada por tiempo y posición.
+        """
+        if not eventos:
+            return []
+        from psycopg.rows import dict_row
+
+        with self._conectar() as conexion:
+            with conexion.cursor(row_factory=dict_row) as cursor:
+                necesita_locales = any(
+                    not evento.get("tiene_picks") for evento in eventos
+                )
+                locales: list[dict] = []
+                if necesita_locales:
+                    cursor.execute(
+                        CONSULTA_ORIGENES_CON_PICKS,
+                        (
+                            inicio - timedelta(seconds=5),
+                            fin + timedelta(seconds=5),
+                        ),
+                    )
+                    locales = cursor.fetchall()
+
+                por_evento: dict[str, list[dict]] = {}
+                for origen in locales:
+                    por_evento.setdefault(origen["event_id"], []).append(origen)
+
+                seleccionados: list[dict] = []
+                for evento in eventos:
+                    if evento.get("tiene_picks"):
+                        seleccionados.append(
+                            {
+                                "event_id": evento.get("event_id"),
+                                "origin_id": evento.get("origin_id"),
+                                "software": evento.get("software") or "",
+                                "author": evento.get("author") or "",
+                                "origin_time": evento.get("origin_time"),
+                                "latitude": evento.get("latitude"),
+                                "longitude": evento.get("longitude"),
+                            }
+                        )
+                        continue
+                    elegido = _elegir_origen_local(
+                        evento, por_evento.get(evento.get("event_id"), [])
+                    )
+                    if elegido is not None:
+                        seleccionados.append(elegido)
+
+                if not seleccionados:
+                    return []
+
+                por_origen = {
+                    origen["origin_id"]: origen for origen in seleccionados
+                }
+                picks: list[dict] = []
+                for lote in _lotes(list(por_origen), 20000):
+                    cursor.execute(CONSULTA_PICKS, (lote,))
+                    picks.extend(cursor.fetchall())
+
+        fuente = self._definicion()
+        resolutor = ResolutorEstaciones(getattr(fuente, "stations", {}))
+        filas: list[dict] = []
+        for pick in picks:
+            origen = por_origen.get(pick.get("origin_id"))
+            if origen is None:
+                continue
+            red, estacion, loc, cha = arribos_csv.parsear_canal(pick.get("channel"))
+            est = resolutor.resolver(
+                origen.get("software") or "",
+                estacion,
+                network=red,
+                lat_evento=origen.get("latitude"),
+                lon_evento=origen.get("longitude"),
+                instante=pick.get("pick_time"),
+            )
+            llegada_utc, llegada_us = arribos_csv.formatear_pick(pick.get("pick_time"))
+            distancia = None
+            azimut = None
+            if est is not None:
+                distancia = distancia_km(
+                    origen.get("latitude"),
+                    origen.get("longitude"),
+                    est.latitude,
+                    est.longitude,
+                )
+                azimut = azimut_grados(
+                    origen.get("latitude"),
+                    origen.get("longitude"),
+                    est.latitude,
+                    est.longitude,
+                )
+            filas.append(
+                {
+                    "id_evento": origen.get("event_id") or "",
+                    "id_origen": pick.get("origin_id") or "",
+                    "id_pick": pick.get("pick_id") or "",
+                    "red": red,
+                    "estacion": estacion,
+                    "loc": loc,
+                    "cha": cha,
+                    "fase": pick.get("phase") or "",
+                    "llegada_utc": llegada_utc,
+                    "llegada_us": llegada_us,
+                    "azimut": azimut if azimut is not None else "",
+                    "distancia": distancia if distancia is not None else "",
+                    "usada": "True",
+                    "peso": (
+                        pick.get("weight")
+                        if pick.get("weight") is not None
+                        else ""
+                    ),
+                    "polaridad": pick.get("polarity") or "",
+                    "modo_pick": pick.get("pick_status") or "",
+                    "pick_autor": origen.get("author") or "",
+                    "tiene_magnitud": "No",
+                    "est_lat": est.latitude if est else "",
+                    "est_lon": est.longitude if est else "",
+                    "est_elev": (
+                        est.elevation_m
+                        if est and est.elevation_m is not None
+                        else ""
+                    ),
+                    "est_lugar": est.place if est else "",
+                    "est_pais": est.country if est else "",
+                    "base_datos": origen.get("software") or "",
+                    "est_lista": est.source_file if est else "",
+                    "est_vigencia": est.time_basis if est else "",
+                    "software": origen.get("software") or "",
+                    "origen_local": origen.get("origin_id") or "",
+                }
+            )
+        return filas
 
     def validar_periodo(self, job, rango=None) -> dict:
         """Comprueba conexión y eventos para el período.

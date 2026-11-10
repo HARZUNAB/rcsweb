@@ -45,6 +45,7 @@ def test_adaptadores_entregan_plan_y_catalogo():
     assert [p.clave for p in se.pasos(job, "eventquery.csv")] == [
         "normalizar_seisan",
         "armar_catalogo",
+        "preparar_arribos",
     ]
 
 

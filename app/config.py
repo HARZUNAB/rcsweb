@@ -56,6 +56,13 @@ class Config:
     ).resolve()
     DATOS_PATH = Path(os.environ.get("DATOS_PATH", "/data"))
 
+    # Listas de estaciones de Seisan. El manifiesto declara el nombre de la
+    # variable; la ruta real vive en el entorno.
+    RCS_SEISAN_STATIONS_DIR = os.environ.get(
+        "RCS_SEISAN_STATIONS_DIR",
+        str(DATOS_PATH / "csn" / "datseisan"),
+    )
+
     # Fuente Central: base CSN de solo lectura. El manifiesto declara el nombre
     # de la variable para no fijar la conexión en el código.
     RCS_CENTRAL_DSN = os.environ.get("RCS_CENTRAL_DSN", "").strip()

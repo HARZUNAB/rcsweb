@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
@@ -48,6 +48,9 @@ class Fuente:
     requires_file: bool = True
     extraction_name: str = ""
     dsn_env: str = ""
+    # Configuración de proveedores de estaciones. Es un dato del manifiesto:
+    # la app no conoce nombres de fuentes ni formatos de lista.
+    stations: dict = field(default_factory=dict)
 
     @property
     def es_referencia(self) -> bool:
@@ -118,6 +121,7 @@ def _leer(ruta: str, _mtime: int) -> tuple[Fuente, ...]:
             requires_file=_booleano(item, "requires_file", True),
             extraction_name=str(item.get("extraction_name") or "").strip(),
             dsn_env=str(item.get("dsn_env") or "").strip(),
+            stations=_estaciones(item.get("stations")),
         )
         if not fuente.id or fuente.id in vistos:
             raise ValueError(f"Fuente duplicada o vacía en el manifiesto: {fuente.id!r}")
@@ -144,6 +148,15 @@ def _booleano(item: dict, clave: str, defecto: bool) -> bool:
             "sí",
         }
     return bool(valor)
+
+
+def _estaciones(valor) -> dict:
+    """Normaliza la configuración de estaciones del manifiesto."""
+    if not valor:
+        return {}
+    if not isinstance(valor, dict):
+        raise ValueError("La configuración 'stations' debe ser un objeto.")
+    return dict(valor)
 
 
 def validar() -> tuple[Fuente, ...]:

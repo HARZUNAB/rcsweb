@@ -623,8 +623,8 @@ distinto puede declarar otras fuentes o cambiar sus nombres visibles.
 |---|---|---|
 | Eventquery | `eventquery_<inicio>_<fin>.csv`; el adaptador usa `datos/new_2_<eventquery>.csv` como catálogo publicado de referencia | `eventos`, `origenes`, `magnitudes`, `percibidos` |
 | SeisComp | `seiscomp_<inicio>_<fin>.csv` → `datos/seiscomp_parametros.csv` | `eventos`, `origenes`, `magnitudes`, `arribos`, `inventario`, `disponibilidad_ondas` |
-| Seisan | `select.out` → `datos/salida_collect.csv` | `eventos`, `origenes`, `magnitudes`, `excluidos` |
-| Central | Consulta directa a la base CSN → `datos/<source_id>_parametros.csv` y `datos/<source_id>_tensores.csv` | `eventos`, `origenes`, `magnitudes`, `tensores` |
+| Seisan | `select.out` → `datos/salida_collect.csv` y `datos/<source_id>_fases.csv` | `eventos`, `origenes`, `magnitudes`, `arribos`, `excluidos` |
+| Central | Consulta directa a la base CSN → `datos/<source_id>_parametros.csv`, `datos/<source_id>_tensores.csv` y `datos/<source_id>_fases.csv` | `eventos`, `origenes`, `magnitudes`, `arribos`, `tensores` |
 
 Columnas mínimas que valida la app:
 
@@ -667,6 +667,53 @@ eventos, publicados y no publicados:
   fuente declare la unidad.
 - La conexión se abre con `default_transaction_read_only=on`.
 - No se agrega ni se modifica ninguna tabla de la base central.
+
+#### Estaciones para Seisan y Central
+
+Los adaptadores resuelven las coordenadas de estación **antes** de escribir el
+archivo canónico. La app sigue leyendo solo `arribos.jsonl`; no conoce listas de
+estaciones ni sistemas de procesamiento.
+
+- **Seisan** lee todos los archivos `STATION*.HYP` del directorio configurado.
+  Un mismo código puede aparecer en varias listas; se elige la entrada cuya
+  distancia al epicentro mejor coincide con la columna `DIS` del pick.
+- **Central** elige el proveedor según el `software` del origen local. Las
+  reglas viven en el manifiesto, no en el código. Para orígenes procesados con
+  SeisComp se usa su inventario con épocas; si la estación no está en el
+  inventario, se usa la lista de Seisan como respaldo.
+- Si una estación no aparece en ninguna lista, el pick queda en la tabla de
+  arribos pero no se dibuja en el mapa ni entra a la propagación.
+- Las coordenadas resueltas se copian al `arribos.jsonl` del trabajo. Un trabajo
+  antiguo conserva la posición que usó, aunque la lista cambie después.
+- La procedencia (`est_lista`, `est_vigencia`, `software`, `origen_local`) se
+  conserva en `raw`, sin agregar campos al contrato canónico.
+
+La configuración del manifiesto tiene esta forma:
+
+```json
+"stations": {
+  "providers": {
+    "seisan": {
+      "kind": "seisan_hyp",
+      "dir_env": "RCS_SEISAN_STATIONS_DIR",
+      "glob": "STATION*.HYP"
+    },
+    "seiscomp": {
+      "kind": "seiscomp_inventory"
+    }
+  },
+  "rules": [
+    {"match": "Seisan", "provider": "seisan"},
+    {"match": "SeisComP", "provider": "seiscomp", "fallback": "seisan"}
+  ],
+  "default": "seisan"
+}
+```
+
+`RCS_SEISAN_STATIONS_DIR` apunta al directorio con las listas. En los
+contenedores, `${DATOS_PATH_HOST}/csn/datseisan` se monta como
+`/data/csn/datseisan`.
+
 
 La conexión se guarda fuera del repositorio, junto a los datos del CSN:
 
@@ -858,6 +905,12 @@ valores de tipo de pick y control de calidad se traducen a **Manual**,
 **Streams** muestra solo el stream de referencia; el enlace **Ver todos** abre
 la lista completa en un modal. El CSV conserva la lista completa en la columna
 `streams_vigentes`.
+
+Los botones **Estaciones en el mapa**, **Tiempos de llegada** y **Propagación**
+aparecen para cualquier fuente que declare `arribos` y cuyos arribos tengan
+coordenadas. No hay código específico por fuente: Seisan, Central y SeisComp
+usan la misma revisión y el mismo JavaScript. Si una fuente declara `arribos`
+pero el trabajo no trae el archivo, la sección muestra «no evaluable».
 
 #### Filtros y categorías visuales
 

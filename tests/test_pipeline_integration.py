@@ -94,7 +94,7 @@ def test_pipeline_completo_con_muestra(app, tmp_path):
         assert job.status == "done"
         assert job.progress == 100
         assert job.error is None
-        assert len(job.steps) == 10
+        assert len(job.steps) == 11
         assert all(paso.status == "done" for paso in job.steps)
         assert len(job.artifacts) >= 20
 

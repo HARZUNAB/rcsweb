@@ -52,7 +52,17 @@
       "requires_radius": false,
       "availability": "",
       "default_primary": false,
-      "visible_in_observaciones": true
+      "visible_in_observaciones": true,
+      "stations": {
+        "providers": {
+          "seisan": {
+            "kind": "seisan_hyp",
+            "dir_env": "RCS_SEISAN_STATIONS_DIR",
+            "glob": "STATION*.HYP"
+          }
+        },
+        "default": "seisan"
+      }
     },
     {
       "id": "central",
@@ -70,7 +80,31 @@
       "visible_in_observaciones": true,
       "requires_file": false,
       "extraction_name": "central_{inicio}_{fin}.csv",
-      "dsn_env": "RCS_CENTRAL_DSN"
+      "dsn_env": "RCS_CENTRAL_DSN",
+      "stations": {
+        "providers": {
+          "seisan": {
+            "kind": "seisan_hyp",
+            "dir_env": "RCS_SEISAN_STATIONS_DIR",
+            "glob": "STATION*.HYP"
+          },
+          "seiscomp": {
+            "kind": "seiscomp_inventory"
+          }
+        },
+        "rules": [
+          {
+            "match": "Seisan",
+            "provider": "seisan"
+          },
+          {
+            "match": "SeisComP",
+            "provider": "seiscomp",
+            "fallback": "seisan"
+          }
+        ],
+        "default": "seisan"
+      }
     }
   ]
 }

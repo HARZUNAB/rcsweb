@@ -79,7 +79,7 @@ FORMATOS: dict[str, Formato] = {
         rol="local",
         adaptador="app.domain.catalogs.adapters.seisan",
         capacidades=frozenset(
-            {"eventos", "origenes", "magnitudes", "excluidos", "tensores"}
+            {"eventos", "origenes", "magnitudes", "arribos", "excluidos", "tensores"}
         ),
         archivo="select.out",
         extensiones=("out", "txt", "dat"),
@@ -91,7 +91,7 @@ FORMATOS: dict[str, Formato] = {
         rol="local",
         adaptador="app.domain.catalogs.adapters.central",
         capacidades=frozenset(
-            {"eventos", "origenes", "magnitudes", "tensores"}
+            {"eventos", "origenes", "magnitudes", "arribos", "tensores"}
         ),
         archivo="",
         extensiones=("csv",),

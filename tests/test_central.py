@@ -8,10 +8,12 @@ import pytest
 
 from app.domain.catalogs.adapters.central import (
     Adaptador,
+    _elegir_origen_local,
     _estado_texto,
     _periodo,
     limpiar_cache_disponibilidad,
 )
+from app.domain.catalogs.stations import EstacionLista
 from app.extensions import db
 from app.models import Job, User, nuevo_uuid
 
@@ -335,3 +337,330 @@ def test_validar_periodo_error_de_conexion(app, monkeypatch):
 
         assert resultado["ok"] is False
         assert "sin conexión" in " ".join(resultado["errores"])
+
+
+class _CursorConsultas:
+    def __init__(self, respuestas):
+        self.respuestas = list(respuestas)
+        self.consultas = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def execute(self, consulta, parametros=None):
+        self.consultas.append((consulta, parametros))
+
+    def fetchall(self):
+        return self.respuestas.pop(0)
+
+
+class _ConexionConsultas:
+    def __init__(self, respuestas):
+        self.cursor_falso = _CursorConsultas(respuestas)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def cursor(self, **_kwargs):
+        return self.cursor_falso
+
+
+def test_elegir_origen_local_por_tiempo_y_posicion():
+    evento = {
+        "event_id": "e-1",
+        "origin_time": datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+        "latitude": -30.0,
+        "longitude": -71.0,
+    }
+    candidatos = [
+        {
+            "origin_id": "lejano",
+            "origin_time": datetime(2025, 1, 1, 0, 0, 5, tzinfo=UTC),
+            "latitude": -30.0,
+            "longitude": -71.0,
+            "creation_time": datetime(2025, 1, 2, tzinfo=UTC),
+        },
+        {
+            "origin_id": "cercano",
+            "origin_time": datetime(2025, 1, 1, 0, 0, 0, 300000, tzinfo=UTC),
+            "latitude": -30.0001,
+            "longitude": -71.0001,
+            "creation_time": datetime(2025, 1, 1, tzinfo=UTC),
+        },
+    ]
+
+    elegido = _elegir_origen_local(evento, candidatos)
+
+    assert elegido is not None
+    assert elegido["origin_id"] == "cercano"
+
+
+class _ResolutorFalso:
+    def __init__(self, _config):
+        pass
+
+    def resolver(self, _selector, station, **_kwargs):
+        coordenadas = {
+            "PB01": (-21.04, -69.48, 900.0),
+            "PB02": (-21.31, -69.89, 1015.0),
+        }
+        if station not in coordenadas:
+            return None
+        lat, lon, elev = coordenadas[station]
+        return EstacionLista(
+            network="C1",
+            station=station,
+            latitude=lat,
+            longitude=lon,
+            elevation_m=elev,
+            source_file="STATION0.HYP",
+        )
+
+
+def test_consultar_arribos_publicado_y_no_publicado(app, monkeypatch):
+    with app.app_context():
+        adaptador = Adaptador()
+        adaptador.source_id = "central"
+        monkeypatch.setattr(
+            "app.domain.catalogs.adapters.central.ResolutorEstaciones",
+            _ResolutorFalso,
+        )
+        eventos = [
+            {
+                "event_id": "e-publicado",
+                "origin_id": "o-publicado",
+                "software": "eventquery_catalog",
+                "tiene_picks": False,
+                "origin_time": datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+                "latitude": -30.0,
+                "longitude": -71.0,
+                "author": "ana",
+            },
+            {
+                "event_id": "e-local",
+                "origin_id": "o-local",
+                "software": "Seisan_v9.1",
+                "tiene_picks": True,
+                "origin_time": datetime(2025, 1, 2, 0, 0, tzinfo=UTC),
+                "latitude": -31.0,
+                "longitude": -72.0,
+                "author": "beto",
+            },
+        ]
+        origenes = [
+            {
+                "event_id": "e-publicado",
+                "origin_id": "o-local-publicado",
+                "software": "Seisan_v9.1",
+                "author": "ana",
+                "origin_time": datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+                "latitude": -30.0,
+                "longitude": -71.0,
+                "creation_time": datetime(2025, 1, 1, 1, 0, tzinfo=UTC),
+            }
+        ]
+        picks = [
+            {
+                "origin_id": "o-local-publicado",
+                "pick_id": "p-1",
+                "channel": "C1.PB01..HHZ",
+                "pick_time": datetime(2025, 1, 1, 0, 0, 30, tzinfo=UTC),
+                "phase": "P",
+                "polarity": "UP",
+                "uncertainty": None,
+                "probability": None,
+                "weight": 1.0,
+                "pick_status": "manual",
+            },
+            {
+                "origin_id": "o-local",
+                "pick_id": "p-2",
+                "channel": "C1.PB02..HHZ",
+                "pick_time": datetime(2025, 1, 2, 0, 0, 40, tzinfo=UTC),
+                "phase": "S",
+                "polarity": None,
+                "uncertainty": None,
+                "probability": None,
+                "weight": 1.0,
+                "pick_status": "manual",
+            },
+        ]
+        conexion = _ConexionConsultas([origenes, picks])
+        monkeypatch.setattr(adaptador, "_conectar", lambda: conexion)
+
+        filas = adaptador._consultar_arribos(
+            datetime(2025, 1, 1, tzinfo=UTC),
+            datetime(2025, 1, 31, tzinfo=UTC),
+            eventos,
+        )
+
+        assert len(filas) == 2
+        por_evento = {fila["id_evento"]: fila for fila in filas}
+        publicado = por_evento["e-publicado"]
+        assert publicado["id_origen"] == "o-local-publicado"
+        assert publicado["est_lat"] == -21.04
+        assert publicado["est_lista"] == "STATION0.HYP"
+        assert publicado["est_vigencia"] == "current"
+        assert publicado["base_datos"] == "Seisan_v9.1"
+        assert publicado["fase"] == "P"
+        local = por_evento["e-local"]
+        assert local["id_origen"] == "o-local"
+        assert local["est_lat"] == -21.31
+        assert local["fase"] == "S"
+
+
+def test_exportar_escribe_arribos_y_extension(app, tmp_path, monkeypatch):
+    with app.app_context():
+        usuario = _usuario("admin-arribos", "admin", "")
+        job = _job(usuario.id)
+        adaptador = Adaptador()
+        adaptador.source_id = "central"
+        monkeypatch.setattr(
+            adaptador, "_consultar", lambda _inicio, _fin: (_eventos(), _tensores())
+        )
+        monkeypatch.setattr(
+            adaptador,
+            "_consultar_arribos",
+            lambda _inicio, _fin, _eventos: [
+                {
+                    "id_evento": "e-1",
+                    "id_origen": "o-1",
+                    "id_pick": "p-1",
+                    "red": "C1",
+                    "estacion": "PB01",
+                    "loc": "",
+                    "cha": "HHZ",
+                    "fase": "P",
+                    "llegada_utc": "2026-10-01 00:00:30",
+                    "llegada_us": "000000",
+                    "est_lat": -21.04,
+                    "est_lon": -69.48,
+                    "usada": "True",
+                }
+            ],
+        )
+
+        adaptador.exportar(tmp_path, job)
+
+        ruta = tmp_path / adaptador._ruta_fases(job)
+        assert ruta.is_file()
+        assert adaptador.extensiones(job, "", tmp_path)["arribos"] == adaptador._ruta_fases(job)
+
+
+def _workspace_canonico_central(tmp_path):
+    from app.domain.catalogs import arribos_csv
+    from app.domain.catalogs.canonical import escribir_desde_csv, escribir_extensiones
+
+    workspace = tmp_path / "ws"
+    (workspace / "datos").mkdir(parents=True)
+    catalogo = workspace / "datos" / "central_parametros.csv"
+    catalogo.write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Analista,"
+        "Publicado,Revisión,id_evento,id_origen\n"
+        "0,2025-03-26 12:18:20,-30.370,-69.571,13.2,3.1,ML,jaba,"
+        "Sí,Final,e-1,o-eq\n",
+        encoding="utf-8",
+    )
+    escribir_desde_csv(workspace, "central", "local_db", catalogo)
+    fases = workspace / "datos" / "central_fases.csv"
+    arribos_csv.escribir(
+        fases,
+        [
+            {
+                "id_evento": "e-1",
+                "id_origen": "o-eq",
+                "id_pick": "p-1",
+                "red": "C1",
+                "estacion": "CO01",
+                "loc": "",
+                "cha": "HHZ",
+                "fase": "P",
+                "llegada_utc": "2025-03-26 12:18:32",
+                "llegada_us": "630000",
+                "est_lat": -29.9773,
+                "est_lon": -70.094,
+                "est_vigencia": "current",
+            }
+        ],
+    )
+    escribir_extensiones(
+        workspace, "central", "local_db", {"arribos": "datos/central_fases.csv"}
+    )
+    return workspace
+
+
+def test_revisar_fila_central_en_las_tres_tablas(tmp_path):
+    from app.services.station_review import revisar_fila
+
+    workspace = _workspace_canonico_central(tmp_path)
+    casos = [
+        (
+            "no_publicados",
+            "central",
+            {
+                "Fecha_Hora": "2025-03-26 12:18:20",
+                "Latitud": "-30.370",
+                "Longitud": "-69.571",
+            },
+        ),
+        (
+            "no_actualizados",
+            "central",
+            {
+                "fecha_local": "2025-03-26 12:18:20",
+                "lat_local": "-30.370",
+                "lon_local": "-69.571",
+            },
+        ),
+        (
+            "repetidos",
+            "central_estricto",
+            {
+                "fecha_hora": "2025-03-26 12:18:20",
+                "latitud": "-30.370",
+                "longitud": "-69.571",
+            },
+        ),
+    ]
+
+    for tabla, opcion, fila in casos:
+        revision = revisar_fila(workspace, tabla, opcion, fila)
+        assert revision is not None, tabla
+        assert revision["estado"] == "ok", tabla
+        assert revision["tiene_coordenadas"] is True, tabla
+        assert revision["tiene_tiempos"] is True, tabla
+        assert any(
+            punto["estacion"] == "CO01"
+            for punto in revision["estaciones_mapa"]
+        ), tabla
+
+
+def test_elegir_origen_local_prefiere_solucion_revisada():
+    evento = {
+        "event_id": "e-1",
+        "origin_time": datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+        "latitude": -30.0,
+        "longitude": -71.0,
+    }
+    base = {
+        "origin_time": datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+        "latitude": -30.0,
+        "longitude": -71.0,
+    }
+    candidatos = [
+        dict(base, origin_id="automatico", status="AUTOMATIC",
+             creation_time=datetime(2025, 1, 3, tzinfo=UTC)),
+        dict(base, origin_id="revisado", status="REVIEWED",
+             creation_time=datetime(2025, 1, 2, tzinfo=UTC)),
+    ]
+
+    elegido = _elegir_origen_local(evento, candidatos)
+
+    assert elegido is not None
+    assert elegido["origin_id"] == "revisado"

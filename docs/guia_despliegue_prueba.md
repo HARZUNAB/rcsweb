@@ -156,6 +156,29 @@ Solo si el tester usará la fuente **Central**:
    `web` y `worker`. Si no existe, la app arranca sin Central y el resto de las
    fuentes funciona normalmente.
 
+### Listas de estaciones de Seisan
+
+Para que Seisan y Central puedan ubicar estaciones en el mapa y reproducir la
+propagación, copie el directorio `datseisan` con los archivos `STATION*.HYP`:
+
+```text
+${DATOS_PATH_HOST}/csn/datseisan/
+  STATION0.HYP
+  STATION1.HYP
+  ...
+```
+
+El directorio se monta en los contenedores como `/data/csn/datseisan`. Defina
+en `.env`:
+
+```dotenv
+RCS_SEISAN_STATIONS_DIR=/data/csn/datseisan
+```
+
+Si la variable falta, se usa `${DATOS_PATH}/csn/datseisan`. Si el directorio no
+existe, la app funciona igual: los arribos se muestran en la tabla, pero las
+estaciones sin coordenadas no se dibujan en el mapa ni entran a la propagación.
+
 ## Crear el compose de prueba
 
 En `/home/rcswebtest/rcsweb` crear:
