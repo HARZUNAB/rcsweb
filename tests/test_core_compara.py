@@ -112,3 +112,48 @@ def test_repetidos_acepta_prefijos(core, tmp_path):
     assert (tmp_path / "informes/rep_central_estricto.txt").is_file()
     assert (tmp_path / "informes/rep_seisan_estricto.txt").is_file()
     assert (tmp_path / "informes/rep_publica_estricto.txt").is_file()
+
+
+def test_compara_con_catalogo_local_vacio(core, tmp_path):
+    compara = importlib.import_module("compara")
+
+    (tmp_path / "eventquery.csv").write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Referencia,Percep.\n"
+        "0,2026-10-01 00:00:00,-30.0,-71.0,10.0,2.5,ML,Ref,N\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "local.csv").write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Analista,Publicado\n",
+        encoding="utf-8",
+    )
+
+    compara.main(["compara.py", "eventquery.csv", "local.csv", "central_"])
+
+    assert not (
+        tmp_path / "datos/no_pub_desde_2_5_central_estricto.csv"
+    ).exists()
+    no_act = (tmp_path / "informes/no_act_central_estricto.txt").read_text(
+        encoding="utf-8"
+    )
+    assert "fecha hora" in no_act
+
+
+def test_repetidos_con_catalogo_vacio(core, tmp_path):
+    modulo = importlib.import_module("repetidos")
+
+    (tmp_path / "eventquery.csv").write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Referencia,Percep.\n"
+        "0,2026-10-01 00:00:00,-30.0,-71.0,10.0,2.5,ML,Ref,N\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "local.csv").write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Analista\n",
+        encoding="utf-8",
+    )
+
+    modulo.main(
+        ["repetidos.py", "eventquery.csv", "local.csv", "--prefijos=central"]
+    )
+
+    assert not (tmp_path / "informes/rep_central_estricto.txt").exists()
+    assert (tmp_path / "informes/rep_publica_estricto.txt").is_file()

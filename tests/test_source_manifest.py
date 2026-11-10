@@ -409,7 +409,7 @@ def test_alta_con_fuente_sin_archivo(
     _manifiesto_con_fuente_sin_archivo(tmp_path, monkeypatch)
     monkeypatch.setattr(
         "app.domain.catalogs.adapters.central.Adaptador.validar_periodo",
-        lambda self, job: {
+        lambda self, job, rango=None: {
             "codigo": "central_tmp",
             "ok": True,
             "errores": [],
@@ -460,3 +460,176 @@ def test_validar_rechaza_extraccion_con_ruta(tmp_path, monkeypatch):
         manifest.validar()
 
     assert "extraction_name con ruta" in str(exc.value)
+
+
+def _manifiesto_con_central_y_archivo(tmp_path, monkeypatch):
+    return _manifiesto_extra(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "id": "ref_x",
+                "label": "Referencia X",
+                "role": "reference",
+                "format": "eventquery",
+                "validator": "eventquery",
+                "download_handler": "eventquery",
+            },
+            {
+                "id": "local_a",
+                "label": "Local A",
+                "role": "local",
+                "format": "local_export",
+                "validator": "seiscomp",
+                "accept": [".csv"],
+                "download_handler": "seiscomp",
+                "default_primary": True,
+            },
+            {
+                "id": "central_tmp",
+                "label": "Central de prueba",
+                "role": "local",
+                "format": "local_db",
+                "validator": "central",
+                "requires_file": False,
+                "extraction_name": "central_{inicio}_{fin}.csv",
+                "dsn_env": "RCS_CENTRAL_DSN",
+            },
+        ],
+    )
+
+
+def test_rango_de_fechas_en_la_tarjeta(client, login, tmp_path, monkeypatch):
+    _manifiesto_con_fuente_sin_archivo(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        "app.domain.catalogs.adapters.central.Adaptador.disponibilidad",
+        lambda self, usuario=None: {
+            "desde": datetime(1982, 9, 18, tzinfo=UTC),
+            "hasta": datetime(2025, 3, 31, tzinfo=UTC),
+        },
+    )
+    login()
+
+    html = client.get("/jobs/new").get_data(as_text=True)
+
+    assert "Rango disponible en la base" in html
+    assert "18/09/1982" in html
+    assert "31/03/2025" in html
+    assert 'data-rango-fuente="central_tmp"' in html
+
+
+def test_rango_no_disponible_no_rompe_el_formulario(
+    client, login, tmp_path, monkeypatch
+):
+    _manifiesto_con_fuente_sin_archivo(tmp_path, monkeypatch)
+
+    def _falla(self, usuario=None):
+        raise RuntimeError("sin conexión")
+
+    monkeypatch.setattr(
+        "app.domain.catalogs.adapters.central.Adaptador.disponibilidad",
+        _falla,
+    )
+    login()
+
+    html = client.get("/jobs/new").get_data(as_text=True)
+
+    assert "Nuevo trabajo" in html
+    assert "No se pudo consultar el rango disponible" in html
+
+
+def test_sin_eventos_en_la_unica_fuente_deja_borrador(
+    client, login, sin_celery, tmp_path, monkeypatch
+):
+    _manifiesto_con_fuente_sin_archivo(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        "app.domain.catalogs.adapters.central.Adaptador.validar_periodo",
+        lambda self, job, rango=None: {
+            "codigo": "central_tmp",
+            "ok": True,
+            "errores": [],
+            "advertencias": [
+                "La base central no tiene eventos en el período seleccionado."
+            ],
+            "eventos": 0,
+            "desde": None,
+            "hasta": None,
+        },
+    )
+    login()
+    datos = {
+        "period_start": "2026-10-01",
+        "period_end": "2026-10-31",
+        "incluir_central_tmp": "y",
+        "primary_source": "central_tmp",
+        "ref_x": (
+            open(SAMPLES / "eventquery_20261001000000_20261031235959.csv", "rb"),
+            "eventquery.csv",
+        ),
+    }
+
+    respuesta = client.post(
+        "/jobs/new", data=datos, content_type="multipart/form-data"
+    )
+
+    assert respuesta.status_code == 302
+    job = db.session.execute(db.select(Job)).scalar_one()
+    assert job.status == "draft"
+    central = db.session.execute(
+        db.select(JobSource).filter_by(job_id=job.id, kind="central_tmp")
+    ).scalar_one()
+    assert central.status == "error"
+    assert "única fuente local" in (central.message or "")
+    assert sin_celery == []
+
+
+def test_sin_eventos_con_otra_fuente_encola(
+    client, login, sin_celery, tmp_path, monkeypatch
+):
+    _manifiesto_con_central_y_archivo(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        "app.domain.catalogs.adapters.central.Adaptador.validar_periodo",
+        lambda self, job, rango=None: {
+            "codigo": "central_tmp",
+            "ok": True,
+            "errores": [],
+            "advertencias": [
+                "La base central no tiene eventos en el período seleccionado."
+            ],
+            "eventos": 0,
+            "desde": None,
+            "hasta": None,
+        },
+    )
+    login()
+    datos = {
+        "period_start": "2026-10-01",
+        "period_end": "2026-10-31",
+        "incluir_local_a": "y",
+        "incluir_central_tmp": "y",
+        "primary_source": "local_a",
+        "alias_local_a": "Local A",
+        "ref_x": (
+            open(SAMPLES / "eventquery_20261001000000_20261031235959.csv", "rb"),
+            "eventquery.csv",
+        ),
+        "local_a": (
+            open(SAMPLES / "seiscomp_20261001000000_20261031235959.csv", "rb"),
+            "seiscomp.csv",
+        ),
+    }
+
+    respuesta = client.post(
+        "/jobs/new", data=datos, content_type="multipart/form-data"
+    )
+
+    assert respuesta.status_code == 302
+    job = db.session.execute(db.select(Job)).scalar_one()
+    assert job.status == "queued"
+    central = db.session.execute(
+        db.select(JobSource).filter_by(job_id=job.id, kind="central_tmp")
+    ).scalar_one()
+    assert central.status == "ok"
+    assert "no tiene eventos" in (central.message or "")
+    assert {archivo.kind for archivo in job.files} == {"ref_x", "local_a"}
+    assert sin_celery == [job.id]

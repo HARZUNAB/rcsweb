@@ -101,6 +101,20 @@
   </div>
   {% endif %}
 
+  {% if job.status != 'draft' %}
+    {% set avisos = job.sources | selectattr('message') | list %}
+    {% if avisos %}
+    <div class="alert alert-light border mt-3 small mb-0" role="alert">
+      <div class="fw-semibold mb-1">Advertencias de fuentes</div>
+      {% for source in avisos %}
+      <div>
+        <strong>{{ source.alias_mostrado }}</strong>: {{ source.message }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endif %}
+
   {% if job.status == 'done' %}
   <div class="row g-3 mt-1" id="resultados">
     <div class="col-12 col-lg-4">

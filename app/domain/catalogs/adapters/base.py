@@ -30,6 +30,8 @@ class Adaptador:
     prefijo: str = ""
     prefijo_repetidos: str = ""
     source_id: str = ""
+    # Indica si el adaptador puede informar un rango de fechas disponible.
+    soporta_disponibilidad: bool = False
     # Etiqueta genérica que usa repetidos.py cuando hay una sola fuente local
     # que no es un select.out. Es un detalle del core, no un nombre de fuente.
     prefijo_repetidos_core: str = "seisan"
@@ -52,6 +54,29 @@ class Adaptador:
         estaciones devuelve un diccionario vacío.
         """
         return {}
+
+    def disponibilidad(self, usuario=None) -> dict | None:
+        """Rango de fechas disponible en la fuente, si se puede consultar.
+
+        Las fuentes que reciben archivo no lo saben hasta la carga. Las fuentes
+        directas, como Central, lo implementan. El rango es informativo: no
+        limita el período del trabajo.
+        """
+        return None
+
+    def validar_periodo(self, job, rango=None) -> dict:
+        """Validación de una fuente sin archivo, antes de crear el trabajo."""
+        return {
+            "codigo": self.source_id or self.formato,
+            "ok": False,
+            "errores": [
+                "La fuente no implementa la validación por período."
+            ],
+            "advertencias": [],
+            "eventos": 0,
+            "desde": None,
+            "hasta": None,
+        }
 
     def prefijo_salida(self, source_id: str) -> str:
         return self.prefijo or f"{source_id}_"

@@ -126,8 +126,12 @@ consultar una fuente directa, como Central.
 4. Si una fuente no requiere archivo, la tarjeta lo indica y muestra el nombre
    sugerido de la extracción. La consulta se hace directamente al crear el
    trabajo.
-5. Indique el período y la fuente principal.
-6. Envíe el formulario.
+5. Si la fuente es **Central**, la tarjeta muestra el rango de fechas disponible
+   en la base. Si el período queda fuera y hay otras fuentes, el trabajo se crea
+   igual y Central no aporta eventos. Si Central es la única fuente local, el
+   alta se rechaza para no crear un trabajo vacío.
+6. Indique el período y la fuente principal.
+7. Envíe el formulario.
 
 Si falta un archivo, la conexión falla o el contenido no es válido, el trabajo
 queda en **Borrador** con el detalle del problema. Corrija el archivo o el

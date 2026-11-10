@@ -674,6 +674,19 @@ Permisos:
   código o alias. Los publicados tienen autor `eventquery_catalog`, así que un
   analista no los ve.
 
+Rango de fechas:
+
+- El formulario **Nuevo trabajo** muestra el rango global de la base, por
+  ejemplo `18/09/1982 → 31/03/2025` para el dump de prueba.
+- Es informativo: no limita el período del trabajo ni la extracción de las
+  demás fuentes. Se cachea 5 minutos.
+- Si el período queda fuera del rango y hay otras fuentes locales, Central deja
+  una advertencia y aporta un catálogo vacío; el trabajo se crea igual.
+- Si Central es la única fuente local y el período no tiene eventos, el alta
+  falla con un error y no se crea el trabajo.
+- Un error de conexión o credenciales siempre es error, sin importar las otras
+  fuentes.
+
 Comparación:
 
 - **No publicados:** solo eventos con `Publicado = No` que no aparecen en

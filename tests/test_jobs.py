@@ -243,3 +243,34 @@ def test_periodo_se_guarda_en_utc(client, login, samples, sin_celery):
     assert job.period_end.hour == 23
     assert job.period_end.minute == 59
     assert len(db.session.execute(db.select(JobFile)).scalars().all()) == 2
+
+
+def test_detalle_muestra_advertencias_de_fuentes(client, login):
+    login()
+    job = Job(
+        id=nuevo_uuid(),
+        period_start=datetime(2026, 10, 1, tzinfo=UTC),
+        period_end=datetime(2026, 10, 31, tzinfo=UTC),
+        status="queued",
+        current_step="En cola",
+    )
+    db.session.add(job)
+    db.session.add(
+        JobSource(
+            job_id=job.id,
+            kind="central",
+            alias="Central",
+            format="local_db",
+            role="local_principal",
+            status="ok",
+            message=(
+                "La base central no tiene eventos en el período seleccionado."
+            ),
+        )
+    )
+    db.session.commit()
+
+    html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
+
+    assert "Advertencias de fuentes" in html
+    assert "no tiene eventos" in html

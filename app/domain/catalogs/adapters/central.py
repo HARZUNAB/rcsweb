@@ -11,7 +11,9 @@ modo de solo lectura y solo se ejecutan consultas ``SELECT``.
 from __future__ import annotations
 
 import csv
+import hashlib
 import os
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -84,6 +86,33 @@ def _fecha_texto(valor) -> str:
     return _texto(valor)
 
 
+def _fecha_dia_texto(valor) -> str:
+    if valor is None:
+        return ""
+    if isinstance(valor, datetime):
+        return valor.astimezone(UTC).strftime("%d/%m/%Y")
+    return _texto(valor)
+
+
+def _rango_texto(rango) -> str:
+    if not rango:
+        return ""
+    desde = rango.get("desde")
+    hasta = rango.get("hasta")
+    if desde is None or hasta is None:
+        return ""
+    return f"{_fecha_dia_texto(desde)} → {_fecha_dia_texto(hasta)}"
+
+
+_TTL_DISPONIBILIDAD = 300
+_CACHE_DISPONIBILIDAD: dict[tuple[str, str], tuple[float, dict]] = {}
+
+
+def limpiar_cache_disponibilidad() -> None:
+    """Vacía la caché del rango disponible (pruebas y cambios de conexión)."""
+    _CACHE_DISPONIBILIDAD.clear()
+
+
 def _estado_texto(valor) -> str:
     limpio = _texto(valor)
     return ESTADOS.get(limpio.lower(), limpio)
@@ -112,6 +141,7 @@ def _periodo(job) -> tuple[datetime, datetime]:
 class Adaptador(Base):
     formato = "local_db"
     tipo = "db"
+    soporta_disponibilidad = True
     capacidades = frozenset(
         {"eventos", "origenes", "magnitudes", "tensores"}
     )
@@ -135,6 +165,38 @@ class Adaptador(Base):
             os.environ.get(nombre, "").strip()
             or str(current_app.config.get(nombre, "") or "").strip()
         )
+
+    def _clave_cache(self) -> tuple[str, str]:
+        dsn = self._dsn()
+        huella = hashlib.sha256(dsn.encode("utf-8")).hexdigest()[:12]
+        return self._fuente_id(), huella
+
+    def disponibilidad(self, usuario=None) -> dict | None:
+        """Rango global de fechas de la base, sin filtrar por analista.
+
+        Es informativo: no limita el período del trabajo ni la extracción de
+        las demás fuentes. Se cachea unos minutos para no consultar la base en
+        cada carga del formulario.
+        """
+        clave = self._clave_cache()
+        ahora = time.monotonic()
+        guardado = _CACHE_DISPONIBILIDAD.get(clave)
+        if guardado is not None and ahora - guardado[0] < _TTL_DISPONIBILIDAD:
+            return guardado[1]
+
+        with self._conectar() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT min(o.origin_time), max(o.origin_time)
+                      FROM event e
+                      JOIN origin o ON o.origin_id = e.preferred_origin_id
+                    """
+                )
+                desde, hasta = cursor.fetchone()
+        rango = {"desde": desde, "hasta": hasta}
+        _CACHE_DISPONIBILIDAD[clave] = (ahora, rango)
+        return rango
 
     def _conectar(self):
         import psycopg
@@ -341,8 +403,13 @@ class Adaptador(Base):
                 tensores = cursor.fetchall()
         return eventos, tensores
 
-    def validar_periodo(self, job) -> dict:
-        """Comprueba conexión y existencia de eventos para el período."""
+    def validar_periodo(self, job, rango=None) -> dict:
+        """Comprueba conexión y eventos para el período.
+
+        La ausencia de eventos es una advertencia: el trabajo puede seguir con
+        las otras fuentes. El alta decide si esa advertencia se convierte en
+        error cuando Central es la única fuente local.
+        """
         resultado = {
             "codigo": self._fuente_id(),
             "ok": False,
@@ -353,6 +420,7 @@ class Adaptador(Base):
             "hasta": None,
         }
         inicio, fin = _periodo(job)
+        texto_rango = _rango_texto(rango)
         from ....services.analysts import (
             codigos_usuario,
             coincide,
@@ -370,11 +438,6 @@ class Adaptador(Base):
             if usuario is not None and usuario_restringido(usuario)
             else None
         )
-        if codigos is not None and not codigos:
-            resultado["errores"].append(
-                "El usuario no tiene código de analista configurado."
-            )
-            return resultado
         try:
             with self._conectar() as conexion:
                 with conexion.cursor() as cursor:
@@ -410,15 +473,25 @@ class Adaptador(Base):
             _fecha_texto(max(instantes)) if instantes else None
         )
         if not resultado["eventos"]:
-            if codigos is not None:
-                resultado["errores"].append(
+            if codigos is not None and not codigos:
+                mensaje = (
+                    "El usuario no tiene código de analista configurado; "
+                    "la fuente Central no aportará eventos."
+                )
+            elif codigos is not None:
+                mensaje = (
                     "La base central no tiene eventos propios en el período "
                     "seleccionado."
                 )
             else:
-                resultado["errores"].append(
-                    "La base central no tiene eventos en el período seleccionado."
+                mensaje = (
+                    "La base central no tiene eventos en el período "
+                    "seleccionado."
                 )
+            if texto_rango:
+                mensaje += f" Rango disponible en la base: {texto_rango}."
+            resultado["advertencias"].append(mensaje)
+            resultado["ok"] = True
             return resultado
         resultado["ok"] = True
         return resultado

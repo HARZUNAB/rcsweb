@@ -4,13 +4,23 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
+
 from app.domain.catalogs.adapters.central import (
     Adaptador,
     _estado_texto,
     _periodo,
+    limpiar_cache_disponibilidad,
 )
 from app.extensions import db
 from app.models import Job, User, nuevo_uuid
+
+
+@pytest.fixture(autouse=True)
+def _cache_limpia():
+    limpiar_cache_disponibilidad()
+    yield
+    limpiar_cache_disponibilidad()
 
 
 def _job(usuario_id: int) -> Job:
@@ -198,6 +208,62 @@ class _ConexionFalsa:
         return _CursorFalso(self.filas)
 
 
+class _CursorRango:
+    def __init__(self, rango):
+        self.rango = rango
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def execute(self, *_args, **_kwargs):
+        return None
+
+    def fetchone(self):
+        return self.rango
+
+
+class _ConexionRango:
+    def __init__(self, rango):
+        self.rango = rango
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def cursor(self):
+        return _CursorRango(self.rango)
+
+
+def test_disponibilidad_global_y_cache(app, monkeypatch):
+    with app.app_context():
+        app.config["RCS_CENTRAL_DSN"] = "postgresql://fake"
+        adaptador = Adaptador()
+        adaptador.source_id = "central"
+        rango = (
+            datetime(1982, 9, 18, tzinfo=UTC),
+            datetime(2025, 3, 31, tzinfo=UTC),
+        )
+        llamados = []
+
+        def _conectar():
+            llamados.append(1)
+            return _ConexionRango(rango)
+
+        monkeypatch.setattr(adaptador, "_conectar", _conectar)
+
+        primero = adaptador.disponibilidad()
+        segundo = adaptador.disponibilidad()
+
+        assert primero == {"desde": rango[0], "hasta": rango[1]}
+        assert segundo == primero
+        assert len(llamados) == 1
+
+
 def test_validar_periodo_filtra_por_analista(app, monkeypatch):
     with app.app_context():
         usuario = _usuario("ana2", "analista", "eatl")
@@ -218,14 +284,54 @@ def test_validar_periodo_filtra_por_analista(app, monkeypatch):
         assert resultado["eventos"] == 1
 
 
-def test_validar_periodo_sin_codigo_falla(app, monkeypatch):
+def test_validar_periodo_sin_eventos_es_advertencia(app, monkeypatch):
+    with app.app_context():
+        usuario = _usuario("ana3", "analista", "eatl")
+        job = _job(usuario.id)
+        adaptador = Adaptador()
+        adaptador.source_id = "central"
+        monkeypatch.setattr(adaptador, "_conectar", lambda: _ConexionFalsa([]))
+        rango = {
+            "desde": datetime(1982, 9, 18, tzinfo=UTC),
+            "hasta": datetime(2025, 3, 31, tzinfo=UTC),
+        }
+
+        resultado = adaptador.validar_periodo(job, rango)
+
+        assert resultado["ok"] is True
+        assert resultado["eventos"] == 0
+        assert resultado["errores"] == []
+        assert "Rango disponible" in " ".join(resultado["advertencias"])
+
+
+def test_validar_periodo_sin_codigo_es_advertencia(app, monkeypatch):
     with app.app_context():
         usuario = _usuario("consulta", "consulta", "")
         job = _job(usuario.id)
         adaptador = Adaptador()
         adaptador.source_id = "central"
+        monkeypatch.setattr(adaptador, "_conectar", lambda: _ConexionFalsa([]))
+
+        resultado = adaptador.validar_periodo(job)
+
+        assert resultado["ok"] is True
+        assert resultado["eventos"] == 0
+        assert "código de analista" in " ".join(resultado["advertencias"])
+
+
+def test_validar_periodo_error_de_conexion(app, monkeypatch):
+    with app.app_context():
+        usuario = _usuario("ana4", "analista", "eatl")
+        job = _job(usuario.id)
+        adaptador = Adaptador()
+        adaptador.source_id = "central"
+
+        def _falla():
+            raise RuntimeError("sin conexión")
+
+        monkeypatch.setattr(adaptador, "_conectar", _falla)
 
         resultado = adaptador.validar_periodo(job)
 
         assert resultado["ok"] is False
-        assert "código de analista" in " ".join(resultado["errores"])
+        assert "sin conexión" in " ".join(resultado["errores"])

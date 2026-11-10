@@ -9,6 +9,7 @@ from pathlib import Path
 from flask import (
     Blueprint,
     abort,
+    current_app,
     flash,
     redirect,
     render_template,
@@ -89,6 +90,30 @@ def _contexto_detalle(job: Job) -> dict:
     }
 
 
+def _disponibilidad_fuentes(definiciones) -> dict:
+    """Rango informativo de las fuentes que se consultan directamente.
+
+    Un fallo de conexión no rompe el formulario: la fuente queda sin rango y
+    el alta mostrará el error al validar el período.
+    """
+    datos = {}
+    for fuente in definiciones:
+        if fuente.requires_file:
+            continue
+        adapter = obtener_adaptador(fuente.format)
+        adapter.source_id = fuente.id
+        if not getattr(adapter, "soporta_disponibilidad", False):
+            continue
+        try:
+            datos[fuente.id] = adapter.disponibilidad(current_user)
+        except Exception as exc:  # noqa: BLE001 - se informa en la tarjeta
+            current_app.logger.warning(
+                "No se pudo consultar el rango de %s: %s", fuente.id, exc
+            )
+            datos[fuente.id] = None
+    return datos
+
+
 @jobs_bp.route("/new", methods=["GET", "POST"])
 @login_required
 @permiso_requerido("trabajos.crear")
@@ -126,6 +151,8 @@ def nuevo():
             fuentes_manifest.default_primary()
             or (locales[0].id if locales else "")
         )
+
+    disponibilidad = _disponibilidad_fuentes(definiciones)
 
     if form.validate_on_submit():
         seleccionadas = [
@@ -269,7 +296,10 @@ def nuevo():
                 shutil.rmtree(workspace, ignore_errors=True)
                 flash(f"No se pudo crear el trabajo: {exc}", "danger")
                 return render_template(
-                    "jobs/new.html", form=form, fuentes=fuentes_form
+                    "jobs/new.html",
+                    form=form,
+                    fuentes=fuentes_form,
+                    disponibilidad=disponibilidad,
                 )
 
             try:
@@ -279,7 +309,24 @@ def nuevo():
                     if definicion is not None and not definicion.requires_file:
                         adapter = obtener_adaptador(definicion.format)
                         adapter.source_id = definicion.id
-                        resultado = adapter.validar_periodo(job)
+                        resultado = adapter.validar_periodo(
+                            job, disponibilidad.get(definicion.id)
+                        )
+                        if (
+                            resultado.get("ok")
+                            and resultado.get("eventos", 0) == 0
+                            and len(seleccionadas) == 1
+                        ):
+                            resultado["ok"] = False
+                            resultado["errores"] = list(
+                                resultado.get("advertencias", [])
+                            ) + [
+                                f"{definicion.label} no tiene eventos en el "
+                                "período seleccionado y es la única fuente "
+                                "local. Ajuste las fechas o seleccione otra "
+                                "fuente."
+                            ]
+                            resultado["advertencias"] = []
                     else:
                         ruta = rutas.get(source.kind)
                         validador = definicion.validator if definicion else source.kind
@@ -376,7 +423,12 @@ def nuevo():
 
             return redirect(url_for("jobs.detalle", job_id=job.id))
 
-    return render_template("jobs/new.html", form=form, fuentes=fuentes_form)
+    return render_template(
+        "jobs/new.html",
+        form=form,
+        fuentes=fuentes_form,
+        disponibilidad=disponibilidad,
+    )
 
 
 @jobs_bp.get("/<job_id>")

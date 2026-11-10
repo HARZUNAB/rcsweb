@@ -256,7 +256,14 @@ unidad.
 
 En el formulario **Nuevo trabajo**, Central no muestra input de archivo. El
 nombre sugerido de la extracción se muestra en la tarjeta y se resuelve con el
-período elegido.
+período elegido. También se muestra el rango global de fechas de la base, que es
+informativo y se cachea 5 minutos:
+
+- si el período queda fuera y hay otras fuentes locales, el trabajo se crea
+  igual y Central aporta un catálogo vacío;
+- si Central es la única fuente local y el período no tiene eventos, el alta
+  falla para no crear un trabajo vacío;
+- un error de conexión o credenciales siempre es error.
 
 Permisos y comparación:
 

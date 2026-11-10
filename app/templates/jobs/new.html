@@ -120,6 +120,31 @@
                 Nombre sugerido de la extracción:
                 <code data-extraccion="{{ plantilla }}">{{ extraccion }}</code>
               </div>
+              {% set rangos = disponibilidad if disponibilidad is defined else {} %}
+              {% if item.fuente.id in rangos %}
+                {% set rango = rangos.get(item.fuente.id) %}
+                {% if rango and rango.desde and rango.hasta %}
+                <div class="mt-2">
+                  Rango disponible en la base:
+                  <strong>{{ rango.desde.strftime("%d/%m/%Y") }}</strong>
+                  →
+                  <strong>{{ rango.hasta.strftime("%d/%m/%Y") }}</strong>
+                </div>
+                <div class="small text-secondary mt-1"
+                     data-rango-fuente="{{ item.fuente.id }}"
+                     data-desde="{{ rango.desde.strftime('%Y%m%d') }}"
+                     data-hasta="{{ rango.hasta.strftime('%Y%m%d') }}"></div>
+                {% elif rango is none %}
+                <div class="mt-2 text-secondary">
+                  No se pudo consultar el rango disponible. Se validará al crear
+                  el trabajo.
+                </div>
+                {% else %}
+                <div class="mt-2 text-secondary">
+                  La base no tiene un rango de fechas disponible.
+                </div>
+                {% endif %}
+              {% endif %}
             </div>
             {% endif %}
             {% if item.error %}
@@ -180,7 +205,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const hasta = document.getElementById("period_end");
   const nombres = document.querySelectorAll("[data-extraccion]");
   const campos = document.querySelectorAll("[data-extraccion-placeholder]");
-  if (!nombres.length && !campos.length) {
+  const rangos = document.querySelectorAll("[data-rango-fuente]");
+  if (!nombres.length && !campos.length && !rangos.length) {
     return;
   }
 
@@ -205,6 +231,33 @@ document.addEventListener("DOMContentLoaded", function () {
         .replace("{inicio}", inicio)
         .replace("{fin}", fin);
     });
+
+    const inicio14 = a14(desde && desde.value);
+    const fin14 = a14(hasta && hasta.value);
+    rangos.forEach(function (elemento) {
+      const idFuente = elemento.dataset.rangoFuente;
+      const casilla = document.getElementById("incluir_" + idFuente);
+      let aviso = "";
+      if (casilla && casilla.checked && inicio14 && fin14) {
+        const desdeRango = elemento.dataset.desde;
+        const hastaRango = elemento.dataset.hasta;
+        if (fin14 < desdeRango || inicio14 > hastaRango) {
+          const otras = Array.from(
+            document.querySelectorAll('input[id^="incluir_"]')
+          ).filter(function (otra) {
+            return otra.checked && otra.id !== "incluir_" + idFuente;
+          });
+          aviso = otras.length
+            ? "Esta fuente no aportará eventos; las demás fuentes se procesarán igual."
+            : "El período está fuera del rango de esta fuente y es la única fuente local seleccionada. Ajuste las fechas o seleccione otra fuente.";
+        } else if (inicio14 < desdeRango || fin14 > hastaRango) {
+          aviso = "Esta fuente extraerá solo el tramo dentro del rango disponible.";
+        }
+      }
+      elemento.textContent = aviso;
+      elemento.classList.toggle("text-warning", Boolean(aviso));
+      elemento.classList.toggle("text-secondary", !aviso);
+    });
   }
 
   [desde, hasta].forEach(function (elemento) {
@@ -214,6 +267,9 @@ document.addEventListener("DOMContentLoaded", function () {
     ["input", "change", "blur"].forEach(function (evento) {
       elemento.addEventListener(evento, actualizar);
     });
+  });
+  document.querySelectorAll('input[id^="incluir_"]').forEach(function (casilla) {
+    casilla.addEventListener("change", actualizar);
   });
   actualizar();
 });
