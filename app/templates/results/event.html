@@ -364,6 +364,9 @@
             El color indica la procedencia del pick, no su calidad.
           </div>
         </div>
+        <div class="small text-secondary mb-2">
+          Ordenados por llegada; P y S juntas por estación.
+        </div>
         {% if revision_estaciones.grupos %}
         <div class="table-responsive">
           <table class="table table-sm table-hover align-middle mb-0">
@@ -383,6 +386,7 @@
                     {{ grupo.total }} arribo{{ '' if grupo.total == 1 else 's' }}
                     · {{ grupo.usadas }} usada{{ '' if grupo.usadas == 1 else 's' }}
                     {% if grupo.no_usadas %}· {{ grupo.no_usadas }} sin usar{% endif %}
+                    {% if grupo.llegada %}· primera llegada {{ grupo.llegada }}{% endif %}
                   </span>
                 </td>
               </tr>

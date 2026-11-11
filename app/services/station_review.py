@@ -25,6 +25,7 @@ CERCA_KM = 50.0
 COLUMNAS_ARRIBO = [
     ("fase", "Fase"),
     ("llegada", "Llegada"),
+    ("segundos", "t (s)"),
     ("loc", "Loc"),
     ("cha", "Canal"),
     ("residual", "Resid. (s)"),
@@ -284,6 +285,7 @@ def _fila_arribo(arribo: dict) -> dict:
         "estacion": _texto(arribo.get("station")),
         "fase": _texto(arribo.get("phase")),
         "llegada": _texto(arribo.get("pick_time")),
+        "segundos": "",
         "loc": _texto(arribo.get("location")),
         "cha": _texto(arribo.get("channel")),
         "residual": _numero_texto(arribo.get("residual"), 2),
@@ -311,6 +313,7 @@ def _fila_arribo(arribo: dict) -> dict:
         "software": software,
         "_usada": arribo.get("is_used_in_solution"),
         "_azimut": _numero(arribo.get("azimuth")),
+        "_llegada": _instante(arribo.get("pick_time")),
         "_clase": clase,
     }
     return fila
@@ -385,18 +388,36 @@ def _fila_sin_arribos(registro: dict) -> dict:
     }
 
 
+def _llegada_fila(fila: dict):
+    llegada = fila.get("_llegada")
+    return llegada if llegada is not None else _instante(fila.get("llegada"))
+
+
+def _hora_corta(instante) -> str:
+    return "" if instante is None else instante.strftime("%H:%M:%S")
+
+
 def _agrupar(filas: list[dict]) -> list[dict]:
     grupos: dict[tuple[str, str], list[dict]] = {}
     for fila in filas:
         grupos.setdefault((fila["red"], fila["estacion"]), []).append(fila)
     salida = []
-    for clave in sorted(grupos, key=lambda item: (item[1], item[0])):
+    for clave, integrantes in grupos.items():
         integrantes = sorted(
-            grupos[clave],
+            integrantes,
             key=lambda fila: (
-                fila["_azimut"] is None,
-                fila["_azimut"] if fila["_azimut"] is not None else 0.0,
+                _llegada_fila(fila) is None,
+                _llegada_fila(fila) or datetime.datetime.min,
+                fila.get("fase", ""),
             ),
+        )
+        primera = next(
+            (
+                _llegada_fila(fila)
+                for fila in integrantes
+                if _llegada_fila(fila) is not None
+            ),
+            None,
         )
         red, estacion = clave
         usadas = sum(1 for fila in integrantes if fila["_usada"] is True)
@@ -410,8 +431,18 @@ def _agrupar(filas: list[dict]) -> list[dict]:
                 "usadas": usadas,
                 "no_usadas": no_usadas,
                 "total": len(integrantes),
+                "llegada": _hora_corta(primera),
+                "_llegada": primera,
             }
         )
+    salida.sort(
+        key=lambda grupo: (
+            grupo["_llegada"] is None,
+            grupo["_llegada"] or datetime.datetime.min,
+            grupo["red"],
+            grupo["estacion"],
+        )
+    )
     return salida
 
 
@@ -838,13 +869,24 @@ def _datos_mapa_tiempos(
         else:
             punto["estado_ondas"] = "sin_consultar"
 
+    def _primer_segundos(punto: dict):
+        valores = [
+            fase.get("segundos")
+            for fase in punto.get("fases", [])
+            if fase.get("segundos") is not None
+        ]
+        return min(valores) if valores else None
+
     estaciones_mapa = sorted(
         puntos.values(),
         key=lambda punto: (
             punto["tipo"] != "arribo",
+            _primer_segundos(punto) is None,
+            _primer_segundos(punto) or 0.0,
             punto["distancia_km"] is None,
             punto["distancia_km"] or 0.0,
             punto["estacion"],
+            punto["red"],
         ),
     )
 
@@ -948,6 +990,22 @@ def revisar_evento(
         for registro in canonical.leer_arribos(workspace, source_id)
         if _coincide(registro, evento)
     ]
+    instante_evento = _instante((evento or {}).get("event_time"))
+    for fila in arribos:
+        llegada = fila.get("_llegada")
+        if instante_evento is not None and llegada is not None:
+            fila["segundos"] = _numero_texto(
+                (llegada - instante_evento).total_seconds(), 2
+            )
+    arribos.sort(
+        key=lambda fila: (
+            _llegada_fila(fila) is None,
+            _llegada_fila(fila) or datetime.datetime.min,
+            fila.get("red", ""),
+            fila.get("estacion", ""),
+            fila.get("fase", ""),
+        )
+    )
     sin_arribos: list[dict] = []
     aviso = ""
     radio = (meta or {}).get("station_radius_km")

@@ -570,6 +570,9 @@ def test_detalle_datos_mapa_y_tiempos(client, login, app):
     assert por_estacion["ANMO"]["fase"] == "P"
     assert por_estacion["ANMO"]["est_lista"] == "Inventario SeisComp (seiscomp)"
     assert por_estacion["ANMO"]["fases"][0]["modo"] == "Manual"
+    assert "t (s)" in html
+    assert "primera llegada" in html
+    assert "24.12" in html
 
     tiempos = _json_embebido(html, "tiempos-llegada-datos")
     assert tiempos["event_time"] == "2026-10-03 15:53:56"
