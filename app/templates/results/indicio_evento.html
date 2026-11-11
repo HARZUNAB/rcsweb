@@ -18,6 +18,9 @@
       {% if indicios_evento.revision_prioritaria %}
       <span class="badge text-bg-danger">Revisión prioritaria</span>
       {% endif %}
+      {% if indicios_evento.fuerza == 'débil' %}
+      <span class="badge text-bg-secondary">Indicio débil</span>
+      {% endif %}
       {% if indicios_evento.publicado %}
       <span class="badge text-bg-primary">Publicado</span>
       {% endif %}
@@ -153,6 +156,11 @@
       <strong>{{ 'sospechosa' if indicios_evento.sospechoso else 'normal' }}</strong>.
       Es independiente de los indicios de fases.
     </div>
+    {% if indicios_evento.explicacion_sospechoso %}
+    <div class="small text-secondary mt-1">
+      {{ indicios_evento.explicacion_sospechoso }}
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endif %}

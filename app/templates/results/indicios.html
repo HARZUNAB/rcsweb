@@ -44,7 +44,10 @@
       <div class="card-body">
         <div class="text-secondary small text-uppercase">Eventos con indicios</div>
         <div class="fs-3 fw-semibold">{{ info_fuente.con_anomalia or 0 }}</div>
-        <div class="small text-secondary">de {{ info_fuente.evaluables or 0 }} evaluables</div>
+        <div class="small text-secondary">
+          {{ info_fuente.con_anomalia_fuerte or 0 }} fuertes ·
+          {{ info_fuente.con_anomalia_debil or 0 }} débiles
+        </div>
       </div>
     </div>
   </div>
@@ -118,6 +121,7 @@
             <th>Evento</th>
             <th class="text-end">Mag.</th>
             <th>Publicado (contexto)</th>
+            <th>Solución</th>
             <th class="text-end">Usadas</th>
             <th class="text-end">Máx. residual</th>
             <th>Patrón</th>
@@ -150,10 +154,27 @@
               <span class="badge text-bg-light text-dark">Desconocido</span>
               {% endif %}
             </td>
+            <td>
+              {% if fila.sospechoso == 'Sí' %}
+              <span class="badge text-bg-danger">Sospechosa</span>
+              {% elif fila.sospechoso == 'No' %}
+              <span class="badge text-bg-success">Normal</span>
+              {% else %}
+              <span class="badge text-bg-light text-dark">No evaluable</span>
+              {% endif %}
+              {% if fila.sospechoso_residuo_km %}
+              <div class="small text-secondary">
+                residuo {{ "%.1f"|format(fila.sospechoso_residuo_km|float) }} km
+              </div>
+              {% endif %}
+            </td>
             <td class="text-end">{{ fila.n_usadas }}</td>
             <td class="text-end">{{ fila.max_residual_usado or '' }}</td>
             <td>
               <span class="badge text-bg-light text-dark">{{ fila.patron }}</span>
+              {% if fila.fuerza == 'débil' %}
+              <span class="badge text-bg-secondary">indicio débil</span>
+              {% endif %}
               {% if fila.extremo == 'Sí' %}
               <span class="badge text-bg-danger">extremo</span>
               {% endif %}

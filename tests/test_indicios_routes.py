@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from app.domain.catalogs import canonical
 from app.extensions import db
 from app.models import EventReviewRequest, Job, JobSource, User, nuevo_uuid
@@ -9,7 +11,13 @@ from app.services import indicios
 from app.services.workspace import crear_workspace
 
 
-def _evento(analyst: str, *, event_id: str, source_event_id: str) -> dict:
+def _evento(
+    analyst: str,
+    *,
+    event_id: str,
+    source_event_id: str,
+    raw_index: int = 2650,
+) -> dict:
     return {
         "source_id": "seiscomp",
         "event_id": event_id,
@@ -20,7 +28,7 @@ def _evento(analyst: str, *, event_id: str, source_event_id: str) -> dict:
         "depth_km": 10.0,
         "magnitude": 3.0,
         "analyst": analyst,
-        "raw_index": 2650,
+        "raw_index": raw_index,
         "raw": {},
     }
 
@@ -66,8 +74,18 @@ def _preparar(app, admin: User):
     db.session.commit()
     workspace = crear_workspace(job.id)
     eventos = [
-        _evento("mdur", event_id="seiscomp:000001", source_event_id="csn_sc62026vdkls"),
-        _evento("otro", event_id="seiscomp:000002", source_event_id="csn_otro"),
+        _evento(
+            "mdur",
+            event_id="seiscomp:000001",
+            source_event_id="csn_sc62026vdkls",
+            raw_index=0,
+        ),
+        _evento(
+            "otro",
+            event_id="seiscomp:000002",
+            source_event_id="csn_otro",
+            raw_index=1,
+        ),
     ]
     arribos = [
         _arribo("seiscomp:000001", "MG04", -52.857232, -71.569992, "2026-10-28 15:27:41.921878", 244.2),
@@ -157,3 +175,70 @@ def test_analista_ve_solo_sus_eventos_y_no_puede_pedir_revision(app, client):
         data={"fuente": "seiscomp", "evento": "seiscomp:000001"},
     )
     assert respuesta.status_code == 403
+
+
+def test_listado_y_detalle_reutilizan_la_clasificacion_sospechoso(
+    app, client, login, monkeypatch
+):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    workspace = crear_workspace(job.id)
+    (workspace / "datos").mkdir(exist_ok=True)
+    (workspace / "resultados").mkdir(exist_ok=True)
+    (workspace / "datos" / "seiscomp_parametros.csv").write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Analista\n"
+        "0,2026-10-28 15:23:36,-52.857,-71.570,10.0,3.0,M,mdur\n"
+        "1,2026-10-28 15:23:36,-52.857,-71.570,10.0,3.0,M,otro\n",
+        encoding="utf-8",
+    )
+    (workspace / "resultados" / "indice.json").write_text(
+        json.dumps(
+            {
+                "catalogos": {
+                    "seiscomp": {
+                        "archivo": "datos/seiscomp_parametros.csv",
+                        "filas": 2,
+                        "columnas": [
+                            "",
+                            "Fecha_Hora",
+                            "Latitud",
+                            "Longitud",
+                        ],
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def _clasificar(*_args, **_kwargs):
+        return (
+            [
+                {
+                    "sospechoso": True,
+                    "residuo_km": 39.4,
+                    "perp_km": 34.6,
+                    "along_km": 250.0,
+                }
+            ],
+            {"id": "perfil-prueba"},
+        )
+
+    monkeypatch.setattr(
+        "app.blueprints.results.clasificar_eventos", _clasificar
+    )
+    login()
+
+    listado = client.get(
+        f"/jobs/{job.id}/indicios?fuente=seiscomp&alcance=todos"
+    )
+    html = listado.get_data(as_text=True)
+    assert "Sospechosa" in html
+    assert "residuo 39.4 km" in html
+
+    detalle = client.get(
+        f"/jobs/{job.id}/indicios/seiscomp/seiscomp:000001"
+    )
+    html = detalle.get_data(as_text=True)
+    assert "sospechosa" in html
+    assert "residuo al slab 39.4 km" in html

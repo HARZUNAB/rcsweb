@@ -238,6 +238,9 @@
           {% if indicios_evento.revision_prioritaria %}
           <span class="badge text-bg-danger">Revisión prioritaria</span>
           {% endif %}
+          {% if indicios_evento.fuerza == 'débil' %}
+          <span class="badge text-bg-secondary">Indicio débil</span>
+          {% endif %}
           {% if indicios_evento.publicado %}
           <span class="badge text-bg-primary">Publicado</span>
           {% endif %}
@@ -308,6 +311,11 @@
           normal
           {% endif %}
         </div>
+        {% if indicios_evento.explicacion_sospechoso %}
+        <div class="small text-secondary">
+          {{ indicios_evento.explicacion_sospechoso }}
+        </div>
+        {% endif %}
       </div>
     </div>
 

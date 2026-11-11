@@ -28,6 +28,8 @@ from ..domain.catalogs import manifest as fuentes_manifest
 UMBRAL_RESIDUAL = 5.0
 UMBRAL_PESO = 0.5
 UMBRAL_INVERSION = 5.0
+UMBRAL_INVERSION_DEBIL_S = 2.0
+UMBRAL_RESIDUAL_INVERSION_DEBIL = 5.0
 SEPARACION_MINIMA_KM = 20.0
 MIN_ESTACIONES_P = 3
 UMBRAL_RESIDUAL_EXTREMO = 60.0
@@ -52,6 +54,7 @@ CAMPOS_EVENTO = (
     "publicado",
     "revision_prioritaria",
     "anomalia",
+    "fuerza",
     "patron",
     "contexto",
     "extremo",
@@ -63,6 +66,7 @@ CAMPOS_EVENTO = (
     "residual_mediana",
     "n_outliers",
     "n_inversiones",
+    "n_inversiones_debiles",
     "n_picks_antes_origen",
     "tipos_indicio",
     "residual_temporal",
@@ -378,6 +382,59 @@ def _inversiones(
     return pares
 
 
+def _inversiones_debiles(
+    usadas: list[dict],
+    evento: dict,
+) -> list[tuple[dict, dict, float, float]]:
+    """Inversiones que no alcanzan la fuerza de la solución.
+
+    Usa todas las P usadas, aunque su peso sea muy bajo. Exige que la estación
+    más cercana llegue al menos 2 s después que una más lejana y que su
+    residual sea alto; así se distingue de una simple diferencia de modelo.
+    La prioridad sigue reservada a las inversiones fuertes.
+    """
+    primeras: dict[tuple[str, str], tuple[datetime, float, dict]] = {}
+    for arribo in usadas:
+        if not _fase_p(arribo):
+            continue
+        if _numero(arribo.get("residual")) is None:
+            continue
+        distancia = _distancia_evento(evento, arribo)
+        instante = _instante(arribo.get("pick_time"))
+        if distancia is None or instante is None:
+            continue
+        clave = _clave_estacion(arribo)
+        if not clave[1]:
+            continue
+        actual = primeras.get(clave)
+        if actual is None or instante < actual[0]:
+            primeras[clave] = (instante, distancia, arribo)
+
+    ordenadas = sorted(primeras.values(), key=lambda item: item[1])
+    if len(ordenadas) < MIN_ESTACIONES_P:
+        return []
+
+    pares: list[tuple[dict, dict, float, float]] = []
+    for i, (instante_cercana, distancia_cercana, cercana) in enumerate(ordenadas):
+        residual_cercana = _numero(cercana.get("residual"))
+        peso_cercana = _numero(cercana.get("weight")) or 0.0
+        for instante_lejana, distancia_lejana, lejana in ordenadas[i + 1 :]:
+            if distancia_lejana - distancia_cercana < SEPARACION_MINIMA_KM:
+                continue
+            if (
+                instante_cercana - instante_lejana
+            ).total_seconds() <= UMBRAL_INVERSION_DEBIL_S:
+                continue
+            if abs(residual_cercana) <= UMBRAL_RESIDUAL_INVERSION_DEBIL:
+                continue
+            peso_lejana = _numero(lejana.get("weight")) or 0.0
+            if peso_cercana >= UMBRAL_PESO and peso_lejana >= UMBRAL_PESO:
+                continue
+            diferencia = (instante_cercana - instante_lejana).total_seconds()
+            pares.append((cercana, lejana, diferencia, residual_cercana))
+    return pares
+
+
 def _t_seg(arribo: dict, origen: datetime | None) -> float | None:
     instante = _instante(arribo.get("pick_time"))
     if instante is None or origen is None:
@@ -458,20 +515,30 @@ def evaluar_evento(
         for arribo in outliers
     )
     inversiones = _inversiones(fuertes, evento)
+    inversiones_debiles = _inversiones_debiles(usadas, evento)
     antes = [
         arribo
         for arribo in fuertes
         if (_t_seg(arribo, origen) or 0.0) < 0
     ]
     contexto = _contexto(usadas, sin_arribos, perfil_disponible)
-    patron = _patron(fuertes, outliers, inversiones, antes, extremo)
-    anomalia = bool(outliers or inversiones or antes)
+    anomalia_fuerte = bool(outliers or inversiones or antes)
+    anomalia = bool(anomalia_fuerte or inversiones_debiles)
+    fuerza = "fuerte" if anomalia_fuerte else ("débil" if anomalia else "")
+    if anomalia_fuerte:
+        patron = _patron(fuertes, outliers, inversiones, antes, extremo)
+    elif inversiones_debiles:
+        patron = "inversion_debil"
+    else:
+        patron = _patron(fuertes, outliers, inversiones, antes, extremo)
 
     tipos: list[str] = []
     if outliers:
         tipos.append("residual_alto")
     if inversiones:
         tipos.append("inversion_residual")
+    if inversiones_debiles:
+        tipos.append("inversion_debil")
     if antes:
         tipos.append("pick_antes_origen")
     if patron == "sistemático":
@@ -537,6 +604,26 @@ def evaluar_evento(
                 origen,
             )
         )
+    for cercana, lejana, diferencia, residual in inversiones_debiles[
+        :MAX_PARES_DETALLE
+    ]:
+        red_lejana, estacion_lejana = _clave_estacion(lejana)
+        peso = _numero(cercana.get("weight")) or 0.0
+        detalle = (
+            f"llega {diferencia:.2f} s después que"
+            f" {red_lejana} {estacion_lejana}"
+            f"; residual {residual:+.2f} s; peso {peso:.2e}"
+        )
+        evidencia.append(
+            _fila_detalle(
+                source_id,
+                evento,
+                cercana,
+                "inversion_debil",
+                detalle,
+                origen,
+            )
+        )
     for arribo in antes:
         t_seg = _t_seg(arribo, origen)
         detalle = f"pick {t_seg:.3f} s antes del origen"
@@ -587,8 +674,9 @@ def evaluar_evento(
         "region": _texto((evento.get("raw") or {}).get("region")),
         "fila_catalogo": evento.get("raw_index", ""),
         "publicado": publicado,
-        "revision_prioritaria": bool(publicado is True and anomalia),
+        "revision_prioritaria": bool(publicado is True and anomalia_fuerte),
         "anomalia": anomalia,
+        "fuerza": fuerza,
         "patron": patron,
         "contexto": contexto["contexto"],
         "extremo": extremo,
@@ -606,6 +694,7 @@ def evaluar_evento(
         ),
         "n_outliers": len(outliers),
         "n_inversiones": len(inversiones),
+        "n_inversiones_debiles": len(inversiones_debiles),
         "n_picks_antes_origen": len(antes),
         "tipos_indicio": ", ".join(tipos),
         "residual_temporal": residual_temporal,
@@ -720,6 +809,8 @@ def generar_indicios(
         "eventos": 0,
         "evaluables": 0,
         "con_anomalia": 0,
+        "con_anomalia_fuerte": 0,
+        "con_anomalia_debil": 0,
         "revision_prioritaria": 0,
         "publicados": 0,
         "residual_temporal": False,
@@ -762,6 +853,12 @@ def generar_indicios(
             "eventos": len(evaluados),
             "evaluables": sum(1 for evento in evaluados if evento["n_usadas"] > 0),
             "con_anomalia": len(anomalos),
+            "con_anomalia_fuerte": sum(
+                1 for evento in evaluados if evento["fuerza"] == "fuerte"
+            ),
+            "con_anomalia_debil": sum(
+                1 for evento in evaluados if evento["fuerza"] == "débil"
+            ),
             "revision_prioritaria": sum(
                 1 for evento in evaluados if evento["revision_prioritaria"]
             ),

@@ -240,6 +240,41 @@ def _archivo_tabla(tabla: str, opcion: str, job: Job) -> str | None:
     return TABLAS[tabla]["archivo"].format(clave=opcion)
 
 
+def _clasificacion_sospechoso(workspace, fuente: str, fila_catalogo) -> dict | None:
+    """Reutiliza la clasificación de localización de los módulos existentes."""
+    info = (cargar_indice(workspace).get("catalogos") or {}).get(fuente)
+    if not info:
+        return None
+    archivo = info.get("archivo")
+    leido = leer_filas(workspace, archivo)
+    if leido is None:
+        return None
+    _columnas, filas = leido
+    try:
+        indice_fila = int(fila_catalogo)
+    except (TypeError, ValueError):
+        return None
+    if indice_fila < 0 or indice_fila >= len(filas):
+        return None
+    eventos, perfil = clasificar_eventos(
+        "catalogos",
+        archivo,
+        filas,
+        indice_fila,
+        opcion=fuente,
+    )
+    if not eventos:
+        return None
+    evento = eventos[0]
+    return {
+        "sospechoso": bool(evento.get("sospechoso")),
+        "residuo_km": evento.get("residuo_km"),
+        "perp_km": evento.get("perp_km"),
+        "along_km": evento.get("along_km"),
+        "perfil": (perfil or {}).get("id", "") if perfil else "",
+    }
+
+
 def _filtros() -> dict[str, str]:
     """Filtros activos, incluidos rangos compactos y la compatibilidad min/max."""
     textos: dict[str, str] = {}
@@ -369,6 +404,14 @@ def indicios_eventos(job_id: str):
             -float(fila.get("max_residual_usado") or 0.0),
         )
     )
+    for fila in filas:
+        clasificacion = _clasificacion_sospechoso(
+            workspace, fuente, fila.get("fila_catalogo")
+        )
+        if clasificacion:
+            fila["sospechoso"] = "Sí" if clasificacion["sospechoso"] else "No"
+            fila["sospechoso_residuo_km"] = clasificacion["residuo_km"]
+            fila["sospechoso_perp_km"] = clasificacion["perp_km"]
 
     volver = request.full_path.rstrip("?")
     for fila in filas:
@@ -429,11 +472,25 @@ def indicio_evento(job_id: str, source_id: str, event_id: str):
         abort(403)
 
     publicado = indicios.estado_publicado(workspace, source_id, evento)
+    clasificacion = _clasificacion_sospechoso(
+        workspace, source_id, evento.get("raw_index")
+    )
+    sospechoso = clasificacion["sospechoso"] if clasificacion else None
+    explicacion = ""
+    if clasificacion:
+        partes = []
+        if clasificacion["residuo_km"] is not None:
+            partes.append(f"residuo al slab {clasificacion['residuo_km']:.1f} km")
+        if clasificacion["perp_km"] is not None:
+            partes.append(f"distancia al slab {clasificacion['perp_km']:.1f} km")
+        explicacion = "; ".join(partes)
     indicios_evento = indicios.evaluar_desde_canonico(
         workspace,
         source_id,
         evento,
         publicado=publicado,
+        sospechoso=sospechoso,
+        explicacion_sospechoso=explicacion,
     )
     revision_solicitud = EventReviewRequest.query.filter_by(
         job_id=job.id,
@@ -1504,6 +1561,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
                 ruta_workspace(job.id), source_id, evento_canonico
             )
         sospechoso = None
+        clasificado_evento = None
         try:
             lat_evento = float(evento_canonico.get("latitude"))
             lon_evento = float(evento_canonico.get("longitude"))
@@ -1518,15 +1576,29 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
                         <= 0.01
                     ):
                         sospechoso = bool(clasificado.get("sospechoso"))
+                        clasificado_evento = clasificado
                         break
                 except (TypeError, ValueError):
                     continue
+        explicacion_sospechoso = ""
+        if clasificado_evento:
+            partes = []
+            if clasificado_evento.get("residuo_km") is not None:
+                partes.append(
+                    f"residuo al slab {clasificado_evento['residuo_km']:.1f} km"
+                )
+            if clasificado_evento.get("perp_km") is not None:
+                partes.append(
+                    f"distancia al slab {clasificado_evento['perp_km']:.1f} km"
+                )
+            explicacion_sospechoso = "; ".join(partes)
         indicios_evento = indicios.evaluar_desde_canonico(
             ruta_workspace(job.id),
             source_id,
             evento_canonico,
             publicado=publicado,
             sospechoso=sospechoso,
+            explicacion_sospechoso=explicacion_sospechoso,
             perfil_disponible=perfil_datos is not None,
         )
         revision_solicitud = EventReviewRequest.query.filter_by(

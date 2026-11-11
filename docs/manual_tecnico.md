@@ -955,15 +955,34 @@ Los indicadores se calculan solo con arribos usados en la solución:
 |---|---|
 | Residual alto | `abs(residual) > 5 s` y `peso >= 0.5` |
 | Inversión de residual | primera P por estación, separación `>= 20 km`, `residual(cercana) - residual(lejana) > 5 s`, con al menos 3 estaciones P |
+| Inversión débil | primera P por estación usada, separación `>= 20 km`, la cercana llega después de la lejana por `> 2 s`, `abs(residual)` de la cercana `> 5 s` y al menos uno de los dos pesos `< 0.5` |
 | Pick antes del origen | `t (s) < 0` y `peso >= 0.5` |
 
+La **fuerza** distingue los indicios:
+
+```text
+fuerte = residual alto, inversión fuerte o pick antes del origen
+débil  = solo inversión débil
+```
+
+La inversión débil sirve para picks usados con peso casi nulo, que la solución
+despriorizó pero que siguen visibles en el listado de arribos. No cambia la
+prioridad: `revision_prioritaria` exige `publicado` y `fuerza = fuerte`. Un
+evento publicado con solo indicio débil aparece como indicio, y un usuario con
+más privilegios decide si pide revisión.
+
 El **patrón** resume la evidencia: `puntual`, `sistemático`, `inversión`,
-`mixto`, `pick_antes_origen` o `sin_patron`. Un residual es **extremo** si
-supera 60 s o 10 veces la mediana del evento. El **contexto** es `fuerte` o
-`débil` según estaciones disponibles y usadas, azimutal gap y disponibilidad de
-perfil. Si el trabajo no trae la lista de estaciones sin arribo, el contexto
-fuerte exige al menos 8 estaciones usadas, porque solo se conoce una cota
-inferior de la cobertura.
+`inversion_debil`, `mixto`, `pick_antes_origen` o `sin_patron`. Un residual es
+**extremo** si supera 60 s o 10 veces la mediana del evento. El **contexto** es
+`fuerte` o `débil` según estaciones disponibles y usadas, azimutal gap y
+disponibilidad de perfil. Si el trabajo no trae la lista de estaciones sin
+arribo, el contexto fuerte exige al menos 8 estaciones usadas, porque solo se
+conoce una cota inferior de la cobertura.
+
+La clasificación **sospechoso** de la solución no se recalcula aquí: se reutiliza
+la que producen `plots.clasificar_eventos` y `sismicidad.es_sospechoso`. El
+listado de indicios muestra una columna **Solución** calculada solo para los
+eventos que tienen indicio, no para todo el catálogo.
 
 La salida queda en:
 
@@ -980,8 +999,9 @@ base de la fuente.
 El estado **publicado** se usa solo como contexto, tomado de
 `datos/atribucion_<fuente>.csv`; no es un resultado del análisis.
 `revision_prioritaria` es verdadero solo cuando el evento está publicado y tiene
-algún indicio. La vista **Indicios de fases** permite ver revisión prioritaria,
-publicados o todos los indicios. Los analistas ven solo sus propios eventos;
+una anomalía fuerte. La vista **Indicios de fases** permite ver revisión
+prioritaria, publicados o todos los indicios; los indicios débiles se muestran
+en los alcances de publicados y todos. Los analistas ven solo sus propios eventos;
 administradores y supervisores ven todo y pueden **pedir revisión**. La
 solicitud se guarda en `event_review_requests` y en la auditoría.
 

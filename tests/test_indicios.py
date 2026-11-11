@@ -91,6 +91,7 @@ def test_detecta_caso_puntual_extremo_y_lo_marca_prioritario():
     )
 
     assert resultado["anomalia"] is True
+    assert resultado["fuerza"] == "fuerte"
     assert resultado["patron"] == "puntual"
     assert resultado["contexto"] == "débil"
     assert resultado["extremo"] is True
@@ -143,6 +144,7 @@ def test_patron_sistematico_con_contexto_fuerte():
         perfil_disponible=True,
     )
 
+    assert resultado["fuerza"] == "fuerte"
     assert resultado["patron"] == "sistemático"
     assert resultado["contexto"] == "fuerte"
     assert resultado["extremo"] is False
@@ -164,6 +166,7 @@ def test_detecta_pick_antes_del_origen():
     )
 
     assert resultado["anomalia"] is True
+    assert resultado["fuerza"] == "fuerte"
     assert resultado["patron"] == "pick_antes_origen"
     assert resultado["n_picks_antes_origen"] == 1
 
@@ -183,8 +186,44 @@ def test_peso_bajo_no_genera_indicio():
     )
 
     assert resultado["anomalia"] is False
+    assert resultado["fuerza"] == ""
     assert resultado["revision_prioritaria"] is False
     assert resultado["n_outliers"] == 0
+
+
+def test_detecta_inversion_debil_con_peso_casi_nulo():
+    evento = _evento(
+        event_id="seiscomp:000006",
+        event_time="2020-01-01 00:00:00",
+        latitude=0.0,
+        longitude=0.0,
+    )
+    arribos = [
+        _arribo("TOQ0", 0.4, 0.0, "2020-01-01 00:00:06", -0.1, weight=1.4),
+        _arribo(
+            "AP01",
+            1.3,
+            0.0,
+            "2020-01-01 00:00:20",
+            7.27,
+            weight=3.6e-22,
+        ),
+        _arribo("PB12", 1.5, 0.0, "2020-01-01 00:00:16", 0.32, weight=1.37),
+    ]
+    resultado = indicios.evaluar_evento(
+        evento, arribos, source_id="seiscomp", publicado=True
+    )
+
+    assert resultado["anomalia"] is True
+    assert resultado["fuerza"] == "débil"
+    assert resultado["patron"] == "inversion_debil"
+    assert resultado["n_inversiones_debiles"] == 1
+    assert resultado["n_inversiones"] == 0
+    assert resultado["revision_prioritaria"] is False
+    assert any(
+        item["tipo_indicio"] == "inversion_debil"
+        for item in resultado["evidencia"]
+    )
 
 
 def test_marca_residual_temporal_desde_la_procedencia():
@@ -229,6 +268,8 @@ def test_genera_reportes_y_resumen(tmp_path):
 
     assert resumen["total"]["eventos"] == 1
     assert resumen["total"]["con_anomalia"] == 1
+    assert resumen["total"]["con_anomalia_fuerte"] == 1
+    assert resumen["total"]["con_anomalia_debil"] == 0
     assert resumen["total"]["revision_prioritaria"] == 1
     assert resumen["fuentes"]["seiscomp"]["publicados"] == 1
 
@@ -237,6 +278,7 @@ def test_genera_reportes_y_resumen(tmp_path):
     assert filas[0]["id_evento_fuente"] == "csn_sc62026vdkls"
     assert filas[0]["publicado"] == "Sí"
     assert filas[0]["revision_prioritaria"] == "Sí"
+    assert filas[0]["fuerza"] == "fuerte"
     assert filas[0]["patron"] == "puntual"
     assert filas[0]["contexto"] == "débil"
 

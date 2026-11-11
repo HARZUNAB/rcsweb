@@ -552,9 +552,9 @@ o una solución sospechosa sin problemas de fases.
 La tarjeta **Indicios de fases** de la página del trabajo abre el listado. Hay
 tres alcances:
 
-- **Revisión prioritaria:** eventos publicados que además tienen algún indicio.
-  Es la vista más crítica y la que se abre por defecto.
-- **Publicados:** todos los eventos publicados con indicios.
+- **Revisión prioritaria:** eventos publicados que además tienen un indicio
+  fuerte. Es la vista más crítica y la que se abre por defecto.
+- **Publicados:** todos los eventos publicados con indicios, fuertes o débiles.
 - **Todos los indicios:** incluye los eventos no publicados que quedaron en el
   catálogo. No generan alarma, pero sí un indicio para revisar la calidad del
   catálogo.
@@ -566,8 +566,14 @@ Cada evento muestra el **patrón** y el **contexto**:
 | `puntual` | Una o pocas estaciones con residual extremo; asociación o pick erróneo |
 | `sistemático` | Muchas estaciones con residuales del mismo signo; modelo, profundidad u origen |
 | `inversión` | Una estación más cercana tiene residual mayor que una más lejana |
+| `inversion_debil` | La estación más cercana llega después, pero su pick tiene peso casi nulo |
 | `mixto` | Varias señales a la vez |
 | `pick_antes_origen` | El pick es anterior al origen |
+
+La **fuerza** del indicio es `fuerte` o `débil`. Solo los fuertes pueden ser
+**Revisión prioritaria** cuando el evento está publicado. Un indicio débil se
+muestra igual, con la etiqueta **indicio débil**, para que el usuario decida si
+pide revisión.
 
 El **contexto** es `fuerte` o `débil` según cuántas estaciones había
 disponibles y se usaron, el azimutal gap y el perfil. Un residual alto en una
@@ -576,8 +582,13 @@ asociación. La app entrega la evidencia y el patrón; no sentencia la causa.
 
 El detalle del evento muestra la tabla de evidencia: estación, fase, pick,
 `t (s)`, residual, peso, distancia y tipo de indicio. Un evento publicado con
-indicios se marca como **Revisión prioritaria**. Un evento no publicado se
-muestra igual, como indicio de calidad de catálogo.
+un indicio fuerte se marca como **Revisión prioritaria**. Un evento no publicado
+se muestra igual, como indicio de calidad de catálogo.
+
+El listado incluye una columna **Solución** con la clasificación de localización
+que ya calculan los paneles y el detalle del catálogo. Es una dimensión distinta
+de las fases: `Sospechosa`, `Normal` o `No evaluable`. No se recalcula para todo
+el catálogo; se calcula solo para los eventos que tienen indicio.
 
 Los analistas ven los indicios de sus propios trabajos. Administradores y
 supervisores ven todos y pueden **pedir revisión**; la solicitud queda

@@ -184,6 +184,10 @@
           <div>
             <span class="fs-4 fw-semibold">{{ indicios.total.con_anomalia }}</span>
             <span class="text-secondary small">eventos con indicios</span>
+            <div class="small text-secondary">
+              {{ indicios.total.con_anomalia_fuerte or 0 }} fuertes ·
+              {{ indicios.total.con_anomalia_debil or 0 }} débiles
+            </div>
           </div>
           <div>
             <span class="fs-4 fw-semibold">{{ indicios.total.publicados }}</span>
