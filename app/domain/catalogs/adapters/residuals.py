@@ -23,8 +23,8 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from ..domain.catalogs import canonical
-from ..domain.catalogs import manifest as fuentes_manifest
+from .. import canonical
+from .. import manifest as fuentes_manifest
 
 LOG = logging.getLogger(__name__)
 
@@ -235,6 +235,7 @@ def enriquecer_residuales(workspace: Path) -> dict[str, int]:
                 donante, pick, diferencia, mismo_sistema = elegido
                 raw = dict(arribo.get("raw") or {})
                 raw["residual_fuente"] = donante["source_id"]
+                raw["residual_temporal"] = True
                 raw["residual_evento"] = donante["event_id"]
                 raw["residual_pick"] = _texto(pick.get("pick_id"))
                 raw["residual_dt"] = round(diferencia, 3)

@@ -25,13 +25,17 @@ from pathlib import Path
 from flask import current_app
 
 from ..domain.catalogs import manifest as fuentes_manifest
+from ..domain.catalogs.adapters.residuals import (
+    enriquecer_residuales,
+    hay_residuales_por_enriquecer,
+)
 from ..domain.catalogs.canonical import escribir_desde_csv, escribir_extensiones
 from ..domain.catalogs.registry import adaptador as obtener_adaptador
 from ..domain.catalogs.registry import formato as formato_info
 from ..extensions import db
 from ..models import Job, JobArtifact, JobStep
 from .audit import registrar
-from .residuals import enriquecer_residuales, hay_residuales_por_enriquecer
+from .indicios import generar_indicios
 from .results import construir_resultados
 from .workspace import (
     crear_workspace,
@@ -498,6 +502,22 @@ def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
         args_repetidos.append(adapter.catalogo(job, eventquery))
         prefijos.append(source_id)
     args_repetidos.append("--prefijos=" + ",".join(prefijos))
+
+    def _generar_indicios(workspace: Path) -> None:
+        generar_indicios(
+            workspace,
+            [fuente[0] for fuente in fuentes],
+            job_id=job.id,
+        )
+
+    pasos.append(
+        Paso(
+            "generar_indicios",
+            "Generar indicios de fases",
+            None,
+            post=_generar_indicios,
+        )
+    )
 
     pasos.append(
         Paso(

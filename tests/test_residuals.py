@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.domain.catalogs import canonical
-from app.services import residuals
+from app.domain.catalogs.adapters import residuals
 
 
 def _evento(source_id: str, event_id: str, **cambios) -> dict:
@@ -74,6 +74,7 @@ def test_enriquece_residual_desde_fuente_local(tmp_path):
     arribo = canonical.leer_arribos(workspace, "central")[0]
     assert arribo["residual"] == -0.25
     assert arribo["raw"]["residual_fuente"] == "seisan"
+    assert arribo["raw"]["residual_temporal"] is True
     assert arribo["raw"]["residual_pick"] == "seisan-pick"
     assert arribo["raw"]["residual_dt"] == 0.0
     assert arribo["raw"]["residual_mismo_sistema"] is True

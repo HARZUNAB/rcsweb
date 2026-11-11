@@ -25,6 +25,7 @@ def test_plan_solo_seiscomp():
         "convertir_seiscomp",
         "enriquecer_residuales",
         "comparar_seiscomp",
+        "generar_indicios",
         "detectar_repetidos",
     ]
     assert pasos[-1].post is None

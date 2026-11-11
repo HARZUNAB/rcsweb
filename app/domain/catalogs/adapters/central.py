@@ -612,6 +612,15 @@ class Adaptador(Base):
                     "loc": loc,
                     "cha": cha,
                     "fase": pick.get("phase") or "",
+                    # ``pick.uncertainty`` es el campo donde la base Central
+                    # guardará el residual cuando el traspaso lo incluya. Hoy
+                    # suele venir vacío; el adaptador lo entrega igual para que
+                    # el canónico no dependa de un caso especial de la app.
+                    "residual_s": (
+                        pick.get("uncertainty")
+                        if pick.get("uncertainty") is not None
+                        else ""
+                    ),
                     "llegada_utc": llegada_utc,
                     "llegada_us": llegada_us,
                     "azimut": azimut if azimut is not None else "",

@@ -473,7 +473,7 @@ def test_consultar_arribos_publicado_y_no_publicado(app, monkeypatch):
                 "pick_time": datetime(2025, 1, 1, 0, 0, 30, tzinfo=UTC),
                 "phase": "P",
                 "polarity": "UP",
-                "uncertainty": None,
+                "uncertainty": 1.25,
                 "probability": None,
                 "weight": 1.0,
                 "pick_status": "manual",
@@ -510,11 +510,13 @@ def test_consultar_arribos_publicado_y_no_publicado(app, monkeypatch):
         assert publicado["base_datos"] == "Seisan_v9.1"
         assert publicado["fase"] == "P"
         assert publicado["usada"] == "True"
+        assert publicado["residual_s"] == 1.25
         local = por_evento["e-local"]
         assert local["id_origen"] == "o-local"
         assert local["est_lat"] == -21.31
         assert local["fase"] == "S"
         assert local["usada"] == "False"
+        assert local["residual_s"] == ""
 
 
 def test_exportar_escribe_arribos_y_extension(app, tmp_path, monkeypatch):

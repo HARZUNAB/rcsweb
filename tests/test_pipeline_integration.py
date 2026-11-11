@@ -94,7 +94,7 @@ def test_pipeline_completo_con_muestra(app, tmp_path):
         assert job.status == "done"
         assert job.progress == 100
         assert job.error is None
-        assert len(job.steps) == 12
+        assert len(job.steps) == 13
         for paso in job.steps:
             if paso.script == "enriquecer_residuales":
                 assert paso.status in ("done", "skipped")
@@ -197,6 +197,7 @@ def test_pipeline_solo_seiscomp(app, tmp_path):
             "convertir_seiscomp",
             "enriquecer_residuales",
             "comparar_seiscomp",
+            "generar_indicios",
             "detectar_repetidos",
         ]
         for paso in job.steps:
