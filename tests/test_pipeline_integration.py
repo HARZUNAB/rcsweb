@@ -94,8 +94,12 @@ def test_pipeline_completo_con_muestra(app, tmp_path):
         assert job.status == "done"
         assert job.progress == 100
         assert job.error is None
-        assert len(job.steps) == 11
-        assert all(paso.status == "done" for paso in job.steps)
+        assert len(job.steps) == 12
+        for paso in job.steps:
+            if paso.script == "enriquecer_residuales":
+                assert paso.status in ("done", "skipped")
+            else:
+                assert paso.status == "done"
         assert len(job.artifacts) >= 20
 
         indice = cargar_indice(workspace)
@@ -191,10 +195,15 @@ def test_pipeline_solo_seiscomp(app, tmp_path):
         assert [paso.script for paso in sorted(job.steps, key=lambda p: p.orden)] == [
             "normalizar_eventquery",
             "convertir_seiscomp",
+            "enriquecer_residuales",
             "comparar_seiscomp",
             "detectar_repetidos",
         ]
-        assert all(paso.status == "done" for paso in job.steps)
+        for paso in job.steps:
+            if paso.script == "enriquecer_residuales":
+                assert paso.status in ("done", "skipped")
+            else:
+                assert paso.status == "done"
 
         indice = cargar_indice(workspace)
         assert set(indice["no_publicados"]) == {"seiscomp"}

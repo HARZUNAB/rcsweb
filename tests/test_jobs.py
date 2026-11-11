@@ -339,6 +339,12 @@ def test_detalle_explica_pasos_omitidos(client, login):
                 script="otro_paso",
                 status="skipped",
             ),
+            JobStep(
+                job_id=job.id,
+                orden=3,
+                script="enriquecer_residuales",
+                status="skipped",
+            ),
         ]
     )
     db.session.commit()
@@ -348,3 +354,4 @@ def test_detalle_explica_pasos_omitidos(client, login):
     assert "Omitido" in html
     assert "sin excluidos" in html
     assert "no aplica" in html
+    assert "sin residuales" in html

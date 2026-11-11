@@ -23,6 +23,7 @@ def test_plan_solo_seiscomp():
     assert _claves(pasos) == [
         "normalizar_eventquery",
         "convertir_seiscomp",
+        "enriquecer_residuales",
         "comparar_seiscomp",
         "detectar_repetidos",
     ]

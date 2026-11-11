@@ -63,6 +63,9 @@ class Config:
         str(DATOS_PATH / "csn" / "datseisan"),
     )
 
+    # Enriquecimiento temporal de residuales desde fuentes locales.
+    RCS_ENRIQUECER_RESIDUALES = _bool("RCS_ENRIQUECER_RESIDUALES", True)
+
     # Fuente Central: base CSN de solo lectura. El manifiesto declara el nombre
     # de la variable para no fijar la conexión en el código.
     RCS_CENTRAL_DSN = os.environ.get("RCS_CENTRAL_DSN", "").strip()

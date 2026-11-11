@@ -31,6 +31,7 @@ from ..domain.catalogs.registry import formato as formato_info
 from ..extensions import db
 from ..models import Job, JobArtifact, JobStep
 from .audit import registrar
+from .residuals import enriquecer_residuales, hay_residuales_por_enriquecer
 from .results import construir_resultados
 from .workspace import (
     crear_workspace,
@@ -404,6 +405,14 @@ def _renombrar_varias(renombres: list[tuple[str, str]]):
     return _renombrar
 
 
+def _residuales_habilitados() -> bool:
+    try:
+        return bool(current_app.config.get("RCS_ENRIQUECER_RESIDUALES", True))
+    except RuntimeError:
+        valor = os.environ.get("RCS_ENRIQUECER_RESIDUALES", "1")
+        return valor.strip().lower() not in {"0", "false", "no", "off"}
+
+
 def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
     fuentes = _normalizar_fuentes(fuentes)
     if not fuentes:
@@ -423,6 +432,17 @@ def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
         adapter = obtener_adaptador(formato)
         pasos.extend(_planes_a_pasos(adapter, source_id, formato, job, eventquery))
         locales.append((source_id, formato, alias, adapter))
+
+    if _residuales_habilitados():
+        pasos.append(
+            Paso(
+                "enriquecer_residuales",
+                "Enriquecer residuales locales",
+                None,
+                condicion=hay_residuales_por_enriquecer,
+                post=enriquecer_residuales,
+            )
+        )
 
     new2 = f"datos/new_2_{eventquery}"
     for source_id, _formato, alias, adapter in locales:

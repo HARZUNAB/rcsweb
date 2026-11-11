@@ -374,6 +374,8 @@ class JobStep(db.Model):
             return ""
         if self.script in ("revisar_excluidos", "repetidos_excluidos"):
             return "sin excluidos"
+        if self.script == "enriquecer_residuales":
+            return "sin residuales"
         return "no aplica"
 
 
