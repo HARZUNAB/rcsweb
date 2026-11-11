@@ -600,6 +600,8 @@ class Adaptador(Base):
                     est.latitude,
                     est.longitude,
                 )
+            peso = pick.get("weight")
+            usada = True if peso is None else float(peso) > 0
             filas.append(
                 {
                     "id_evento": origen.get("event_id") or "",
@@ -614,12 +616,8 @@ class Adaptador(Base):
                     "llegada_us": llegada_us,
                     "azimut": azimut if azimut is not None else "",
                     "distancia": distancia if distancia is not None else "",
-                    "usada": "True",
-                    "peso": (
-                        pick.get("weight")
-                        if pick.get("weight") is not None
-                        else ""
-                    ),
+                    "usada": "True" if usada else "False",
+                    "peso": peso if peso is not None else "",
                     "polaridad": pick.get("polarity") or "",
                     "modo_pick": pick.get("pick_status") or "",
                     "pick_autor": origen.get("author") or "",

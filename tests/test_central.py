@@ -487,7 +487,7 @@ def test_consultar_arribos_publicado_y_no_publicado(app, monkeypatch):
                 "polarity": None,
                 "uncertainty": None,
                 "probability": None,
-                "weight": 1.0,
+                "weight": 0.0,
                 "pick_status": "manual",
             },
         ]
@@ -509,10 +509,12 @@ def test_consultar_arribos_publicado_y_no_publicado(app, monkeypatch):
         assert publicado["est_vigencia"] == "current"
         assert publicado["base_datos"] == "Seisan_v9.1"
         assert publicado["fase"] == "P"
+        assert publicado["usada"] == "True"
         local = por_evento["e-local"]
         assert local["id_origen"] == "o-local"
         assert local["est_lat"] == -21.31
         assert local["fase"] == "S"
+        assert local["usada"] == "False"
 
 
 def test_exportar_escribe_arribos_y_extension(app, tmp_path, monkeypatch):

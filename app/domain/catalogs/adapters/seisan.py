@@ -175,6 +175,13 @@ def _fase_desde_linea(linea: str, instante_evento: datetime) -> dict | None:
     segundos = linea[23:29].strip()
     if not estacion or not fase_raw or not hrmm.isdigit() or not segundos:
         return None
+    peso = 0
+    if fase_raw[-1].isdigit():
+        peso = int(fase_raw[-1])
+        fase_raw = fase_raw[:-1].strip()
+    polaridad = linea[16:17].strip().upper()
+    if polaridad not in ("C", "D"):
+        polaridad = ""
     fase = arribos_csv.normalizar_fase(fase_raw)
     if not fase:
         return None
@@ -200,6 +207,8 @@ def _fase_desde_linea(linea: str, instante_evento: datetime) -> dict | None:
         "fase": fase,
         "fase_original": fase_raw,
         "llegada": llegada,
+        "peso": peso,
+        "polaridad": polaridad,
         "residual": _numero(linea[63:68]),
         "distancia": _numero(linea[71:75]),
         "azimut": _numero(linea[75:80]),
@@ -396,7 +405,9 @@ class Adaptador(Base):
                             "residual_s": fase["residual"] if fase["residual"] is not None else "",
                             "azimut": fase["azimut"] if fase["azimut"] is not None else "",
                             "distancia": fase["distancia"] if fase["distancia"] is not None else "",
-                            "usada": "True",
+                            "usada": "True" if fase["peso"] < 4 else "False",
+                            "peso": fase["peso"],
+                            "polaridad": fase["polaridad"],
                             "modo_pick": "manual",
                             "pick_autor": bloque["operador"],
                             "tiene_magnitud": "No",

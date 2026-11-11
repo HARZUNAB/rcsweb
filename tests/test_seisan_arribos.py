@@ -25,10 +25,14 @@ SELECT_OUT = """ 2025  326 0024 19.2QL -21.081 -69.000112.6  GUC 10 0.2 2.7LGUC 
  PB01 HN ES        024 47.43                             152   -0.3210 50.8 275
  PB01 HE  IAML     024 49.05       243.5 0.13                          50.8 275
  PB09 HZ IP        024 38.24                             139    0.1310 83.1 198
+ BLOQ HE ES   4    024 47.75                             149   -2.12 0 59.0  47
 
 """
 
-STATION = "  PB012102.59S 6929.24W 900 +0.16\n"
+STATION = (
+    "  PB012102.59S 6929.24W 900 +0.16\n"
+    "  BLOQ2043.18S 6834.96W4155 +0.76\n"
+)
 
 
 def _job():
@@ -96,13 +100,18 @@ def test_bloques_select_out_lee_fases_y_descarta_amplitudes():
     bloque = bloques[0]
     assert bloque["instante"] == datetime(2025, 3, 26, 0, 24, 19, 200000)
     assert bloque["operador"] == "maca"
-    assert [fase["fase"] for fase in bloque["fases"]] == ["P", "S", "P"]
+    assert [fase["fase"] for fase in bloque["fases"]] == ["P", "S", "P", "S"]
     assert bloque["fases"][0]["estacion"] == "PB01"
     assert bloque["fases"][0]["residual"] == -0.25
     assert bloque["fases"][0]["distancia"] == 50.8
     assert bloque["fases"][0]["llegada"] == datetime(
         2025, 3, 26, 0, 24, 35, 160000
     )
+    assert bloque["fases"][0]["peso"] == 0
+    assert bloque["fases"][0]["polaridad"] == "C"
+    assert bloque["fases"][3]["estacion"] == "BLOQ"
+    assert bloque["fases"][3]["peso"] == 4
+    assert bloque["fases"][3]["polaridad"] == ""
 
 
 def test_instante_encabezado_usa_la_hora_del_evento_no_la_del_id():
@@ -134,7 +143,7 @@ def test_preparar_arribos_escribe_canonico_y_revisa(tmp_path, monkeypatch):
     assert ruta_fases.is_file()
     with ruta_fases.open(encoding="utf-8") as archivo:
         filas = list(csv.DictReader(archivo))
-    assert len(filas) == 3
+    assert len(filas) == 4
     pb01 = [fila for fila in filas if fila["estacion"] == "PB01"]
     assert len(pb01) == 2
     assert pb01[0]["fase"] == "P"
@@ -142,8 +151,14 @@ def test_preparar_arribos_escribe_canonico_y_revisa(tmp_path, monkeypatch):
     assert pb01[0]["est_lat"] == "-21.043166666666668"
     assert pb01[0]["est_lista"] == "STATION0.HYP"
     assert pb01[0]["est_vigencia"] == "current"
+    assert pb01[0]["usada"] == "True"
+    assert pb01[0]["peso"] == "0"
+    assert pb01[0]["polaridad"] == "C"
     pb09 = [fila for fila in filas if fila["estacion"] == "PB09"][0]
     assert pb09["est_lat"] == ""
+    bloq = [fila for fila in filas if fila["estacion"] == "BLOQ"][0]
+    assert bloq["usada"] == "False"
+    assert bloq["peso"] == "4"
     assert adaptador.extensiones(job, "", workspace) == {
         "arribos": adaptador._ruta_fases(job)
     }
@@ -166,6 +181,8 @@ def test_preparar_arribos_escribe_canonico_y_revisa(tmp_path, monkeypatch):
     estaciones = {punto["estacion"] for punto in revision["estaciones_mapa"]}
     assert "PB01" in estaciones
     assert "PB09" not in estaciones
+    assert "BLOQ" in estaciones
+    assert revision["resumen"]["no_usadas"] == 1
     pb01 = next(
         punto
         for punto in revision["estaciones_mapa"]
