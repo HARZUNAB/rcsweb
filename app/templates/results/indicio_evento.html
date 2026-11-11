@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Indicio de fases · {{ indicios_evento.fecha_hora }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="text-secondary small text-uppercase mb-1">
+      <a class="text-reset text-decoration-none" href="{{ volver }}">Indicios de fases</a>
+      · {{ etiqueta_fuente }}
+    </div>
+    <h1 class="h3 mb-1">{{ indicios_evento.fecha_hora }}</h1>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      {% if indicios_evento.anomalia %}
+      <span class="badge text-bg-warning text-dark">Con indicios</span>
+      {% else %}
+      <span class="badge text-bg-success">Sin indicios</span>
+      {% endif %}
+      {% if indicios_evento.revision_prioritaria %}
+      <span class="badge text-bg-danger">Revisión prioritaria</span>
+      {% endif %}
+      {% if indicios_evento.publicado %}
+      <span class="badge text-bg-primary">Publicado</span>
+      {% endif %}
+      {% if indicios_evento.extremo %}
+      <span class="badge text-bg-danger">Residual extremo</span>
+      {% endif %}
+      <span class="text-secondary small">
+        {{ indicios_evento.id_evento_fuente or indicios_evento.evento }}
+      </span>
+    </div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ volver }}">Volver a indicios</a>
+    {% if url_catalogo %}
+    <a class="btn btn-outline-primary" href="{{ url_catalogo }}">Ver catálogo</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if indicios_evento.residual_temporal %}
+<div class="alert alert-warning" role="status">
+  <strong>Residual temporal.</strong>
+  Algunos residuales fueron completados temporalmente desde otra fuente local.
+  No provienen de la base de la fuente analizada.
+</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Patrón</div>
+        <div class="fs-5 fw-semibold">{{ indicios_evento.patron }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Contexto</div>
+        <div class="fs-5 fw-semibold">{{ indicios_evento.contexto }}</div>
+        <div class="small text-secondary">
+          {{ indicios_evento.n_disponibles }} disponibles ·
+          {{ indicios_evento.n_usadas }} usadas
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Máx. residual usado</div>
+        <div class="fs-5 fw-semibold">
+          {{ indicios_evento.max_residual_usado if indicios_evento.max_residual_usado is not none else '—' }} s
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Azimutal gap</div>
+        <div class="fs-5 fw-semibold">
+          {{ indicios_evento.azimutal_gap if indicios_evento.azimutal_gap is not none else '—' }}°
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <h2 class="h6 text-uppercase text-secondary mb-0">Evidencia</h2>
+      <div class="small text-secondary">
+        {{ indicios_evento.n_outliers }} residuales altos ·
+        {{ indicios_evento.n_inversiones }} inversiones ·
+        {{ indicios_evento.n_picks_antes_origen }} picks antes del origen
+      </div>
+    </div>
+    {% if indicios_evento.evidencia %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Estación</th>
+            <th>Fase</th>
+            <th>Pick</th>
+            <th class="text-end">t (s)</th>
+            <th class="text-end">Resid. (s)</th>
+            <th class="text-end">Peso</th>
+            <th class="text-end">Dist. (km)</th>
+            <th>Tipo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in indicios_evento.evidencia %}
+          <tr>
+            <td>{{ item.red }} {{ item.estacion }}</td>
+            <td>{{ item.fase }}</td>
+            <td class="text-nowrap">{{ item.hora_pick }}</td>
+            <td class="text-end">{{ item.t_seg }}</td>
+            <td class="text-end">{{ item.residual }}</td>
+            <td class="text-end">{{ item.peso }}</td>
+            <td class="text-end">{{ item.distancia_km }}</td>
+            <td><span class="badge text-bg-light text-dark">{{ item.tipo_indicio }}</span></td>
+            <td class="small">{{ item.detalle }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-secondary small">
+      No hay evidencia puntual para este evento.
+    </div>
+    {% endif %}
+    <p class="small text-secondary mt-3 mb-0">
+      Un residual alto no determina por sí solo la causa: puede ser asociación
+      de fase, modelo de velocidades, profundidad, tiempo de origen o cobertura.
+      El patrón y el contexto ayudan a interpretarlo; la decisión es del analista.
+    </p>
+  </div>
+</div>
+
+{% if indicios_evento.sospechoso is not none %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <div class="text-secondary small text-uppercase mb-1">Dimensión de localización</div>
+    <div>
+      Solución:
+      <strong>{{ 'sospechosa' if indicios_evento.sospechoso else 'normal' }}</strong>.
+      Es independiente de los indicios de fases.
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if revision_solicitud %}
+<div class="alert alert-info" role="status">
+  Revisión solicitada
+  {% if revision_solicitud.requested_by %}
+  por {{ revision_solicitud.requested_by.username }}
+  {% endif %}
+  {% if revision_solicitud.created_at %}
+  el {{ revision_solicitud.created_at.strftime('%Y-%m-%d %H:%M') }}
+  {% endif %}.
+  {% if revision_solicitud.note %}
+  <div class="mt-1">{{ revision_solicitud.note }}</div>
+  {% endif %}
+</div>
+{% elif puede_solicitar and indicios_evento.anomalia %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-3">Solicitar revisión</h2>
+    <form method="post" action="{{ url_for('results.solicitar_revision', job_id=job.id) }}"
+          class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="fuente" value="{{ fuente }}">
+      <input type="hidden" name="evento" value="{{ indicios_evento.evento }}">
+      <input type="hidden" name="id_evento_fuente" value="{{ indicios_evento.id_evento_fuente }}">
+      <input type="hidden" name="volver" value="{{ volver }}">
+      <div class="col-12 col-md-8">
+        <label class="form-label small text-secondary" for="nota-revision">
+          Nota para la revisión (opcional)
+        </label>
+        <input class="form-control form-control-sm" id="nota-revision" name="nota"
+               placeholder="Qué revisar o por qué se solicita">
+      </div>
+      <div class="col-12 col-md-4">
+        <button class="btn btn-sm btn-outline-danger" type="submit">
+          Pedir revisión
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

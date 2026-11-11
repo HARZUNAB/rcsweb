@@ -392,6 +392,39 @@ class JobArtifact(db.Model):
     job = relationship("Job", back_populates="artifacts")
 
 
+class EventReviewRequest(db.Model):
+    """Solicitud de revisión posterior de un evento con indicios de fases."""
+
+    __tablename__ = "event_review_requests"
+    __table_args__ = (
+        UniqueConstraint(
+            "job_id",
+            "source_id",
+            "event_id",
+            name="uq_event_review_requests_job_source_event",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_id: Mapped[str] = mapped_column(
+        ForeignKey("jobs.id", ondelete="CASCADE"), index=True
+    )
+    source_id: Mapped[str] = mapped_column(String(64), index=True)
+    event_id: Mapped[str] = mapped_column(String(128), index=True)
+    source_event_id: Mapped[str] = mapped_column(String(128), default="")
+    requested_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="solicitada")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
+
+    job = relationship("Job")
+    requested_by = relationship("User")
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_log"
 

@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Indicios de fases · Trabajo {{ job.id[:8] }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="text-secondary small text-uppercase mb-1">
+      <a class="text-reset text-decoration-none"
+         href="{{ url_for('jobs.detalle', job_id=job.id) }}#resultados">Resultados</a>
+    </div>
+    <h1 class="h3 mb-1">Indicios de fases</h1>
+    <p class="text-secondary mb-0">
+      Anomalías en la identificación de fases, independientes del criterio de
+      localización sospechosa. La revisión es posterior al procesamiento.
+      El estado publicado se usa solo como contexto para priorizar; no es un
+      resultado del análisis.
+    </p>
+  </div>
+  <a class="btn btn-outline-primary" href="{{ url_for('jobs.detalle', job_id=job.id) }}#resultados">
+    Volver al trabajo
+  </a>
+</div>
+
+{% if info_fuente.residual_temporal or resumen.total.residual_temporal %}
+<div class="alert alert-warning" role="status">
+  <strong>Residual temporal.</strong>
+  Algunos residuales fueron completados temporalmente desde otra fuente local
+  para poder evaluar las fases. No provienen de la base de la fuente analizada.
+</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Revisión prioritaria</div>
+        <div class="fs-3 fw-semibold">{{ info_fuente.revision_prioritaria or 0 }}</div>
+        <div class="small text-secondary">publicados con indicios</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Eventos con indicios</div>
+        <div class="fs-3 fw-semibold">{{ info_fuente.con_anomalia or 0 }}</div>
+        <div class="small text-secondary">de {{ info_fuente.evaluables or 0 }} evaluables</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Publicados</div>
+        <div class="fs-3 fw-semibold">{{ info_fuente.publicados or 0 }}</div>
+        <div class="small text-secondary">con contexto de publicación</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase">Inventario</div>
+        <div class="fs-3 fw-semibold">
+          {{ 'Sí' if info_fuente.inventario_disponible else 'No' }}
+        </div>
+        <div class="small text-secondary">estaciones sin arribo disponibles</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <ul class="nav nav-pills flex-wrap gap-2">
+    {% for codigo in fuentes %}
+    <li class="nav-item">
+      <a class="nav-link {% if codigo == fuente %}active{% endif %}"
+         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=codigo, alcance=alcance) }}">
+        {{ etiquetas.get(codigo, codigo) }}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  <ul class="nav nav-pills flex-wrap gap-2">
+    <li class="nav-item">
+      <a class="nav-link {% if alcance == 'prioritarios' %}active{% endif %}"
+         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='prioritarios') }}">
+        Revisión prioritaria
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if alcance == 'publicados' %}active{% endif %}"
+         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='publicados') }}">
+        Publicados
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if alcance == 'todos' %}active{% endif %}"
+         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='todos') }}">
+        Todos los indicios
+      </a>
+    </li>
+  </ul>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    {% if filas %}
+    <div class="text-secondary small mb-2">
+      {{ filas|length }} evento{{ '' if filas|length == 1 else 's' }}
+      con indicios en {{ etiquetas.get(fuente, fuente) }}.
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Fecha y hora</th>
+            <th>Evento</th>
+            <th class="text-end">Mag.</th>
+            <th>Publicado (contexto)</th>
+            <th class="text-end">Usadas</th>
+            <th class="text-end">Máx. residual</th>
+            <th>Patrón</th>
+            <th>Contexto</th>
+            <th>Indicios</th>
+            <th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for fila in filas %}
+          <tr>
+            <td class="text-nowrap">{{ fila.fecha_hora }}</td>
+            <td>
+              {% if fila.url_detalle %}
+              <a href="{{ fila.url_detalle }}">{{ fila.id_evento_fuente or fila.evento }}</a>
+              {% else %}
+              {{ fila.id_evento_fuente or fila.evento }}
+              {% endif %}
+              {% if fila.region %}
+              <div class="small text-secondary">{{ fila.region }}</div>
+              {% endif %}
+            </td>
+            <td class="text-end">{{ fila.magnitud or '' }}</td>
+            <td>
+              {% if fila.publicado == 'Sí' %}
+              <span class="badge text-bg-primary">Sí</span>
+              {% elif fila.publicado == 'No' %}
+              <span class="badge text-bg-secondary">No</span>
+              {% else %}
+              <span class="badge text-bg-light text-dark">Desconocido</span>
+              {% endif %}
+            </td>
+            <td class="text-end">{{ fila.n_usadas }}</td>
+            <td class="text-end">{{ fila.max_residual_usado or '' }}</td>
+            <td>
+              <span class="badge text-bg-light text-dark">{{ fila.patron }}</span>
+              {% if fila.extremo == 'Sí' %}
+              <span class="badge text-bg-danger">extremo</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge {% if fila.contexto == 'fuerte' %}text-bg-success{% else %}text-bg-warning text-dark{% endif %}">
+                {{ fila.contexto }}
+              </span>
+            </td>
+            <td class="small">{{ fila.tipos_indicio }}</td>
+            <td class="text-end">
+              {% if fila.revision_prioritaria == 'Sí' %}
+              <span class="badge text-bg-danger">Revisión prioritaria</span>
+              {% endif %}
+              {% if fila.solicitud %}
+              <span class="badge text-bg-info">Revisión solicitada</span>
+              {% elif puede_solicitar %}
+              <form method="post" action="{{ url_for('results.solicitar_revision', job_id=job.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="fuente" value="{{ fuente }}">
+                <input type="hidden" name="evento" value="{{ fila.evento }}">
+                <input type="hidden" name="id_evento_fuente" value="{{ fila.id_evento_fuente }}">
+                <input type="hidden" name="volver" value="{{ volver }}">
+                <button class="btn btn-sm btn-outline-danger" type="submit">Pedir revisión</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center text-secondary py-5">
+      <div class="mb-2">No hay eventos con indicios para este filtro.</div>
+      <div class="small">
+        El análisis se genera después del procesamiento y no reemplaza el
+        criterio de localización sospechosa.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

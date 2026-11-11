@@ -13,6 +13,7 @@ from io import BytesIO, StringIO
 from flask import (
     Blueprint,
     abort,
+    flash,
     jsonify,
     redirect,
     render_template,
@@ -26,11 +27,12 @@ from tasks.amplification import ampliar_sin_arribos
 from tasks.availability import consultar_disponibilidad
 from tasks.celery_app import celery
 
+from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
-from ..models import Job
-from ..security import permiso_requerido, puede_ver_trabajo
-from ..services import amplification, availability, catalog_export, colores
+from ..models import EventReviewRequest, Job, utcnow
+from ..security import permiso_requerido, puede_ver_trabajo, tiene_permiso
+from ..services import amplification, availability, catalog_export, colores, indicios
 from ..services.analysts import (
     campos_analista,
     codigos_usuario,
@@ -74,6 +76,8 @@ from ..services.results import (
 from ..services.station_review import (
     filas_para_csv,
     filas_visibles,
+    fuente_de_fila,
+    resolver_evento,
     revisar_fila,
     seleccionar_disponibilidad,
 )
@@ -330,6 +334,199 @@ def titulo_columna(clave: str) -> str:
 def overview(job_id: str):
     job = _job(job_id)
     return redirect(url_for("jobs.detalle", job_id=job.id) + "#resultados")
+
+
+@results_bp.get("/jobs/<job_id>/indicios")
+@login_required
+@permiso_requerido("catalogos.ver")
+def indicios_eventos(job_id: str):
+    """Listado de eventos con indicios de anomalías en las fases."""
+    job = _job(job_id)
+    workspace = ruta_workspace(job.id)
+    fuentes = _fuentes_job(job)
+    resumen = indicios.asegurar_indicios(workspace, fuentes, job_id=job.id)
+
+    fuente = request.args.get("fuente", "").strip()
+    if fuente not in fuentes:
+        fuente = fuentes[0] if fuentes else ""
+    alcance = request.args.get("alcance", "prioritarios").strip()
+    if alcance not in ("prioritarios", "publicados", "todos"):
+        alcance = "prioritarios"
+
+    filas = indicios.leer_indicios(workspace, fuente) if fuente else []
+    if alcance == "prioritarios":
+        filas = [
+            fila for fila in filas if fila.get("revision_prioritaria") == "Sí"
+        ]
+    elif alcance == "publicados":
+        filas = [fila for fila in filas if fila.get("publicado") == "Sí"]
+    if usuario_restringido(current_user):
+        filas = [fila for fila in filas if evento_visible(fila, current_user)]
+    filas.sort(
+        key=lambda fila: (
+            0 if fila.get("revision_prioritaria") == "Sí" else 1,
+            0 if fila.get("publicado") == "Sí" else 1,
+            -float(fila.get("max_residual_usado") or 0.0),
+        )
+    )
+
+    volver = request.full_path.rstrip("?")
+    for fila in filas:
+        fila["url_detalle"] = url_for(
+            "results.indicio_evento",
+            job_id=job.id,
+            source_id=fuente,
+            event_id=fila.get("evento", ""),
+            volver=volver,
+        )
+
+    solicitudes = {
+        (solicitud.source_id, solicitud.event_id): solicitud
+        for solicitud in EventReviewRequest.query.filter_by(job_id=job.id).all()
+    }
+    for fila in filas:
+        fila["solicitud"] = solicitudes.get((fuente, fila.get("evento")))
+    etiquetas = {codigo: _alias(job, codigo) for codigo in fuentes}
+    return render_template(
+        "results/indicios.html",
+        job=job,
+        resumen=resumen or {},
+        fuentes=fuentes,
+        etiquetas=etiquetas,
+        fuente=fuente,
+        alcance=alcance,
+        filas=filas,
+        solicitudes=solicitudes,
+        puede_solicitar=tiene_permiso(current_user, "revisiones.solicitar"),
+        info_fuente=(resumen or {}).get("fuentes", {}).get(fuente, {}),
+        volver=volver,
+    )
+
+
+@results_bp.get("/jobs/<job_id>/indicios/<source_id>/<path:event_id>")
+@login_required
+@permiso_requerido("catalogos.ver")
+def indicio_evento(job_id: str, source_id: str, event_id: str):
+    """Detalle de un evento con indicios, accesible también al analista dueño."""
+    job = _job(job_id)
+    if not fuentes_manifest.es_local(source_id):
+        abort(404)
+    workspace = ruta_workspace(job.id)
+    evento = next(
+        (
+            registro
+            for registro in canonical.leer_canonico(workspace, source_id)
+            if registro.get("event_id") == event_id
+            or registro.get("source_event_id") == event_id
+        ),
+        None,
+    )
+    if evento is None:
+        abort(404)
+    if usuario_restringido(current_user) and not evento_visible(
+        {**evento, "analista": evento.get("analyst", "")}, current_user
+    ):
+        abort(403)
+
+    publicado = indicios.estado_publicado(workspace, source_id, evento)
+    indicios_evento = indicios.evaluar_desde_canonico(
+        workspace,
+        source_id,
+        evento,
+        publicado=publicado,
+    )
+    revision_solicitud = EventReviewRequest.query.filter_by(
+        job_id=job.id,
+        source_id=source_id,
+        event_id=evento.get("event_id"),
+    ).first()
+
+    volver = request.args.get("volver", "")
+    if not volver.startswith("/") or volver.startswith("//"):
+        volver = url_for(
+            "results.indicios_eventos",
+            job_id=job.id,
+            fuente=source_id,
+        )
+
+    archivo_catalogo = _archivo_tabla("catalogos", source_id, job)
+    url_catalogo = ""
+    if (
+        archivo_catalogo
+        and (workspace / archivo_catalogo).is_file()
+        and not usuario_restringido(current_user)
+        and evento.get("raw_index") is not None
+    ):
+        url_catalogo = url_for(
+            "results.detalle",
+            job_id=job.id,
+            tabla="catalogos",
+            opcion=source_id,
+            fila=evento.get("raw_index"),
+            volver=volver,
+        )
+
+    return render_template(
+        "results/indicio_evento.html",
+        job=job,
+        fuente=source_id,
+        etiqueta_fuente=fuentes_manifest.etiqueta(source_id),
+        indicios_evento=indicios_evento,
+        revision_solicitud=revision_solicitud,
+        puede_solicitar=tiene_permiso(current_user, "revisiones.solicitar"),
+        url_catalogo=url_catalogo,
+        volver=volver,
+    )
+
+
+@results_bp.post("/jobs/<job_id>/indicios/revision")
+@login_required
+@permiso_requerido("revisiones.solicitar")
+def solicitar_revision(job_id: str):
+    """Registra una solicitud de revisión posterior para un evento con indicios."""
+    job = _job(job_id)
+    fuente = request.form.get("fuente", "").strip()
+    evento = request.form.get("evento", "").strip()
+    if not fuentes_manifest.es_local(fuente) or not evento:
+        abort(400)
+
+    existente = EventReviewRequest.query.filter_by(
+        job_id=job.id,
+        source_id=fuente,
+        event_id=evento,
+    ).first()
+    if existente is None:
+        nota = request.form.get("nota", "").strip()
+        db.session.add(
+            EventReviewRequest(
+                job_id=job.id,
+                source_id=fuente,
+                event_id=evento,
+                source_event_id=request.form.get("id_evento_fuente", "").strip(),
+                requested_by_id=current_user.id,
+                note=nota,
+                status="solicitada",
+                created_at=utcnow(),
+            )
+        )
+        db.session.commit()
+        registrar(
+            "revision.solicitar",
+            f"job:{job.id}",
+            {"fuente": fuente, "evento": evento, "nota": nota},
+        )
+        flash("Revisión solicitada.", "success")
+    else:
+        flash("Ese evento ya tiene una revisión solicitada.", "info")
+
+    volver = request.form.get("volver", "")
+    if not volver.startswith("/") or volver.startswith("//"):
+        volver = url_for(
+            "results.indicios_eventos",
+            job_id=job.id,
+            fuente=fuente,
+        )
+    return redirect(volver)
 
 
 def _render_tabla(job_id: str, tabla: str, opcion: str):
@@ -1282,6 +1479,61 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
     hay_sospechosos = any(punto.get("sospechoso") for punto in puntos) or any(
         evento.get("sospechoso") for evento in eventos_clasificados
     )
+    source_id = fuente_de_fila(tabla, opcion)
+    evento_canonico = (revision_estaciones or {}).get("evento") or {}
+    if source_id and not evento_canonico.get("event_id"):
+        evento_canonico = (
+            resolver_evento(
+                ruta_workspace(job.id),
+                source_id,
+                tabla,
+                contexto["fila"],
+            )
+            or {}
+        )
+    indicios_evento = None
+    revision_solicitud = None
+    if source_id and evento_canonico.get("event_id"):
+        publicado = None
+        if tabla == "no_publicados":
+            publicado = False
+        elif tabla == "no_actualizados":
+            publicado = True
+        elif tabla == "catalogos":
+            publicado = indicios.estado_publicado(
+                ruta_workspace(job.id), source_id, evento_canonico
+            )
+        sospechoso = None
+        try:
+            lat_evento = float(evento_canonico.get("latitude"))
+            lon_evento = float(evento_canonico.get("longitude"))
+        except (TypeError, ValueError):
+            lat_evento = lon_evento = None
+        if lat_evento is not None and lon_evento is not None:
+            for clasificado in eventos_clasificados:
+                try:
+                    if (
+                        abs(float(clasificado.get("latitud")) - lat_evento) <= 0.01
+                        and abs(float(clasificado.get("longitud")) - lon_evento)
+                        <= 0.01
+                    ):
+                        sospechoso = bool(clasificado.get("sospechoso"))
+                        break
+                except (TypeError, ValueError):
+                    continue
+        indicios_evento = indicios.evaluar_desde_canonico(
+            ruta_workspace(job.id),
+            source_id,
+            evento_canonico,
+            publicado=publicado,
+            sospechoso=sospechoso,
+            perfil_disponible=perfil_datos is not None,
+        )
+        revision_solicitud = EventReviewRequest.query.filter_by(
+            job_id=job.id,
+            source_id=source_id,
+            event_id=evento_canonico.get("event_id"),
+        ).first()
     historico_activo = request.args.get("historico") == "1"
     historico = historico_datos(perfil_datos) if historico_activo else None
     leyenda = leyenda_detalle(
@@ -1325,6 +1577,9 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         mapa_modo=mapa_modo,
         titulo_columna=titulo_columna,
         revision_estaciones=revision_estaciones,
+        indicios_evento=indicios_evento,
+        revision_solicitud=revision_solicitud,
+        puede_solicitar=tiene_permiso(current_user, "revisiones.solicitar"),
         **contexto,
     )
 

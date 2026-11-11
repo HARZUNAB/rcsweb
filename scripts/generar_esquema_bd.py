@@ -328,6 +328,22 @@ def _base_datos():
         relleno="#f7f7f4",
         borde="#7b8794",
     )
+    _caja(
+        dibujo,
+        80,
+        880,
+        350,
+        125,
+        "event_review_requests",
+        [
+            "PK id",
+            "FK job_id → jobs",
+            "source_id / event_id",
+            "FK requested_by_id → users",
+        ],
+        relleno=RELLENO_ACTIVO,
+        borde=AZUL,
+    )
 
     _flecha(dibujo, [(620, 210), (545, 210)], etiqueta="1:N")
     _flecha(dibujo, [(730, 305), (255, 380)], etiqueta="1:N")

@@ -542,6 +542,52 @@ Si el servicio de formas de onda no está disponible en el entorno, el botón no
 aparece y la revisión de estaciones sigue funcionando con el estado
 **No consultado**.
 
+## Indicios de fases
+
+Después del procesamiento, la app revisa si las fases asociadas a un evento
+calzan entre sí. Esta revisión es independiente del criterio de **localización
+sospechosa**: un evento puede tener una solución normal y fases mal asociadas,
+o una solución sospechosa sin problemas de fases.
+
+La tarjeta **Indicios de fases** de la página del trabajo abre el listado. Hay
+tres alcances:
+
+- **Revisión prioritaria:** eventos publicados que además tienen algún indicio.
+  Es la vista más crítica y la que se abre por defecto.
+- **Publicados:** todos los eventos publicados con indicios.
+- **Todos los indicios:** incluye los eventos no publicados que quedaron en el
+  catálogo. No generan alarma, pero sí un indicio para revisar la calidad del
+  catálogo.
+
+Cada evento muestra el **patrón** y el **contexto**:
+
+| Patrón | Lectura posible |
+|---|---|
+| `puntual` | Una o pocas estaciones con residual extremo; asociación o pick erróneo |
+| `sistemático` | Muchas estaciones con residuales del mismo signo; modelo, profundidad u origen |
+| `inversión` | Una estación más cercana tiene residual mayor que una más lejana |
+| `mixto` | Varias señales a la vez |
+| `pick_antes_origen` | El pick es anterior al origen |
+
+El **contexto** es `fuerte` o `débil` según cuántas estaciones había
+disponibles y se usaron, el azimutal gap y el perfil. Un residual alto en una
+zona con pocas estaciones puede deberse al modelo o a la cobertura, no solo a la
+asociación. La app entrega la evidencia y el patrón; no sentencia la causa.
+
+El detalle del evento muestra la tabla de evidencia: estación, fase, pick,
+`t (s)`, residual, peso, distancia y tipo de indicio. Un evento publicado con
+indicios se marca como **Revisión prioritaria**. Un evento no publicado se
+muestra igual, como indicio de calidad de catálogo.
+
+Los analistas ven los indicios de sus propios trabajos. Administradores y
+supervisores ven todos y pueden **pedir revisión**; la solicitud queda
+registrada con usuario, fecha y nota. La app es de revisión posterior: no
+alerta antes de publicar ni modifica la solución.
+
+Si el análisis usa residuales completados temporalmente desde otra fuente local,
+aparece un aviso. Esos residuales no provienen de la base de la fuente
+analizada; se usan solo para poder evaluar las fases en este trabajo.
+
 ## Paneles sismotectónicos
 
 Los paneles agrupan los eventos por perfil de subducción y, cuando no tienen

@@ -171,6 +171,40 @@
     </div>
   </div>
 
+  {% if indicios %}
+  <div class="card border-0 shadow-sm mt-3">
+    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div>
+        <div class="text-secondary small text-uppercase mb-2">Indicios de fases</div>
+        <div class="d-flex flex-wrap gap-4">
+          <div>
+            <span class="fs-4 fw-semibold">{{ indicios.total.revision_prioritaria }}</span>
+            <span class="text-secondary small">revisión prioritaria</span>
+          </div>
+          <div>
+            <span class="fs-4 fw-semibold">{{ indicios.total.con_anomalia }}</span>
+            <span class="text-secondary small">eventos con indicios</span>
+          </div>
+          <div>
+            <span class="fs-4 fw-semibold">{{ indicios.total.publicados }}</span>
+            <span class="text-secondary small">publicados evaluados</span>
+          </div>
+        </div>
+        {% if indicios.total.residual_temporal %}
+        <div class="alert alert-warning small mt-3 mb-0" role="status">
+          Algunos residuales fueron completados temporalmente desde otra fuente
+          local. No provienen de la base de la fuente analizada.
+        </div>
+        {% endif %}
+      </div>
+      <a class="btn btn-outline-primary"
+         href="{{ url_for('results.indicios_eventos', job_id=job.id) }}">
+        Ver indicios
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
   {% if indice.catalogos %}
   <div class="card border-0 shadow-sm mt-3">
     <div class="card-body">

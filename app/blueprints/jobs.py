@@ -24,6 +24,7 @@ from ..extensions import db
 from ..forms import JobForm
 from ..models import Job, JobArtifact, JobFile, JobSource, nuevo_uuid
 from ..security import permiso_requerido, puede_ver_trabajo
+from ..services import indicios
 from ..services.audit import registrar
 from ..services.jobs import JobNoEliminable, eliminar_trabajo, puede_eliminar
 from ..services.panels import datasets_disponibles
@@ -80,6 +81,7 @@ def _contexto_detalle(job: Job) -> dict:
     return {
         "job": job,
         "indice": indice,
+        "indicios": indicios.leer_resumen(workspace),
         "log": leer_log(workspace, max_lineas=250),
         "artefactos": job.artifacts,
         "activo": job.activo,

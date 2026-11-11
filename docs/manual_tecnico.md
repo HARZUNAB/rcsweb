@@ -134,6 +134,7 @@ Los diagramas se regeneran con:
 | Seguridad | `users`, `audit_log` | Cuentas, roles y registro de acciones |
 | Solicitudes | `catalog_requests`, `catalog_request_files` | Pedidos de catálogos y archivos asociados |
 | Trabajos | `jobs`, `job_files`, `job_sources`, `job_steps`, `job_artifacts` | Ejecución, insumos, fuentes, pasos y descargas |
+| Revisión | `event_review_requests` | Solicitudes de revisión posterior de eventos con indicios de fases |
 | Catálogo canónico reservado | `catalog_events`, `stations`, `arrivals`, `waveform_availability` | Esquema futuro; en esta versión los eventos, arribos y estaciones se guardan en archivos JSONL del workspace |
 | Migraciones | `alembic_version` | Revisión aplicada por Alembic |
 
@@ -156,6 +157,8 @@ supervisores.
 | `job_sources.job_id` | `jobs` | N:1 | `CASCADE` |
 | `job_steps.job_id` | `jobs` | N:1 | `CASCADE` |
 | `job_artifacts.job_id` | `jobs` | N:1 | `CASCADE` |
+| `event_review_requests.job_id` | `jobs` | N:1 | `CASCADE` |
+| `event_review_requests.requested_by_id` | `users` | N:1 | `SET NULL` |
 | `catalog_events.job_id` | `jobs` | N:1 | `CASCADE` |
 | `stations.job_id` | `jobs` | N:1 | `CASCADE` |
 | `arrivals.job_id` | `jobs` | N:1 | `CASCADE` |
@@ -315,6 +318,22 @@ lógicas del catálogo canónico.
 | `mime` | String(80) | Sí | — | Tipo MIME |
 | `size` | Integer | No | — | Tamaño en bytes |
 
+##### `event_review_requests`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `job_id` | String(36) | No | FK → `jobs.id`, IDX | Trabajo asociado |
+| `source_id` | String(64) | No | IDX | Fuente local del evento |
+| `event_id` | String(128) | No | IDX | Identificador canónico del evento |
+| `source_event_id` | String(128) | No | — | Identificador estable en la fuente |
+| `requested_by_id` | Integer | Sí | FK → `users.id` | Usuario que solicitó la revisión |
+| `note` | Text | Sí | — | Nota de la solicitud |
+| `status` | String(20) | No | — | Estado de la solicitud |
+| `created_at` | DateTime(tz) | No | IDX | Fecha de la solicitud |
+
+Restricción: `UNIQUE (job_id, source_id, event_id)`.
+
 ##### `alembic_version`
 
 | Columna | Tipo | Nulo | Clave / índice | Descripción |
@@ -441,6 +460,7 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `job_sources` | `UNIQUE (job_id, kind)`, `IDX (job_id)` |
 | `job_steps` | `IDX (job_id)` |
 | `job_artifacts` | `IDX (job_id)` |
+| `event_review_requests` | `UNIQUE (job_id, source_id, event_id)`, `IDX (job_id)`, `IDX (source_id)`, `IDX (event_id)`, `IDX (created_at)` |
 | `audit_log` | `IDX (action)`, `IDX (created_at)` |
 | `catalog_events` | `UNIQUE (job_id, source_id, event_id)`, `IDX (job_id, source_id, event_id)` |
 | `stations` | `IDX (job_id, source_id)` |
@@ -461,6 +481,8 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `c2a8f5d7e901` | Progreso por archivo de solicitud |
 | `d4f7a1c9e502` | Marca de trabajo eliminado en la solicitud |
 | `e5a1c2b3d604` | Código corto y alias de analista en usuarios |
+| `f3c1a7d9e205` | Fuentes directas en solicitudes |
+| `8f2b6c1d4a7e` | Solicitudes de revisión de eventos con indicios |
 
 Para consultar o aplicar migraciones:
 
@@ -918,6 +940,60 @@ La procedencia de la coordenada se conserva en `raw` y no se agrega al contrato:
 origen. El popup de la estación muestra esos datos; si el arribo no trae
 `est_lista` pero sí `database`, se muestra el inventario de SeisComp de esa
 base. Los puntos sin arribos muestran «inventario de estaciones de la fuente».
+
+#### Indicios de anomalías en las fases
+
+`app/services/indicios.py` calcula, después del procesamiento, indicios de que
+las fases asociadas a un evento no calzan. No reemplaza el criterio de
+localización `sospechoso`: son dimensiones independientes. Un evento puede tener
+una solución normal y fases mal asociadas, o una solución sospechosa sin
+indicios de fases.
+
+Los indicadores se calculan solo con arribos usados en la solución:
+
+| Indicador | Regla |
+|---|---|
+| Residual alto | `abs(residual) > 5 s` y `peso >= 0.5` |
+| Inversión de residual | primera P por estación, separación `>= 20 km`, `residual(cercana) - residual(lejana) > 5 s`, con al menos 3 estaciones P |
+| Pick antes del origen | `t (s) < 0` y `peso >= 0.5` |
+
+El **patrón** resume la evidencia: `puntual`, `sistemático`, `inversión`,
+`mixto`, `pick_antes_origen` o `sin_patron`. Un residual es **extremo** si
+supera 60 s o 10 veces la mediana del evento. El **contexto** es `fuerte` o
+`débil` según estaciones disponibles y usadas, azimutal gap y disponibilidad de
+perfil. Si el trabajo no trae la lista de estaciones sin arribo, el contexto
+fuerte exige al menos 8 estaciones usadas, porque solo se conoce una cota
+inferior de la cobertura.
+
+La salida queda en:
+
+```text
+resultados/indicios/indicios_<fuente>.csv
+resultados/indicios/indicios_<fuente>_detalle.csv
+resultados/indicios/resumen.json
+```
+
+El pipeline ejecuta el paso `generar_indicios` después de las comparaciones y
+antes de `detectar_repetidos`. El reporte no modifica el catálogo canónico ni la
+base de la fuente.
+
+El estado **publicado** se usa solo como contexto, tomado de
+`datos/atribucion_<fuente>.csv`; no es un resultado del análisis.
+`revision_prioritaria` es verdadero solo cuando el evento está publicado y tiene
+algún indicio. La vista **Indicios de fases** permite ver revisión prioritaria,
+publicados o todos los indicios. Los analistas ven solo sus propios eventos;
+administradores y supervisores ven todo y pueden **pedir revisión**. La
+solicitud se guarda en `event_review_requests` y en la auditoría.
+
+Si una fuente no trae residual y otra fuente local lo aporta, el adaptador lo
+completa para el trabajo y deja la procedencia en `raw.residual_fuente` y
+`raw.residual_temporal`. La aplicación muestra un aviso cuando el análisis usa
+esos residuales temporales. No se escribe en la base de la fuente: cuando el
+dato llegue a la base, el adaptador lo usará como residual nativo y el aviso
+desaparecerá.
+
+La capa agregada por estación, analista, región y fase queda para una segunda
+iteración.
 
 #### Filtros y categorías visuales
 
@@ -1649,7 +1725,8 @@ de root.
    queda en **Borrador** con el detalle.
 3. El trabajo se encola en Redis y lo ejecuta el worker.
 4. El worker corre los scripts del core con `cwd` en el workspace:
-   eventquery, SeisComp, Seisan, Central, comparaciones y repetidos.
+   eventquery, SeisComp, Seisan, Central, comparaciones, indicios de fases y
+   repetidos.
 5. Los resultados se normalizan en `workspace/<job_id>/resultados/`.
 6. La interfaz lee esos archivos para las tablas, miniaturas, mapas y paneles.
 

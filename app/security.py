@@ -23,6 +23,7 @@ PERMISOS = (
     "paneles.ver",
     "catalogos.ver",
     "resultados.exportar",
+    "revisiones.solicitar",
     "auditoria.ver",
     "usuarios.gestionar",
 )
