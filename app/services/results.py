@@ -160,7 +160,7 @@ TABLAS = {
     },
     "repetidos": {
         "titulo": "Repetidos",
-        "descripcion": "Posibles eventos duplicados detectados por fuente.",
+        "descripcion": "Duplicados internos por catálogo, no entre fuentes.",
         "tipo": "opciones",
         "opciones": [],
         "archivo": "repetidos_{clave}.csv",

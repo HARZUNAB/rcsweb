@@ -688,3 +688,30 @@ def test_catalogo_exporta_filtrado(client, login):
     texto = respuesta.data.decode("utf-8-sig")
     assert "ana" in texto
     assert "beto" not in texto
+
+
+def test_repetidos_vacio_explica_el_alcance(client, login):
+    job = _job_con_tabla(login)
+    workspace = ruta_workspace(job.id)
+    (workspace / "resultados" / "repetidos_publica_amplio.csv").write_text(
+        "fecha_hora,latitud,longitud,prof,mag,tipomag,referencia,percibido\n",
+        encoding="utf-8",
+    )
+    indice_path = workspace / "resultados" / "indice.json"
+    indice = json.loads(indice_path.read_text(encoding="utf-8"))
+    indice["repetidos"] = {
+        "publica_amplio": {
+            "archivo": "repetidos_publica_amplio.csv",
+            "filas": 0,
+        }
+    }
+    indice_path.write_text(json.dumps(indice), encoding="utf-8")
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/repetidos",
+        query_string={"clave": "publica_amplio"},
+    ).get_data(as_text=True)
+
+    assert "Sin repetidos en el período." in html
+    assert "Duplicados internos por catálogo, no entre fuentes." in html
+    assert "No hay eventos con estos filtros." not in html

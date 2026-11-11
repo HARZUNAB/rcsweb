@@ -368,6 +368,14 @@ class JobStep(db.Model):
             fin = fin.replace(tzinfo=UTC)
         return max(0, int((fin - inicio).total_seconds()))
 
+    @property
+    def motivo_omitido(self) -> str:
+        if self.status != "skipped":
+            return ""
+        if self.script in ("revisar_excluidos", "repetidos_excluidos"):
+            return "sin excluidos"
+        return "no aplica"
+
 
 class JobArtifact(db.Model):
     __tablename__ = "job_artifacts"

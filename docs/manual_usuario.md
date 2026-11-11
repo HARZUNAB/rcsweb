@@ -137,6 +137,8 @@ resultados.
 - **Cancelar trabajo** detiene un trabajo en cola o en ejecución.
 - **Eliminar** borra el trabajo, sus archivos y sus resultados. La auditoría
   conserva el registro de la eliminación.
+- Un paso que no aplica aparece como **Omitido** con el motivo; por ejemplo,
+  `sin excluidos`.
 
 ## Resultados
 
@@ -152,6 +154,8 @@ revisar los eventos.
 - **Ordenar**: haga clic en el encabezado de una columna.
 - **Miniaturas**: active el interruptor o use **Ver miniaturas** en una fila
   para ver el perfil y el mini mapa de planta lado a lado.
+- **Repetidos** busca duplicados dentro de cada catálogo, no entre fuentes. Si
+  no hay ninguno, muestra «Sin repetidos en el período».
 - **Ficha de ubicación**: indica Chile continental, insular, costa, mar
   chileno, otro país o alta mar.
 - **Publicado en otra fuente**: cuando corresponde, indica la otra fuente donde

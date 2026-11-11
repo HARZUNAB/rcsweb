@@ -282,8 +282,16 @@
 
       {% if not tabla.filas %}
         <div class="text-center text-secondary py-5">
-          <div class="mb-1">No hay eventos con estos filtros.</div>
+          <div class="mb-1">
+            {% if clave == 'repetidos' %}
+              Sin repetidos en el período.
+            {% else %}
+              No hay eventos con estos filtros.
+            {% endif %}
+          </div>
+          {% if clave != 'repetidos' %}
           <div class="small">Pruebe quitando algún filtro o la búsqueda global.</div>
+          {% endif %}
         </div>
       {% endif %}
     </form>

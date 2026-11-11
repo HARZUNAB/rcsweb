@@ -80,7 +80,12 @@
                 <tr>
                   <td class="text-secondary">{{ paso.orden }}</td>
                   <td class="small">{{ paso.script|replace('_', ' ')|capitalize }}</td>
-                  <td>{{ badge_paso(paso.status) }}</td>
+                  <td>
+                    {{ badge_paso(paso.status) }}
+                    {% if paso.status == 'skipped' %}
+                    <span class="text-secondary small">· {{ paso.motivo_omitido }}</span>
+                    {% endif %}
+                  </td>
                   <td class="text-end text-secondary small">
                     {{ duracion(paso.duracion_seg) }}
                   </td>

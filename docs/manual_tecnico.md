@@ -426,7 +426,7 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `catalog_requests.status` | `draft`, `queued`, `running`, `partial`, `done`, `failed`, `cancelled` |
 | `catalog_request_files.status` | `pending`, `downloading`, `ok`, `error` |
 | `job_sources.status` | `ok`, `error` |
-| `job_steps.status` | `pending`, `running`, `skipped`, `done`, `failed` |
+| `job_steps.status` | `pending`, `running`, `skipped`, `done`, `failed`; `skipped` muestra el motivo (`sin excluidos` o `no aplica`) |
 | `waveform_availability.status` | `not_checked` y estados de la extensión |
 
 #### Índices y restricciones

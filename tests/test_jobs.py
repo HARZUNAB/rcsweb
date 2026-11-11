@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.extensions import db
-from app.models import Job, JobArtifact, JobFile, JobSource, nuevo_uuid
+from app.models import Job, JobArtifact, JobFile, JobSource, JobStep, nuevo_uuid
 from app.services.workspace import crear_workspace
 
 
@@ -314,3 +314,37 @@ def test_dashboard_muestra_descargas_en_curso(client, login):
 
     html = client.get("/").get_data(as_text=True)
     assert "Descarga fallida" in html
+
+
+def test_detalle_explica_pasos_omitidos(client, login):
+    login()
+    job = Job(
+        id=nuevo_uuid(),
+        period_start=datetime(2026, 10, 1, tzinfo=UTC),
+        period_end=datetime(2026, 10, 31, tzinfo=UTC),
+        status="queued",
+    )
+    db.session.add(job)
+    db.session.add_all(
+        [
+            JobStep(
+                job_id=job.id,
+                orden=1,
+                script="revisar_excluidos",
+                status="skipped",
+            ),
+            JobStep(
+                job_id=job.id,
+                orden=2,
+                script="otro_paso",
+                status="skipped",
+            ),
+        ]
+    )
+    db.session.commit()
+
+    html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
+
+    assert "Omitido" in html
+    assert "sin excluidos" in html
+    assert "no aplica" in html
