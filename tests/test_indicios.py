@@ -195,7 +195,7 @@ def test_peso_bajo_no_genera_indicio():
     assert resultado["n_outliers"] == 0
 
 
-def test_detecta_inversion_debil_con_peso_casi_nulo():
+def test_peso_4_no_genera_indicio():
     evento = _evento(
         event_id="seiscomp:000006",
         event_time="2020-01-01 00:00:00",
@@ -219,24 +219,157 @@ def test_detecta_inversion_debil_con_peso_casi_nulo():
         evento, arribos, source_id="seiscomp", publicado=True
     )
 
+    assert resultado["anomalia"] is False
+    assert resultado["fuerza"] == ""
+    assert resultado["n_inversiones"] == 0
+    assert resultado["n_inversiones_debiles"] == 0
+    assert resultado["evidencia"] == []
+    assert resultado["evidencia_principal"] is None
+
+
+def test_detecta_inversion_debil_con_peso_3():
+    evento = _evento(
+        event_id="seiscomp:000007",
+        event_time="2020-01-01 00:00:00",
+        latitude=0.0,
+        longitude=0.0,
+    )
+    arribos = [
+        _arribo("TOQ0", 0.4, 0.0, "2020-01-01 00:00:06", -0.1, weight=1.4),
+        _arribo(
+            "AP01",
+            1.3,
+            0.0,
+            "2020-01-01 00:00:20",
+            7.27,
+            weight=0.3,
+            raw={"peso": 0.3},
+        ),
+        _arribo("PB12", 1.5, 0.0, "2020-01-01 00:00:16", 0.32, weight=1.37),
+    ]
+    resultado = indicios.evaluar_evento(
+        evento, arribos, source_id="seiscomp", publicado=True
+    )
+
     assert resultado["anomalia"] is True
     assert resultado["fuerza"] == "débil"
     assert resultado["patron"] == "inversion_debil"
     assert resultado["n_inversiones_debiles"] == 1
     assert resultado["n_inversiones"] == 0
     assert resultado["revision_prioritaria"] is False
-    assert resultado["prioridad"] == "Media"
-    assert resultado["prioridad_orden"] == 4
-    assert resultado["resumen"] == "inversion_debil | residual +7.27 s | peso 4"
     debil = next(
         item
         for item in resultado["evidencia"]
         if item["tipo_indicio"] == "inversion_debil"
     )
-    assert debil["peso"] == "4"
-    assert debil["peso_original"] == "3.6e-22"
-    assert debil["t_seg"] == "20.0"
+    assert debil["peso"] == "3"
     assert debil["residual"] == "+7.27"
+
+
+def _tres_estaciones(**cambios_fase):
+    """Tres estaciones con P y S para probar la evaluación por fase."""
+    datos = []
+    posiciones = [0.5, 1.0, 1.5]
+    for indice, lat in enumerate(posiciones):
+        p = cambios_fase.get("p", {})
+        s = cambios_fase.get("s", {})
+        datos.append(
+            _arribo(
+                f"E{indice}",
+                lat,
+                0.0,
+                f"2020-01-01 00:00:{10 + indice * 10:02d}",
+                p.get("residuales", (1.0, 1.0, 1.0))[indice],
+                weight=p.get("pesos", (1.0, 1.0, 1.0))[indice],
+                phase="P",
+            )
+        )
+        datos.append(
+            _arribo(
+                f"E{indice}",
+                lat,
+                0.0,
+                f"2020-01-01 00:00:{20 + indice * 10:02d}",
+                s.get("residuales", (1.0, 1.0, 1.0))[indice],
+                weight=s.get("pesos", (1.0, 1.0, 1.0))[indice],
+                phase="S",
+            )
+        )
+    return datos
+
+
+def _fases_invertidas(resultado):
+    return {
+        item["fase"]
+        for item in resultado["evidencia"]
+        if item["tipo_indicio"] == "inversion_residual"
+    }
+
+
+def test_evalua_orden_inconsistente_solo_en_p():
+    resultado = indicios.evaluar_evento(
+        _evento(event_time="2020-01-01 00:00:00", latitude=0.0, longitude=0.0),
+        _tres_estaciones(p={"residuales": (10.0, 1.0, 1.0)}),
+        source_id="seiscomp",
+    )
+
+    assert resultado["n_inversiones"] > 0
+    assert _fases_invertidas(resultado) == {"P"}
+
+
+def test_evalua_orden_inconsistente_solo_en_s():
+    resultado = indicios.evaluar_evento(
+        _evento(event_time="2020-01-01 00:00:00", latitude=0.0, longitude=0.0),
+        _tres_estaciones(s={"residuales": (10.0, 1.0, 1.0)}),
+        source_id="seiscomp",
+    )
+
+    assert resultado["n_inversiones"] > 0
+    assert _fases_invertidas(resultado) == {"S"}
+
+
+def test_peso_4_en_p_evalua_solamente_la_s():
+    resultado = indicios.evaluar_evento(
+        _evento(event_time="2020-01-01 00:00:00", latitude=0.0, longitude=0.0),
+        _tres_estaciones(
+            p={"residuales": (10.0, 1.0, 1.0), "pesos": (1e-6, 1.0, 1.0)},
+            s={"residuales": (10.0, 1.0, 1.0)},
+        ),
+        source_id="seiscomp",
+    )
+
+    assert resultado["n_inversiones"] > 0
+    assert _fases_invertidas(resultado) == {"S"}
+
+
+def test_peso_4_en_s_evalua_solamente_la_p():
+    resultado = indicios.evaluar_evento(
+        _evento(event_time="2020-01-01 00:00:00", latitude=0.0, longitude=0.0),
+        _tres_estaciones(
+            p={"residuales": (10.0, 1.0, 1.0)},
+            s={"residuales": (10.0, 1.0, 1.0), "pesos": (1e-6, 1.0, 1.0)},
+        ),
+        source_id="seiscomp",
+    )
+
+    assert resultado["n_inversiones"] > 0
+    assert _fases_invertidas(resultado) == {"P"}
+
+
+def test_ambas_fases_con_peso_4_no_generan_indicio():
+    resultado = indicios.evaluar_evento(
+        _evento(event_time="2020-01-01 00:00:00", latitude=0.0, longitude=0.0),
+        _tres_estaciones(
+            p={"residuales": (10.0, 1.0, 1.0), "pesos": (1e-6, 1e-6, 1e-6)},
+            s={"residuales": (10.0, 1.0, 1.0), "pesos": (1e-6, 1e-6, 1e-6)},
+        ),
+        source_id="seiscomp",
+        publicado=True,
+    )
+
+    assert resultado["anomalia"] is False
+    assert resultado["evidencia"] == []
+    assert resultado["evidencia_principal"] is None
 
 
 def test_marca_residual_temporal_desde_la_procedencia():
@@ -279,6 +412,7 @@ def test_genera_reportes_y_resumen(tmp_path):
 
     resumen = indicios.generar_indicios(workspace, ["seiscomp"], job_id="job-1")
 
+    assert resumen["esquema"] == indicios.ESQUEMA_INDICIOS
     assert resumen["total"]["eventos"] == 1
     assert resumen["total"]["con_anomalia"] == 1
     assert resumen["total"]["con_anomalia_fuerte"] == 1
@@ -304,6 +438,19 @@ def test_genera_reportes_y_resumen(tmp_path):
     assert any(item["tipo_indicio"] == "residual_alto" for item in detalle)
 
     assert indicios.leer_resumen(workspace) == resumen
+
+
+def test_asegurar_indicios_regenera_si_cambia_el_esquema(tmp_path):
+    workspace = tmp_path / "ws"
+    ruta = indicios.ruta_resumen(workspace)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    ruta.write_text('{"generado": "2026-01-01", "esquema": 1}', encoding="utf-8")
+
+    resumen = indicios.asegurar_indicios(workspace, ["seiscomp"], job_id="job-2")
+
+    assert resumen["esquema"] == indicios.ESQUEMA_INDICIOS
+    assert resumen["job_id"] == "job-2"
+    assert resumen["generado"] != "2026-01-01"
 
 
 def test_estado_publicado_sin_atribucion_es_desconocido(tmp_path):

@@ -28,17 +28,19 @@ from . import formatting
 
 UMBRAL_RESIDUAL = 5.0
 UMBRAL_PESO = 0.5
+UMBRAL_PESO_INFLUYENTE = 0.125
 UMBRAL_INVERSION = 5.0
 UMBRAL_INVERSION_DEBIL_S = 2.0
 UMBRAL_RESIDUAL_INVERSION_DEBIL = 5.0
 SEPARACION_MINIMA_KM = 20.0
-MIN_ESTACIONES_P = 3
+MIN_ESTACIONES_FASE = 3
 UMBRAL_RESIDUAL_EXTREMO = 60.0
 FACTOR_RESIDUAL_EXTREMO = 10.0
 UMBRAL_CONTEXTO_ESTACIONES = 5
 UMBRAL_CONTEXTO_SIN_INVENTARIO = 8
 UMBRAL_CONTEXTO_AZGAP = 180.0
 MAX_PARES_DETALLE = 40
+ESQUEMA_INDICIOS = 2
 
 CAMPOS_EVENTO = (
     "fuente",
@@ -152,8 +154,25 @@ def _clave_estacion(registro: dict) -> tuple[str, str]:
     return red, estacion
 
 
-def _fase_p(registro: dict) -> bool:
-    return _texto(registro.get("phase") or registro.get("fase")).upper().startswith("P")
+def _fase(registro: dict) -> str:
+    fase = _texto(registro.get("phase") or registro.get("fase")).upper()
+    if fase.startswith("P"):
+        return "P"
+    if fase.startswith("S"):
+        return "S"
+    return ""
+
+
+def _influyente(arribo: dict) -> bool:
+    """Una fase entra al análisis si su peso canónico supera 0,125.
+
+    En la escala 0–4 que ve el analista eso equivale a peso 0–3. El peso 4
+    significa que la fase no influyó en la solución y se excluye del análisis.
+    Un peso ausente se considera influyente para no descartar picks por falta
+    de dato.
+    """
+    peso = _numero(arribo.get("weight"))
+    return peso is None or peso > UMBRAL_PESO_INFLUYENTE
 
 
 def _mediana(valores: list[float]) -> float | None:
@@ -265,7 +284,7 @@ def _contexto(
         for valor in (
             _numero(arribo.get("azimuth"))
             for arribo in usadas
-            if _fase_p(arribo)
+            if _fase(arribo) == "P"
         )
         if valor is not None
     ]
@@ -332,17 +351,18 @@ def _patron(
 def _inversiones(
     fuertes: list[dict],
     evento: dict,
+    fase: str,
 ) -> list[tuple[dict, dict, float]]:
-    """Pares (cercana, lejana, diferencia de residual) que se invierten.
+    """Pares (cercana, lejana, diferencia de residual) fuera de orden.
 
-    Se usa la primera P por estación para no comparar dos picks del mismo
-    evento en la misma estación. La distancia se recalcula desde las
-    coordenadas porque el campo canónico no tiene la misma unidad en todas las
-    fuentes. La separación mínima evita pares de estaciones casi coincidentes.
+    Se compara una sola fase por estación para no mezclar P con S. La
+    distancia se recalcula desde las coordenadas porque el campo canónico no
+    tiene la misma unidad en todas las fuentes. La separación mínima evita
+    pares de estaciones casi coincidentes.
     """
     primeras: dict[tuple[str, str], dict] = {}
     for arribo in fuertes:
-        if not _fase_p(arribo) or _numero(arribo.get("residual")) is None:
+        if _fase(arribo) != fase or _numero(arribo.get("residual")) is None:
             continue
         if _distancia_evento(evento, arribo) is None:
             continue
@@ -362,7 +382,7 @@ def _inversiones(
         primeras.values(),
         key=lambda arribo: _distancia_evento(evento, arribo) or 0.0,
     )
-    if len(ordenadas) < MIN_ESTACIONES_P:
+    if len(ordenadas) < MIN_ESTACIONES_FASE:
         return []
 
     pares: list[tuple[dict, dict, float]] = []
@@ -388,19 +408,21 @@ def _inversiones(
 
 
 def _inversiones_debiles(
-    usadas: list[dict],
+    influyentes: list[dict],
     evento: dict,
+    fase: str,
 ) -> list[tuple[dict, dict, float, float]]:
-    """Inversiones que no alcanzan la fuerza de la solución.
+    """Pares fuera de orden que no alcanzan la fuerza de la solución.
 
-    Usa todas las P usadas, aunque su peso sea muy bajo. Exige que la estación
-    más cercana llegue al menos 2 s después que una más lejana y que su
-    residual sea alto; así se distingue de una simple diferencia de modelo.
-    La prioridad sigue reservada a las inversiones fuertes.
+    Usa las fases P o S influyentes, es decir, con peso 0–3. Excluye las fases
+    con peso 4 porque no aportaron a la solución. Exige que la estación más
+    cercana llegue al menos 2 s después que una más lejana y que su residual
+    sea alto; así se distingue de una simple diferencia de modelo. La prioridad
+    sigue reservada a las anomalías fuertes.
     """
     primeras: dict[tuple[str, str], tuple[datetime, float, dict]] = {}
-    for arribo in usadas:
-        if not _fase_p(arribo):
+    for arribo in influyentes:
+        if _fase(arribo) != fase:
             continue
         if _numero(arribo.get("residual")) is None:
             continue
@@ -416,7 +438,7 @@ def _inversiones_debiles(
             primeras[clave] = (instante, distancia, arribo)
 
     ordenadas = sorted(primeras.values(), key=lambda item: item[1])
-    if len(ordenadas) < MIN_ESTACIONES_P:
+    if len(ordenadas) < MIN_ESTACIONES_FASE:
         return []
 
     pares: list[tuple[dict, dict, float, float]] = []
@@ -475,6 +497,22 @@ def _fila_detalle(
     }
 
 
+def _evidencia_principal(evidencia: list[dict]) -> dict | None:
+    """Fila de evidencia con mayor residual absoluto.
+
+    Se usa en la cabecera del detalle para explicar qué arribo activó el
+    indicio, sin obligar a abrir la tabla completa.
+    """
+    if not evidencia:
+        return None
+
+    def clave(item: dict) -> float:
+        valor = _numero(item.get("residual"))
+        return abs(valor) if valor is not None else -1.0
+
+    return max(evidencia, key=clave)
+
+
 def evaluar_evento(
     evento: dict,
     arribos: list[dict],
@@ -494,9 +532,10 @@ def evaluar_evento(
         for arribo in arribos
         if arribo.get("is_used_in_solution") is True
     ]
+    influyentes = [arribo for arribo in usadas if _influyente(arribo)]
     fuertes = [
         arribo
-        for arribo in usadas
+        for arribo in influyentes
         if _numero(arribo.get("residual")) is not None
         and (_numero(arribo.get("weight")) or 0.0) >= UMBRAL_PESO
     ]
@@ -520,8 +559,13 @@ def evaluar_evento(
         )
         for arribo in outliers
     )
-    inversiones = _inversiones(fuertes, evento)
-    inversiones_debiles = _inversiones_debiles(usadas, evento)
+    inversiones = []
+    inversiones_debiles = []
+    for fase in ("P", "S"):
+        inversiones.extend(_inversiones(fuertes, evento, fase))
+        inversiones_debiles.extend(
+            _inversiones_debiles(influyentes, evento, fase)
+        )
     antes = [
         arribo
         for arribo in fuertes
@@ -747,6 +791,7 @@ def evaluar_evento(
         "sospechoso": sospechoso,
         "explicacion_sospechoso": explicacion_sospechoso,
         "evidencia": evidencia,
+        "evidencia_principal": _evidencia_principal(evidencia),
     }
 
 
@@ -847,6 +892,7 @@ def generar_indicios(
     ]
     resumen: dict = {
         "generado": datetime.now(UTC).isoformat(),
+        "esquema": ESQUEMA_INDICIOS,
         "job_id": job_id or "",
         "fuentes": {},
     }
@@ -886,6 +932,7 @@ def generar_indicios(
             detalle.extend(evento.pop("evidencia", []))
         for evento in evaluados:
             evento.pop("evidencia", None)
+            evento.pop("evidencia_principal", None)
 
         _escribir_csv(
             ruta_eventos(workspace, source_id),
@@ -981,8 +1028,8 @@ def asegurar_indicios(
     *,
     job_id: str | None = None,
 ) -> dict:
-    """Genera el reporte si todavía no existe para el trabajo."""
+    """Genera el reporte si todavía no existe o si cambió el esquema."""
     resumen = leer_resumen(workspace)
-    if resumen is None:
+    if resumen is None or resumen.get("esquema") != ESQUEMA_INDICIOS:
         return generar_indicios(workspace, fuentes, job_id=job_id)
     return resumen
