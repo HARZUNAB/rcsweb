@@ -506,6 +506,11 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert 'id="propagacion-mostrar-s"' in html
     assert 'id="propagacion-alcanzadas"' in html
     assert 'id="propagacion-leyenda-frentes"' in html
+    assert 'id="propagacion-listado-detalle"' in html
+    assert html.index('id="mapa-detalle"') < html.index(
+        'id="propagacion-listado-detalle"'
+    )
+    assert 'class="d-none mt-3" id="propagacion-listado-detalle"' in html
     assert 'id="consulta-ondas-indicador"' in html
     assert 'id="consulta-ondas-texto"' in html
     assert 'id="leyenda-estados-estaciones"' in html

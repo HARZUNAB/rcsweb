@@ -1,0 +1,33 @@
+{% set rev = controles_estaciones|default(none) %}
+{% set tiene_epicentro = rev and rev.evento and rev.evento.get('latitude') is not none and rev.evento.get('longitude') is not none %}
+{% if rev and rev.tiene_coordenadas and rev.tiene_tiempos and tiene_epicentro %}
+<details class="d-none mt-3" id="propagacion-listado-detalle" open>
+  <summary class="small fw-semibold">Listado comparativo de llegadas</summary>
+  <div class="small text-secondary mt-1 mb-2">
+    t teórico: tiempo de viaje calculado por el modelo.
+    Δ = observado − teórico. Orden: posición teórica → posición observada.
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-borderless align-middle mb-0 tabla-llegadas"
+           id="tabla-propagacion-llegadas">
+      <colgroup>
+        <col style="width: 2.2rem;">
+        <col style="width: 4.2rem;">
+        <col style="width: 4.2rem;">
+        <col style="width: 3.6rem;">
+        <col style="width: 3.2rem;">
+      </colgroup>
+      <thead class="table-light sticky-top">
+        <tr>
+          <th>Fase</th>
+          <th>t teórico (s)</th>
+          <th>t observado (s)</th>
+          <th class="text-end">Δ (s)</th>
+          <th class="text-end">Orden</th>
+        </tr>
+      </thead>
+      <tbody id="propagacion-llegadas-cuerpo"></tbody>
+    </table>
+  </div>
+</details>
+{% endif %}

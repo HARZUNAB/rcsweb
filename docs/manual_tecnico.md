@@ -1047,21 +1047,30 @@ Formato numérico de tablas, detalles y reportes:
 Si un valor distinto de cero redondea a cero, se muestra `<0,01` o `<0,1` según
 corresponda. El JSONL canónico conserva la precisión completa.
 
-La sección de indicios del detalle del catálogo muestra una línea técnica
-explícita, por ejemplo
-`Fase inconsistente con la distancia (baja influencia) | residual +7.27 s | peso 3`,
-y debajo la tabla de evidencia. No hay una “explicación simple” separada: el dato
-técnico es el principal.
+La sección de indicios del detalle del catálogo muestra una cabecera compacta
+con patrón, contexto, publicación y solución. Debajo aparece `evidencia_principal`,
+la fila de evidencia con mayor residual absoluto, por ejemplo:
+
+```text
+Evidencia principal: C1 AP01 P — residual +7.27 s · peso 1
+```
+
+La tabla completa queda dentro de **Ver evidencia del indicio**, con las cifras
+secundarias (`Disponibles`, `Azimutal gap`, `Residuales altos`, `Fases
+inconsistentes`, `Picks antes del origen`). No hay una “explicación simple”
+separada: el dato técnico es el principal.
 
 El listado enlaza cada evento al detalle del catálogo en `#indicios-fases`. No
 existe una página separada de indicio ni un botón **Mapa** en el listado: el
 detalle del catálogo es el destino único.
 
-Los botones **Ver planta y perfil** y **Ver tiempos de llegada** reutilizan
-`_mapa_detalle.html`, `_estaciones_mapa_tiempos.html` y `estaciones.js`. El
-primero abre `#planta-perfil` con `volver_etiqueta=Volver a indicios`; el segundo
-abre el gráfico tiempo-distancia existente. Los analistas pueden abrir el detalle
-del catálogo de sus propios eventos; el resto sigue restringido.
+La sección de indicios no tiene botones de navegación propios. El mapa, el
+perfil y los controles de tiempos viven en `_mapa_detalle.html` y
+`_estaciones_mapa_tiempos.html`. El **Listado comparativo de llegadas** se
+movió a `results/_listado_llegadas.html`, se incluye después del mapa y
+`abrirPropagacion()` lo muestra; `cerrarPropagacion()` lo oculta. Los analistas
+pueden abrir el detalle del catálogo de sus propios eventos; el resto sigue
+restringido.
 
 La clasificación **sospechoso** de la solución no se recalcula aquí: se reutiliza
 la que producen `plots.clasificar_eventos` y `sismicidad.es_sospechoso`. El

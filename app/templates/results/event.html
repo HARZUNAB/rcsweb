@@ -226,7 +226,7 @@
 {% if indicios_evento %}
 <div class="card border-0 shadow-sm mb-3" id="indicios-fases">
   <div class="card-body">
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
       <div>
         <h2 class="h6 text-uppercase text-secondary mb-1">Indicios de fases</h2>
         <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -238,15 +238,6 @@
           {% if indicios_evento.revision_prioritaria %}
           <span class="badge text-bg-danger">Revisión prioritaria</span>
           {% endif %}
-          {% if indicios_evento.fuerza == 'débil' %}
-          <span class="badge text-bg-secondary">Indicio débil</span>
-          {% endif %}
-          {% if indicios_evento.publicado %}
-          <span class="badge text-bg-primary">Publicado</span>
-          {% endif %}
-          {% if indicios_evento.extremo %}
-          <span class="badge text-bg-danger">Residual extremo</span>
-          {% endif %}
         </div>
       </div>
       <div class="text-end small text-secondary">
@@ -254,19 +245,41 @@
         <div>Contexto: <strong>{{ indicios_evento.contexto }}</strong></div>
       </div>
     </div>
-    <div class="mb-2">
-      <code>{{ indicios_evento.resumen }}</code>
+
+    <div class="small text-secondary mb-2">
+      Publicado:
+      <strong>
+        {% if indicios_evento.publicado is none %}desconocido
+        {% elif indicios_evento.publicado %}Sí
+        {% else %}No{% endif %}
+      </strong>
+      · Solución:
+      <strong>
+        {% if indicios_evento.sospechoso is none %}desconocida
+        {% elif indicios_evento.sospechoso %}sospechosa
+        {% else %}normal{% endif %}
+      </strong>
+      {% if indicios_evento.fuerza == 'débil' %} · Indicio débil{% endif %}
+      {% if indicios_evento.extremo %} · Residual extremo{% endif %}
     </div>
-    <div class="d-flex flex-wrap gap-2 mb-3">
-      <a class="btn btn-sm btn-outline-primary" href="#planta-perfil">
-        Ver planta y perfil
-      </a>
-      {% if revision_estaciones and revision_estaciones.tiene_tiempos %}
-      <button class="btn btn-sm btn-outline-secondary" type="button"
-              id="btn-tiempos-indicios">
-        Ver tiempos de llegada
-      </button>
-      {% endif %}
+
+    {% if indicios_evento.evidencia_principal %}
+    {% set principal = indicios_evento.evidencia_principal %}
+    <div class="mb-2">
+      <span class="fw-semibold">Evidencia principal:</span>
+      {{ principal.red }} {{ principal.estacion }} {{ principal.fase }}
+      — residual {{ principal.residual }} s
+      · peso {{ principal.peso }}
+    </div>
+    {% endif %}
+
+    <div class="small text-secondary mb-2">
+      Estaciones usadas: <strong>{{ indicios_evento.n_usadas }}</strong>
+      · Contexto: <strong>{{ indicios_evento.contexto }}</strong>
+      · Máx. residual:
+      <strong>
+        {{ indicios_evento.max_residual_usado if indicios_evento.max_residual_usado is not none else '—' }} s
+      </strong>
     </div>
 
     {% if indicios_evento.residual_temporal %}
@@ -276,70 +289,23 @@
     </div>
     {% endif %}
 
-    <div class="row g-2 small mb-3">
-      <div class="col-6 col-md-3">
-        <div class="text-secondary">Estaciones usadas</div>
-        <div class="fw-semibold">{{ indicios_evento.n_usadas }}</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="text-secondary">Disponibles</div>
-        <div class="fw-semibold">
-          {{ indicios_evento.n_disponibles }}
-          {% if not indicios_evento.inventario_disponible %}
-          <span class="text-secondary fw-normal">(sin inventario)</span>
-          {% endif %}
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="text-secondary">Azimutal gap</div>
-        <div class="fw-semibold">
-          {{ indicios_evento.azimutal_gap if indicios_evento.azimutal_gap is not none else '—' }}°
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="text-secondary">Máx. residual usado</div>
-        <div class="fw-semibold">
-          {{ indicios_evento.max_residual_usado if indicios_evento.max_residual_usado is not none else '—' }} s
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="text-secondary">Residuales altos</div>
-        <div class="fw-semibold">{{ indicios_evento.n_outliers }}</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="text-secondary">Fases inconsistentes</div>
-        <div class="fw-semibold">{{ indicios_evento.n_fuera_de_orden }}</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="text-secondary">Picks antes del origen</div>
-        <div class="fw-semibold">{{ indicios_evento.n_picks_antes_origen }}</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="text-secondary">Solución</div>
-        <div class="fw-semibold">
-          {% if indicios_evento.sospechoso is none %}
-          desconocida
-          {% elif indicios_evento.sospechoso %}
-          sospechosa
-          {% else %}
-          normal
-          {% endif %}
-        </div>
-        {% if indicios_evento.explicacion_sospechoso %}
-        <div class="small text-secondary">
-          {{ indicios_evento.explicacion_sospechoso }}
-        </div>
-        {% endif %}
-      </div>
-    </div>
-
-    <div class="small text-secondary mb-3">
-      La sospecha de localización y los indicios de fases son dimensiones
-      independientes: un evento puede tener una solución normal y fases que no
-      calzan.
-    </div>
-
     {% if indicios_evento.evidencia %}
+    <details class="mb-2">
+      <summary class="small fw-semibold">Ver evidencia del indicio</summary>
+      <div class="small text-secondary mt-2 mb-2">
+        Disponibles: <strong>{{ indicios_evento.n_disponibles }}</strong>
+        {% if not indicios_evento.inventario_disponible %}(sin inventario){% endif %}
+        · Azimutal gap:
+        <strong>{{ indicios_evento.azimutal_gap if indicios_evento.azimutal_gap is not none else '—' }}°</strong>
+        · Residuales altos: <strong>{{ indicios_evento.n_outliers }}</strong>
+        · Fases inconsistentes: <strong>{{ indicios_evento.n_fuera_de_orden }}</strong>
+        · Picks antes del origen: <strong>{{ indicios_evento.n_picks_antes_origen }}</strong>
+      </div>
+      {% if indicios_evento.explicacion_sospechoso %}
+      <div class="small text-secondary mb-2">
+        {{ indicios_evento.explicacion_sospechoso }}
+      </div>
+      {% endif %}
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-3" data-sortable>
         <thead class="table-light">
@@ -376,6 +342,7 @@
       Peso (0-4): 0 = mayor influencia; 4 = sin influencia. Pase el cursor
       sobre el peso para ver el valor original.
     </div>
+    </details>
     {% endif %}
 
     {% if revision_solicitud %}
@@ -653,20 +620,6 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/tabla_orden.js') }}"></script>
-<script>
-  (function () {
-    var boton = document.getElementById("btn-tiempos-indicios");
-    if (!boton) {
-      return;
-    }
-    boton.addEventListener("click", function () {
-      var original = document.getElementById("btn-tiempos-llegada");
-      if (original) {
-        original.click();
-      }
-    });
-  })();
-</script>
 {% if revision_estaciones %}
 <script src="{{ url_for('static', filename='js/estaciones.js') }}"></script>
 {% endif %}

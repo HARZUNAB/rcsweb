@@ -1766,6 +1766,14 @@
     actualizarPropagacion();
   }
 
+  function mostrarListadoLlegadas(mostrar) {
+    var listado = document.getElementById("propagacion-listado-detalle");
+    if (!listado) {
+      return;
+    }
+    listado.classList.toggle("d-none", !mostrar);
+  }
+
   function abrirPropagacion() {
     if (propagacionActiva) {
       return;
@@ -1810,6 +1818,7 @@
       boton.textContent = "Ocultar propagación";
     }
     mostrarLeyendaEstados(true);
+    mostrarListadoLlegadas(true);
     actualizarPropagacion();
     irAlMapa();
   }
@@ -1834,6 +1843,7 @@
       controles.classList.add("d-none");
       controles.classList.remove("d-flex");
     }
+    mostrarListadoLlegadas(false);
     var boton = document.getElementById("btn-propagacion");
     if (boton) {
       boton.textContent = "Propagación";

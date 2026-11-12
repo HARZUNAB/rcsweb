@@ -298,9 +298,11 @@ def test_listado_y_detalle_reutilizan_la_clasificacion_sospechoso(
     html = detalle.get_data(as_text=True)
     assert "sospechosa" in html
     assert "residuo al slab 39.4 km" in html
-    assert "Ver planta y perfil" in html
-    assert "#planta-perfil" in html
-    assert "Ver tiempos de llegada" in html
+    assert "Ver planta y perfil" not in html
+    assert "Ver tiempos de llegada" not in html
+    assert "Ver evidencia del indicio" in html
+    assert "Evidencia principal:" in html
+    assert 'id="planta-perfil"' in html
     assert "modal-tiempos" in html
     assert "tiempos-llegada-datos" in html
     assert "Peso (0-4)" in html
