@@ -803,6 +803,24 @@ Rango de fechas:
 - Un error de conexión o credenciales siempre es error, sin importar las otras
   fuentes.
 
+La validación de una fuente directa se guarda en `job_sources.status` y
+`job_sources.message`:
+
+- al crear el trabajo por solicitud o por el alta manual;
+- al abrir un trabajo `done` o `failed` cuya fuente directa todavía no tiene
+  mensaje, se valida una vez y se guarda el resultado;
+- `message = ""` marca «validada sin observaciones» y evita repetir la consulta.
+
+Al terminar el pipeline, si una fuente local quedó con 0 eventos y no tiene un
+mensaje específico, se guarda:
+
+```text
+La fuente no devolvió eventos en el período seleccionado.
+```
+
+La página del trabajo muestra el bloque **Advertencias de fuentes** con esos
+mensajes. El trabajo puede continuar aunque una fuente no aporte datos.
+
 Comparación:
 
 - **No publicados:** solo eventos con `Publicado = No` que no aparecen en

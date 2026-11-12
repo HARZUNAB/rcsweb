@@ -29,7 +29,11 @@ from ..domain.catalogs.adapters.residuals import (
     enriquecer_residuales,
     hay_residuales_por_enriquecer,
 )
-from ..domain.catalogs.canonical import escribir_desde_csv, escribir_extensiones
+from ..domain.catalogs.canonical import (
+    escribir_desde_csv,
+    escribir_extensiones,
+    leer_canonico,
+)
 from ..domain.catalogs.registry import adaptador as obtener_adaptador
 from ..domain.catalogs.registry import formato as formato_info
 from ..extensions import db
@@ -261,6 +265,27 @@ def _hay_excluidos(workspace: Path) -> bool:
 def _hay_csv_excluidos(workspace: Path) -> bool:
     ruta = workspace / "datos" / "excluidos.csv"
     return ruta.is_file() and ruta.stat().st_size > 0
+
+
+def _avisar_fuentes_vacias(job: Job, workspace: Path, fuentes) -> None:
+    """Marca las fuentes locales que terminaron sin eventos."""
+    cambiado = False
+    for source_id, _formato, _alias in fuentes:
+        source = next(
+            (item for item in job.sources if item.kind == source_id),
+            None,
+        )
+        if source is None or source.message:
+            continue
+        if leer_canonico(workspace, source_id):
+            continue
+        source.status = "ok"
+        source.message = (
+            "La fuente no devolvió eventos en el período seleccionado."
+        )
+        cambiado = True
+    if cambiado:
+        db.session.commit()
 
 
 def _fuentes_job(job: Job) -> list[tuple[str, str, str]]:
@@ -693,6 +718,7 @@ def ejecutar_pipeline(job_id: str) -> dict:
             db.session.commit()
             _actualizar_progreso(job_id, indice + 1, total, 0.0)
 
+        _avisar_fuentes_vacias(job, workspace, fuentes)
         job.current_step = "Preparando resultados"
         job.progress = max(job.progress, 95)
         db.session.commit()

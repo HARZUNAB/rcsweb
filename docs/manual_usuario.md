@@ -92,6 +92,19 @@ Si una descarga queda interrumpida, se marca automáticamente como fallida
 después de 2 horas sin tarea activa. Un administrador o supervisor puede
 **Eliminar solicitud** desde el detalle cuando no tiene un trabajo asociado.
 
+### Advertencias de fuentes
+
+Si una fuente no aporta datos, el detalle del trabajo muestra el bloque
+**Advertencias de fuentes** con el motivo. Por ejemplo:
+
+```text
+Central: La base central no tiene eventos en el período seleccionado.
+```
+
+La validación se hace al crear el trabajo y, si faltaba, al abrirlo. El trabajo
+puede continuar con las otras fuentes; la advertencia sirve para que el usuario
+sepa que esa fuente no aportó al análisis.
+
 La contraseña SSH se usa solo para la descarga y no se guarda. La fuente de
 referencia se descarga siempre como catálogo de referencia; no es una fuente
 local de Resultados.

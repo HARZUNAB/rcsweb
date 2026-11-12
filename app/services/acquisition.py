@@ -22,6 +22,7 @@ from ..models import (
 )
 from .audit import registrar
 from .queue import encolar_trabajo
+from .source_status import validar_fuentes_directas
 from .validators import validar_fuente
 from .workspace import crear_workspace, ruta_solicitud
 
@@ -358,6 +359,7 @@ def _crear_job(request: CatalogRequest, workspace: Path) -> Job:
             )
         )
     db.session.commit()
+    validar_fuentes_directas(job)
 
     registrar(
         "job.create",

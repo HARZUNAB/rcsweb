@@ -276,6 +276,57 @@ def test_detalle_muestra_advertencias_de_fuentes(client, login):
     assert "no tiene eventos" in html
 
 
+def test_detalle_valida_fuente_directa_sin_mensaje(
+    app, client, login, monkeypatch
+):
+    from app.services import source_status
+
+    login()
+    job = Job(
+        id=nuevo_uuid(),
+        period_start=datetime(2026, 11, 1, tzinfo=UTC),
+        period_end=datetime(2026, 11, 12, 23, 59, 59, tzinfo=UTC),
+        status="done",
+        current_step="Terminado",
+    )
+    db.session.add(job)
+    source = JobSource(
+        job_id=job.id,
+        kind="central",
+        alias="Central",
+        format="local_db",
+        role="local_secundaria",
+        status="ok",
+    )
+    db.session.add(source)
+    db.session.commit()
+
+    class _Falso:
+        source_id = ""
+
+        def validar_periodo(self, job, rango=None):
+            return {
+                "ok": True,
+                "errores": [],
+                "advertencias": [
+                    "La base central no tiene eventos en el período seleccionado."
+                ],
+                "eventos": 0,
+            }
+
+    monkeypatch.setattr(
+        source_status, "obtener_adaptador", lambda formato: _Falso()
+    )
+
+    html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
+
+    assert "Advertencias de fuentes" in html
+    assert "no tiene eventos" in html
+    db.session.expire_all()
+    source = db.session.get(JobSource, source.id)
+    assert "no tiene eventos" in source.message
+
+
 def test_jobs_new_redirige_a_solicitud(client, login):
     login()
 

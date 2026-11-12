@@ -37,6 +37,7 @@ from ..services.source_selection import (
     leer_formulario,
     opciones_formulario,
 )
+from ..services.source_status import validar_fuentes_directas
 from ..services.sources import disponibilidad_fuentes
 from ..services.validators import validar_fuente
 from ..services.workspace import (
@@ -60,6 +61,8 @@ def _job(job_id: str) -> Job:
 
 
 def _contexto_detalle(job: Job) -> dict:
+    if job.status in ("done", "failed"):
+        validar_fuentes_directas(job)
     workspace = ruta_workspace(job.id)
     indice = cargar_indice(workspace)
     codigos = set(indice.get("no_publicados", {})) | set(indice.get("no_actualizados", {}))
