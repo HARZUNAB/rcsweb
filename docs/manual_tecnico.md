@@ -972,6 +972,25 @@ prioridad: `revision_prioritaria` exige `publicado` y `fuerza = fuerte`. Un
 evento publicado con solo indicio débil aparece como indicio, y un usuario con
 más privilegios decide si pide revisión.
 
+La **prioridad** combina publicación y fuerza:
+
+| Prioridad | Combinación |
+|---|---|
+| Alta | publicado + anomalía fuerte |
+| Media | publicado + anomalía débil |
+| Baja | no publicado + anomalía fuerte |
+| Informativa | no publicado + anomalía débil |
+| Sin evaluar | no se pudo determinar si está publicado |
+
+`sospechoso` no cambia el nivel de prioridad. Se usa solo como segundo criterio
+de orden dentro del mismo nivel. El orden por defecto del listado es prioridad,
+solución, mayor residual y fecha.
+
+El listado principal y la tabla de evidencia se pueden ordenar en el navegador
+haciendo clic en cualquier encabezado, sin recargar la página. El segundo clic
+invierte el orden. La tabla de revisión de estaciones no entra en este
+ordenamiento.
+
 El **patrón** resume la evidencia: `puntual`, `sistemático`, `inversión`,
 `inversion_debil`, `mixto`, `pick_antes_origen` o `sin_patron`. Un residual es
 **extremo** si supera 60 s o 10 veces la mediana del evento. El **contexto** es

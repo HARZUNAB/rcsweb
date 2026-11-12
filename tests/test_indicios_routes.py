@@ -112,6 +112,9 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Indicios de fases" in html
     assert "csn_sc62026vdkls" in html
     assert "Revisión prioritaria" in html
+    assert "Prioridad" in html
+    assert "data-sortable" in html
+    assert "tabla_orden.js" in html
 
     detalle = client.get(f"/jobs/{job.id}/indicios/seiscomp/seiscomp:000001")
     assert detalle.status_code == 200
@@ -119,6 +122,8 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Evidencia" in html
     assert "244.2" in html
     assert "Pedir revisión" in html
+    assert "data-sortable" in html
+    assert "tabla_orden.js" in html
 
 
 def test_solicitar_revision_crea_registro(app, client, login):

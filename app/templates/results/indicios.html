@@ -114,27 +114,31 @@
       con indicios en {{ etiquetas.get(fuente, fuente) }}.
     </div>
     <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0">
+      <table class="table table-sm table-hover align-middle mb-0" data-sortable>
         <thead class="table-light">
           <tr>
-            <th>Fecha y hora</th>
-            <th>Evento</th>
-            <th class="text-end">Mag.</th>
-            <th>Publicado (contexto)</th>
-            <th>Solución</th>
-            <th class="text-end">Usadas</th>
-            <th class="text-end">Máx. residual</th>
-            <th>Patrón</th>
-            <th>Contexto</th>
-            <th>Indicios</th>
+            <th data-sort-key="fecha" data-sort-type="text">Fecha y hora</th>
+            <th data-sort-key="evento" data-sort-type="text">Evento</th>
+            <th data-sort-key="magnitud" data-sort-type="number" class="text-end">Mag.</th>
+            <th data-sort-key="publicado" data-sort-type="order">Publicado (contexto)</th>
+            <th data-sort-key="solucion" data-sort-type="order">Solución</th>
+            <th data-sort-key="prioridad" data-sort-type="order"
+                data-sort-dir="desc" aria-sort="descending">
+              Prioridad <span class="orden-flecha ms-1">↓</span>
+            </th>
+            <th data-sort-key="usadas" data-sort-type="number" class="text-end">Usadas</th>
+            <th data-sort-key="residual" data-sort-type="number" class="text-end">Máx. residual</th>
+            <th data-sort-key="patron" data-sort-type="text">Patrón</th>
+            <th data-sort-key="contexto" data-sort-type="order">Contexto</th>
+            <th data-sort-key="indicios" data-sort-type="text">Indicios</th>
             <th class="text-end"></th>
           </tr>
         </thead>
         <tbody>
           {% for fila in filas %}
           <tr>
-            <td class="text-nowrap">{{ fila.fecha_hora }}</td>
-            <td>
+            <td class="text-nowrap" data-sort-value="{{ fila.fecha_hora }}">{{ fila.fecha_hora }}</td>
+            <td data-sort-value="{{ fila.id_evento_fuente or fila.evento }}">
               {% if fila.url_detalle %}
               <a href="{{ fila.url_detalle }}">{{ fila.id_evento_fuente or fila.evento }}</a>
               {% else %}
@@ -144,8 +148,8 @@
               <div class="small text-secondary">{{ fila.region }}</div>
               {% endif %}
             </td>
-            <td class="text-end">{{ fila.magnitud or '' }}</td>
-            <td>
+            <td class="text-end" data-sort-value="{{ fila.magnitud or '' }}">{{ fila.magnitud or '' }}</td>
+            <td data-sort-value="{% if fila.publicado == 'Sí' %}2{% elif fila.publicado == 'No' %}1{% else %}0{% endif %}">
               {% if fila.publicado == 'Sí' %}
               <span class="badge text-bg-primary">Sí</span>
               {% elif fila.publicado == 'No' %}
@@ -154,7 +158,7 @@
               <span class="badge text-bg-light text-dark">Desconocido</span>
               {% endif %}
             </td>
-            <td>
+            <td data-sort-value="{% if fila.sospechoso == 'Sí' %}2{% elif fila.sospechoso == 'No' %}1{% else %}0{% endif %}">
               {% if fila.sospechoso == 'Sí' %}
               <span class="badge text-bg-danger">Sospechosa</span>
               {% elif fila.sospechoso == 'No' %}
@@ -168,9 +172,20 @@
               </div>
               {% endif %}
             </td>
-            <td class="text-end">{{ fila.n_usadas }}</td>
-            <td class="text-end">{{ fila.max_residual_usado or '' }}</td>
-            <td>
+            <td data-sort-value="{{ fila.prioridad_orden }}">
+              {% if fila.prioridad == 'Alta' %}
+              <span class="badge text-bg-danger">Alta</span>
+              {% elif fila.prioridad == 'Media' %}
+              <span class="badge text-bg-warning text-dark">Media</span>
+              {% elif fila.prioridad == 'Baja' %}
+              <span class="badge text-bg-secondary">Baja</span>
+              {% else %}
+              <span class="badge text-bg-light text-dark">{{ fila.prioridad }}</span>
+              {% endif %}
+            </td>
+            <td class="text-end" data-sort-value="{{ fila.n_usadas }}">{{ fila.n_usadas }}</td>
+            <td class="text-end" data-sort-value="{{ fila.max_residual_usado or '' }}">{{ fila.max_residual_usado or '' }}</td>
+            <td data-sort-value="{{ fila.patron }}">
               <span class="badge text-bg-light text-dark">{{ fila.patron }}</span>
               {% if fila.fuerza == 'débil' %}
               <span class="badge text-bg-secondary">indicio débil</span>
@@ -179,12 +194,12 @@
               <span class="badge text-bg-danger">extremo</span>
               {% endif %}
             </td>
-            <td>
+            <td data-sort-value="{% if fila.contexto == 'fuerte' %}1{% else %}0{% endif %}">
               <span class="badge {% if fila.contexto == 'fuerte' %}text-bg-success{% else %}text-bg-warning text-dark{% endif %}">
                 {{ fila.contexto }}
               </span>
             </td>
-            <td class="small">{{ fila.tipos_indicio }}</td>
+            <td class="small" data-sort-value="{{ fila.tipos_indicio }}">{{ fila.tipos_indicio }}</td>
             <td class="text-end">
               {% if fila.url_mapa_perfil %}
               <a class="btn btn-sm btn-outline-secondary" href="{{ fila.url_mapa_perfil }}">Mapa</a>
@@ -221,4 +236,8 @@
     {% endif %}
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/tabla_orden.js') }}"></script>
 {% endblock %}

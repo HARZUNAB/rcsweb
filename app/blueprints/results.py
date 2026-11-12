@@ -8,6 +8,7 @@ import json
 import os
 import re
 import zipfile
+from datetime import datetime
 from io import BytesIO, StringIO
 
 from flask import (
@@ -250,6 +251,15 @@ def _orden_numerico(valor) -> float:
         return 0.0
 
 
+def _fecha_orden(valor) -> float:
+    try:
+        return datetime.fromisoformat(
+            str(valor or "").replace("Z", "")
+        ).timestamp()
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _clasificacion_sospechoso(workspace, fuente: str, fila_catalogo) -> dict | None:
     """Reutiliza la clasificación de localización de los módulos existentes."""
     info = (cargar_indice(workspace).get("catalogos") or {}).get(fuente)
@@ -407,13 +417,6 @@ def indicios_eventos(job_id: str):
         filas = [fila for fila in filas if fila.get("publicado") == "Sí"]
     if usuario_restringido(current_user):
         filas = [fila for fila in filas if evento_visible(fila, current_user)]
-    filas.sort(
-        key=lambda fila: (
-            0 if fila.get("revision_prioritaria") == "Sí" else 1,
-            0 if fila.get("publicado") == "Sí" else 1,
-            -_orden_numerico(fila.get("max_residual_usado")),
-        )
-    )
     for fila in filas:
         clasificacion = _clasificacion_sospechoso(
             workspace, fuente, fila.get("fila_catalogo")
@@ -422,6 +425,38 @@ def indicios_eventos(job_id: str):
             fila["sospechoso"] = "Sí" if clasificacion["sospechoso"] else "No"
             fila["sospechoso_residuo_km"] = clasificacion["residuo_km"]
             fila["sospechoso_perp_km"] = clasificacion["perp_km"]
+        prioridad = fila.get("prioridad")
+        if not prioridad:
+            publicado = fila.get("publicado")
+            fuerte = fila.get("fuerza") == "fuerte"
+            if publicado == "Sí":
+                prioridad = "Alta" if fuerte else "Media"
+            elif publicado == "No":
+                prioridad = "Baja" if fuerte else "Informativa"
+            else:
+                prioridad = "Sin evaluar"
+        fila["prioridad"] = prioridad
+        fila["prioridad_orden"] = {
+            "Alta": 5,
+            "Media": 4,
+            "Baja": 3,
+            "Informativa": 2,
+            "Sin evaluar": 1,
+        }.get(prioridad, 1)
+        fila["_sospechoso_orden"] = {
+            "Sí": 2,
+            "No": 1,
+        }.get(fila.get("sospechoso"), 0)
+        fila["_fecha_orden"] = _fecha_orden(fila.get("fecha_hora"))
+
+    filas.sort(
+        key=lambda fila: (
+            -fila["prioridad_orden"],
+            -fila["_sospechoso_orden"],
+            -_orden_numerico(fila.get("max_residual_usado")),
+            -fila["_fecha_orden"],
+        )
+    )
 
     volver = request.full_path.rstrip("?")
     archivo_catalogo = _archivo_tabla("catalogos", fuente, job) if fuente else None

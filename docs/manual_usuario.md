@@ -585,6 +585,24 @@ Los números se muestran con pocos decimales: residual 2, distancia y tiempo 1,
 azimut 1, magnitud y profundidad 1, conteos enteros. Un valor distinto de cero
 que redondea a cero se muestra como `<0,01` o `<0,1`.
 
+La columna **Prioridad** resume el caso:
+
+| Prioridad | Combinación |
+|---|---|
+| Alta | publicado + anomalía fuerte |
+| Media | publicado + anomalía débil |
+| Baja | no publicado + anomalía fuerte |
+| Informativa | no publicado + anomalía débil |
+| Sin evaluar | no se pudo determinar si está publicado |
+
+La columna **Solución** no cambia la prioridad. Se usa para ordenar: dentro del
+mismo nivel, primero los eventos con solución sospechosa, después los normales
+y al final los no evaluables.
+
+El listado principal y la tabla de evidencia se ordenan haciendo clic en
+cualquier encabezado. El segundo clic invierte el orden. No se recarga la
+página. El orden inicial es prioridad, solución, mayor residual y fecha.
+
 El **contexto** es `fuerte` o `débil` según cuántas estaciones había
 disponibles y se usaron, el azimutal gap y el perfil. Un residual alto en una
 zona con pocas estaciones puede deberse al modelo o a la cobertura, no solo a la

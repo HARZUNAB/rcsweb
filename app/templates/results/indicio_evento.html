@@ -114,32 +114,32 @@
     </div>
     {% if indicios_evento.evidencia %}
     <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
+      <table class="table table-sm align-middle mb-0" data-sortable>
         <thead class="table-light">
           <tr>
-            <th>Estación</th>
-            <th>Fase</th>
-            <th>Pick</th>
-            <th class="text-end">t (s)</th>
-            <th class="text-end">Resid. (s)</th>
-            <th class="text-end">Peso</th>
-            <th class="text-end">Dist. (km)</th>
-            <th>Tipo</th>
-            <th>Detalle</th>
+            <th data-sort-key="estacion" data-sort-type="text">Estación</th>
+            <th data-sort-key="fase" data-sort-type="text">Fase</th>
+            <th data-sort-key="pick" data-sort-type="text">Pick</th>
+            <th data-sort-key="t" data-sort-type="number" class="text-end">t (s)</th>
+            <th data-sort-key="residual" data-sort-type="number" class="text-end">Resid. (s)</th>
+            <th data-sort-key="peso" data-sort-type="number" class="text-end">Peso</th>
+            <th data-sort-key="distancia" data-sort-type="number" class="text-end">Dist. (km)</th>
+            <th data-sort-key="tipo" data-sort-type="text">Tipo</th>
+            <th data-sort-key="detalle" data-sort-type="text">Detalle</th>
           </tr>
         </thead>
         <tbody>
           {% for item in indicios_evento.evidencia %}
           <tr>
-            <td>{{ item.red }} {{ item.estacion }}</td>
-            <td>{{ item.fase }}</td>
-            <td class="text-nowrap">{{ item.hora_pick }}</td>
-            <td class="text-end">{{ item.t_seg }}</td>
-            <td class="text-end">{{ item.residual }}</td>
-            <td class="text-end" title="Original: {{ item.peso_original }}">{{ item.peso }}</td>
-            <td class="text-end">{{ item.distancia_km }}</td>
-            <td><span class="badge text-bg-light text-dark">{{ item.tipo_indicio }}</span></td>
-            <td class="small">{{ item.detalle }}</td>
+            <td data-sort-value="{{ item.red }} {{ item.estacion }}">{{ item.red }} {{ item.estacion }}</td>
+            <td data-sort-value="{{ item.fase }}">{{ item.fase }}</td>
+            <td class="text-nowrap" data-sort-value="{{ item.hora_pick }}">{{ item.hora_pick }}</td>
+            <td class="text-end" data-sort-value="{{ item.t_seg }}">{{ item.t_seg }}</td>
+            <td class="text-end" data-sort-value="{{ item.residual }}">{{ item.residual }}</td>
+            <td class="text-end" data-sort-value="{{ item.peso }}" title="Original: {{ item.peso_original }}">{{ item.peso }}</td>
+            <td class="text-end" data-sort-value="{{ item.distancia_km }}">{{ item.distancia_km }}</td>
+            <td data-sort-value="{{ item.tipo_indicio }}"><span class="badge text-bg-light text-dark">{{ item.tipo_indicio }}</span></td>
+            <td class="small" data-sort-value="{{ item.detalle }}">{{ item.detalle }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -228,6 +228,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/tabla_orden.js') }}"></script>
 {% if revision_estaciones and revision_estaciones.tiene_tiempos %}
 <script src="{{ url_for('static', filename='vendor/plotly/plotly.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/estaciones.js') }}"></script>

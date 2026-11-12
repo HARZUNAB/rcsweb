@@ -56,6 +56,8 @@ CAMPOS_EVENTO = (
     "revision_prioritaria",
     "anomalia",
     "fuerza",
+    "prioridad",
+    "prioridad_orden",
     "patron",
     "contexto",
     "extremo",
@@ -529,6 +531,19 @@ def evaluar_evento(
     anomalia_fuerte = bool(outliers or inversiones or antes)
     anomalia = bool(anomalia_fuerte or inversiones_debiles)
     fuerza = "fuerte" if anomalia_fuerte else ("débil" if anomalia else "")
+    if publicado is True:
+        prioridad = "Alta" if anomalia_fuerte else "Media"
+    elif publicado is False:
+        prioridad = "Baja" if anomalia_fuerte else "Informativa"
+    else:
+        prioridad = "Sin evaluar"
+    prioridad_orden = {
+        "Alta": 5,
+        "Media": 4,
+        "Baja": 3,
+        "Informativa": 2,
+        "Sin evaluar": 1,
+    }[prioridad]
     if anomalia_fuerte:
         patron = _patron(fuertes, outliers, inversiones, antes, extremo)
     elif inversiones_debiles:
@@ -708,6 +723,8 @@ def evaluar_evento(
         "revision_prioritaria": bool(publicado is True and anomalia_fuerte),
         "anomalia": anomalia,
         "fuerza": fuerza,
+        "prioridad": prioridad,
+        "prioridad_orden": prioridad_orden,
         "patron": patron,
         "contexto": contexto["contexto"],
         "extremo": extremo,

@@ -98,6 +98,8 @@ def test_detecta_caso_puntual_extremo_y_lo_marca_prioritario():
     assert resultado["n_outliers"] == 5
     assert resultado["n_inversiones"] > 0
     assert resultado["revision_prioritaria"] is True
+    assert resultado["prioridad"] == "Alta"
+    assert resultado["prioridad_orden"] == 5
     assert resultado["max_residual_usado"] == "244.20"
     assert resultado["evidencia"]
 
@@ -113,6 +115,8 @@ def test_no_alarma_si_el_evento_no_esta_publicado():
     assert resultado["anomalia"] is True
     assert resultado["revision_prioritaria"] is False
     assert resultado["publicado"] is False
+    assert resultado["prioridad"] == "Baja"
+    assert resultado["prioridad_orden"] == 3
 
 
 def test_patron_sistematico_con_contexto_fuerte():
@@ -221,6 +225,8 @@ def test_detecta_inversion_debil_con_peso_casi_nulo():
     assert resultado["n_inversiones_debiles"] == 1
     assert resultado["n_inversiones"] == 0
     assert resultado["revision_prioritaria"] is False
+    assert resultado["prioridad"] == "Media"
+    assert resultado["prioridad_orden"] == 4
     assert resultado["resumen"] == "inversion_debil | residual +7.27 s | peso 4"
     debil = next(
         item
@@ -286,6 +292,8 @@ def test_genera_reportes_y_resumen(tmp_path):
     assert filas[0]["publicado"] == "Sí"
     assert filas[0]["revision_prioritaria"] == "Sí"
     assert filas[0]["fuerza"] == "fuerte"
+    assert filas[0]["prioridad"] == "Alta"
+    assert filas[0]["prioridad_orden"] == "5"
     assert filas[0]["patron"] == "puntual"
     assert filas[0]["contexto"] == "débil"
     assert filas[0]["max_residual_usado"] == "244.20"
