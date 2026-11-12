@@ -152,13 +152,15 @@ def test_preparar_arribos_escribe_canonico_y_revisa(tmp_path, monkeypatch):
     assert pb01[0]["est_lista"] == "STATION0.HYP"
     assert pb01[0]["est_vigencia"] == "current"
     assert pb01[0]["usada"] == "True"
-    assert pb01[0]["peso"] == "0"
+    assert pb01[0]["peso"] == "1.0"
+    assert pb01[0]["peso_w"] == "0"
     assert pb01[0]["polaridad"] == "C"
     pb09 = [fila for fila in filas if fila["estacion"] == "PB09"][0]
     assert pb09["est_lat"] == ""
     bloq = [fila for fila in filas if fila["estacion"] == "BLOQ"][0]
     assert bloq["usada"] == "False"
-    assert bloq["peso"] == "4"
+    assert bloq["peso"] == "0.0"
+    assert bloq["peso_w"] == "4"
     assert adaptador.extensiones(job, "", workspace) == {
         "arribos": adaptador._ruta_fases(job)
     }

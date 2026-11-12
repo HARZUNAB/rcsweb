@@ -78,6 +78,7 @@ from ..services.station_review import (
     filas_visibles,
     fuente_de_fila,
     resolver_evento,
+    revisar_evento,
     revisar_fila,
     seleccionar_disponibilidad,
 )
@@ -238,6 +239,15 @@ def _archivo_tabla(tabla: str, opcion: str, job: Job) -> str | None:
         info = (indice.get("catalogos") or {}).get(opcion)
         return info.get("archivo") if info else None
     return TABLAS[tabla]["archivo"].format(clave=opcion)
+
+
+def _orden_numerico(valor) -> float:
+    """Convierte un valor formateado (``<0.01``, ``+7.27``) en número."""
+    texto = str(valor or "").strip().lstrip("<>=+ ")
+    try:
+        return float(texto)
+    except ValueError:
+        return 0.0
 
 
 def _clasificacion_sospechoso(workspace, fuente: str, fila_catalogo) -> dict | None:
@@ -401,7 +411,7 @@ def indicios_eventos(job_id: str):
         key=lambda fila: (
             0 if fila.get("revision_prioritaria") == "Sí" else 1,
             0 if fila.get("publicado") == "Sí" else 1,
-            -float(fila.get("max_residual_usado") or 0.0),
+            -_orden_numerico(fila.get("max_residual_usado")),
         )
     )
     for fila in filas:
@@ -414,6 +424,10 @@ def indicios_eventos(job_id: str):
             fila["sospechoso_perp_km"] = clasificacion["perp_km"]
 
     volver = request.full_path.rstrip("?")
+    archivo_catalogo = _archivo_tabla("catalogos", fuente, job) if fuente else None
+    catalogo_disponible = bool(
+        archivo_catalogo and (workspace / archivo_catalogo).is_file()
+    )
     for fila in filas:
         fila["url_detalle"] = url_for(
             "results.indicio_evento",
@@ -421,6 +435,24 @@ def indicios_eventos(job_id: str):
             source_id=fuente,
             event_id=fila.get("evento", ""),
             volver=volver,
+        )
+        try:
+            indice_fila = int(fila.get("fila_catalogo") or "")
+        except (TypeError, ValueError):
+            indice_fila = None
+        fila["url_mapa_perfil"] = (
+            url_for(
+                "results.detalle",
+                job_id=job.id,
+                tabla="catalogos",
+                opcion=fuente,
+                fila=indice_fila,
+                volver=volver,
+                volver_etiqueta="Volver a indicios",
+            )
+            + "#planta-perfil"
+            if catalogo_disponible and indice_fila is not None
+            else ""
         )
 
     solicitudes = {
@@ -492,6 +524,7 @@ def indicio_evento(job_id: str, source_id: str, event_id: str):
         sospechoso=sospechoso,
         explicacion_sospechoso=explicacion,
     )
+    revision_estaciones = revisar_evento(workspace, source_id, evento)
     revision_solicitud = EventReviewRequest.query.filter_by(
         job_id=job.id,
         source_id=source_id,
@@ -508,10 +541,10 @@ def indicio_evento(job_id: str, source_id: str, event_id: str):
 
     archivo_catalogo = _archivo_tabla("catalogos", source_id, job)
     url_catalogo = ""
+    url_mapa_perfil = ""
     if (
         archivo_catalogo
         and (workspace / archivo_catalogo).is_file()
-        and not usuario_restringido(current_user)
         and evento.get("raw_index") is not None
     ):
         url_catalogo = url_for(
@@ -521,7 +554,9 @@ def indicio_evento(job_id: str, source_id: str, event_id: str):
             opcion=source_id,
             fila=evento.get("raw_index"),
             volver=volver,
+            volver_etiqueta="Volver a indicios",
         )
+        url_mapa_perfil = f"{url_catalogo}#planta-perfil"
 
     return render_template(
         "results/indicio_evento.html",
@@ -529,9 +564,11 @@ def indicio_evento(job_id: str, source_id: str, event_id: str):
         fuente=source_id,
         etiqueta_fuente=fuentes_manifest.etiqueta(source_id),
         indicios_evento=indicios_evento,
+        revision_estaciones=revision_estaciones,
         revision_solicitud=revision_solicitud,
         puede_solicitar=tiene_permiso(current_user, "revisiones.solicitar"),
         url_catalogo=url_catalogo,
+        url_mapa_perfil=url_mapa_perfil,
         volver=volver,
     )
 
@@ -1379,9 +1416,10 @@ def miniatura(job_id: str, tabla: str, opcion: str, fila: int):
     _columnas, filas = leido
     if fila < 0 or fila >= len(filas):
         abort(404)
-    if usuario_restringido(current_user):
-        if tabla == "catalogos" or not evento_visible(filas[fila], current_user):
-            abort(403)
+    if usuario_restringido(current_user) and not evento_visible(
+        filas[fila], current_user
+    ):
+        abort(403)
     png = generar_miniatura(ruta_workspace(job.id), tabla, archivo, filas, fila)
     return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
 
@@ -1404,9 +1442,10 @@ def mapa(job_id: str, tabla: str, opcion: str, fila: int):
     _columnas, filas = leido
     if fila < 0 or fila >= len(filas):
         abort(404)
-    if usuario_restringido(current_user):
-        if tabla == "catalogos" or not evento_visible(filas[fila], current_user):
-            abort(403)
+    if usuario_restringido(current_user) and not evento_visible(
+        filas[fila], current_user
+    ):
+        abort(403)
     titulo_opcion = next(
         (titulo for clave, titulo in _opciones(tabla, job) if clave == opcion),
         opcion,
@@ -1455,11 +1494,10 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         abort(404)
 
     contexto = construir_detalle(tabla, archivo, filas, fila)
-    if usuario_restringido(current_user):
-        if tabla == "catalogos" or not evento_visible(
-            contexto["fila"], current_user
-        ):
-            abort(403)
+    if usuario_restringido(current_user) and not evento_visible(
+        contexto["fila"], current_user
+    ):
+        abort(403)
     revision_estaciones = revisar_fila(
         ruta_workspace(job.id),
         tabla,
@@ -1497,6 +1535,9 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
     volver = request.args.get("volver", "")
     if not volver.startswith("/") or volver.startswith("//"):
         volver = url_for(ENDPOINTS[tabla], job_id=job.id, **{parametro: opcion})
+    volver_etiqueta = (
+        request.args.get("volver_etiqueta", "").strip() or "Volver a la tabla"
+    )
     analista_publicado = ""
     if tabla == "no_actualizados":
         analista_publicado = texto_analista_probable(
@@ -1637,6 +1678,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         indice_fila=fila,
         columnas=columnas,
         volver=volver,
+        volver_etiqueta=volver_etiqueta,
         archivo=archivo,
         url_mapa=url_mapa,
         puntos_mapa=puntos,
@@ -1707,11 +1749,10 @@ def _contexto_fila(job: Job, tabla: str, opcion: str, fila: int) -> dict:
     if fila < 0 or fila >= len(filas):
         abort(404)
     contexto = construir_detalle(tabla, archivo, filas, fila)
-    if usuario_restringido(current_user):
-        if tabla == "catalogos" or not evento_visible(
-            contexto["fila"], current_user
-        ):
-            abort(403)
+    if usuario_restringido(current_user) and not evento_visible(
+        contexto["fila"], current_user
+    ):
+        abort(403)
     return contexto
 
 

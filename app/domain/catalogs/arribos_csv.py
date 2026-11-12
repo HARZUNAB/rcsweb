@@ -52,6 +52,7 @@ COLUMNAS_EXTRA = [
     "est_vigencia",
     "software",
     "origen_local",
+    "peso_w",
 ]
 
 CABECERA = COLUMNAS + COLUMNAS_EXTRA

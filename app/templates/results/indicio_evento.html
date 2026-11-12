@@ -31,11 +31,22 @@
         {{ indicios_evento.id_evento_fuente or indicios_evento.evento }}
       </span>
     </div>
+    <div class="mt-2">
+      <code>{{ indicios_evento.resumen }}</code>
+    </div>
   </div>
   <div class="d-flex flex-wrap gap-2">
     <a class="btn btn-outline-secondary" href="{{ volver }}">Volver a indicios</a>
+    {% if url_mapa_perfil %}
+    <a class="btn btn-outline-primary" href="{{ url_mapa_perfil }}">Ver planta y perfil</a>
+    {% endif %}
+    {% if revision_estaciones and revision_estaciones.tiene_tiempos %}
+    <button class="btn btn-outline-secondary" type="button" id="btn-tiempos-llegada">
+      Ver tiempos de llegada
+    </button>
+    {% endif %}
     {% if url_catalogo %}
-    <a class="btn btn-outline-primary" href="{{ url_catalogo }}">Ver catálogo</a>
+    <a class="btn btn-outline-secondary" href="{{ url_catalogo }}">Ver catálogo</a>
     {% endif %}
   </div>
 </div>
@@ -125,7 +136,7 @@
             <td class="text-nowrap">{{ item.hora_pick }}</td>
             <td class="text-end">{{ item.t_seg }}</td>
             <td class="text-end">{{ item.residual }}</td>
-            <td class="text-end">{{ item.peso }}</td>
+            <td class="text-end" title="Original: {{ item.peso_original }}">{{ item.peso }}</td>
             <td class="text-end">{{ item.distancia_km }}</td>
             <td><span class="badge text-bg-light text-dark">{{ item.tipo_indicio }}</span></td>
             <td class="small">{{ item.detalle }}</td>
@@ -140,6 +151,8 @@
     </div>
     {% endif %}
     <p class="small text-secondary mt-3 mb-0">
+      Peso (0-4): 0 = mejor; 4 = no usada. Pase el cursor sobre el peso para
+      ver el valor original.
       Un residual alto no determina por sí solo la causa: puede ser asociación
       de fase, modelo de velocidades, profundidad, tiempo de origen o cobertura.
       El patrón y el contexto ayudan a interpretarlo; la decisión es del analista.
@@ -204,5 +217,19 @@
     </form>
   </div>
 </div>
+{% endif %}
+
+{% if revision_estaciones and revision_estaciones.tiene_tiempos %}
+{% include "results/_estaciones_mapa_tiempos.html" %}
+{% if revision_estaciones.tiene_sin_arribos %}
+<script type="application/json" id="tiempos-llegada-datos">{{ revision_estaciones.tiempos_llegada|tojson }}</script>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if revision_estaciones and revision_estaciones.tiene_tiempos %}
+<script src="{{ url_for('static', filename='vendor/plotly/plotly.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/estaciones.js') }}"></script>
 {% endif %}
 {% endblock %}

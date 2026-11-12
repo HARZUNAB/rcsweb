@@ -272,9 +272,11 @@ tabla se puede descargar como CSV y la descarga respeta el filtro activo.
 La tabla usa encabezados cortos. El bloque **«Qué significa cada columna»**, que
 aparece arriba de las tablas, explica los términos técnicos: **QC**, **SNR**,
 **Resid.**, **Azimut**, **Dist.**, **Peso**, **Actividad ±2 h**, **Cobertura**,
-**Evidencia** y **Disp. no usada**. Los valores de tipo de pick y control de
-calidad se muestran traducidos: **Manual**, **Automático**, **Aprobado**,
-**Rechazado** y **Sin evaluar**.
+**Evidencia** y **Disp. no usada**. El **Peso** se muestra en escala 0–4:
+0 = mejor, 4 = no usada; el valor original de la fuente aparece al pasar el
+cursor. Los valores de tipo de pick y control de calidad se muestran
+traducidos: **Manual**, **Automático**, **Aprobado**, **Rechazado** y
+**Sin evaluar**.
 
 La columna **Streams** muestra el stream de referencia de la estación. Si hay
 más de uno, el enlace **Ver todos** abre la lista completa en una ventana. El
@@ -575,6 +577,14 @@ La **fuerza** del indicio es `fuerte` o `débil`. Solo los fuertes pueden ser
 muestra igual, con la etiqueta **indicio débil**, para que el usuario decida si
 pide revisión.
 
+El **peso** se muestra en la escala 0–4 que usan los analistas: 0 = mejor,
+4 = no usada. El valor original de la fuente aparece al pasar el cursor sobre
+el peso. El listado de indicios no muestra peso; solo el detalle.
+
+Los números se muestran con pocos decimales: residual 2, distancia y tiempo 1,
+azimut 1, magnitud y profundidad 1, conteos enteros. Un valor distinto de cero
+que redondea a cero se muestra como `<0,01` o `<0,1`.
+
 El **contexto** es `fuerte` o `débil` según cuántas estaciones había
 disponibles y se usaron, el azimutal gap y el perfil. Un residual alto en una
 zona con pocas estaciones puede deberse al modelo o a la cobertura, no solo a la
@@ -589,6 +599,13 @@ El listado incluye una columna **Solución** con la clasificación de localizaci
 que ya calculan los paneles y el detalle del catálogo. Es una dimensión distinta
 de las fases: `Sospechosa`, `Normal` o `No evaluable`. No se recalcula para todo
 el catálogo; se calcula solo para los eventos que tienen indicio.
+
+El detalle del indicio incluye **Ver planta y perfil** y **Ver tiempos de
+llegada**. El primero abre la sección de mapa y perfil del detalle del catálogo;
+el segundo abre el gráfico tiempo-distancia con los controles Vp/Vs. Ambos
+reutilizan las vistas que ya existen y permiten volver a indicios. Los analistas
+pueden abrir el detalle del catálogo de sus propios eventos para usar estas
+vistas.
 
 Los analistas ven los indicios de sus propios trabajos. Administradores y
 supervisores ven todos y pueden **pedir revisión**; la solicitud queda

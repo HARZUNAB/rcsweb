@@ -24,6 +24,7 @@ from pathlib import Path
 
 from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
+from . import formatting
 
 UMBRAL_RESIDUAL = 5.0
 UMBRAL_PESO = 0.5
@@ -69,6 +70,7 @@ CAMPOS_EVENTO = (
     "n_inversiones_debiles",
     "n_picks_antes_origen",
     "tipos_indicio",
+    "resumen",
     "residual_temporal",
     "residual_fuentes",
     "sospechoso",
@@ -85,6 +87,7 @@ CAMPOS_DETALLE = (
     "t_seg",
     "residual",
     "peso",
+    "peso_original",
     "distancia_km",
     "tipo_indicio",
     "detalle",
@@ -460,10 +463,11 @@ def _fila_detalle(
         "red": red,
         "fase": _texto(arribo.get("phase")),
         "hora_pick": _texto(arribo.get("pick_time")),
-        "t_seg": "" if t_seg is None else round(t_seg, 3),
-        "residual": arribo.get("residual", ""),
-        "peso": arribo.get("weight", ""),
-        "distancia_km": round(distancia, 2) if distancia is not None else "",
+        "t_seg": formatting.numero(t_seg, 1),
+        "residual": formatting.numero(arribo.get("residual"), 2, signo=True),
+        "peso": formatting.peso_04_texto(arribo.get("weight")),
+        "peso_original": formatting.peso_original(arribo.get("raw")),
+        "distancia_km": formatting.numero(distancia, 1),
         "tipo_indicio": tipo,
         "detalle": detalle,
     }
@@ -569,8 +573,8 @@ def evaluar_evento(
     evidencia: list[dict] = []
     for arribo in outliers:
         detalle = (
-            f"residual {_numero(arribo.get('residual')):+.2f} s"
-            f"; peso {_numero(arribo.get('weight')) or 0.0:.2f}"
+            f"residual {formatting.numero(arribo.get('residual'), 2, signo=True)} s"
+            f"; peso {formatting.peso_04_texto(arribo.get('weight'))}"
         )
         evidencia.append(
             _fila_detalle(source_id, evento, arribo, "residual_alto", detalle, origen)
@@ -586,7 +590,7 @@ def evaluar_evento(
                 "inversion_residual",
                 (
                     f"residual mayor que {red_lejana} {estacion_lejana}"
-                    f" en {diferencia:.2f} s"
+                    f" en {formatting.numero(diferencia, 2)} s"
                 ),
                 origen,
             )
@@ -599,7 +603,7 @@ def evaluar_evento(
                 "inversion_residual",
                 (
                     f"residual menor que {red_cercana} {estacion_cercana}"
-                    f" en {diferencia:.2f} s"
+                    f" en {formatting.numero(diferencia, 2)} s"
                 ),
                 origen,
             )
@@ -608,11 +612,11 @@ def evaluar_evento(
         :MAX_PARES_DETALLE
     ]:
         red_lejana, estacion_lejana = _clave_estacion(lejana)
-        peso = _numero(cercana.get("weight")) or 0.0
         detalle = (
-            f"llega {diferencia:.2f} s después que"
+            f"llega {formatting.numero(diferencia, 2)} s después que"
             f" {red_lejana} {estacion_lejana}"
-            f"; residual {residual:+.2f} s; peso {peso:.2e}"
+            f"; residual {formatting.numero(residual, 2, signo=True)} s"
+            f"; peso {formatting.peso_04_texto(cercana.get('weight'))}"
         )
         evidencia.append(
             _fila_detalle(
@@ -626,7 +630,9 @@ def evaluar_evento(
         )
     for arribo in antes:
         t_seg = _t_seg(arribo, origen)
-        detalle = f"pick {t_seg:.3f} s antes del origen"
+        detalle = (
+            f"pick {formatting.numero(t_seg, 1)} s antes del origen"
+        )
         evidencia.append(
             _fila_detalle(source_id, evento, arribo, "pick_antes_origen", detalle, origen)
         )
@@ -661,6 +667,31 @@ def evaluar_evento(
             }
         )
 
+    resumen = patron
+    if patron == "sistemático":
+        resumen = (
+            f"sistemático | {len(outliers)} estaciones |"
+            f" residual mediano {formatting.numero(mediana, 2, signo=True)} s"
+        )
+    elif evidencia:
+        principal = evidencia[0]
+        if principal["tipo_indicio"] == "pick_antes_origen":
+            resumen = (
+                f"{patron} | t {principal['t_seg']} s"
+                f" | peso {principal['peso']}"
+            )
+        elif principal["tipo_indicio"] == "patron_sistematico":
+            resumen = (
+                f"{patron} | {len(outliers)} estaciones"
+                f" | residual mediano"
+                f" {formatting.numero(mediana, 2, signo=True)} s"
+            )
+        else:
+            resumen = (
+                f"{patron} | residual {principal['residual']} s"
+                f" | peso {principal['peso']}"
+            )
+
     return {
         "fuente": source_id,
         "evento": _texto(evento.get("event_id")),
@@ -668,8 +699,8 @@ def evaluar_evento(
         "fecha_hora": _texto(evento.get("event_time")),
         "latitud": evento.get("latitude", ""),
         "longitud": evento.get("longitude", ""),
-        "profundidad_km": evento.get("depth_km", ""),
-        "magnitud": evento.get("magnitude", ""),
+        "profundidad_km": formatting.numero(evento.get("depth_km"), 1),
+        "magnitud": formatting.numero(evento.get("magnitude"), 1),
         "analista": _texto(evento.get("analyst")),
         "region": _texto((evento.get("raw") or {}).get("region")),
         "fila_catalogo": evento.get("raw_index", ""),
@@ -683,20 +714,17 @@ def evaluar_evento(
         "n_disponibles": contexto["n_disponibles"],
         "inventario_disponible": contexto["inventario_disponible"],
         "n_usadas": contexto["n_usadas"],
-        "azimutal_gap": contexto["azimutal_gap"],
-        "max_residual_usado": (
-            round(max_residual, 2) if max_residual is not None else None
-        ),
-        "residual_mediana": (
-            round(_mediana(residuales_usadas), 2)
-            if residuales_usadas
-            else None
+        "azimutal_gap": formatting.numero(contexto["azimutal_gap"], 1),
+        "max_residual_usado": formatting.numero(max_residual, 2),
+        "residual_mediana": formatting.numero(
+            _mediana(residuales_usadas), 2, signo=True
         ),
         "n_outliers": len(outliers),
         "n_inversiones": len(inversiones),
         "n_inversiones_debiles": len(inversiones_debiles),
         "n_picks_antes_origen": len(antes),
         "tipos_indicio": ", ".join(tipos),
+        "resumen": resumen,
         "residual_temporal": residual_temporal,
         "residual_fuentes": ", ".join(fuentes_residual),
         "sospechoso": sospechoso,

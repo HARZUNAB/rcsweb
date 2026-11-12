@@ -47,7 +47,7 @@
   <div class="d-flex flex-wrap gap-2">
     <a class="btn btn-outline-secondary"
        href="{{ url_for('jobs.detalle', job_id=job.id) }}">Volver al trabajo</a>
-    <a class="btn btn-outline-primary" href="{{ volver }}">Volver a la tabla</a>
+    <a class="btn btn-outline-primary" href="{{ volver }}">{{ volver_etiqueta|default('Volver a la tabla') }}</a>
   </div>
 </div>
 
@@ -254,6 +254,9 @@
         <div>Contexto: <strong>{{ indicios_evento.contexto }}</strong></div>
       </div>
     </div>
+    <div class="mb-2">
+      <code>{{ indicios_evento.resumen }}</code>
+    </div>
 
     {% if indicios_evento.residual_temporal %}
     <div class="alert alert-warning small" role="status">
@@ -349,7 +352,7 @@
             <td class="text-nowrap">{{ item.hora_pick }}</td>
             <td class="text-end">{{ item.t_seg }}</td>
             <td class="text-end">{{ item.residual }}</td>
-            <td class="text-end">{{ item.peso }}</td>
+            <td class="text-end" title="Original: {{ item.peso_original }}">{{ item.peso }}</td>
             <td class="text-end">{{ item.distancia_km }}</td>
             <td><span class="badge text-bg-light text-dark">{{ item.tipo_indicio }}</span></td>
             <td class="small">{{ item.detalle }}</td>
@@ -357,6 +360,10 @@
           {% endfor %}
         </tbody>
       </table>
+    </div>
+    <div class="small text-secondary mb-3">
+      Peso (0-4): 0 = mejor; 4 = no usada. Pase el cursor sobre el peso para
+      ver el valor original.
     </div>
     {% endif %}
 
@@ -542,6 +549,8 @@
         </div>
         <div class="small text-secondary mb-2">
           Ordenados por llegada; P y S juntas por estación.
+          Peso (0-4): 0 = mejor; 4 = no usada.
+          Pase el cursor sobre el peso para ver el valor original.
         </div>
         {% if revision_estaciones.grupos %}
         <div class="table-responsive">
@@ -569,7 +578,7 @@
               {% for item in grupo.filas %}
               <tr class="{{ item.get('_clase', '') }}">
                 {% for clave, titulo in revision_estaciones.columnas_arribos %}
-                <td>{{ item.get(clave, '') or '—' }}</td>
+                <td{% if clave == 'peso_04' %} title="Original: {{ item.get('peso_original', '') }}"{% endif %}>{{ item.get(clave, '') or '—' }}</td>
                 {% endfor %}
               </tr>
               {% endfor %}
@@ -600,7 +609,7 @@
 {% set controles_estaciones = revision_estaciones %}
 {% include "_mapa_detalle.html" %}
 {% else %}
-<div class="card border-0 shadow-sm">
+<div class="card border-0 shadow-sm" id="planta-perfil">
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
       <div>

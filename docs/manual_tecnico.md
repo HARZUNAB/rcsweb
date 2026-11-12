@@ -910,9 +910,10 @@ cuando la fuente declara la capacidad `arribos`. La sección se arma con
 `app/services/station_review.py` y tiene dos solapas:
 
 - **Con arribos:** llegadas de la solución agrupadas por estación, con fase,
-  hora, canal, residual, azimut, distancia, uso, procedencia del pick, peso, SNR,
-  magnitud de estación, QC e inventario. El filtro **Solo no utilizadas** deja
-  únicamente los arribos que la solución no usó.
+  hora, canal, residual, azimut, distancia, uso, procedencia del pick, peso,
+  SNR, magnitud de estación, QC e inventario. El peso se muestra en escala 0–4
+  (0 = mejor, 4 = no usada) y el valor original queda en el tooltip. El filtro
+  **Solo no utilizadas** deja únicamente los arribos que la solución no usó.
 - **Sin arribos:** estaciones del inventario que quedaron dentro del radio de
   exportación y no tienen arribos en el origen preferido. La sección recuerda
   que «sin arribos» no significa «no grabó»: indica solo que la estación estaba
@@ -978,6 +979,42 @@ El **patrón** resume la evidencia: `puntual`, `sistemático`, `inversión`,
 disponibilidad de perfil. Si el trabajo no trae la lista de estaciones sin
 arribo, el contexto fuerte exige al menos 8 estaciones usadas, porque solo se
 conoce una cota inferior de la cobertura.
+
+##### Peso, formato y presentación
+
+El peso canónico se normaliza a 0–1 en los adaptadores. Seisan usa `W` de 0 a 4
+(0 = mejor, 4 = no usada); el adaptador guarda `1 - W/4` en `weight` y conserva
+el valor original en `raw.peso_w`. Central y SeisComp ya entregan 0–1. El
+análisis usa siempre 0–1.
+
+La pantalla del detalle muestra `Peso (0-4)` con `4 × (1 - weight)` y el valor
+original en el tooltip. El listado de indicios no muestra peso.
+
+Formato numérico de tablas, detalles y reportes:
+
+| Dato | Decimales |
+|---|---:|
+| Residual | 2 |
+| Peso 0–4 | 0 |
+| Distancia | 1 |
+| Tiempo | 1 |
+| Azimut / azimutal gap | 1 |
+| Magnitud / profundidad | 1 |
+| Conteos | 0 |
+
+Si un valor distinto de cero redondea a cero, se muestra `<0,01` o `<0,1` según
+corresponda. El JSONL canónico conserva la precisión completa.
+
+El detalle del indicio muestra una línea técnica explícita, por ejemplo
+`inversion_debil | residual +7.27 s | peso 4`, y debajo la tabla de evidencia.
+No hay una “explicación simple” separada: el dato técnico es el principal.
+
+Los botones **Ver planta y perfil** y **Ver tiempos de llegada** reutilizan el
+detalle del catálogo, `_mapa_detalle.html`, `_estaciones_mapa_tiempos.html` y
+`estaciones.js`. El primero abre `#planta-perfil` con
+`volver_etiqueta=Volver a indicios`; el segundo abre el gráfico tiempo-distancia
+existente. Los analistas pueden abrir el detalle del catálogo de sus propios
+eventos; el resto sigue restringido.
 
 La clasificación **sospechoso** de la solución no se recalcula aquí: se reutiliza
 la que producen `plots.clasificar_eventos` y `sismicidad.es_sospechoso`. El

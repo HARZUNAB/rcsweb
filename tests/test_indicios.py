@@ -98,7 +98,7 @@ def test_detecta_caso_puntual_extremo_y_lo_marca_prioritario():
     assert resultado["n_outliers"] == 5
     assert resultado["n_inversiones"] > 0
     assert resultado["revision_prioritaria"] is True
-    assert resultado["max_residual_usado"] == 244.2
+    assert resultado["max_residual_usado"] == "244.20"
     assert resultado["evidencia"]
 
 
@@ -207,6 +207,7 @@ def test_detecta_inversion_debil_con_peso_casi_nulo():
             "2020-01-01 00:00:20",
             7.27,
             weight=3.6e-22,
+            raw={"peso": 3.6e-22},
         ),
         _arribo("PB12", 1.5, 0.0, "2020-01-01 00:00:16", 0.32, weight=1.37),
     ]
@@ -220,10 +221,16 @@ def test_detecta_inversion_debil_con_peso_casi_nulo():
     assert resultado["n_inversiones_debiles"] == 1
     assert resultado["n_inversiones"] == 0
     assert resultado["revision_prioritaria"] is False
-    assert any(
-        item["tipo_indicio"] == "inversion_debil"
+    assert resultado["resumen"] == "inversion_debil | residual +7.27 s | peso 4"
+    debil = next(
+        item
         for item in resultado["evidencia"]
+        if item["tipo_indicio"] == "inversion_debil"
     )
+    assert debil["peso"] == "4"
+    assert debil["peso_original"] == "3.6e-22"
+    assert debil["t_seg"] == "20.0"
+    assert debil["residual"] == "+7.27"
 
 
 def test_marca_residual_temporal_desde_la_procedencia():
@@ -281,6 +288,8 @@ def test_genera_reportes_y_resumen(tmp_path):
     assert filas[0]["fuerza"] == "fuerte"
     assert filas[0]["patron"] == "puntual"
     assert filas[0]["contexto"] == "débil"
+    assert filas[0]["max_residual_usado"] == "244.20"
+    assert filas[0]["resumen"].startswith("puntual | residual +244.20 s")
 
     detalle = indicios.leer_detalle(workspace, "seiscomp", "seiscomp:000001")
     assert detalle

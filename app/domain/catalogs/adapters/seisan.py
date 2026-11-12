@@ -406,7 +406,11 @@ class Adaptador(Base):
                             "azimut": fase["azimut"] if fase["azimut"] is not None else "",
                             "distancia": fase["distancia"] if fase["distancia"] is not None else "",
                             "usada": "True" if fase["peso"] < 4 else "False",
-                            "peso": fase["peso"],
+                            # El canónico usa 0–1 con más alto = mejor. El W de
+                            # Seisan va de 0 (mejor) a 4 (no usada); se conserva
+                            # el valor original en ``peso_w`` para trazabilidad.
+                            "peso": max(0.0, 1.0 - fase["peso"] / 4),
+                            "peso_w": fase["peso"],
                             "polaridad": fase["polaridad"],
                             "modo_pick": "manual",
                             "pick_autor": bloque["operador"],

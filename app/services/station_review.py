@@ -14,7 +14,7 @@ from pathlib import Path
 
 from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
-from . import amplification, availability
+from . import amplification, availability, formatting
 
 MOTIVO_SIN_REVISION = "Este trabajo no incluye la revisión de estaciones."
 MOTIVO_EVENTO = "El evento no está en la revisión de estaciones de este trabajo."
@@ -36,7 +36,7 @@ COLUMNAS_ARRIBO = [
     ("pick_autor", "Autor"),
     ("pick_metodo", "Método"),
     ("pick_agencia", "Agencia"),
-    ("peso", "Peso"),
+    ("peso_04", "Peso (0-4)"),
     ("snr", "SNR"),
     ("magnitud", "Mag. est."),
     ("tipo_magnitud", "Tipo mag."),
@@ -288,15 +288,17 @@ def _fila_arribo(arribo: dict) -> dict:
         "segundos": "",
         "loc": _texto(arribo.get("location")),
         "cha": _texto(arribo.get("channel")),
-        "residual": _numero_texto(arribo.get("residual"), 2),
+        "residual": formatting.numero(arribo.get("residual"), 2, signo=True),
         "azimut": _numero_texto(arribo.get("azimuth"), 1),
-        "distancia": _numero_texto(arribo.get("distance_km"), 2),
+        "distancia": _numero_texto(arribo.get("distance_km"), 1),
         "usada": _si_no(arribo.get("is_used_in_solution")),
         "modo": MODO_PICK.get(modo.lower(), modo),
         "pick_autor": _texto(arribo.get("pick_author")),
         "pick_metodo": _texto(arribo.get("pick_method")),
         "pick_agencia": _texto(arribo.get("pick_agency")),
         "peso": _numero_texto(arribo.get("weight"), 2),
+        "peso_04": formatting.peso_04_texto(arribo.get("weight")),
+        "peso_original": formatting.peso_original(arribo.get("raw")),
         "snr": _numero_texto(arribo.get("snr"), 1),
         "magnitud": _numero_texto(arribo.get("station_magnitude"), 1),
         "tipo_magnitud": _texto(arribo.get("station_magnitude_type")),
@@ -995,7 +997,7 @@ def revisar_evento(
         llegada = fila.get("_llegada")
         if instante_evento is not None and llegada is not None:
             fila["segundos"] = _numero_texto(
-                (llegada - instante_evento).total_seconds(), 2
+                (llegada - instante_evento).total_seconds(), 1
             )
     arribos.sort(
         key=lambda fila: (

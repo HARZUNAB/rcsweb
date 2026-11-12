@@ -274,7 +274,9 @@ def test_analista_sin_codigo_no_accede_a_catalogos(app, client):
     assert respuesta.status_code == 403
 
 
-def test_catalogo_analista_no_accede_al_detalle_ni_exportacion_completa(app, client):
+def test_catalogo_analista_accede_a_su_detalle_pero_no_al_ajeno(
+    app, client
+):
     ana = _usuario("ana", "ana")
     _usuario("beto", "beto")
     job = _preparar(app, ana)
@@ -282,6 +284,9 @@ def test_catalogo_analista_no_accede_al_detalle_ni_exportacion_completa(app, cli
 
     assert client.get(
         f"/jobs/{job.id}/resultados/catalogos/seisan/0"
+    ).status_code == 200
+    assert client.get(
+        f"/jobs/{job.id}/resultados/catalogos/seisan/1"
     ).status_code == 403
     assert client.get(
         f"/jobs/{job.id}/resultados/catalogos/exportar",
