@@ -134,7 +134,7 @@ Los diagramas se regeneran con:
 | Seguridad | `users`, `audit_log` | Cuentas, roles y registro de acciones |
 | Solicitudes | `catalog_requests`, `catalog_request_files` | Pedidos de catálogos y archivos asociados |
 | Trabajos | `jobs`, `job_files`, `job_sources`, `job_steps`, `job_artifacts` | Ejecución, insumos, fuentes, pasos y descargas |
-| Revisión | `event_review_requests` | Solicitudes de revisión posterior de eventos con indicios de fases |
+| Revisión | `event_review_requests` | Solicitudes de revisión posterior de eventos |
 | Catálogo canónico reservado | `catalog_events`, `stations`, `arrivals`, `waveform_availability` | Esquema futuro; en esta versión los eventos, arribos y estaciones se guardan en archivos JSONL del workspace |
 | Migraciones | `alembic_version` | Revisión aplicada por Alembic |
 
@@ -960,13 +960,13 @@ origen. El popup de la estación muestra esos datos; si el arribo no trae
 `est_lista` pero sí `database`, se muestra el inventario de SeisComp de esa
 base. Los puntos sin arribos muestran «inventario de estaciones de la fuente».
 
-#### Indicios de anomalías en las fases
+#### Revisión de eventos
 
-`app/services/indicios.py` calcula, después del procesamiento, indicios de que
-las fases asociadas a un evento no calzan. No reemplaza el criterio de
-localización `sospechoso`: son dimensiones independientes. Un evento puede tener
-una solución normal y fases mal asociadas, o una solución sospechosa sin
-indicios de fases.
+`app/services/indicios.py` calcula, después del procesamiento, las dos señales
+que alimentan la revisión: fases inconsistentes y solución sospechosa. Las
+fases se evalúan en este módulo; la solución se reutiliza de la clasificación de
+los paneles. Ambas se combinan en el listado de revisión, pero se calculan por
+separado.
 
 Los indicadores se calculan solo con fases influyentes: arribos usados en la
 solución cuyo peso canónico supera `0.125` (peso 0–3 en pantalla). Las fases con
@@ -989,24 +989,23 @@ débil  = residual alto con peso 3 o fase fuera de orden débil
 ```
 
 La fase fuera de orden débil sirve para fases con peso 3, que influyeron poco
-pero influyeron, y que la solución despriorizó. No cambia la prioridad:
-`revision_prioritaria` exige `publicado` y `fuerza = fuerte`. Un evento
-publicado con solo indicio débil aparece como indicio, y un usuario con más
-privilegios decide si pide revisión.
+pero influyeron. La fuerza no decide por sí sola la revisión: una anomalía
+fuerte con solución normal queda como calidad de catálogo.
 
-La **prioridad** combina publicación y fuerza:
+La **prioridad** combina publicación, solución y fuerza:
 
 | Prioridad | Combinación |
 |---|---|
-| Alta | publicado + anomalía fuerte |
-| Media | publicado + anomalía débil |
-| Baja | no publicado + anomalía fuerte |
-| Informativa | no publicado + anomalía débil |
+| Alta | publicado + solución sospechosa + fase fuerte |
+| Media | publicado + solución sospechosa (fase débil o sin fase) |
+| Baja | publicado + solución normal + fase fuerte; o no publicado + sospechoso + fase fuerte |
+| Informativa | resto de las combinaciones |
 | Sin evaluar | no se pudo determinar si está publicado |
 
-`sospechoso` no cambia el nivel de prioridad. Se usa solo como segundo criterio
-de orden dentro del mismo nivel. El orden por defecto del listado es prioridad,
-solución, mayor residual y fecha.
+`revision_prioritaria` es verdadero para **Alta** y **Media**, es decir, para
+todo evento publicado con solución sospechosa. `sospechoso` deja de ser un
+criterio de orden y pasa a decidir la prioridad. El orden por defecto del
+listado sigue siendo prioridad, solución, mayor residual y fecha.
 
 El listado principal y la tabla de evidencia se pueden ordenar en el navegador
 haciendo clic en cualquier encabezado, sin recargar la página. El segundo clic
@@ -1047,18 +1046,20 @@ Formato numérico de tablas, detalles y reportes:
 Si un valor distinto de cero redondea a cero, se muestra `<0,01` o `<0,1` según
 corresponda. El JSONL canónico conserva la precisión completa.
 
-La sección de indicios del detalle del catálogo muestra una cabecera compacta
-con patrón, contexto, publicación y solución. Debajo aparece `evidencia_principal`,
-la fila de evidencia con mayor residual absoluto, por ejemplo:
+La sección **Revisión del evento** del detalle del catálogo muestra patrón,
+contexto, publicación y solución, sin badges de estado. Debajo aparece
+`evidencia_principal`, la fila de evidencia con mayor residual absoluto, por
+ejemplo:
 
 ```text
 Evidencia principal: C1 AP01 P — residual +7.27 s · peso 1
 ```
 
-La tabla completa queda dentro de **Ver evidencia del indicio**, con las cifras
-secundarias (`Disponibles`, `Azimutal gap`, `Residuales altos`, `Fases
-inconsistentes`, `Picks antes del origen`). No hay una “explicación simple”
-separada: el dato técnico es el principal.
+Si no hay anomalía de fases, la sección muestra **Sin inconsistencia de fases** y
+la explicación de la solución (`explicacion_sospechoso`), por ejemplo el residuo
+al slab. La tabla completa queda dentro de **Ver evidencia del indicio**, con
+las cifras secundarias (`Disponibles`, `Azimutal gap`, `Residuales altos`,
+`Fases inconsistentes`, `Picks antes del origen`).
 
 El listado enlaza cada evento al detalle del catálogo en `#indicios-fases`. No
 existe una página separada de indicio ni un botón **Mapa** en el listado: el
@@ -1072,10 +1073,12 @@ movió a `results/_listado_llegadas.html`, se incluye después del mapa y
 pueden abrir el detalle del catálogo de sus propios eventos; el resto sigue
 restringido.
 
-La clasificación **sospechoso** de la solución no se recalcula aquí: se reutiliza
-la que producen `plots.clasificar_eventos` y `sismicidad.es_sospechoso`. El
-listado de indicios muestra una columna **Solución** calculada solo para los
-eventos que tienen indicio, no para todo el catálogo.
+La clasificación **sospechoso** se reutiliza de `plots.clasificar_eventos` y
+`sismicidad.es_sospechoso`. El listado de revisión la toma de la caché de
+paneles (`paneles/catalogo_<fuente>.json`) y agrega, con
+`_filas_sospechosas_sin_fase`, los eventos publicados sospechosos que no tienen
+indicio de fase. Los sospechosos no publicados sin fase no se listan; quedan en
+los paneles.
 
 La salida queda en:
 
@@ -1085,18 +1088,22 @@ resultados/indicios/indicios_<fuente>_detalle.csv
 resultados/indicios/resumen.json
 ```
 
+El CSV conserva las filas de fase. Como el generador no conoce la clasificación
+de solución, sus campos `revision_prioritaria` y `prioridad` son conservadores;
+el listado y el detalle recalculan la prioridad con la solución.
+
 El pipeline ejecuta el paso `generar_indicios` después de las comparaciones y
 antes de `detectar_repetidos`. El reporte no modifica el catálogo canónico ni la
 base de la fuente.
 
-El estado **publicado** se usa solo como contexto, tomado de
+El estado **publicado** se usa como contexto, tomado de
 `datos/atribucion_<fuente>.csv`; no es un resultado del análisis.
-`revision_prioritaria` es verdadero solo cuando el evento está publicado y tiene
-una anomalía fuerte. La vista **Indicios de fases** permite ver revisión
-prioritaria, publicados o todos los indicios; los indicios débiles se muestran
-en los alcances de publicados y todos. Los analistas ven solo sus propios eventos;
-administradores y supervisores ven todo y pueden **pedir revisión**. La
-solicitud se guarda en `event_review_requests` y en la auditoría.
+`revision_prioritaria` es verdadero cuando el evento está publicado y tiene
+solución sospechosa (prioridad Alta o Media). La vista **Revisión de eventos**
+permite ver revisión prioritaria, publicados o todos; los eventos con fase y
+solución normal se muestran en publicados y todos. Los analistas ven solo sus
+propios eventos; administradores y supervisores ven todo y pueden **pedir
+revisión**. La solicitud se guarda en `event_review_requests` y en la auditoría.
 
 Si una fuente no trae residual y otra fuente local lo aporta, el adaptador lo
 completa para el trabajo y deja la procedencia en `raw.residual_fuente` y
@@ -1857,7 +1864,7 @@ de root.
    queda en **Borrador** con el detalle.
 3. El trabajo se encola en Redis y lo ejecuta el worker.
 4. El worker corre los scripts del core con `cwd` en el workspace:
-   eventquery, SeisComp, Seisan, Central, comparaciones, indicios de fases y
+   eventquery, SeisComp, Seisan, Central, comparaciones, revisión de eventos y
    repetidos.
 5. Los resultados se normalizan en `workspace/<job_id>/resultados/`.
 6. La interfaz lee esos archivos para las tablas, miniaturas, mapas y paneles.

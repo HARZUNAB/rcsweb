@@ -14,6 +14,7 @@ from io import BytesIO, StringIO
 from flask import (
     Blueprint,
     abort,
+    current_app,
     flash,
     jsonify,
     redirect,
@@ -28,11 +29,20 @@ from tasks.amplification import ampliar_sin_arribos
 from tasks.availability import consultar_disponibilidad
 from tasks.celery_app import celery
 
+from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..models import EventReviewRequest, Job, utcnow
 from ..security import permiso_requerido, puede_ver_trabajo, tiene_permiso
-from ..services import amplification, availability, catalog_export, colores, indicios
+from ..services import (
+    amplification,
+    availability,
+    catalog_export,
+    colores,
+    formatting,
+    indicios,
+    panels,
+)
 from ..services.analysts import (
     campos_analista,
     codigos_usuario,
@@ -293,6 +303,102 @@ def _clasificacion_sospechoso(workspace, fuente: str, fila_catalogo) -> dict | N
     }
 
 
+def _bool_desde_texto(valor) -> bool | None:
+    if valor == "Sí":
+        return True
+    if valor == "No":
+        return False
+    return None
+
+
+def _fila_sospechosa(evento: dict, fuente: str, fila_catalogo, publicado) -> dict:
+    """Fila de revisión para un evento sospechoso sin indicios de fase."""
+    return {
+        "fuente": fuente,
+        "evento": evento.get("event_id") or "",
+        "id_evento_fuente": evento.get("source_event_id") or "",
+        "fecha_hora": evento.get("event_time") or "",
+        "magnitud": formatting.numero(evento.get("magnitude"), 1),
+        "region": (evento.get("raw") or {}).get("region", ""),
+        "analista": evento.get("analyst") or "",
+        "fila_catalogo": fila_catalogo,
+        "publicado": "Sí" if publicado else ("No" if publicado is False else ""),
+        "sospechoso": "Sí",
+        "sospechoso_residuo_km": None,
+        "anomalia": False,
+        "fuerza": "",
+        "patron": "sin_fase",
+        "contexto": "",
+        "extremo": "",
+        "n_usadas": "",
+        "max_residual_usado": "",
+        "n_outliers": 0,
+        "n_fuera_de_orden": 0,
+        "n_fuera_de_orden_debiles": 0,
+        "n_picks_antes_origen": 0,
+        "tipos_indicio": "solución_sospechosa",
+        "resumen": "Solución sospechosa",
+        "motivo": "sospechosa",
+        "revision_prioritaria": "No",
+        "prioridad": "Informativa",
+        "prioridad_orden": 2,
+    }
+
+
+def _filas_sospechosas_sin_fase(
+    workspace,
+    fuente: str,
+    filas_fase: list[dict],
+) -> list[dict]:
+    """Eventos publicados con solución sospechosa y sin indicio de fase.
+
+    Se leen de la caché de paneles, que ya tiene la clasificación de todo el
+    catálogo. Solo se agregan los publicados: los sospechosos no publicados sin
+    fase son calidad de catálogo y quedan en los paneles.
+    """
+    if not fuente:
+        return []
+    try:
+        datos = panels.cargar(workspace, f"catalogo_{fuente}")
+    except Exception:
+        current_app.logger.exception(
+            "No se pudo leer la clasificación de solución para %s", fuente
+        )
+        return []
+    ya_en_fase = {
+        str(fila.get("fila_catalogo"))
+        for fila in filas_fase
+        if fila.get("fila_catalogo") not in (None, "")
+    }
+    eventos = {
+        str(evento.get("raw_index")): evento
+        for evento in canonical.leer_canonico(workspace, fuente)
+    }
+    indice = indicios.indice_publicados(workspace, fuente)
+    filas = []
+    for evento_panel in datos.get("eventos", []):
+        origen = evento_panel.get("origen") or {}
+        if origen.get("tabla") != "catalogos" or origen.get("opcion") != fuente:
+            continue
+        if not evento_panel.get("sospechoso"):
+            continue
+        fila_catalogo = origen.get("fila")
+        if fila_catalogo is None or str(fila_catalogo) in ya_en_fase:
+            continue
+        evento = eventos.get(str(fila_catalogo))
+        if not evento:
+            continue
+        publicado = indicios.estado_publicado(
+            workspace, fuente, evento, indice=indice
+        )
+        if publicado is not True:
+            continue
+        filas.append(
+            _fila_sospechosa(evento, fuente, fila_catalogo, publicado)
+        )
+    return filas
+
+
 def _filtros() -> dict[str, str]:
     """Filtros activos, incluidos rangos compactos y la compatibilidad min/max."""
     textos: dict[str, str] = {}
@@ -407,14 +513,6 @@ def indicios_eventos(job_id: str):
         alcance = "prioritarios"
 
     filas = indicios.leer_indicios(workspace, fuente) if fuente else []
-    if alcance == "prioritarios":
-        filas = [
-            fila for fila in filas if fila.get("revision_prioritaria") == "Sí"
-        ]
-    elif alcance == "publicados":
-        filas = [fila for fila in filas if fila.get("publicado") == "Sí"]
-    if usuario_restringido(current_user):
-        filas = [fila for fila in filas if evento_visible(fila, current_user)]
     for fila in filas:
         clasificacion = _clasificacion_sospechoso(
             workspace, fuente, fila.get("fila_catalogo")
@@ -423,29 +521,54 @@ def indicios_eventos(job_id: str):
             fila["sospechoso"] = "Sí" if clasificacion["sospechoso"] else "No"
             fila["sospechoso_residuo_km"] = clasificacion["residuo_km"]
             fila["sospechoso_perp_km"] = clasificacion["perp_km"]
-        prioridad = fila.get("prioridad")
-        if not prioridad:
-            publicado = fila.get("publicado")
-            fuerte = fila.get("fuerza") == "fuerte"
-            if publicado == "Sí":
-                prioridad = "Alta" if fuerte else "Media"
-            elif publicado == "No":
-                prioridad = "Baja" if fuerte else "Informativa"
-            else:
-                prioridad = "Sin evaluar"
+        fila["motivo"] = "ambas" if fila.get("sospechoso") == "Sí" else "fase"
+
+    filas.extend(_filas_sospechosas_sin_fase(workspace, fuente, filas))
+
+    for fila in filas:
+        publicado = _bool_desde_texto(fila.get("publicado"))
+        sospechoso = _bool_desde_texto(fila.get("sospechoso"))
+        prioridad = indicios.prioridad_evento(
+            publicado, fila.get("fuerza") or "", sospechoso
+        )
         fila["prioridad"] = prioridad
-        fila["prioridad_orden"] = {
-            "Alta": 5,
-            "Media": 4,
-            "Baja": 3,
-            "Informativa": 2,
-            "Sin evaluar": 1,
-        }.get(prioridad, 1)
+        fila["prioridad_orden"] = indicios.ORDEN_PRIORIDAD[prioridad]
+        fila["revision_prioritaria"] = (
+            "Sí" if prioridad in ("Alta", "Media") else "No"
+        )
         fila["_sospechoso_orden"] = {
             "Sí": 2,
             "No": 1,
         }.get(fila.get("sospechoso"), 0)
         fila["_fecha_orden"] = _fecha_orden(fila.get("fecha_hora"))
+
+    if usuario_restringido(current_user):
+        filas = [fila for fila in filas if evento_visible(fila, current_user)]
+
+    info_fuente = dict((resumen or {}).get("fuentes", {}).get(fuente, {}))
+    info_fuente["con_anomalia_fuerte"] = sum(
+        1 for fila in filas if fila.get("fuerza") == "fuerte"
+    )
+    info_fuente["con_anomalia_debil"] = sum(
+        1 for fila in filas if fila.get("fuerza") == "débil"
+    )
+    info_fuente["con_anomalia"] = (
+        info_fuente["con_anomalia_fuerte"]
+        + info_fuente["con_anomalia_debil"]
+    )
+    info_fuente["revision_prioritaria"] = sum(
+        1 for fila in filas if fila["revision_prioritaria"] == "Sí"
+    )
+    info_fuente["publicados"] = sum(
+        1 for fila in filas if fila.get("publicado") == "Sí"
+    )
+
+    if alcance == "prioritarios":
+        filas = [
+            fila for fila in filas if fila["revision_prioritaria"] == "Sí"
+        ]
+    elif alcance == "publicados":
+        filas = [fila for fila in filas if fila.get("publicado") == "Sí"]
 
     filas.sort(
         key=lambda fila: (
@@ -474,7 +597,7 @@ def indicios_eventos(job_id: str):
                 opcion=fuente,
                 fila=indice_fila,
                 volver=volver,
-                volver_etiqueta="Volver a indicios",
+                volver_etiqueta="Volver a la revisión",
             )
             + "#indicios-fases"
             if catalogo_disponible and indice_fila is not None
@@ -499,7 +622,7 @@ def indicios_eventos(job_id: str):
         filas=filas,
         solicitudes=solicitudes,
         puede_solicitar=tiene_permiso(current_user, "revisiones.solicitar"),
-        info_fuente=(resumen or {}).get("fuentes", {}).get(fuente, {}),
+        info_fuente=info_fuente,
         volver=volver,
     )
 

@@ -139,7 +139,8 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     listado = client.get(f"/jobs/{job.id}/indicios?fuente=seiscomp&alcance=todos")
     assert listado.status_code == 200
     html = listado.get_data(as_text=True)
-    assert "Indicios de fases" in html
+    assert "Revisión de eventos" in html
+    assert "Motivo" in html
     assert "csn_sc62026vdkls" in html
     assert "Revisión prioritaria" in html
     assert "Prioridad" in html
@@ -156,7 +157,7 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     )
     assert detalle.status_code == 200
     html = detalle.get_data(as_text=True)
-    assert "Indicios de fases" in html
+    assert "Revisión del evento" in html
     assert "Evidencia" in html
     assert "244.2" in html
     assert "Pedir revisión" in html
@@ -169,6 +170,82 @@ def test_lista_y_detalle_de_indicios(app, client, login):
         f"/jobs/{job.id}/indicios/seiscomp/seiscomp:000001"
     )
     assert antigua.status_code == 404
+
+
+def test_filas_sospechosas_sin_fase(monkeypatch, tmp_path):
+    from app.blueprints import results as results_bp
+
+    datos = {
+        "eventos": [
+            {
+                "sospechoso": True,
+                "origen": {
+                    "tabla": "catalogos",
+                    "opcion": "seiscomp",
+                    "fila": 900,
+                },
+            },
+            {
+                "sospechoso": False,
+                "origen": {
+                    "tabla": "catalogos",
+                    "opcion": "seiscomp",
+                    "fila": 901,
+                },
+            },
+            {
+                "sospechoso": True,
+                "origen": {
+                    "tabla": "catalogos",
+                    "opcion": "seiscomp",
+                    "fila": 902,
+                },
+            },
+        ]
+    }
+
+    def _evento(fila, event_id):
+        return {
+            "event_id": event_id,
+            "source_event_id": f"e{fila}",
+            "event_time": "2026-10-29 10:00:00",
+            "latitude": -30.0,
+            "longitude": -71.0,
+            "depth_km": 30.0,
+            "magnitude": 4.0,
+            "analyst": "mdur",
+            "raw_index": fila,
+            "raw": {},
+        }
+
+    monkeypatch.setattr(results_bp.panels, "cargar", lambda *a, **k: datos)
+    monkeypatch.setattr(
+        results_bp.canonical,
+        "leer_canonico",
+        lambda *a, **k: [
+            _evento(900, "seiscomp:000900"),
+            _evento(901, "seiscomp:000901"),
+            _evento(902, "seiscomp:000902"),
+        ],
+    )
+    monkeypatch.setattr(
+        results_bp.indicios, "indice_publicados", lambda *a, **k: {}
+    )
+    monkeypatch.setattr(
+        results_bp.indicios,
+        "estado_publicado",
+        lambda ws, fuente, evento, indice=None: evento["raw_index"] != 902,
+    )
+
+    filas = results_bp._filas_sospechosas_sin_fase(
+        tmp_path, "seiscomp", []
+    )
+
+    assert [fila["evento"] for fila in filas] == ["seiscomp:000900"]
+    assert filas[0]["motivo"] == "sospechosa"
+    assert filas[0]["patron"] == "sin_fase"
+    assert filas[0]["publicado"] == "Sí"
+    assert filas[0]["sospechoso"] == "Sí"
 
 
 def test_solicitar_revision_crea_registro(app, client, login):

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Indicios de fases · Trabajo {{ job.id[:8] }}{% endblock %}
+{% block title %}Revisión de eventos · Trabajo {{ job.id[:8] }}{% endblock %}
 
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
@@ -8,12 +8,11 @@
       <a class="text-reset text-decoration-none"
          href="{{ url_for('jobs.detalle', job_id=job.id) }}#resultados">Resultados</a>
     </div>
-    <h1 class="h3 mb-1">Indicios de fases</h1>
+    <h1 class="h3 mb-1">Revisión de eventos</h1>
     <p class="text-secondary mb-0">
-      Anomalías en la identificación de fases, independientes del criterio de
-      localización sospechosa. La revisión es posterior al procesamiento.
-      El estado publicado se usa solo como contexto para priorizar; no es un
-      resultado del análisis.
+      Eventos publicados con solución sospechosa y eventos con inconsistencias
+      en las fases. La revisión es posterior al procesamiento. La prioridad
+      combina publicación, solución y fuerza de las fases.
     </p>
   </div>
   <a class="btn btn-outline-primary" href="{{ url_for('jobs.detalle', job_id=job.id) }}#resultados">
@@ -35,14 +34,14 @@
       <div class="card-body">
         <div class="text-secondary small text-uppercase">Revisión prioritaria</div>
         <div class="fs-3 fw-semibold">{{ info_fuente.revision_prioritaria or 0 }}</div>
-        <div class="small text-secondary">publicados con indicios</div>
+        <div class="small text-secondary">publicados con solución sospechosa</div>
       </div>
     </div>
   </div>
   <div class="col-6 col-lg-3">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
-        <div class="text-secondary small text-uppercase">Eventos con indicios</div>
+        <div class="text-secondary small text-uppercase">Fases inconsistentes</div>
         <div class="fs-3 fw-semibold">{{ info_fuente.con_anomalia or 0 }}</div>
         <div class="small text-secondary">
           {{ info_fuente.con_anomalia_fuerte or 0 }} fuertes ·
@@ -122,6 +121,7 @@
             <th data-sort-key="magnitud" data-sort-type="number" class="text-end">Mag.</th>
             <th data-sort-key="publicado" data-sort-type="order">Publicado (contexto)</th>
             <th data-sort-key="solucion" data-sort-type="order">Solución</th>
+            <th data-sort-key="motivo" data-sort-type="text">Motivo</th>
             <th data-sort-key="prioridad" data-sort-type="order"
                 data-sort-dir="desc" aria-sort="descending">
               Prioridad <span class="orden-flecha ms-1">↓</span>
@@ -172,6 +172,15 @@
               </div>
               {% endif %}
             </td>
+            <td data-sort-value="{{ fila.motivo }}">
+              {% if fila.motivo == 'ambas' %}
+              <span class="badge text-bg-danger">Fase y solución</span>
+              {% elif fila.motivo == 'sospechosa' %}
+              <span class="badge text-bg-warning text-dark">Solución sospechosa</span>
+              {% else %}
+              <span class="badge text-bg-light text-dark">Fase inconsistente</span>
+              {% endif %}
+            </td>
             <td data-sort-value="{{ fila.prioridad_orden }}">
               {% if fila.prioridad == 'Alta' %}
               <span class="badge text-bg-danger">Alta</span>
@@ -183,8 +192,8 @@
               <span class="badge text-bg-light text-dark">{{ fila.prioridad }}</span>
               {% endif %}
             </td>
-            <td class="text-end" data-sort-value="{{ fila.n_usadas }}">{{ fila.n_usadas }}</td>
-            <td class="text-end" data-sort-value="{{ fila.max_residual_usado or '' }}">{{ fila.max_residual_usado or '' }}</td>
+            <td class="text-end" data-sort-value="{{ fila.n_usadas }}">{{ fila.n_usadas if fila.n_usadas not in (none, '') else '—' }}</td>
+            <td class="text-end" data-sort-value="{{ fila.max_residual_usado or '' }}">{{ fila.max_residual_usado or '—' }}</td>
             <td data-sort-value="{{ fila.patron }}">
               <span class="badge text-bg-light text-dark">{{ fila.patron|patron_corto }}</span>
               {% if fila.fuerza == 'débil' %}
@@ -195,9 +204,13 @@
               {% endif %}
             </td>
             <td data-sort-value="{% if fila.contexto == 'fuerte' %}1{% else %}0{% endif %}">
+              {% if fila.contexto %}
               <span class="badge {% if fila.contexto == 'fuerte' %}text-bg-success{% else %}text-bg-warning text-dark{% endif %}">
                 {{ fila.contexto }}
               </span>
+              {% else %}
+              —
+              {% endif %}
             </td>
             <td class="small" data-sort-value="{{ fila.tipos_indicio }}">{{ fila.tipos_indicio|tipos_indicio_texto }}</td>
             <td class="text-end">
@@ -224,10 +237,10 @@
     </div>
     {% else %}
     <div class="text-center text-secondary py-5">
-      <div class="mb-2">No hay eventos con indicios para este filtro.</div>
+      <div class="mb-2">No hay eventos para este filtro.</div>
       <div class="small">
-        El análisis se genera después del procesamiento y no reemplaza el
-        criterio de localización sospechosa.
+        La revisión combina solución sospechosa e inconsistencias de fases.
+        Se genera después del procesamiento.
       </div>
     </div>
     {% endif %}

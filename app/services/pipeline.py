@@ -538,7 +538,7 @@ def _construir_pasos(job: Job, eventquery: str, fuentes) -> list[Paso]:
     pasos.append(
         Paso(
             "generar_indicios",
-            "Generar indicios de fases",
+            "Generar revisión de eventos",
             None,
             post=_generar_indicios,
         )

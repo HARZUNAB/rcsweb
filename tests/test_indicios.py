@@ -88,6 +88,7 @@ def test_detecta_caso_puntual_extremo_y_lo_marca_prioritario():
         _caso_mg04(),
         source_id="seiscomp",
         publicado=True,
+        sospechoso=True,
     )
 
     assert resultado["anomalia"] is True
@@ -104,12 +105,25 @@ def test_detecta_caso_puntual_extremo_y_lo_marca_prioritario():
     assert resultado["evidencia"]
 
 
+def test_prioridad_combina_publicacion_solucion_y_fuerza():
+    assert indicios.prioridad_evento(True, "fuerte", True) == "Alta"
+    assert indicios.prioridad_evento(True, "débil", True) == "Media"
+    assert indicios.prioridad_evento(True, "", True) == "Media"
+    assert indicios.prioridad_evento(True, "fuerte", False) == "Baja"
+    assert indicios.prioridad_evento(True, "débil", False) == "Informativa"
+    assert indicios.prioridad_evento(False, "fuerte", True) == "Baja"
+    assert indicios.prioridad_evento(False, "débil", True) == "Informativa"
+    assert indicios.prioridad_evento(True, "fuerte", None) == "Baja"
+    assert indicios.prioridad_evento(None, "fuerte", True) == "Sin evaluar"
+
+
 def test_no_alarma_si_el_evento_no_esta_publicado():
     resultado = indicios.evaluar_evento(
         _evento(),
         _caso_mg04(),
         source_id="seiscomp",
         publicado=False,
+        sospechoso=True,
     )
 
     assert resultado["anomalia"] is True
@@ -146,6 +160,7 @@ def test_patron_sistematico_con_contexto_fuerte():
         source_id="seiscomp",
         publicado=True,
         perfil_disponible=True,
+        sospechoso=True,
     )
 
     assert resultado["fuerza"] == "fuerte"
@@ -441,17 +456,18 @@ def test_genera_reportes_y_resumen(tmp_path):
     assert resumen["total"]["con_anomalia"] == 1
     assert resumen["total"]["con_anomalia_fuerte"] == 1
     assert resumen["total"]["con_anomalia_debil"] == 0
-    assert resumen["total"]["revision_prioritaria"] == 1
+    assert resumen["total"]["revision_prioritaria"] == 0
     assert resumen["fuentes"]["seiscomp"]["publicados"] == 1
 
     filas = indicios.leer_indicios(workspace, "seiscomp")
     assert len(filas) == 1
     assert filas[0]["id_evento_fuente"] == "csn_sc62026vdkls"
     assert filas[0]["publicado"] == "Sí"
-    assert filas[0]["revision_prioritaria"] == "Sí"
+    # El reporte no conoce la clasificación de solución: queda conservador.
+    assert filas[0]["revision_prioritaria"] == "No"
     assert filas[0]["fuerza"] == "fuerte"
-    assert filas[0]["prioridad"] == "Alta"
-    assert filas[0]["prioridad_orden"] == "5"
+    assert filas[0]["prioridad"] == "Baja"
+    assert filas[0]["prioridad_orden"] == "3"
     assert filas[0]["patron"] == "puntual"
     assert filas[0]["contexto"] == "débil"
     assert filas[0]["max_residual_usado"] == "244.20"

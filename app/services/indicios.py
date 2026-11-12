@@ -40,7 +40,36 @@ UMBRAL_CONTEXTO_ESTACIONES = 5
 UMBRAL_CONTEXTO_SIN_INVENTARIO = 8
 UMBRAL_CONTEXTO_AZGAP = 180.0
 MAX_PARES_DETALLE = 40
-ESQUEMA_INDICIOS = 4
+ESQUEMA_INDICIOS = 5
+
+ORDEN_PRIORIDAD = {
+    "Alta": 5,
+    "Media": 4,
+    "Baja": 3,
+    "Informativa": 2,
+    "Sin evaluar": 1,
+}
+
+
+def prioridad_evento(publicado, fuerza, sospechoso) -> str:
+    """Prioridad de revisión según publicación, fases y solución.
+
+    La revisión prioritaria exige un evento publicado con solución sospechosa.
+    La inconsistencia de fases agrega evidencia y sube la prioridad, pero no
+    basta por sí sola para entrar a la revisión prioritaria.
+    """
+    if publicado is None:
+        return "Sin evaluar"
+    confirmado = sospechoso is True
+    fuerte = fuerza == "fuerte"
+    if publicado:
+        if confirmado:
+            return "Alta" if fuerte else "Media"
+        return "Baja" if fuerte else "Informativa"
+    if confirmado and fuerte:
+        return "Baja"
+    return "Informativa"
+
 
 CAMPOS_EVENTO = (
     "fuente",
@@ -524,7 +553,7 @@ def evaluar_evento(
     explicacion_sospechoso: str = "",
     perfil_disponible: bool | None = None,
 ) -> dict:
-    """Evalúa un evento y devuelve sus indicios de fases y su evidencia."""
+    """Evalúa un evento y devuelve sus señales de fases y su evidencia."""
     sin_arribos = sin_arribos or []
     origen = _instante(evento.get("event_time"))
     usadas = [
@@ -587,19 +616,8 @@ def evaluar_evento(
         anomalia_fuerte or outliers_debiles or fuera_de_orden_debiles
     )
     fuerza = "fuerte" if anomalia_fuerte else ("débil" if anomalia else "")
-    if publicado is True:
-        prioridad = "Alta" if anomalia_fuerte else "Media"
-    elif publicado is False:
-        prioridad = "Baja" if anomalia_fuerte else "Informativa"
-    else:
-        prioridad = "Sin evaluar"
-    prioridad_orden = {
-        "Alta": 5,
-        "Media": 4,
-        "Baja": 3,
-        "Informativa": 2,
-        "Sin evaluar": 1,
-    }[prioridad]
+    prioridad = prioridad_evento(publicado, fuerza, sospechoso)
+    prioridad_orden = ORDEN_PRIORIDAD[prioridad]
     if anomalia_fuerte:
         patron = _patron(fuertes, outliers, fuera_de_orden, antes, extremo)
         base_patron = fuertes
@@ -789,7 +807,7 @@ def evaluar_evento(
         "region": _texto((evento.get("raw") or {}).get("region")),
         "fila_catalogo": evento.get("raw_index", ""),
         "publicado": publicado,
-        "revision_prioritaria": bool(publicado is True and anomalia_fuerte),
+        "revision_prioritaria": prioridad in ("Alta", "Media"),
         "anomalia": anomalia,
         "fuerza": fuerza,
         "prioridad": prioridad,
@@ -820,9 +838,22 @@ def evaluar_evento(
     }
 
 
-def estado_publicado(workspace: Path, source_id: str, evento: dict) -> bool | None:
+def indice_publicados(workspace: Path, source_id: str):
+    """Índice de atribución reutilizable para resolver varios eventos."""
+    return _publicados(workspace, source_id)
+
+
+def estado_publicado(
+    workspace: Path,
+    source_id: str,
+    evento: dict,
+    *,
+    indice=None,
+) -> bool | None:
     """Estado publicado de un evento, según la atribución de la comparación."""
-    return _publicado_evento(evento, _publicados(workspace, source_id))
+    if indice is None:
+        indice = _publicados(workspace, source_id)
+    return _publicado_evento(evento, indice)
 
 
 def evaluar_desde_canonico(

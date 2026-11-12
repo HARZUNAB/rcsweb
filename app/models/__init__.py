@@ -393,7 +393,7 @@ class JobArtifact(db.Model):
 
 
 class EventReviewRequest(db.Model):
-    """Solicitud de revisión posterior de un evento con indicios de fases."""
+    """Solicitud de revisión posterior de un evento."""
 
     __tablename__ = "event_review_requests"
     __table_args__ = (

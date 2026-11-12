@@ -59,6 +59,7 @@ ETIQUETAS_PATRON = {
     "pick_antes_origen": "Pick antes del origen",
     "sin_patron": "Sin patrón",
     "sin_datos": "Sin datos",
+    "sin_fase": "Sin inconsistencia de fases",
 }
 
 ETIQUETAS_TIPO_INDICIO = {
@@ -69,6 +70,7 @@ ETIQUETAS_TIPO_INDICIO = {
     ),
     "pick_antes_origen": "Pick antes del origen",
     "patron_sistematico": "Patrón sistemático",
+    "solución_sospechosa": "Solución sospechosa",
 }
 
 

@@ -267,7 +267,7 @@ El botón **Consultar formas de onda** permite iniciar la consulta manualmente.
 Cuando ya hay resultados, cambia a **Volver a consultar formas de onda** para
 actualizarlos.
 
-Cuando se entra desde el listado de **Indicios de fases**, los botones de
+Cuando se entra desde el listado de **Revisión de eventos**, los botones de
 consulta y la consulta automática se ocultan: esa visita está enfocada en las
 fases. La solapa **Sin arribos** y su tabla de disponibilidad siguen visibles.
 Para consultar las ondas, entre al detalle desde **Catálogos** o desde la
@@ -590,24 +590,35 @@ Si el servicio de formas de onda no está disponible en el entorno, el botón no
 aparece y la revisión de estaciones sigue funcionando con el estado
 **No consultado**.
 
-## Indicios de fases
+## Revisión de eventos
 
-Después del procesamiento, la app revisa si las fases asociadas a un evento
-calzan entre sí. Esta revisión es independiente del criterio de **localización
-sospechosa**: un evento puede tener una solución normal y fases mal asociadas,
-o una solución sospechosa sin problemas de fases.
+Después del procesamiento, la app reúne dos señales:
 
-La tarjeta **Indicios de fases** de la página del trabajo abre el listado. Hay
-tres alcances:
+- **Solución sospechosa:** la localización no calza con el contexto
+  sismotectónico.
+- **Fases inconsistentes:** las lecturas de fase no respetan el orden
+  distancia-tiempo.
 
-- **Revisión prioritaria:** eventos publicados que además tienen un indicio
-  fuerte. Es la vista más crítica y la que se abre por defecto.
-- **Publicados:** todos los eventos publicados con indicios, fuertes o débiles.
-- **Todos los indicios:** incluye los eventos no publicados que quedaron en el
-  catálogo. No generan alarma, pero sí un indicio para revisar la calidad del
-  catálogo.
+La revisión es posterior a la publicación. La tarjeta **Revisión de eventos** de
+la página del trabajo abre el listado. Hay tres alcances:
 
-Cada evento muestra el **patrón** y el **contexto**:
+- **Revisión prioritaria:** eventos publicados con solución sospechosa, tengan o
+  no fases inconsistentes. Es la vista más crítica y la que se abre por defecto.
+- **Publicados:** todos los eventos publicados, con solución sospechosa o con
+  fases inconsistentes.
+- **Todos:** agrega los eventos no publicados que tienen fases inconsistentes,
+  para revisar la calidad del catálogo. Los sospechosos no publicados sin fase
+  quedan en los paneles.
+
+Cada evento muestra un **motivo**:
+
+| Motivo | Significado |
+|---|---|
+| `Fase inconsistente` | Tiene anomalía de fases y la solución es normal |
+| `Solución sospechosa` | La localización es sospechosa y no hay anomalía de fases |
+| `Fase y solución` | Tiene las dos señales |
+
+Cada evento muestra también el **patrón** de las fases y el **contexto**:
 
 | Patrón | Lectura posible |
 |---|---|
@@ -622,10 +633,9 @@ Una **fase inconsistente con la distancia** solo indica que su tiempo o
 residual no corresponde al orden esperado por distancia. Se evalúa por separado
 para P y para S.
 
-La **fuerza** del indicio es `fuerte` o `débil`. Solo los fuertes pueden ser
-**Revisión prioritaria** cuando el evento está publicado. Un residual alto en
-una fase con peso 0–2 genera un indicio fuerte; en una fase con peso 3 genera un
-indicio débil. Un indicio débil se muestra igual, con la etiqueta **indicio
+La **fuerza** de las fases es `fuerte` o `débil`. Un residual alto en una fase
+con peso 0–2 genera una anomalía fuerte; en una fase con peso 3 genera una
+anomalía débil. Una anomalía débil se muestra igual, con la etiqueta **indicio
 débil**, para que el usuario decida si pide revisión.
 
 El **peso** se muestra en la escala 0–4 que usan los analistas: 0 = mayor
@@ -638,19 +648,20 @@ Los números se muestran con pocos decimales: residual 2, distancia y tiempo 1,
 azimut 1, magnitud y profundidad 1, conteos enteros. Un valor distinto de cero
 que redondea a cero se muestra como `<0,01` o `<0,1`.
 
-La columna **Prioridad** resume el caso:
+La columna **Prioridad** combina publicación, solución y fuerza de las fases:
 
 | Prioridad | Combinación |
 |---|---|
-| Alta | publicado + anomalía fuerte |
-| Media | publicado + anomalía débil |
-| Baja | no publicado + anomalía fuerte |
-| Informativa | no publicado + anomalía débil |
+| Alta | publicado + solución sospechosa + fase fuerte |
+| Media | publicado + solución sospechosa (fase débil o sin fase) |
+| Baja | publicado + solución normal + fase fuerte; o no publicado + sospechoso + fase fuerte |
+| Informativa | resto de las combinaciones |
 | Sin evaluar | no se pudo determinar si está publicado |
 
-La columna **Solución** no cambia la prioridad. Se usa para ordenar: dentro del
-mismo nivel, primero los eventos con solución sospechosa, después los normales
-y al final los no evaluables.
+La **Revisión prioritaria** incluye Alta y Media: exige un evento publicado con
+solución sospechosa. Una fase fuerte con solución normal queda en **Baja** y no
+entra a la vista prioritaria: se revisa como calidad de catálogo. La columna
+**Solución** es la que decide la prioridad; ya no es solo un criterio de orden.
 
 El listado principal y la tabla de evidencia se ordenan haciendo clic en
 cualquier encabezado. El segundo clic invierte el orden. No se recarga la
@@ -662,11 +673,11 @@ zona con pocas estaciones puede deberse al modelo o a la cobertura, no solo a la
 asociación. La app entrega la evidencia y el patrón; no sentencia la causa.
 
 El nombre del evento en el listado abre el detalle del catálogo en la sección
-de indicios. No hay un botón **Mapa** separado: el detalle del catálogo es el
+de revisión. No hay un botón **Mapa** separado: el detalle del catálogo es el
 único destino y ahí están la evidencia, las estaciones, el mapa y los tiempos.
 
-La sección de indicios del detalle muestra una cabecera compacta: estado,
-patrón, contexto, publicación y solución. Debajo aparece la **evidencia
+La sección **Revisión del evento** del detalle muestra patrón, contexto,
+publicación y solución, sin badges de estado. Debajo aparece la **evidencia
 principal**, es decir, el arribo con mayor residual:
 
 ```text
@@ -674,14 +685,18 @@ Evidencia principal: C1 AP01 P — residual +7.27 s · peso 1
 ```
 
 La tabla completa queda plegada en **Ver evidencia del indicio**: estación,
-fase, pick, `t (s)`, residual, peso, distancia y tipo de indicio. Un evento
-publicado con un indicio fuerte se marca como **Revisión prioritaria**. Un
-evento no publicado se muestra igual, como indicio de calidad de catálogo.
+fase, pick, `t (s)`, residual, peso, distancia y tipo de indicio. Si el evento
+no tiene anomalía de fases, la sección muestra **Sin inconsistencia de fases** y
+la explicación de la solución, por ejemplo el residuo al slab.
+
+En el listado, un evento publicado con solución sospechosa se marca como
+**Revisión prioritaria**. Un evento no publicado se muestra igual, como calidad
+de catálogo.
 
 El listado incluye una columna **Solución** con la clasificación de localización
 que ya calculan los paneles y el detalle del catálogo. Es una dimensión distinta
-de las fases: `Sospechosa`, `Normal` o `No evaluable`. No se recalcula para todo
-el catálogo; se calcula solo para los eventos que tienen indicio.
+de las fases: `Sospechosa`, `Normal` o `No evaluable`. El listado reutiliza esa
+clasificación en lugar de recalcularla.
 
 El mapa, el perfil y los controles de **Tiempos de llegada** están en la sección
 siguiente del mismo detalle. La sección de indicios ya no tiene botones propios:
@@ -689,10 +704,10 @@ la navegación queda en el mapa. El **Listado comparativo de llegadas** aparece
 debajo del mapa y solo cuando **Propagación** está activa. Los analistas pueden
 abrir el detalle del catálogo de sus propios eventos para usar estas vistas.
 
-Los analistas ven los indicios de sus propios trabajos. Administradores y
-supervisores ven todos y pueden **pedir revisión**; la solicitud queda
-registrada con usuario, fecha y nota. La app es de revisión posterior: no
-alerta antes de publicar ni modifica la solución.
+Los analistas ven los eventos de revisión de sus propios trabajos.
+Administradores y supervisores ven todos y pueden **pedir revisión**; la
+solicitud queda registrada con usuario, fecha y nota. La app es de revisión
+posterior: no alerta antes de publicar ni modifica la solución.
 
 Si el análisis usa residuales completados temporalmente desde otra fuente local,
 aparece un aviso. Esos residuales no provienen de la base de la fuente

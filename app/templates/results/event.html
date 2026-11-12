@@ -228,20 +228,19 @@
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
       <div>
-        <h2 class="h6 text-uppercase text-secondary mb-1">Indicios de fases</h2>
-        <div class="d-flex flex-wrap gap-2 align-items-center">
-          {% if indicios_evento.anomalia %}
-          <span class="badge text-bg-warning text-dark">Con indicios</span>
-          {% else %}
-          <span class="badge text-bg-success">Sin indicios</span>
-          {% endif %}
-          {% if indicios_evento.revision_prioritaria %}
-          <span class="badge text-bg-danger">Revisión prioritaria</span>
-          {% endif %}
-        </div>
+        <h2 class="h6 text-uppercase text-secondary mb-1">Revisión del evento</h2>
       </div>
       <div class="text-end small text-secondary">
-        <div>Patrón: <strong>{{ indicios_evento.patron|patron_texto }}</strong></div>
+        <div>
+          Patrón:
+          <strong>
+            {% if indicios_evento.anomalia %}
+            {{ indicios_evento.patron|patron_texto }}
+            {% else %}
+            Sin inconsistencia de fases
+            {% endif %}
+          </strong>
+        </div>
         <div>Contexto: <strong>{{ indicios_evento.contexto }}</strong></div>
       </div>
     </div>
@@ -262,6 +261,12 @@
       {% if indicios_evento.fuerza == 'débil' %} · Indicio débil{% endif %}
       {% if indicios_evento.extremo %} · Residual extremo{% endif %}
     </div>
+
+    {% if indicios_evento.explicacion_sospechoso %}
+    <div class="small text-secondary mb-2">
+      {{ indicios_evento.explicacion_sospechoso }}
+    </div>
+    {% endif %}
 
     {% if indicios_evento.evidencia_principal %}
     {% set principal = indicios_evento.evidencia_principal %}
@@ -301,11 +306,6 @@
         · Fases inconsistentes: <strong>{{ indicios_evento.n_fuera_de_orden }}</strong>
         · Picks antes del origen: <strong>{{ indicios_evento.n_picks_antes_origen }}</strong>
       </div>
-      {% if indicios_evento.explicacion_sospechoso %}
-      <div class="small text-secondary mb-2">
-        {{ indicios_evento.explicacion_sospechoso }}
-      </div>
-      {% endif %}
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-3" data-sortable>
         <thead class="table-light">
@@ -358,7 +358,7 @@
       <div class="mt-1">{{ revision_solicitud.note }}</div>
       {% endif %}
     </div>
-    {% elif puede_solicitar and indicios_evento.anomalia %}
+    {% elif puede_solicitar and (indicios_evento.anomalia or indicios_evento.sospechoso) %}
     <form method="post" action="{{ url_for('results.solicitar_revision', job_id=job.id) }}"
           class="row g-2 align-items-end">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
