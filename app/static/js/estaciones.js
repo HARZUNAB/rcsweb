@@ -1048,6 +1048,261 @@
       pendientes;
   }
 
+  function escaparHtmlListado(valor) {
+    return String(valor || "").replace(/[&<>"']/g, function (caracter) {
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[caracter];
+    });
+  }
+
+  function formatoListadoSegundos(valor) {
+    if (!Number.isFinite(valor)) {
+      return "";
+    }
+    if (valor !== 0 && Math.abs(valor) < 0.1) {
+      return "<0.1";
+    }
+    return Number(valor).toFixed(1);
+  }
+
+  function formatoListadoDelta(valor) {
+    if (!Number.isFinite(valor)) {
+      return "";
+    }
+    if (valor !== 0 && Math.abs(valor) < 0.1) {
+      return "<0.1";
+    }
+    return (valor >= 0 ? "+" : "") + Number(valor).toFixed(1);
+  }
+
+  function claseDeltaListado(valor) {
+    var absoluto = Math.abs(valor);
+    if (absoluto > 5) {
+      return "text-danger fw-semibold";
+    }
+    if (absoluto > 2) {
+      return "text-warning";
+    }
+    return "";
+  }
+
+  function leerListadoPropagacion(datos) {
+    if (!datos || !datos.estaciones) {
+      return [];
+    }
+    var filas = [];
+    datos.estaciones.forEach(function (estacion) {
+      var distancia = Number(estacion.distancia_km);
+      if (!Number.isFinite(distancia) || distancia < 0) {
+        return;
+      }
+      var grupo = claveEstacion(estacion);
+      var red = estacion.red || "";
+      var nombre = estacion.estacion || "";
+      if (
+        estacion.p_observado &&
+        estacion.p_tiempo !== null &&
+        estacion.p_tiempo !== undefined &&
+        Number.isFinite(Number(estacion.p_tiempo))
+      ) {
+        var pTeorico = tiempoParaDistancia(
+          datos.knotsP,
+          distancia,
+          datos.vp
+        );
+        if (Number.isFinite(pTeorico)) {
+          filas.push({
+            grupo: grupo,
+            red: red,
+            estacion: nombre,
+            fase: "P",
+            teorico: pTeorico,
+            observado: Number(estacion.p_tiempo),
+          });
+        }
+      }
+      if (
+        estacion.s_observado &&
+        estacion.s_tiempo !== null &&
+        estacion.s_tiempo !== undefined &&
+        Number.isFinite(Number(estacion.s_tiempo))
+      ) {
+        var sTeorico = tiempoParaDistancia(
+          datos.knotsS,
+          distancia,
+          datos.vs
+        );
+        if (Number.isFinite(sTeorico)) {
+          filas.push({
+            grupo: grupo,
+            red: red,
+            estacion: nombre,
+            fase: "S",
+            teorico: sTeorico,
+            observado: Number(estacion.s_tiempo),
+          });
+        }
+      }
+    });
+
+    function asignarOrden(fase) {
+      var delFase = filas.filter(function (fila) {
+        return fila.fase === fase;
+      });
+      delFase
+        .slice()
+        .sort(function (a, b) {
+          return a.teorico - b.teorico;
+        })
+        .forEach(function (fila, indice) {
+          fila.ordenTeorico = indice + 1;
+        });
+      delFase
+        .slice()
+        .sort(function (a, b) {
+          return a.observado - b.observado;
+        })
+        .forEach(function (fila, indice) {
+          fila.ordenObservado = indice + 1;
+        });
+    }
+    asignarOrden("P");
+    asignarOrden("S");
+
+    var grupos = {};
+    filas.forEach(function (fila) {
+      var grupo = grupos[fila.grupo];
+      if (!grupo) {
+        grupo = {
+          grupo: fila.grupo,
+          red: fila.red,
+          estacion: fila.estacion,
+          primero: fila.teorico,
+          filas: [],
+        };
+        grupos[fila.grupo] = grupo;
+      }
+      grupo.primero = Math.min(grupo.primero, fila.teorico);
+      grupo.filas.push(fila);
+    });
+    return Object.keys(grupos)
+      .map(function (clave) {
+        return grupos[clave];
+      })
+      .sort(function (a, b) {
+        return a.primero - b.primero;
+      })
+      .map(function (grupo) {
+        grupo.filas.sort(function (a, b) {
+          if (a.fase === b.fase) {
+            return a.teorico - b.teorico;
+          }
+          return a.fase === "P" ? -1 : 1;
+        });
+        return grupo;
+      });
+  }
+
+  function renderListadoPropagacion(grupos) {
+    var cuerpo = document.getElementById("propagacion-llegadas-cuerpo");
+    if (!cuerpo) {
+      return;
+    }
+    if (!grupos || !grupos.length) {
+      cuerpo.innerHTML =
+        '<tr><td colspan="5" class="text-secondary small">' +
+        "Sin estaciones con picks para comparar.</td></tr>";
+      return;
+    }
+    var html = [];
+    grupos.forEach(function (grupo) {
+      html.push(
+        '<tr class="table-light" data-grupo="' +
+          escaparHtmlListado(grupo.grupo) +
+          '" data-grupo-teorico="' +
+          grupo.primero +
+          '"><td colspan="5"><strong>' +
+          escaparHtmlListado(grupo.red) +
+          " " +
+          escaparHtmlListado(grupo.estacion) +
+          '</strong> <span class="text-secondary small">primera llegada' +
+          " teórica " +
+          formatoListadoSegundos(grupo.primero) +
+          " s</span></td></tr>"
+      );
+      grupo.filas.forEach(function (fila) {
+        var delta = fila.observado - fila.teorico;
+        var orden = fila.ordenTeorico + "→" + fila.ordenObservado;
+        var claseOrden =
+          fila.ordenTeorico !== fila.ordenObservado ? "table-warning" : "";
+        html.push(
+          '<tr data-grupo="' +
+            escaparHtmlListado(grupo.grupo) +
+            '" data-teorico="' +
+            fila.teorico +
+            '"><td>' +
+            fila.fase +
+            "</td><td>" +
+            formatoListadoSegundos(fila.teorico) +
+            "</td><td>" +
+            formatoListadoSegundos(fila.observado) +
+            '</td><td class="text-end ' +
+            claseDeltaListado(delta) +
+            '">' +
+            formatoListadoDelta(delta) +
+            '</td><td class="text-end ' +
+            claseOrden +
+            '">' +
+            orden +
+            "</td></tr>"
+        );
+      });
+    });
+    cuerpo.innerHTML = html.join("");
+  }
+
+  function marcarListadoPropagacion(tiempo) {
+    var cuerpo = document.getElementById("propagacion-llegadas-cuerpo");
+    if (!cuerpo) {
+      return;
+    }
+    var estados = {};
+    cuerpo.querySelectorAll("tr[data-teorico]").forEach(function (fila) {
+      var teorico = Number(fila.getAttribute("data-teorico"));
+      var alcanzada = Number.isFinite(teorico) && tiempo >= teorico;
+      var actual = alcanzada && tiempo - teorico <= 1.5;
+      fila.classList.toggle("opacity-50", !alcanzada);
+      fila.classList.toggle("table-active", actual);
+      fila.classList.toggle("fw-semibold", actual);
+      var grupo = fila.getAttribute("data-grupo");
+      if (!estados[grupo]) {
+        estados[grupo] = { alcanzada: false, actual: false };
+      }
+      if (alcanzada) {
+        estados[grupo].alcanzada = true;
+      }
+      if (actual) {
+        estados[grupo].actual = true;
+      }
+    });
+    cuerpo
+      .querySelectorAll("tr[data-grupo-teorico]")
+      .forEach(function (fila) {
+        var estado = estados[fila.getAttribute("data-grupo")] || {
+          alcanzada: false,
+          actual: false,
+        };
+        fila.classList.toggle("opacity-50", !estado.alcanzada);
+        fila.classList.toggle("table-active", estado.actual);
+        fila.classList.toggle("fw-semibold", estado.actual);
+      });
+  }
+
   function esFaseP(fase) {
     return /^P/i.test(String(fase || "").trim());
   }
@@ -1267,8 +1522,10 @@
     propagacionDatos = datosPropagacion();
     if (!propagacionDatos) {
       propagacionMax = 0;
+      renderListadoPropagacion([]);
       return false;
     }
+    renderListadoPropagacion(leerListadoPropagacion(propagacionDatos));
     propagacionMax = propagacionDatos.maxT;
     if (propagacionTiempo > propagacionMax) {
       propagacionTiempo = propagacionMax;
@@ -1451,6 +1708,7 @@
       slider.value = String(propagacionTiempo);
     }
     actualizarCursorTiempos(propagacionTiempo);
+    marcarListadoPropagacion(propagacionTiempo);
   }
 
   function irAlMapa() {

@@ -573,6 +573,8 @@ def test_detalle_datos_mapa_y_tiempos(client, login, app):
     assert "t (s)" in html
     assert "primera llegada" in html
     assert "24.12" in html
+    assert "Listado comparativo de llegadas" in html
+    assert "propagacion-llegadas-cuerpo" in html
 
     tiempos = _json_embebido(html, "tiempos-llegada-datos")
     assert tiempos["event_time"] == "2026-10-03 15:53:56"

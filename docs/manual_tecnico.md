@@ -1334,6 +1334,19 @@ consultar disponibilidad.
 6. Los interruptores `#propagacion-mostrar-p` y `#propagacion-mostrar-s`
    controlan la visibilidad de cada frente; `actualizarResumenFrentes()`
    actualiza el conteo de alcanzadas y pendientes.
+7. `leerListadoPropagacion()` arma el listado comparativo con las estaciones
+   que tienen al menos un pick. Agrupa por estación, ordena los grupos por la
+   primera llegada teórica y deja P y S en filas separadas. Usa la misma
+   `tiempoParaDistancia()` que el frente para calcular el `t teórico`.
+8. `renderListadoPropagacion()` escribe el listado en
+   `#propagacion-llegadas-cuerpo`. Cada fila muestra fase, `t teórico`,
+   `t observado`, `Δ = observado − teórico` y `Orden` en formato
+   `teórico→observado`. El orden se calcula por fase: P contra P y S contra S.
+   Una estación con solo S aparece como un grupo con una única fila S.
+9. `marcarListadoPropagacion(t)` ilumina el grupo y la fila que el frente va
+   alcanzando. Las filas futuras quedan con `opacity-50`; la fila actual usa
+   `table-active` y `fw-semibold`. No se reordena ni se reconstruye durante la
+   animación.
 
 La revisión expone `tiene_estimadas` para mostrar el botón de consulta solo
 cuando hay estaciones sin arribos en el mapa. La revisión agrega

@@ -424,6 +424,31 @@ Los tiempos P y S se calculan con el **primer pick de cada fase**. Si faltan
 picks de una fase, se usa la envolvente de esa fase o la velocidad de respaldo:
 `Vp = 6.0 km/s` y `Vs = 3.5 km/s`.
 
+##### Listado comparativo de llegadas
+
+Dentro de Propagación, el panel **Listado comparativo de llegadas** muestra las
+estaciones que tienen al menos un pick, agrupadas por estación:
+
+```text
+AP01   primera llegada teórica 26.2 s
+  P   t teórico 26.2   t observado 32.5   Δ +6.3   Orden 2→3
+  S   t teórico 44.9   t observado 44.9   Δ +0.0   Orden 2→2
+```
+
+- **t teórico:** tiempo de viaje calculado por el modelo, con la misma curva
+  que usa el frente de propagación.
+- **t observado:** el pick identificado por el analista.
+- **Δ:** diferencia entre observado y teórico. Positivo = llegó tarde.
+- **Orden:** posición teórica → posición observada dentro de la misma fase.
+  `2→3` significa que debería haber sido la segunda y fue la tercera.
+- P y S van en filas separadas. Si una estación tiene solo S, aparece solo con
+  su fila S y no ocupa un lugar en el orden P.
+- El orden de los grupos es por la primera llegada teórica de la estación.
+- Durante la reproducción, el grupo y la fila que el frente va alcanzando se
+  iluminan. Las filas futuras quedan tenues.
+- `Δ` se marca en ámbar entre 2 y 5 s y en rojo sobre 5 s. `Orden` se resalta
+  cuando la posición cambia.
+
 ##### Estado de las estaciones sin arribos
 
 Tanto **Estaciones en el mapa** como **Propagación** distinguen tres estados
