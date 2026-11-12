@@ -98,6 +98,36 @@ def _preparar(app, admin: User):
     canonical.escribir_registros(canonical.ruta_canonica(workspace, "seiscomp"), eventos)
     canonical.escribir_registros(canonical.ruta_arribos(workspace, "seiscomp"), arribos)
     indicios.generar_indicios(workspace, ["seiscomp"], job_id=job.id)
+    (workspace / "datos").mkdir(exist_ok=True)
+    (workspace / "datos" / "seiscomp_parametros.csv").write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Analista\n"
+        "0,2026-10-28 15:23:36,-52.857,-71.570,10.0,3.0,M,mdur\n"
+        "1,2026-10-28 15:23:36,-52.857,-71.570,10.0,3.0,M,otro\n",
+        encoding="utf-8",
+    )
+    (workspace / "resultados" / "indice.json").write_text(
+        json.dumps(
+            {
+                "catalogos": {
+                    "seiscomp": {
+                        "archivo": "datos/seiscomp_parametros.csv",
+                        "filas": 2,
+                        "columnas": [
+                            "",
+                            "Fecha_Hora",
+                            "Latitud",
+                            "Longitud",
+                            "Prof.",
+                            "Mag.",
+                            "Tipo_mag.",
+                            "Analista",
+                        ],
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     return job
 
 
@@ -115,15 +145,26 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Prioridad" in html
     assert "data-sortable" in html
     assert "tabla_orden.js" in html
+    assert "Mapa</a>" not in html
+    assert "/resultados/catalogos/seiscomp/0" in html
+    assert "#indicios-fases" in html
 
-    detalle = client.get(f"/jobs/{job.id}/indicios/seiscomp/seiscomp:000001")
+    detalle = client.get(
+        f"/jobs/{job.id}/resultados/catalogos/seiscomp/0"
+    )
     assert detalle.status_code == 200
     html = detalle.get_data(as_text=True)
+    assert "Indicios de fases" in html
     assert "Evidencia" in html
     assert "244.2" in html
     assert "Pedir revisión" in html
     assert "data-sortable" in html
     assert "tabla_orden.js" in html
+
+    antigua = client.get(
+        f"/jobs/{job.id}/indicios/seiscomp/seiscomp:000001"
+    )
+    assert antigua.status_code == 404
 
 
 def test_solicitar_revision_crea_registro(app, client, login):
@@ -170,9 +211,13 @@ def test_analista_ve_solo_sus_eventos_y_no_puede_pedir_revision(app, client):
     assert "csn_otro" not in html
     assert "Pedir revisión" not in html
 
-    propio = client.get(f"/jobs/{job.id}/indicios/seiscomp/seiscomp:000001")
+    propio = client.get(
+        f"/jobs/{job.id}/resultados/catalogos/seiscomp/0"
+    )
     assert propio.status_code == 200
-    ajeno = client.get(f"/jobs/{job.id}/indicios/seiscomp/seiscomp:000002")
+    ajeno = client.get(
+        f"/jobs/{job.id}/resultados/catalogos/seiscomp/1"
+    )
     assert ajeno.status_code == 403
 
     respuesta = client.post(
@@ -220,6 +265,8 @@ def test_listado_y_detalle_reutilizan_la_clasificacion_sospechoso(
         return (
             [
                 {
+                    "latitud": -52.857,
+                    "longitud": -71.570,
                     "sospechoso": True,
                     "residuo_km": 39.4,
                     "perp_km": 34.6,
@@ -242,7 +289,7 @@ def test_listado_y_detalle_reutilizan_la_clasificacion_sospechoso(
     assert "residuo 39.4 km" in html
 
     detalle = client.get(
-        f"/jobs/{job.id}/indicios/seiscomp/seiscomp:000001"
+        f"/jobs/{job.id}/resultados/catalogos/seiscomp/0"
     )
     html = detalle.get_data(as_text=True)
     assert "sospechosa" in html
@@ -258,4 +305,6 @@ def test_listado_y_detalle_reutilizan_la_clasificacion_sospechoso(
     listado = client.get(
         f"/jobs/{job.id}/indicios?fuente=seiscomp&alcance=todos"
     )
-    assert "Mapa</a>" in listado.get_data(as_text=True)
+    html = listado.get_data(as_text=True)
+    assert "Mapa</a>" not in html
+    assert "#indicios-fases" in html

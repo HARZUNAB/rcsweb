@@ -28,7 +28,6 @@ from tasks.amplification import ampliar_sin_arribos
 from tasks.availability import consultar_disponibilidad
 from tasks.celery_app import celery
 
-from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..models import EventReviewRequest, Job, utcnow
@@ -79,7 +78,6 @@ from ..services.station_review import (
     filas_visibles,
     fuente_de_fila,
     resolver_evento,
-    revisar_evento,
     revisar_fila,
     seleccionar_disponibilidad,
 )
@@ -464,18 +462,11 @@ def indicios_eventos(job_id: str):
         archivo_catalogo and (workspace / archivo_catalogo).is_file()
     )
     for fila in filas:
-        fila["url_detalle"] = url_for(
-            "results.indicio_evento",
-            job_id=job.id,
-            source_id=fuente,
-            event_id=fila.get("evento", ""),
-            volver=volver,
-        )
         try:
             indice_fila = int(fila.get("fila_catalogo") or "")
         except (TypeError, ValueError):
             indice_fila = None
-        fila["url_mapa_perfil"] = (
+        fila["url_detalle"] = (
             url_for(
                 "results.detalle",
                 job_id=job.id,
@@ -485,7 +476,7 @@ def indicios_eventos(job_id: str):
                 volver=volver,
                 volver_etiqueta="Volver a indicios",
             )
-            + "#planta-perfil"
+            + "#indicios-fases"
             if catalogo_disponible and indice_fila is not None
             else ""
         )
@@ -509,101 +500,6 @@ def indicios_eventos(job_id: str):
         solicitudes=solicitudes,
         puede_solicitar=tiene_permiso(current_user, "revisiones.solicitar"),
         info_fuente=(resumen or {}).get("fuentes", {}).get(fuente, {}),
-        volver=volver,
-    )
-
-
-@results_bp.get("/jobs/<job_id>/indicios/<source_id>/<path:event_id>")
-@login_required
-@permiso_requerido("catalogos.ver")
-def indicio_evento(job_id: str, source_id: str, event_id: str):
-    """Detalle de un evento con indicios, accesible también al analista dueño."""
-    job = _job(job_id)
-    if not fuentes_manifest.es_local(source_id):
-        abort(404)
-    workspace = ruta_workspace(job.id)
-    evento = next(
-        (
-            registro
-            for registro in canonical.leer_canonico(workspace, source_id)
-            if registro.get("event_id") == event_id
-            or registro.get("source_event_id") == event_id
-        ),
-        None,
-    )
-    if evento is None:
-        abort(404)
-    if usuario_restringido(current_user) and not evento_visible(
-        {**evento, "analista": evento.get("analyst", "")}, current_user
-    ):
-        abort(403)
-
-    publicado = indicios.estado_publicado(workspace, source_id, evento)
-    clasificacion = _clasificacion_sospechoso(
-        workspace, source_id, evento.get("raw_index")
-    )
-    sospechoso = clasificacion["sospechoso"] if clasificacion else None
-    explicacion = ""
-    if clasificacion:
-        partes = []
-        if clasificacion["residuo_km"] is not None:
-            partes.append(f"residuo al slab {clasificacion['residuo_km']:.1f} km")
-        if clasificacion["perp_km"] is not None:
-            partes.append(f"distancia al slab {clasificacion['perp_km']:.1f} km")
-        explicacion = "; ".join(partes)
-    indicios_evento = indicios.evaluar_desde_canonico(
-        workspace,
-        source_id,
-        evento,
-        publicado=publicado,
-        sospechoso=sospechoso,
-        explicacion_sospechoso=explicacion,
-    )
-    revision_estaciones = revisar_evento(workspace, source_id, evento)
-    revision_solicitud = EventReviewRequest.query.filter_by(
-        job_id=job.id,
-        source_id=source_id,
-        event_id=evento.get("event_id"),
-    ).first()
-
-    volver = request.args.get("volver", "")
-    if not volver.startswith("/") or volver.startswith("//"):
-        volver = url_for(
-            "results.indicios_eventos",
-            job_id=job.id,
-            fuente=source_id,
-        )
-
-    archivo_catalogo = _archivo_tabla("catalogos", source_id, job)
-    url_catalogo = ""
-    url_mapa_perfil = ""
-    if (
-        archivo_catalogo
-        and (workspace / archivo_catalogo).is_file()
-        and evento.get("raw_index") is not None
-    ):
-        url_catalogo = url_for(
-            "results.detalle",
-            job_id=job.id,
-            tabla="catalogos",
-            opcion=source_id,
-            fila=evento.get("raw_index"),
-            volver=volver,
-            volver_etiqueta="Volver a indicios",
-        )
-        url_mapa_perfil = f"{url_catalogo}#planta-perfil"
-
-    return render_template(
-        "results/indicio_evento.html",
-        job=job,
-        fuente=source_id,
-        etiqueta_fuente=fuentes_manifest.etiqueta(source_id),
-        indicios_evento=indicios_evento,
-        revision_estaciones=revision_estaciones,
-        revision_solicitud=revision_solicitud,
-        puede_solicitar=tiene_permiso(current_user, "revisiones.solicitar"),
-        url_catalogo=url_catalogo,
-        url_mapa_perfil=url_mapa_perfil,
         volver=volver,
     )
 

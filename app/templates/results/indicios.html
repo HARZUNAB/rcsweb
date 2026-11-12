@@ -201,9 +201,6 @@
             </td>
             <td class="small" data-sort-value="{{ fila.tipos_indicio }}">{{ fila.tipos_indicio }}</td>
             <td class="text-end">
-              {% if fila.url_mapa_perfil %}
-              <a class="btn btn-sm btn-outline-secondary" href="{{ fila.url_mapa_perfil }}">Mapa</a>
-              {% endif %}
               {% if fila.revision_prioritaria == 'Sí' %}
               <span class="badge text-bg-danger">Revisión prioritaria</span>
               {% endif %}

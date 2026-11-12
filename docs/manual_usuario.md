@@ -646,19 +646,23 @@ disponibles y se usaron, el azimutal gap y el perfil. Un residual alto en una
 zona con pocas estaciones puede deberse al modelo o a la cobertura, no solo a la
 asociación. La app entrega la evidencia y el patrón; no sentencia la causa.
 
-El detalle del evento muestra la tabla de evidencia: estación, fase, pick,
-`t (s)`, residual, peso, distancia y tipo de indicio. Un evento publicado con
-un indicio fuerte se marca como **Revisión prioritaria**. Un evento no publicado
-se muestra igual, como indicio de calidad de catálogo.
+El nombre del evento en el listado abre el detalle del catálogo en la sección
+de indicios. No hay un botón **Mapa** separado: el detalle del catálogo es el
+único destino y ahí están la evidencia, las estaciones, el mapa y los tiempos.
+
+La sección de indicios del detalle muestra la tabla de evidencia: estación,
+fase, pick, `t (s)`, residual, peso, distancia y tipo de indicio. Un evento
+publicado con un indicio fuerte se marca como **Revisión prioritaria**. Un
+evento no publicado se muestra igual, como indicio de calidad de catálogo.
 
 El listado incluye una columna **Solución** con la clasificación de localización
 que ya calculan los paneles y el detalle del catálogo. Es una dimensión distinta
 de las fases: `Sospechosa`, `Normal` o `No evaluable`. No se recalcula para todo
 el catálogo; se calcula solo para los eventos que tienen indicio.
 
-El detalle del indicio incluye **Ver planta y perfil** y **Ver tiempos de
-llegada**. El primero abre la sección de mapa y perfil del detalle del catálogo;
-el segundo abre el gráfico tiempo-distancia con los controles Vp/Vs. Ambos
+La sección de indicios incluye **Ver planta y perfil** y **Ver tiempos de
+llegada**. El primero baja a la sección de mapa y perfil del mismo detalle; el
+segundo abre el gráfico tiempo-distancia con los controles Vp/Vs. Ambos
 reutilizan las vistas que ya existen y permiten volver a indicios. Los analistas
 pueden abrir el detalle del catálogo de sus propios eventos para usar estas
 vistas.
