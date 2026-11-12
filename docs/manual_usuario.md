@@ -443,7 +443,7 @@ Dentro de Propagación, el panel **Listado comparativo de llegadas** muestra las
 estaciones que tienen al menos un pick, agrupadas por estación:
 
 ```text
-AP01   primera llegada teórica 26.2 s
+AP01
   P   t teórico 26.2   t observado 32.5   Δ +6.3   Orden 2→3
   S   t teórico 44.9   t observado 44.9   Δ +0.0   Orden 2→2
 ```
@@ -456,7 +456,10 @@ AP01   primera llegada teórica 26.2 s
   `2→3` significa que debería haber sido la segunda y fue la tercera.
 - P y S van en filas separadas. Si una estación tiene solo S, aparece solo con
   su fila S y no ocupa un lugar en el orden P.
-- El orden de los grupos es por la primera llegada teórica de la estación.
+- El orden de los grupos es por la primera llegada teórica de la estación; ese
+  valor no se repite como texto para no recargar la lista.
+- La tabla es compacta, sin scroll interno, para que se vea completa mientras
+  avanza la reproducción.
 - Durante la reproducción, el grupo y la fila que el frente va alcanzando se
   iluminan. Las filas futuras quedan tenues.
 - `Δ` se marca en ámbar entre 2 y 5 s y en rojo sobre 5 s. `Orden` se resalta

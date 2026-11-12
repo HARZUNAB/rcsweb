@@ -1230,10 +1230,7 @@
           escaparHtmlListado(grupo.red) +
           " " +
           escaparHtmlListado(grupo.estacion) +
-          '</strong> <span class="text-secondary small">primera llegada' +
-          " teórica " +
-          formatoListadoSegundos(grupo.primero) +
-          " s</span></td></tr>"
+          "</strong></td></tr>"
       );
       grupo.filas.forEach(function (fila) {
         var delta = fila.observado - fila.teorico;

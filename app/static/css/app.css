@@ -106,6 +106,24 @@ footer {
   background-color: var(--fila-activa) !important;
 }
 
+/* Listado comparativo de propagación: compacto y sin estirarse. */
+.tabla-llegadas {
+  width: auto;
+  table-layout: fixed;
+  font-size: 0.8rem;
+}
+
+.tabla-llegadas th,
+.tabla-llegadas td {
+  padding: 0.12rem 0.35rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.tabla-llegadas thead th {
+  white-space: nowrap;
+}
+
 .tabla-resultados.con-miniaturas,
 .tabla-resultados.con-miniaturas-fila {
   --perfil-ancho: 265px;

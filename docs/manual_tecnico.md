@@ -1364,7 +1364,9 @@ consultar disponibilidad.
    `#propagacion-llegadas-cuerpo`. Cada fila muestra fase, `t teórico`,
    `t observado`, `Δ = observado − teórico` y `Orden` en formato
    `teórico→observado`. El orden se calcula por fase: P contra P y S contra S.
-   Una estación con solo S aparece como un grupo con una única fila S.
+   Una estación con solo S aparece como un grupo con una única fila S. La tabla
+   usa `.tabla-llegadas` para quedar compacta y sin scroll interno; el grupo
+   muestra solo la estación.
 9. `marcarListadoPropagacion(t)` ilumina el grupo y la fila que el frente va
    alcanzando. Las filas futuras quedan con `opacity-50`; la fila actual usa
    `table-active` y `fw-semibold`. No se reordena ni se reconstruye durante la
