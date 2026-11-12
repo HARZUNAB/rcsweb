@@ -2,7 +2,7 @@
 
 Este módulo no clasifica la localización ni reemplaza ``sospechoso``. Trabaja
 solo con los arribos canónicos y entrega evidencia de que las fases asociadas a
-un evento no calzan: residuales altos, inversiones de residual y picks
+un evento no calzan: residuales altos, fases fuera de orden y picks
 anteriores al origen. El estado publicado se usa únicamente como contexto para
 distinguir una revisión prioritaria de un indicio de calidad de catálogo.
 
@@ -29,9 +29,9 @@ from . import formatting
 UMBRAL_RESIDUAL = 5.0
 UMBRAL_PESO = 0.5
 UMBRAL_PESO_INFLUYENTE = 0.125
-UMBRAL_INVERSION = 5.0
-UMBRAL_INVERSION_DEBIL_S = 2.0
-UMBRAL_RESIDUAL_INVERSION_DEBIL = 5.0
+UMBRAL_RESIDUAL_FUERA_DE_ORDEN = 5.0
+UMBRAL_TIEMPO_FUERA_DE_ORDEN_S = 2.0
+UMBRAL_RESIDUAL_FUERA_DE_ORDEN_DEBIL = 5.0
 SEPARACION_MINIMA_KM = 20.0
 MIN_ESTACIONES_FASE = 3
 UMBRAL_RESIDUAL_EXTREMO = 60.0
@@ -40,7 +40,7 @@ UMBRAL_CONTEXTO_ESTACIONES = 5
 UMBRAL_CONTEXTO_SIN_INVENTARIO = 8
 UMBRAL_CONTEXTO_AZGAP = 180.0
 MAX_PARES_DETALLE = 40
-ESQUEMA_INDICIOS = 2
+ESQUEMA_INDICIOS = 3
 
 CAMPOS_EVENTO = (
     "fuente",
@@ -70,8 +70,8 @@ CAMPOS_EVENTO = (
     "max_residual_usado",
     "residual_mediana",
     "n_outliers",
-    "n_inversiones",
-    "n_inversiones_debiles",
+    "n_fuera_de_orden",
+    "n_fuera_de_orden_debiles",
     "n_picks_antes_origen",
     "tipos_indicio",
     "resumen",
@@ -314,16 +314,16 @@ def _contexto(
 def _patron(
     fuertes: list[dict],
     outliers: list[dict],
-    inversiones: list[dict],
+    fuera_de_orden: list[dict],
     antes: list[dict],
     extremo: bool,
 ) -> str:
     if extremo and outliers and len(outliers) <= 6 and len(fuertes) <= 8:
         return "puntual"
-    if inversiones and outliers:
+    if fuera_de_orden and outliers:
         return "mixto"
-    if inversiones:
-        return "inversion"
+    if fuera_de_orden:
+        return "fuera_de_orden"
     if antes:
         ids_antes = {id(arribo) for arribo in antes}
         otros = [arribo for arribo in outliers if id(arribo) not in ids_antes]
@@ -348,7 +348,7 @@ def _patron(
     return "sin_datos"
 
 
-def _inversiones(
+def _fuera_de_orden(
     fuertes: list[dict],
     evento: dict,
     fase: str,
@@ -402,12 +402,12 @@ def _inversiones(
             if distancia_lejana - distancia_cercana < SEPARACION_MINIMA_KM:
                 continue
             diferencia = residual_cercana - residual_lejana
-            if diferencia > UMBRAL_INVERSION:
+            if diferencia > UMBRAL_RESIDUAL_FUERA_DE_ORDEN:
                 pares.append((cercana, lejana, diferencia))
     return pares
 
 
-def _inversiones_debiles(
+def _fuera_de_orden_debiles(
     influyentes: list[dict],
     evento: dict,
     fase: str,
@@ -450,9 +450,9 @@ def _inversiones_debiles(
                 continue
             if (
                 instante_cercana - instante_lejana
-            ).total_seconds() <= UMBRAL_INVERSION_DEBIL_S:
+            ).total_seconds() <= UMBRAL_TIEMPO_FUERA_DE_ORDEN_S:
                 continue
-            if abs(residual_cercana) <= UMBRAL_RESIDUAL_INVERSION_DEBIL:
+            if abs(residual_cercana) <= UMBRAL_RESIDUAL_FUERA_DE_ORDEN_DEBIL:
                 continue
             peso_lejana = _numero(lejana.get("weight")) or 0.0
             if peso_cercana >= UMBRAL_PESO and peso_lejana >= UMBRAL_PESO:
@@ -559,12 +559,12 @@ def evaluar_evento(
         )
         for arribo in outliers
     )
-    inversiones = []
-    inversiones_debiles = []
+    fuera_de_orden = []
+    fuera_de_orden_debiles = []
     for fase in ("P", "S"):
-        inversiones.extend(_inversiones(fuertes, evento, fase))
-        inversiones_debiles.extend(
-            _inversiones_debiles(influyentes, evento, fase)
+        fuera_de_orden.extend(_fuera_de_orden(fuertes, evento, fase))
+        fuera_de_orden_debiles.extend(
+            _fuera_de_orden_debiles(influyentes, evento, fase)
         )
     antes = [
         arribo
@@ -572,8 +572,8 @@ def evaluar_evento(
         if (_t_seg(arribo, origen) or 0.0) < 0
     ]
     contexto = _contexto(usadas, sin_arribos, perfil_disponible)
-    anomalia_fuerte = bool(outliers or inversiones or antes)
-    anomalia = bool(anomalia_fuerte or inversiones_debiles)
+    anomalia_fuerte = bool(outliers or fuera_de_orden or antes)
+    anomalia = bool(anomalia_fuerte or fuera_de_orden_debiles)
     fuerza = "fuerte" if anomalia_fuerte else ("débil" if anomalia else "")
     if publicado is True:
         prioridad = "Alta" if anomalia_fuerte else "Media"
@@ -589,19 +589,19 @@ def evaluar_evento(
         "Sin evaluar": 1,
     }[prioridad]
     if anomalia_fuerte:
-        patron = _patron(fuertes, outliers, inversiones, antes, extremo)
-    elif inversiones_debiles:
-        patron = "inversion_debil"
+        patron = _patron(fuertes, outliers, fuera_de_orden, antes, extremo)
+    elif fuera_de_orden_debiles:
+        patron = "fuera_de_orden_debil"
     else:
-        patron = _patron(fuertes, outliers, inversiones, antes, extremo)
+        patron = _patron(fuertes, outliers, fuera_de_orden, antes, extremo)
 
     tipos: list[str] = []
     if outliers:
         tipos.append("residual_alto")
-    if inversiones:
-        tipos.append("inversion_residual")
-    if inversiones_debiles:
-        tipos.append("inversion_debil")
+    if fuera_de_orden:
+        tipos.append("fuera_de_orden")
+    if fuera_de_orden_debiles:
+        tipos.append("fuera_de_orden_debil")
     if antes:
         tipos.append("pick_antes_origen")
     if patron == "sistemático":
@@ -638,7 +638,7 @@ def evaluar_evento(
         evidencia.append(
             _fila_detalle(source_id, evento, arribo, "residual_alto", detalle, origen)
         )
-    for cercana, lejana, diferencia in inversiones[:MAX_PARES_DETALLE]:
+    for cercana, lejana, diferencia in fuera_de_orden[:MAX_PARES_DETALLE]:
         red_lejana, estacion_lejana = _clave_estacion(lejana)
         red_cercana, estacion_cercana = _clave_estacion(cercana)
         evidencia.append(
@@ -646,7 +646,7 @@ def evaluar_evento(
                 source_id,
                 evento,
                 cercana,
-                "inversion_residual",
+                "fuera_de_orden",
                 (
                     f"residual mayor que {red_lejana} {estacion_lejana}"
                     f" en {formatting.numero(diferencia, 2)} s"
@@ -659,7 +659,7 @@ def evaluar_evento(
                 source_id,
                 evento,
                 lejana,
-                "inversion_residual",
+                "fuera_de_orden",
                 (
                     f"residual menor que {red_cercana} {estacion_cercana}"
                     f" en {formatting.numero(diferencia, 2)} s"
@@ -667,7 +667,7 @@ def evaluar_evento(
                 origen,
             )
         )
-    for cercana, lejana, diferencia, residual in inversiones_debiles[
+    for cercana, lejana, diferencia, residual in fuera_de_orden_debiles[
         :MAX_PARES_DETALLE
     ]:
         red_lejana, estacion_lejana = _clave_estacion(lejana)
@@ -682,7 +682,7 @@ def evaluar_evento(
                 source_id,
                 evento,
                 cercana,
-                "inversion_debil",
+                "fuera_de_orden_debil",
                 detalle,
                 origen,
             )
@@ -726,28 +726,29 @@ def evaluar_evento(
             }
         )
 
-    resumen = patron
+    resumen = formatting.patron_texto(patron)
     if patron == "sistemático":
         resumen = (
-            f"sistemático | {len(outliers)} estaciones |"
+            f"{formatting.patron_texto(patron)} | {len(outliers)} estaciones |"
             f" residual mediano {formatting.numero(mediana, 2, signo=True)} s"
         )
     elif evidencia:
         principal = evidencia[0]
         if principal["tipo_indicio"] == "pick_antes_origen":
             resumen = (
-                f"{patron} | t {principal['t_seg']} s"
+                f"{formatting.patron_texto(patron)} | t {principal['t_seg']} s"
                 f" | peso {principal['peso']}"
             )
         elif principal["tipo_indicio"] == "patron_sistematico":
             resumen = (
-                f"{patron} | {len(outliers)} estaciones"
+                f"{formatting.patron_texto(patron)} | {len(outliers)} estaciones"
                 f" | residual mediano"
                 f" {formatting.numero(mediana, 2, signo=True)} s"
             )
         else:
             resumen = (
-                f"{patron} | residual {principal['residual']} s"
+                f"{formatting.patron_texto(patron)}"
+                f" | residual {principal['residual']} s"
                 f" | peso {principal['peso']}"
             )
 
@@ -781,8 +782,8 @@ def evaluar_evento(
             _mediana(residuales_usadas), 2, signo=True
         ),
         "n_outliers": len(outliers),
-        "n_inversiones": len(inversiones),
-        "n_inversiones_debiles": len(inversiones_debiles),
+        "n_fuera_de_orden": len(fuera_de_orden),
+        "n_fuera_de_orden_debiles": len(fuera_de_orden_debiles),
         "n_picks_antes_origen": len(antes),
         "tipos_indicio": ", ".join(tipos),
         "resumen": resumen,

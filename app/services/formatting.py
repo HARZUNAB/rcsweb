@@ -39,13 +39,64 @@ def entero(valor) -> str:
 def peso_04(valor) -> float | None:
     """Convierte el peso canónico 0–1 a la escala 0–4 que usan los analistas.
 
-    0 es el mejor peso y 4 equivale a no usada.
+    0 es mayor influencia y 4 equivale a sin influencia.
     """
     try:
         canonico = float(str(valor).strip())
     except (TypeError, ValueError):
         return None
     return max(0.0, min(4.0, 4.0 * (1.0 - canonico)))
+
+
+ETIQUETAS_PATRON = {
+    "puntual": "Puntual",
+    "sistemático": "Sistemático",
+    "mixto": "Mixto",
+    "fuera_de_orden": "Fase inconsistente con la distancia",
+    "fuera_de_orden_debil": (
+        "Fase inconsistente con la distancia (baja influencia)"
+    ),
+    "pick_antes_origen": "Pick antes del origen",
+    "sin_patron": "Sin patrón",
+    "sin_datos": "Sin datos",
+}
+
+ETIQUETAS_TIPO_INDICIO = {
+    "residual_alto": "Residual alto",
+    "fuera_de_orden": "Fase inconsistente con la distancia",
+    "fuera_de_orden_debil": (
+        "Fase inconsistente con la distancia (baja influencia)"
+    ),
+    "pick_antes_origen": "Pick antes del origen",
+    "patron_sistematico": "Patrón sistemático",
+}
+
+
+def patron_texto(valor) -> str:
+    texto = "" if valor is None else str(valor).strip()
+    return ETIQUETAS_PATRON.get(texto, texto)
+
+
+def patron_corto(valor) -> str:
+    texto = "" if valor is None else str(valor).strip()
+    if texto in ("fuera_de_orden", "fuera_de_orden_debil"):
+        corto = patron_texto(texto).replace("Fase ", "", 1)
+        return corto[:1].upper() + corto[1:]
+    return patron_texto(texto)
+
+
+def tipo_indicio_texto(valor) -> str:
+    texto = "" if valor is None else str(valor).strip()
+    return ETIQUETAS_TIPO_INDICIO.get(texto, texto)
+
+
+def tipos_indicio_texto(valor) -> str:
+    texto = "" if valor is None else str(valor).strip()
+    if not texto:
+        return ""
+    return ", ".join(
+        tipo_indicio_texto(parte) for parte in texto.split(",") if parte.strip()
+    )
 
 
 def peso_04_texto(valor) -> str:
@@ -75,7 +126,11 @@ def peso_original(raw: dict | None) -> str:
 __all__ = [
     "entero",
     "numero",
+    "patron_corto",
+    "patron_texto",
     "peso_04",
     "peso_04_texto",
     "peso_original",
+    "tipo_indicio_texto",
+    "tipos_indicio_texto",
 ]

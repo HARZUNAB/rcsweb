@@ -31,7 +31,7 @@ COLUMNAS_ARRIBO = [
     ("residual", "Resid. (s)"),
     ("azimut", "Azimut (°)"),
     ("distancia", "Dist. (°)"),
-    ("usada", "Usada"),
+    ("usada", "En solución"),
     ("modo", "Tipo"),
     ("pick_autor", "Autor"),
     ("pick_metodo", "Método"),

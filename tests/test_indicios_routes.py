@@ -148,6 +148,8 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Mapa</a>" not in html
     assert "/resultados/catalogos/seiscomp/0" in html
     assert "#indicios-fases" in html
+    assert "Puntual" in html
+    assert "inversion" not in html.lower()
 
     detalle = client.get(
         f"/jobs/{job.id}/resultados/catalogos/seiscomp/0"
@@ -160,6 +162,8 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Pedir revisión" in html
     assert "data-sortable" in html
     assert "tabla_orden.js" in html
+    assert "Fase inconsistente con la distancia" in html
+    assert "inversion" not in html.lower()
 
     antigua = client.get(
         f"/jobs/{job.id}/indicios/seiscomp/seiscomp:000001"

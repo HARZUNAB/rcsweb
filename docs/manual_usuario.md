@@ -613,19 +613,25 @@ Cada evento muestra el **patrón** y el **contexto**:
 |---|---|
 | `puntual` | Una o pocas estaciones con residual extremo; asociación o pick erróneo |
 | `sistemático` | Muchas estaciones con residuales del mismo signo; modelo, profundidad u origen |
-| `inversión` | Una estación más cercana tiene residual mayor que una más lejana |
-| `inversion_debil` | La estación más cercana llega después, pero su pick tiene peso casi nulo |
+| `fuera_de_orden` | Una fase no respeta el orden esperado por distancia: la estación más cercana tiene mayor residual que una más lejana |
+| `fuera_de_orden_debil` | La estación más cercana llega después, pero su fase influyó poco en la solución (peso 3) |
 | `mixto` | Varias señales a la vez |
 | `pick_antes_origen` | El pick es anterior al origen |
+
+Una **fase inconsistente con la distancia** solo indica que su tiempo o
+residual no corresponde al orden esperado por distancia. Se evalúa por separado
+para P y para S.
 
 La **fuerza** del indicio es `fuerte` o `débil`. Solo los fuertes pueden ser
 **Revisión prioritaria** cuando el evento está publicado. Un indicio débil se
 muestra igual, con la etiqueta **indicio débil**, para que el usuario decida si
 pide revisión.
 
-El **peso** se muestra en la escala 0–4 que usan los analistas: 0 = mejor,
-4 = no usada. El valor original de la fuente aparece al pasar el cursor sobre
-el peso. El listado de indicios no muestra peso; solo el detalle.
+El **peso** se muestra en la escala 0–4 que usan los analistas: 0 = mayor
+influencia, 4 = sin influencia. Solo las fases con peso 0–3 entran al análisis;
+las de peso 4 no aportaron a la solución y no generan indicios. El valor
+original de la fuente aparece al pasar el cursor sobre el peso. El listado de
+indicios no muestra peso; solo el detalle.
 
 Los números se muestran con pocos decimales: residual 2, distancia y tiempo 1,
 azimut 1, magnitud y profundidad 1, conteos enteros. Un valor distinto de cero

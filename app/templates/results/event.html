@@ -250,7 +250,7 @@
         </div>
       </div>
       <div class="text-end small text-secondary">
-        <div>Patrón: <strong>{{ indicios_evento.patron }}</strong></div>
+        <div>Patrón: <strong>{{ indicios_evento.patron|patron_texto }}</strong></div>
         <div>Contexto: <strong>{{ indicios_evento.contexto }}</strong></div>
       </div>
     </div>
@@ -307,8 +307,8 @@
         <div class="fw-semibold">{{ indicios_evento.n_outliers }}</div>
       </div>
       <div class="col-6 col-md-3">
-        <div class="text-secondary">Inversiones</div>
-        <div class="fw-semibold">{{ indicios_evento.n_inversiones }}</div>
+        <div class="text-secondary">Fases inconsistentes</div>
+        <div class="fw-semibold">{{ indicios_evento.n_fuera_de_orden }}</div>
       </div>
       <div class="col-6 col-md-3">
         <div class="text-secondary">Picks antes del origen</div>
@@ -365,7 +365,7 @@
             <td class="text-end" data-sort-value="{{ item.residual }}">{{ item.residual }}</td>
             <td class="text-end" data-sort-value="{{ item.peso }}" title="Original: {{ item.peso_original }}">{{ item.peso }}</td>
             <td class="text-end" data-sort-value="{{ item.distancia_km }}">{{ item.distancia_km }}</td>
-            <td data-sort-value="{{ item.tipo_indicio }}"><span class="badge text-bg-light text-dark">{{ item.tipo_indicio }}</span></td>
+            <td data-sort-value="{{ item.tipo_indicio }}"><span class="badge text-bg-light text-dark">{{ item.tipo_indicio|tipo_indicio_texto }}</span></td>
             <td class="small" data-sort-value="{{ item.detalle }}">{{ item.detalle }}</td>
           </tr>
           {% endfor %}
@@ -373,8 +373,8 @@
       </table>
     </div>
     <div class="small text-secondary mb-3">
-      Peso (0-4): 0 = mejor; 4 = no usada. Pase el cursor sobre el peso para
-      ver el valor original.
+      Peso (0-4): 0 = mayor influencia; 4 = sin influencia. Pase el cursor
+      sobre el peso para ver el valor original.
     </div>
     {% endif %}
 
@@ -453,8 +453,8 @@
             <dd class="col-7 mb-1">Ángulo desde el epicentro hacia la estación.</dd>
             <dt class="col-5 fw-normal text-secondary">Dist. (°)</dt>
             <dd class="col-7 mb-1">Distancia angular epicentro-estación.</dd>
-            <dt class="col-5 fw-normal text-secondary">Usada</dt>
-            <dd class="col-7 mb-1">Si el arribo entró en la solución.</dd>
+            <dt class="col-5 fw-normal text-secondary">En solución</dt>
+            <dd class="col-7 mb-1">Si el arribo está asociado a la solución.</dd>
             <dt class="col-5 fw-normal text-secondary">Tipo</dt>
             <dd class="col-7 mb-1">Pick manual o automático.</dd>
             <dt class="col-5 fw-normal text-secondary">Peso</dt>
@@ -560,7 +560,9 @@
         </div>
         <div class="small text-secondary mb-2">
           Ordenados por llegada; P y S juntas por estación.
-          Peso (0-4): 0 = mejor; 4 = no usada.
+          Peso (0-4): 0 = mayor influencia; 4 = sin influencia.
+          Un arribo puede estar en la solución y tener peso 4: está asociado,
+          pero casi no movió la ubicación.
           Pase el cursor sobre el peso para ver el valor original.
         </div>
         {% if revision_estaciones.grupos %}

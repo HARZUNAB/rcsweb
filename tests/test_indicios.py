@@ -96,7 +96,7 @@ def test_detecta_caso_puntual_extremo_y_lo_marca_prioritario():
     assert resultado["contexto"] == "débil"
     assert resultado["extremo"] is True
     assert resultado["n_outliers"] == 5
-    assert resultado["n_inversiones"] > 0
+    assert resultado["n_fuera_de_orden"] > 0
     assert resultado["revision_prioritaria"] is True
     assert resultado["prioridad"] == "Alta"
     assert resultado["prioridad_orden"] == 5
@@ -221,13 +221,13 @@ def test_peso_4_no_genera_indicio():
 
     assert resultado["anomalia"] is False
     assert resultado["fuerza"] == ""
-    assert resultado["n_inversiones"] == 0
-    assert resultado["n_inversiones_debiles"] == 0
+    assert resultado["n_fuera_de_orden"] == 0
+    assert resultado["n_fuera_de_orden_debiles"] == 0
     assert resultado["evidencia"] == []
     assert resultado["evidencia_principal"] is None
 
 
-def test_detecta_inversion_debil_con_peso_3():
+def test_detecta_fuera_de_orden_debil_con_peso_3():
     evento = _evento(
         event_id="seiscomp:000007",
         event_time="2020-01-01 00:00:00",
@@ -253,14 +253,14 @@ def test_detecta_inversion_debil_con_peso_3():
 
     assert resultado["anomalia"] is True
     assert resultado["fuerza"] == "débil"
-    assert resultado["patron"] == "inversion_debil"
-    assert resultado["n_inversiones_debiles"] == 1
-    assert resultado["n_inversiones"] == 0
+    assert resultado["patron"] == "fuera_de_orden_debil"
+    assert resultado["n_fuera_de_orden_debiles"] == 1
+    assert resultado["n_fuera_de_orden"] == 0
     assert resultado["revision_prioritaria"] is False
     debil = next(
         item
         for item in resultado["evidencia"]
-        if item["tipo_indicio"] == "inversion_debil"
+        if item["tipo_indicio"] == "fuera_de_orden_debil"
     )
     assert debil["peso"] == "3"
     assert debil["residual"] == "+7.27"
@@ -302,7 +302,7 @@ def _fases_invertidas(resultado):
     return {
         item["fase"]
         for item in resultado["evidencia"]
-        if item["tipo_indicio"] == "inversion_residual"
+        if item["tipo_indicio"] == "fuera_de_orden"
     }
 
 
@@ -313,7 +313,7 @@ def test_evalua_orden_inconsistente_solo_en_p():
         source_id="seiscomp",
     )
 
-    assert resultado["n_inversiones"] > 0
+    assert resultado["n_fuera_de_orden"] > 0
     assert _fases_invertidas(resultado) == {"P"}
 
 
@@ -324,7 +324,7 @@ def test_evalua_orden_inconsistente_solo_en_s():
         source_id="seiscomp",
     )
 
-    assert resultado["n_inversiones"] > 0
+    assert resultado["n_fuera_de_orden"] > 0
     assert _fases_invertidas(resultado) == {"S"}
 
 
@@ -338,7 +338,7 @@ def test_peso_4_en_p_evalua_solamente_la_s():
         source_id="seiscomp",
     )
 
-    assert resultado["n_inversiones"] > 0
+    assert resultado["n_fuera_de_orden"] > 0
     assert _fases_invertidas(resultado) == {"S"}
 
 
@@ -352,7 +352,7 @@ def test_peso_4_en_s_evalua_solamente_la_p():
         source_id="seiscomp",
     )
 
-    assert resultado["n_inversiones"] > 0
+    assert resultado["n_fuera_de_orden"] > 0
     assert _fases_invertidas(resultado) == {"P"}
 
 
@@ -431,7 +431,7 @@ def test_genera_reportes_y_resumen(tmp_path):
     assert filas[0]["patron"] == "puntual"
     assert filas[0]["contexto"] == "débil"
     assert filas[0]["max_residual_usado"] == "244.20"
-    assert filas[0]["resumen"].startswith("puntual | residual +244.20 s")
+    assert filas[0]["resumen"].startswith("Puntual | residual +244.20 s")
 
     detalle = indicios.leer_detalle(workspace, "seiscomp", "seiscomp:000001")
     assert detalle

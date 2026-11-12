@@ -968,27 +968,31 @@ localización `sospechoso`: son dimensiones independientes. Un evento puede tene
 una solución normal y fases mal asociadas, o una solución sospechosa sin
 indicios de fases.
 
-Los indicadores se calculan solo con arribos usados en la solución:
+Los indicadores se calculan solo con fases influyentes: arribos usados en la
+solución cuyo peso canónico supera `0.125` (peso 0–3 en pantalla). Las fases con
+peso 4 no influyeron en la solución y se excluyen del análisis. Un peso ausente
+se considera influyente para no descartar picks por falta de dato. P y S se
+evalúan por separado.
 
 | Indicador | Regla |
 |---|---|
 | Residual alto | `abs(residual) > 5 s` y `peso >= 0.5` |
-| Inversión de residual | primera P por estación, separación `>= 20 km`, `residual(cercana) - residual(lejana) > 5 s`, con al menos 3 estaciones P |
-| Inversión débil | primera P por estación usada, separación `>= 20 km`, la cercana llega después de la lejana por `> 2 s`, `abs(residual)` de la cercana `> 5 s` y al menos uno de los dos pesos `< 0.5` |
+| Fase fuera de orden | primera fase por estación y tipo (P o S), separación `>= 20 km`, `residual(cercana) - residual(lejana) > 5 s`, con al menos 3 estaciones de esa fase y `peso >= 0.5` |
+| Fase fuera de orden débil | fases influyentes (peso 0–3), primera por estación y tipo, separación `>= 20 km`, la cercana llega después de la lejana por `> 2 s`, `abs(residual)` de la cercana `> 5 s` y al menos uno de los dos pesos `< 0.5` |
 | Pick antes del origen | `t (s) < 0` y `peso >= 0.5` |
 
 La **fuerza** distingue los indicios:
 
 ```text
-fuerte = residual alto, inversión fuerte o pick antes del origen
-débil  = solo inversión débil
+fuerte = residual alto, fase fuera de orden o pick antes del origen
+débil  = solo fase fuera de orden débil
 ```
 
-La inversión débil sirve para picks usados con peso casi nulo, que la solución
-despriorizó pero que siguen visibles en el listado de arribos. No cambia la
-prioridad: `revision_prioritaria` exige `publicado` y `fuerza = fuerte`. Un
-evento publicado con solo indicio débil aparece como indicio, y un usuario con
-más privilegios decide si pide revisión.
+La fase fuera de orden débil sirve para fases con peso 3, que influyeron poco
+pero influyeron, y que la solución despriorizó. No cambia la prioridad:
+`revision_prioritaria` exige `publicado` y `fuerza = fuerte`. Un evento
+publicado con solo indicio débil aparece como indicio, y un usuario con más
+privilegios decide si pide revisión.
 
 La **prioridad** combina publicación y fuerza:
 
@@ -1009,10 +1013,10 @@ haciendo clic en cualquier encabezado, sin recargar la página. El segundo clic
 invierte el orden. La tabla de revisión de estaciones no entra en este
 ordenamiento.
 
-El **patrón** resume la evidencia: `puntual`, `sistemático`, `inversión`,
-`inversion_debil`, `mixto`, `pick_antes_origen` o `sin_patron`. Un residual es
-**extremo** si supera 60 s o 10 veces la mediana del evento. El **contexto** es
-`fuerte` o `débil` según estaciones disponibles y usadas, azimutal gap y
+El **patrón** resume la evidencia: `puntual`, `sistemático`, `fuera_de_orden`,
+`fuera_de_orden_debil`, `mixto`, `pick_antes_origen` o `sin_patron`. Un residual
+es **extremo** si supera 60 s o 10 veces la mediana del evento. El **contexto**
+es `fuerte` o `débil` según estaciones disponibles y usadas, azimutal gap y
 disponibilidad de perfil. Si el trabajo no trae la lista de estaciones sin
 arribo, el contexto fuerte exige al menos 8 estaciones usadas, porque solo se
 conoce una cota inferior de la cobertura.
@@ -1020,9 +1024,10 @@ conoce una cota inferior de la cobertura.
 ##### Peso, formato y presentación
 
 El peso canónico se normaliza a 0–1 en los adaptadores. Seisan usa `W` de 0 a 4
-(0 = mejor, 4 = no usada); el adaptador guarda `1 - W/4` en `weight` y conserva
-el valor original en `raw.peso_w`. Central y SeisComp ya entregan 0–1. El
-análisis usa siempre 0–1.
+(0 = mayor influencia, 4 = sin influencia); el adaptador guarda `1 - W/4` en
+`weight` y conserva el valor original en `raw.peso_w`. Central y SeisComp ya
+entregan 0–1. El análisis usa siempre 0–1 y descarta las fases con
+`weight <= 0.125`, que corresponden a peso 4 en pantalla.
 
 La pantalla del detalle muestra `Peso (0-4)` con `4 × (1 - weight)` y el valor
 original en el tooltip. El listado de indicios no muestra peso.
@@ -1043,9 +1048,10 @@ Si un valor distinto de cero redondea a cero, se muestra `<0,01` o `<0,1` según
 corresponda. El JSONL canónico conserva la precisión completa.
 
 La sección de indicios del detalle del catálogo muestra una línea técnica
-explícita, por ejemplo `inversion_debil | residual +7.27 s | peso 4`, y debajo
-la tabla de evidencia. No hay una “explicación simple” separada: el dato técnico
-es el principal.
+explícita, por ejemplo
+`Fase inconsistente con la distancia (baja influencia) | residual +7.27 s | peso 3`,
+y debajo la tabla de evidencia. No hay una “explicación simple” separada: el dato
+técnico es el principal.
 
 El listado enlaza cada evento al detalle del catálogo en `#indicios-fases`. No
 existe una página separada de indicio ni un botón **Mapa** en el listado: el
