@@ -2,7 +2,7 @@
 {% set url_solo_disponibles = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, no_usadas=1 if revision_estaciones.solo_no_usadas else none, disponibles=1) %}
 {% set url_sin_ampliado = url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=indice_fila, volver=volver, no_usadas=1 if revision_estaciones.solo_no_usadas else none, disponibles=1 if revision_estaciones.solo_disponibles else none) %}
 <div id="panel-sin-arribos-contenido"
-     data-puede-consultar="{{ 1 if revision_estaciones.puede_consultar else 0 }}"
+     data-puede-consultar="{{ 1 if revision_estaciones.puede_consultar and not desde_indicios else 0 }}"
      data-consultada="{{ 1 if revision_estaciones.disponibilidad_consultada else 0 }}"
      data-tarea="{{ revision_estaciones.consulta_tarea or '' }}"
      data-volver="{{ volver }}"
@@ -19,7 +19,7 @@
     <div class="small text-secondary">{{ revision_estaciones.resumen.texto_sin_arribos }}</div>
     <div class="d-flex flex-wrap gap-2">
       {% if revision_estaciones.sin_arribos %}
-        {% if revision_estaciones.puede_consultar %}
+        {% if revision_estaciones.puede_consultar and not desde_indicios %}
         <button type="button" class="btn btn-sm btn-outline-primary"
                 id="btn-disponibilidad">
           {% if revision_estaciones.disponibilidad_consultada %}

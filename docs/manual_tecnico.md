@@ -1384,13 +1384,17 @@ cuando hay estaciones sin arribos en el mapa. La revisión agrega
 | `disponible == "No"` | `sin_datos` |
 | `disponible == "—"` o vacío | `sin_consultar` |
 
-El botón **Consultar formas de onda** de la barra de propagación no crea un
-flujo nuevo: llama a `encolar(false)`, la misma función que usa la solapa
-**Sin arribos**. `encolar`, `consultarEstado`, `actualizarPanel` y
-`prepararPropagacion` siguen siendo los únicos responsables del POST, el
-sondeo, la actualización del panel y el redibujo. `mostrarEstado` escribe el
-progreso tanto en el panel como en `#propagacion-consulta-estado`, y
-`bloquearBotonesConsulta` habilita/deshabilita los tres botones de consulta.
+La consulta de formas de onda vive solo en la solapa **Sin arribos**: no hay
+un botón equivalente en la barra de propagación. `encolar`, `consultarEstado`,
+`actualizarPanel` y `prepararPropagacion` siguen siendo los responsables del
+POST, el sondeo, la actualización del panel y el redibujo. `mostrarEstado`
+escribe el progreso en el panel y `bloquearBotonesConsulta` habilita o
+deshabilita los botones de la solapa.
+
+Cuando el detalle se abre desde el listado de indicios, el controlador calcula
+`desde_indicios` a partir de `volver`. En ese caso no renderiza los botones de
+consulta y deja `data-puede-consultar="0"` para que `autoConsultar` no inicie
+la consulta automática. La solapa y la tabla de disponibilidad siguen visibles.
 `actualizarResumenEstados` cuenta las estaciones visibles por estado y actualiza
 la leyenda y el resumen de la barra de propagación.
 

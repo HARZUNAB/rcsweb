@@ -267,6 +267,12 @@ El botón **Consultar formas de onda** permite iniciar la consulta manualmente.
 Cuando ya hay resultados, cambia a **Volver a consultar formas de onda** para
 actualizarlos.
 
+Cuando se entra desde el listado de **Indicios de fases**, los botones de
+consulta y la consulta automática se ocultan: esa visita está enfocada en las
+fases. La solapa **Sin arribos** y su tabla de disponibilidad siguen visibles.
+Para consultar las ondas, entre al detalle desde **Catálogos** o desde la
+revisión normal del evento.
+
 Después de la consulta:
 
 - **Formas de onda** indica **SDS**, **Tiempo real**, **Sin datos** o
@@ -495,11 +501,10 @@ de disponibilidad de formas de onda:
   En el mapa: 10 observadas · 0 sin consultar · 6 sin datos · 14 disponibles no usadas
   ```
 
-El botón **Consultar formas de onda** de la barra de propagación realiza la
-misma consulta que el botón de la solapa **Sin arribos**: mismos filtros,
-mismos límites y mismo sondeo. Al terminar, se actualizan el panel, el mapa y
-el contador. Las estaciones que queden fuera de la consulta permanecen como
-**sin consultar**.
+La consulta de formas de onda se realiza desde la solapa **Sin arribos**, con
+los mismos filtros, límites y sondeo. No hay un botón de consulta en la barra de
+propagación. Al terminar, se actualizan el panel, el mapa y el contador. Las
+estaciones que queden fuera de la consulta permanecen como **sin consultar**.
 
 Al iniciar la consulta, desde cualquiera de los dos botones, aparece un
 **indicador fijo en la esquina inferior derecha** con un spinner y el tiempo

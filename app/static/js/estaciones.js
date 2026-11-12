@@ -80,21 +80,6 @@
       aviso.textContent = texto;
       aviso.classList.remove("d-none");
     }
-    var propagacion = document.getElementById(
-      "propagacion-consulta-estado"
-    );
-    if (propagacion) {
-      var color = "text-secondary";
-      if (clase === "alert-danger") {
-        color = "text-danger";
-      } else if (clase === "alert-warning") {
-        color = "text-warning";
-      } else if (clase === "alert-success") {
-        color = "text-success";
-      }
-      propagacion.className = "small " + color;
-      propagacion.textContent = texto;
-    }
     if (clase === "alert-info") {
       mostrarIndicadorConsulta(texto);
     } else {
@@ -103,11 +88,7 @@
   }
 
   function bloquearBotonesConsulta(activo) {
-    [
-      "btn-disponibilidad",
-      "btn-disponibilidad-todas",
-      "btn-propagacion-consultar",
-    ].forEach(function (id) {
+    ["btn-disponibilidad", "btn-disponibilidad-todas"].forEach(function (id) {
       var boton = document.getElementById(id);
       if (boton) {
         boton.disabled = activo;
@@ -968,8 +949,7 @@
 
   function actualizarResumenEstados(puntos) {
     var resumen = document.getElementById("resumen-estados-estaciones");
-    var propagacion = document.getElementById("propagacion-estimadas");
-    if (!resumen && !propagacion) {
+    if (!resumen) {
       return;
     }
     var lista = puntos || [];
@@ -1000,12 +980,7 @@
         disponibles +
         " disponibles no usadas"
       : "Sin estaciones en el mapa.";
-    if (resumen) {
-      resumen.textContent = texto;
-    }
-    if (propagacion) {
-      propagacion.textContent = texto;
-    }
+    resumen.textContent = texto;
   }
 
   function mostrarLeyendaEstados(mostrar) {
@@ -2255,15 +2230,6 @@
       reiniciar.addEventListener("click", function (evento) {
         evento.preventDefault();
         reiniciarPropagacion();
-      });
-    }
-    var consultarPropagacion = document.getElementById(
-      "btn-propagacion-consultar"
-    );
-    if (consultarPropagacion) {
-      consultarPropagacion.addEventListener("click", function (evento) {
-        evento.preventDefault();
-        encolar(false);
       });
     }
     var botonActualizar = document.getElementById("btn-tiempos-actualizar");

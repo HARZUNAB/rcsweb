@@ -499,9 +499,9 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert 'id="propagacion-controles"' in html
     assert 'id="propagacion-tiempo"' in html
     assert 'id="btn-propagacion-play"' in html
-    assert 'id="btn-propagacion-consultar"' in html
-    assert 'id="propagacion-estimadas"' in html
-    assert 'id="propagacion-consulta-estado"' in html
+    assert 'id="btn-propagacion-consultar"' not in html
+    assert 'id="propagacion-estimadas"' not in html
+    assert 'id="propagacion-consulta-estado"' not in html
     assert 'id="propagacion-mostrar-p"' in html
     assert 'id="propagacion-mostrar-s"' in html
     assert 'id="propagacion-alcanzadas"' in html
@@ -975,6 +975,26 @@ def test_detalle_muestra_boton_disponibilidad_y_descarga(client, login, app):
         r"<a[^>]*\bdownload\b[^>]*sin-arribos\.csv", html, re.S
     )
     assert re.search(r"<a[^>]*\bdownload\b[^>]*arribos\.csv", html, re.S)
+
+
+def test_detalle_oculta_disponibilidad_si_viene_de_indicios(
+    client, login, app
+):
+    job = _job_con_revision(app)
+    app.config["RCS_DISPONIBILIDAD_URL"] = "http://sidecar:8010"
+    login()
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/no_publicados/seiscomp/0",
+        query_string={
+            "volver": f"/jobs/{job.id}/indicios?fuente=seiscomp"
+        },
+    ).get_data(as_text=True)
+
+    assert "Consultar formas de onda" not in html
+    assert "Consultar todas" not in html
+    assert 'data-puede-consultar="0"' in html
+    assert "panel-sin-arribos-contenido" in html
 
 
 def test_csv_sin_arribos_respeta_radio_y_cercania(client, login, app):

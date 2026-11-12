@@ -1469,6 +1469,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
     volver_etiqueta = (
         request.args.get("volver_etiqueta", "").strip() or "Volver a la tabla"
     )
+    desde_indicios = "/indicios" in volver
     analista_publicado = ""
     if tabla == "no_actualizados":
         analista_publicado = texto_analista_probable(
@@ -1610,6 +1611,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         columnas=columnas,
         volver=volver,
         volver_etiqueta=volver_etiqueta,
+        desde_indicios=desde_indicios,
         archivo=archivo,
         url_mapa=url_mapa,
         puntos_mapa=puntos,
