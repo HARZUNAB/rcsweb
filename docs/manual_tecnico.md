@@ -976,7 +976,7 @@ evalúan por separado.
 
 | Indicador | Regla |
 |---|---|
-| Residual alto | `abs(residual) > 5 s` y `peso >= 0.5` |
+| Residual alto | `abs(residual) > 5 s`; es fuerte con `peso >= 0.5` y débil con peso 3 (`0.125 < peso < 0.5`) |
 | Fase fuera de orden | primera fase por estación y tipo (P o S), separación `>= 20 km`, `residual(cercana) - residual(lejana) > 5 s`, con al menos 3 estaciones de esa fase y `peso >= 0.5` |
 | Fase fuera de orden débil | fases influyentes (peso 0–3), primera por estación y tipo, separación `>= 20 km`, la cercana llega después de la lejana por `> 2 s`, `abs(residual)` de la cercana `> 5 s` y al menos uno de los dos pesos `< 0.5` |
 | Pick antes del origen | `t (s) < 0` y `peso >= 0.5` |
@@ -984,8 +984,8 @@ evalúan por separado.
 La **fuerza** distingue los indicios:
 
 ```text
-fuerte = residual alto, fase fuera de orden o pick antes del origen
-débil  = solo fase fuera de orden débil
+fuerte = residual alto con peso 0–2, fase fuera de orden o pick antes del origen
+débil  = residual alto con peso 3 o fase fuera de orden débil
 ```
 
 La fase fuera de orden débil sirve para fases con peso 3, que influyeron poco

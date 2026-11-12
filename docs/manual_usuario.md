@@ -623,9 +623,10 @@ residual no corresponde al orden esperado por distancia. Se evalúa por separado
 para P y para S.
 
 La **fuerza** del indicio es `fuerte` o `débil`. Solo los fuertes pueden ser
-**Revisión prioritaria** cuando el evento está publicado. Un indicio débil se
-muestra igual, con la etiqueta **indicio débil**, para que el usuario decida si
-pide revisión.
+**Revisión prioritaria** cuando el evento está publicado. Un residual alto en
+una fase con peso 0–2 genera un indicio fuerte; en una fase con peso 3 genera un
+indicio débil. Un indicio débil se muestra igual, con la etiqueta **indicio
+débil**, para que el usuario decida si pide revisión.
 
 El **peso** se muestra en la escala 0–4 que usan los analistas: 0 = mayor
 influencia, 4 = sin influencia. Solo las fases con peso 0–3 entran al análisis;

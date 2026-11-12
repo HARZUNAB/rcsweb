@@ -40,7 +40,7 @@ UMBRAL_CONTEXTO_ESTACIONES = 5
 UMBRAL_CONTEXTO_SIN_INVENTARIO = 8
 UMBRAL_CONTEXTO_AZGAP = 180.0
 MAX_PARES_DETALLE = 40
-ESQUEMA_INDICIOS = 3
+ESQUEMA_INDICIOS = 4
 
 CAMPOS_EVENTO = (
     "fuente",
@@ -539,6 +539,7 @@ def evaluar_evento(
         if _numero(arribo.get("residual")) is not None
         and (_numero(arribo.get("weight")) or 0.0) >= UMBRAL_PESO
     ]
+    ids_fuertes = {id(arribo) for arribo in fuertes}
     con_residual = [
         arribo for arribo in usadas if _numero(arribo.get("residual")) is not None
     ]
@@ -547,7 +548,16 @@ def evaluar_evento(
         for arribo in fuertes
         if abs(_numero(arribo.get("residual")) or 0.0) > UMBRAL_RESIDUAL
     ]
-    residuales = [abs(_numero(arribo.get("residual")) or 0.0) for arribo in fuertes]
+    outliers_debiles = [
+        arribo
+        for arribo in influyentes
+        if id(arribo) not in ids_fuertes
+        and abs(_numero(arribo.get("residual")) or 0.0) > UMBRAL_RESIDUAL
+    ]
+    todos_outliers = outliers + outliers_debiles
+    residuales = [
+        abs(_numero(arribo.get("residual")) or 0.0) for arribo in influyentes
+    ]
     mediana = _mediana(residuales)
     extremo = any(
         abs(_numero(arribo.get("residual")) or 0.0) > UMBRAL_RESIDUAL_EXTREMO
@@ -557,7 +567,7 @@ def evaluar_evento(
             and abs(_numero(arribo.get("residual")) or 0.0)
             > FACTOR_RESIDUAL_EXTREMO * mediana
         )
-        for arribo in outliers
+        for arribo in todos_outliers
     )
     fuera_de_orden = []
     fuera_de_orden_debiles = []
@@ -573,7 +583,9 @@ def evaluar_evento(
     ]
     contexto = _contexto(usadas, sin_arribos, perfil_disponible)
     anomalia_fuerte = bool(outliers or fuera_de_orden or antes)
-    anomalia = bool(anomalia_fuerte or fuera_de_orden_debiles)
+    anomalia = bool(
+        anomalia_fuerte or outliers_debiles or fuera_de_orden_debiles
+    )
     fuerza = "fuerte" if anomalia_fuerte else ("débil" if anomalia else "")
     if publicado is True:
         prioridad = "Alta" if anomalia_fuerte else "Media"
@@ -590,13 +602,25 @@ def evaluar_evento(
     }[prioridad]
     if anomalia_fuerte:
         patron = _patron(fuertes, outliers, fuera_de_orden, antes, extremo)
+        base_patron = fuertes
+        outliers_patron = outliers
     elif fuera_de_orden_debiles:
         patron = "fuera_de_orden_debil"
+        base_patron = influyentes
+        outliers_patron = outliers_debiles
+    elif outliers_debiles:
+        patron = _patron(
+            influyentes, outliers_debiles, fuera_de_orden, antes, extremo
+        )
+        base_patron = influyentes
+        outliers_patron = outliers_debiles
     else:
         patron = _patron(fuertes, outliers, fuera_de_orden, antes, extremo)
+        base_patron = fuertes
+        outliers_patron = outliers
 
     tipos: list[str] = []
-    if outliers:
+    if todos_outliers:
         tipos.append("residual_alto")
     if fuera_de_orden:
         tipos.append("fuera_de_orden")
@@ -630,7 +654,7 @@ def evaluar_evento(
     )
 
     evidencia: list[dict] = []
-    for arribo in outliers:
+    for arribo in todos_outliers:
         detalle = (
             f"residual {formatting.numero(arribo.get('residual'), 2, signo=True)} s"
             f"; peso {formatting.peso_04_texto(arribo.get('weight'))}"
@@ -698,12 +722,12 @@ def evaluar_evento(
     if patron == "sistemático":
         positivos = sum(
             1
-            for arribo in fuertes
+            for arribo in base_patron
             if (_numero(arribo.get("residual")) or 0.0) > 0
         )
         negativos = sum(
             1
-            for arribo in fuertes
+            for arribo in base_patron
             if (_numero(arribo.get("residual")) or 0.0) < 0
         )
         evidencia.append(
@@ -729,7 +753,7 @@ def evaluar_evento(
     resumen = formatting.patron_texto(patron)
     if patron == "sistemático":
         resumen = (
-            f"{formatting.patron_texto(patron)} | {len(outliers)} estaciones |"
+            f"{formatting.patron_texto(patron)} | {len(outliers_patron)} estaciones |"
             f" residual mediano {formatting.numero(mediana, 2, signo=True)} s"
         )
     elif evidencia:
@@ -741,7 +765,7 @@ def evaluar_evento(
             )
         elif principal["tipo_indicio"] == "patron_sistematico":
             resumen = (
-                f"{formatting.patron_texto(patron)} | {len(outliers)} estaciones"
+                f"{formatting.patron_texto(patron)} | {len(outliers_patron)} estaciones"
                 f" | residual mediano"
                 f" {formatting.numero(mediana, 2, signo=True)} s"
             )
@@ -781,7 +805,7 @@ def evaluar_evento(
         "residual_mediana": formatting.numero(
             _mediana(residuales_usadas), 2, signo=True
         ),
-        "n_outliers": len(outliers),
+        "n_outliers": len(todos_outliers),
         "n_fuera_de_orden": len(fuera_de_orden),
         "n_fuera_de_orden_debiles": len(fuera_de_orden_debiles),
         "n_picks_antes_origen": len(antes),

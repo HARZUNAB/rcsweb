@@ -266,6 +266,30 @@ def test_detecta_fuera_de_orden_debil_con_peso_3():
     assert debil["residual"] == "+7.27"
 
 
+def test_residual_alto_con_peso_3_genera_indicio_debil():
+    evento = _evento(
+        event_id="seiscomp:000008",
+        event_time="2020-01-01 00:00:00",
+        latitude=0.0,
+        longitude=0.0,
+    )
+    arribos = [
+        _arribo("E0", 0.5, 0.0, "2020-01-01 00:00:10", 10.0, weight=0.3),
+        _arribo("E1", 1.0, 0.0, "2020-01-01 00:00:20", 1.0, weight=1.0),
+        _arribo("E2", 1.5, 0.0, "2020-01-01 00:00:30", 1.0, weight=1.0),
+    ]
+    resultado = indicios.evaluar_evento(
+        evento, arribos, source_id="seiscomp", publicado=True
+    )
+
+    assert resultado["anomalia"] is True
+    assert resultado["fuerza"] == "débil"
+    assert resultado["n_outliers"] == 1
+    assert resultado["n_fuera_de_orden"] == 0
+    assert resultado["evidencia_principal"]["peso"] == "3"
+    assert resultado["evidencia_principal"]["tipo_indicio"] == "residual_alto"
+
+
 def _tres_estaciones(**cambios_fase):
     """Tres estaciones con P y S para probar la evaluación por fase."""
     datos = []
