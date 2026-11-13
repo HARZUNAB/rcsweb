@@ -37,7 +37,7 @@ Profundidad
 -----------
 Se copia tal cual, en kilómetros y con signo positivo hacia abajo, que es como
 SeisComp la guarda (m_depth_value). Es la convención del catálogo histórico
-base_2020_2026.csv, contra el que sismicidad.py calcula el knn y la mediana de
+base_2018_2026.csv, contra el que sismicidad.py calcula el knn y la mediana de
 profundidad, y la que plotear.py invierte al dibujar la sección.
 
 Filas que no se pueden convertir

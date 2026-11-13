@@ -6,7 +6,7 @@ Catálogo de sismicidad histórica: carga, consultas espaciales y clasificación
 de los EVENTOS PLOTEADOS como "posible mal localizado" usando criterios
 configurables (distancia al slab y sismicidad histórica local).
 
-El catálogo (base_2020_2026.dat) se presume ya validado y se usa SOLO como
+El catálogo (base_2018_2026.dat) se presume ya validado y se usa SOLO como
 referencia (fondo en plotear.py y estadísticas locales en la clasificación).
 NUNCA se evalúa un evento del catálogo como sospechoso; es_sospechoso() solo
 se aplica a los eventos del lote que se está procesando. Como los eventos del
@@ -21,14 +21,14 @@ dist_asoc, perfil calculados por asigna_perfiles) y devuelve True/False.
 import os
 import numpy as np
 
-from paths import DATA_DIR
+from paths import CATALOGO_SISMICIDAD, DATA_DIR
 
 
 # =========================================================================
 # RUTA DEL CATÁLOGO (resuelta respecto a este archivo, flexible a cualquier
 # ubicación de instalación del proyecto).
 # =========================================================================
-RUTA_CATALOGO = str(DATA_DIR / "base_2020_2026.dat")
+RUTA_CATALOGO = str(DATA_DIR / CATALOGO_SISMICIDAD)
 
 # Factores de conversión grados -> km (igual que asigna_perfiles.py).
 GRADO_KM_LAT = 111.0
@@ -67,7 +67,7 @@ GRADO_KM_LAT = 111.0
 #   desvio_mediana_prof   : |prof_ev - mediana prof_hist en la ventana| >
 #                           umbral_km (con conteo >= min_vecinos)
 #
-# "sin_catalogo": qué hacer cuando no existe base_2020_2026.dat y el grupo
+# "sin_catalogo": qué hacer cuando no existe base_2018_2026.dat y el grupo
 # "historica" no puede evaluarse:
 #   "ninguno"   -> no se marca (grupo no corroborado) [recomendado]
 #   "solo_slab" -> basta con que falle el grupo "slab"
@@ -101,7 +101,7 @@ _cache_catalogo = None
 
 def cargar_catalogo(ruta=RUTA_CATALOGO):
     """
-    Lee el catálogo histórico (base_2020_2026.dat, separado por tabs) y lo
+    Lee el catálogo histórico (base_2018_2026.dat, separado por tabs) y lo
     guarda en caché. Devuelve un dict con arrays lat, lon, prof y la
     proyección local x, y (km) usando la latitud de referencia, o None si el
     archivo no existe o no tiene eventos válidos. El catálogo NUNCA se

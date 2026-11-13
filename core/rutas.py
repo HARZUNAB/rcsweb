@@ -15,7 +15,7 @@ la aplicación (CWD), agrupado por contenido/etapa:
 
 Las funciones p_* crean la carpeta si hace falta y devuelven la ruta completa.
 Las entradas (origen/, origen_<arg>.csv, select.out, grillas/, *.tif,
-base_2020_2026.dat, localidades.csv) NO se tocan.
+base_2018_2026.dat, localidades.csv) NO se tocan.
 
 Sobre lo que se genera: el flujo escribe dos cosas de naturaleza distinta. La
 caché (datos/, informes/, ploteo/) son resultados que la app vuelve a leer al

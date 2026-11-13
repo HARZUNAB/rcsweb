@@ -33,7 +33,7 @@ import textwrap
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from paths import DATA_DIR
+from paths import CATALOGO_SISMICIDAD, DATA_DIR
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -251,7 +251,7 @@ ARCHIVO_LOCALIDADES = str(DATA_DIR / "localidades.csv")
 # ARCHIVO_SISMICIDAD: catálogo de sismicidad histórica validada (solo
 # referencia: fondo contextual en los mapas y estadísticas locales de
 # clasificación en sismicidad.py). El catálogo jamás se clasifica.
-ARCHIVO_SISMICIDAD = str(DATA_DIR / "base_2020_2026.dat")
+ARCHIVO_SISMICIDAD = str(DATA_DIR / CATALOGO_SISMICIDAD)
 
 # Parámetros visuales del fondo de sismicidad histórica (gris tenue uniforme).
 HIST_COLOR = "0.55"
@@ -265,7 +265,7 @@ HIST_ALPHA = 0.35
 HIST_MAX_PERP_PROF_KM = 40.0
 
 # Histórico: etiqueta de leyenda para el fondo de sismicidad histórica.
-HIST_LABEL = "Sismicidad histórica 2020-2026"
+HIST_LABEL = "Sismicidad histórica 2018-2026"
 
 
 # Constantes de la proyección local del recorte relieve_chile.tif (igual que
@@ -734,7 +734,7 @@ def _dibujar_diferencia(ax_planta, ax_perfil, local, publicado, etiquetar=True):
 
 
 # =========================================================================
-# FONDO DE SISMICIDAD HISTÓRICA (base_2020_2026.dat, solo referencia)
+# FONDO DE SISMICIDAD HISTÓRICA (base_2018_2026.dat, solo referencia)
 # =========================================================================
 
 _cache_sismicidad = None

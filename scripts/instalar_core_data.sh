@@ -21,8 +21,8 @@ mkdir -p "$DESTINO"
 for elemento in \
     grillas \
     plantillas \
-    base_2020_2026.dat \
-    base_2020_2026.csv \
+    base_2018_2026.dat \
+    base_2018_2026.csv \
     localidades.csv \
     NE2_LR_LC_SR_W_DR.tif \
     relieve_chile.tif

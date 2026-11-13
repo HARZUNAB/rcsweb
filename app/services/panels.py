@@ -19,6 +19,8 @@ import json
 import math
 from pathlib import Path
 
+from flask import current_app
+
 from ..domain.catalogs import manifest as fuentes_manifest
 from . import colores, plots, ubicacion
 from .analysts import evento_visible, usuario_restringido
@@ -488,13 +490,22 @@ def _archivos_fuente(workspace: Path, dataset: str) -> list[Path]:
 
 
 def _fingerprint(workspace: Path, dataset: str) -> str:
-    partes = ["v4", dataset]
+    partes = ["v5", dataset]
     for ruta in _archivos_fuente(workspace, dataset):
         try:
             estado = ruta.stat()
             partes.append(f"{ruta.name}:{estado.st_size}:{estado.st_mtime_ns}")
         except OSError:
             partes.append(f"{ruta.name}:falta")
+    catalogo = (
+        Path(current_app.config["RCS_CORE_DATA"])
+        / current_app.config["RCS_CATALOGO_SISMICIDAD"]
+    )
+    try:
+        estado = catalogo.stat()
+        partes.append(f"{catalogo.name}:{estado.st_size}:{estado.st_mtime_ns}")
+    except OSError:
+        partes.append("catalogo_sismicidad:falta")
     for perfil in plots._perfiles():
         partes.append(str(perfil.get("id")))
     return hashlib.sha1("|".join(partes).encode("utf-8")).hexdigest()

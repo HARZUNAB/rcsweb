@@ -54,6 +54,9 @@ class Config:
     RCS_CORE_DATA = Path(
         os.environ.get("RCS_CORE_DATA", BASE_DIR / "core_data")
     ).resolve()
+    RCS_CATALOGO_SISMICIDAD = os.environ.get(
+        "RCS_CATALOGO_SISMICIDAD", "base_2018_2026.dat"
+    )
     DATOS_PATH = Path(os.environ.get("DATOS_PATH", "/data"))
 
     # Listas de estaciones de Seisan. El manifiesto declara el nombre de la

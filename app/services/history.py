@@ -79,7 +79,7 @@ def datos(perfil_datos: dict | None) -> dict:
     try:
         etiqueta = _plotear().HIST_LABEL
     except Exception:
-        etiqueta = "Sismicidad histórica 2020-2026"
+        etiqueta = "Sismicidad histórica 2018-2026"
     return {
         "perfil": perfil(perfil_datos),
         "label": etiqueta,
