@@ -129,7 +129,10 @@
             <th data-sort-key="usadas" data-sort-type="number" class="text-end">Usadas</th>
             <th data-sort-key="residual" data-sort-type="number" class="text-end">Máx. residual</th>
             <th data-sort-key="patron" data-sort-type="text">Patrón</th>
-            <th data-sort-key="contexto" data-sort-type="order">Contexto</th>
+            <th data-sort-key="contexto" data-sort-type="order"
+                title="Cobertura suficiente: al menos 5 estaciones, azimutal gap ≤ 180° y perfil asignado. Cobertura débil: pocas estaciones, azimutal gap > 180° o sin perfil asignado.">
+              Cobertura
+            </th>
             <th data-sort-key="indicios" data-sort-type="text">Indicios</th>
             <th class="text-end"></th>
           </tr>
@@ -205,7 +208,8 @@
             </td>
             <td data-sort-value="{% if fila.contexto == 'fuerte' %}1{% else %}0{% endif %}">
               {% if fila.contexto %}
-              <span class="badge {% if fila.contexto == 'fuerte' %}text-bg-success{% else %}text-bg-warning text-dark{% endif %}">
+              <span class="badge {% if fila.contexto == 'fuerte' %}text-bg-success{% else %}text-bg-warning text-dark{% endif %}"
+                    title="{% if fila.contexto == 'fuerte' %}Cobertura suficiente: al menos 5 estaciones, azimutal gap ≤ 180° y perfil asignado.{% else %}Cobertura débil: pocas estaciones, azimutal gap > 180° o sin perfil asignado.{% endif %}">
                 {{ fila.contexto }}
               </span>
               {% else %}

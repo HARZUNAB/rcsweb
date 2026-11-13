@@ -618,7 +618,7 @@ Cada evento muestra un **motivo**:
 | `Solución sospechosa` | La localización es sospechosa y no hay anomalía de fases |
 | `Fase y solución` | Tiene las dos señales |
 
-Cada evento muestra también el **patrón** de las fases y el **contexto**:
+Cada evento muestra también el **patrón** de las fases y la **cobertura**:
 
 | Patrón | Lectura posible |
 |---|---|
@@ -667,16 +667,23 @@ El listado principal y la tabla de evidencia se ordenan haciendo clic en
 cualquier encabezado. El segundo clic invierte el orden. No se recarga la
 página. El orden inicial es prioridad, solución, mayor residual y fecha.
 
-El **contexto** es `fuerte` o `débil` según cuántas estaciones había
-disponibles y se usaron, el azimutal gap y el perfil. Un residual alto en una
-zona con pocas estaciones puede deberse al modelo o a la cobertura, no solo a la
-asociación. La app entrega la evidencia y el patrón; no sentencia la causa.
+La **cobertura** es `fuerte` o `débil` y describe la geometría de las
+estaciones, no el contexto sismotectónico:
+
+- **Fuerte:** al menos 5 estaciones disponibles y usadas (8 usadas si no hay
+  inventario), azimutal gap ≤ 180° y perfil asignado.
+- **Débil:** falla alguna de esas condiciones.
+
+Un residual alto en una zona con pocas estaciones o con un azimutal gap grande
+puede deberse al modelo o a la cobertura, no solo a la asociación. La app
+entrega la evidencia y el patrón; no sentencia la causa. La cobertura no cambia
+la prioridad: es una advertencia sobre cuán concluyente es la evidencia.
 
 El nombre del evento en el listado abre el detalle del catálogo en la sección
 de revisión. No hay un botón **Mapa** separado: el detalle del catálogo es el
 único destino y ahí están la evidencia, las estaciones, el mapa y los tiempos.
 
-La sección **Revisión del evento** del detalle muestra patrón, contexto,
+La sección **Revisión del evento** del detalle muestra patrón, cobertura,
 publicación y solución, sin badges de estado. Debajo aparece la **evidencia
 principal**, es decir, el arribo con mayor residual:
 

@@ -141,6 +141,7 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     html = listado.get_data(as_text=True)
     assert "Revisión de eventos" in html
     assert "Motivo" in html
+    assert "Cobertura" in html
     assert "csn_sc62026vdkls" in html
     assert "Revisión prioritaria" in html
     assert "Prioridad" in html
@@ -158,6 +159,7 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert detalle.status_code == 200
     html = detalle.get_data(as_text=True)
     assert "Revisión del evento" in html
+    assert "Cobertura" in html
     assert "Evidencia" in html
     assert "244.2" in html
     assert "Pedir revisión" in html

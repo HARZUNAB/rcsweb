@@ -1014,11 +1014,12 @@ ordenamiento.
 
 El **patrón** resume la evidencia: `puntual`, `sistemático`, `fuera_de_orden`,
 `fuera_de_orden_debil`, `mixto`, `pick_antes_origen` o `sin_patron`. Un residual
-es **extremo** si supera 60 s o 10 veces la mediana del evento. El **contexto**
+es **extremo** si supera 60 s o 10 veces la mediana del evento. La **cobertura**
 es `fuerte` o `débil` según estaciones disponibles y usadas, azimutal gap y
 disponibilidad de perfil. Si el trabajo no trae la lista de estaciones sin
-arribo, el contexto fuerte exige al menos 8 estaciones usadas, porque solo se
-conoce una cota inferior de la cobertura.
+arribo, la cobertura fuerte exige al menos 8 estaciones usadas, porque solo se
+conoce una cota inferior de la cobertura. El campo interno y del CSV sigue
+llamándose `contexto`; la interfaz muestra **Cobertura**.
 
 ##### Peso, formato y presentación
 
@@ -1047,7 +1048,7 @@ Si un valor distinto de cero redondea a cero, se muestra `<0,01` o `<0,1` según
 corresponda. El JSONL canónico conserva la precisión completa.
 
 La sección **Revisión del evento** del detalle del catálogo muestra patrón,
-contexto, publicación y solución, sin badges de estado. Debajo aparece
+cobertura, publicación y solución, sin badges de estado. Debajo aparece
 `evidencia_principal`, la fila de evidencia con mayor residual absoluto, por
 ejemplo:
 

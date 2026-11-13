@@ -241,7 +241,12 @@
             {% endif %}
           </strong>
         </div>
-        <div>Contexto: <strong>{{ indicios_evento.contexto }}</strong></div>
+        <div>
+          Cobertura:
+          <strong title="{% if indicios_evento.contexto == 'fuerte' %}Cobertura suficiente: al menos 5 estaciones, azimutal gap ≤ 180° y perfil asignado.{% else %}Cobertura débil: pocas estaciones, azimutal gap > 180° o sin perfil asignado.{% endif %}">
+            {{ indicios_evento.contexto }}
+          </strong>
+        </div>
       </div>
     </div>
 
@@ -280,7 +285,10 @@
 
     <div class="small text-secondary mb-2">
       Estaciones usadas: <strong>{{ indicios_evento.n_usadas }}</strong>
-      · Contexto: <strong>{{ indicios_evento.contexto }}</strong>
+      · Cobertura:
+      <strong title="{% if indicios_evento.contexto == 'fuerte' %}Cobertura suficiente: al menos 5 estaciones, azimutal gap ≤ 180° y perfil asignado.{% else %}Cobertura débil: pocas estaciones, azimutal gap > 180° o sin perfil asignado.{% endif %}">
+        {{ indicios_evento.contexto }}
+      </strong>
       · Máx. residual:
       <strong>
         {{ indicios_evento.max_residual_usado if indicios_evento.max_residual_usado is not none else '—' }} s
