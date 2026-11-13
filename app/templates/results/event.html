@@ -355,38 +355,39 @@
 
     {% if revision_solicitud %}
     <div class="alert alert-info small mb-0" role="status">
-      Revisión solicitada
-      {% if revision_solicitud.requested_by %}
-      por {{ revision_solicitud.requested_by.username }}
+      Este evento está en una solicitud de revisión:
+      {% if revision_solicitud.estado == 'notificada' %}
+      <span class="badge text-bg-warning text-dark">Notificada</span>
+      {% elif revision_solicitud.estado == 'en_proceso' %}
+      <span class="badge text-bg-primary">En proceso</span>
+      {% else %}
+      <span class="badge text-bg-success">Cerrada</span>
       {% endif %}
-      {% if revision_solicitud.created_at %}
-      el {{ revision_solicitud.created_at.strftime('%Y-%m-%d %H:%M') }}
-      {% endif %}.
-      {% if revision_solicitud.note %}
-      <div class="mt-1">{{ revision_solicitud.note }}</div>
+      {% if revision_solicitud.asignada %}
+      · {{ revision_solicitud.asignada }}
+      {% endif %}
+      {% if revision_solicitud.notificada %}
+      · {{ revision_solicitud.notificada.strftime('%Y-%m-%d %H:%M') }}
+      {% endif %}
+      {% if revision_visible %}
+      <a class="ms-1"
+         href="{{ url_for('revisiones.detalle', request_id=revision_solicitud.id) }}">
+        Ver solicitud
+      </a>
+      {% endif %}
+      {% if revision_solicitud.estado == 'cerrada' %}
+      <div class="mt-1">
+        La revisión está cerrada. Puede volver a incluirse en una nueva
+        solicitud desde el listado.
+      </div>
       {% endif %}
     </div>
-    {% elif puede_solicitar and (indicios_evento.anomalia or indicios_evento.sospechoso) %}
-    <form method="post" action="{{ url_for('results.solicitar_revision', job_id=job.id) }}"
-          class="row g-2 align-items-end">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="fuente" value="{{ opcion }}">
-      <input type="hidden" name="evento" value="{{ indicios_evento.evento }}">
-      <input type="hidden" name="id_evento_fuente" value="{{ indicios_evento.id_evento_fuente }}">
-      <input type="hidden" name="volver" value="{{ volver }}">
-      <div class="col-12 col-md-8">
-        <label class="form-label small text-secondary" for="nota-revision">
-          Nota para la revisión (opcional)
-        </label>
-        <input class="form-control form-control-sm" id="nota-revision" name="nota"
-               placeholder="Qué revisar o por qué se solicita">
-      </div>
-      <div class="col-12 col-md-4">
-        <button class="btn btn-sm btn-outline-danger" type="submit">
-          Pedir revisión
-        </button>
-      </div>
-    </form>
+    {% elif puede_crear_revision %}
+    <div class="alert alert-light border small mb-0" role="status">
+      La revisión se solicita desde el
+      <a href="{{ volver }}">listado de eventos</a>: filtre por analista,
+      seleccione varios eventos y genere el informe.
+    </div>
     {% endif %}
   </div>
 </div>

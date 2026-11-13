@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Revisiones · RCS Web{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="text-secondary small text-uppercase mb-1">Revisiones</div>
+    <h1 class="h3 mb-1">Solicitudes de revisión</h1>
+    <p class="text-secondary mb-0">
+      Eventos enviados a revisión, con el PDF de antecedentes y el estado
+      de cada solicitud.
+    </p>
+  </div>
+</div>
+
+{% if alcance_total %}
+<form method="get" class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label small text-secondary" for="filtro-estado">
+          Estado
+        </label>
+        <select class="form-select form-select-sm" id="filtro-estado"
+                name="estado">
+          <option value="">Todos</option>
+          {% for clave in estados %}
+          <option value="{{ clave }}" {% if estado == clave %}selected{% endif %}>
+            {{ etiquetas_estado.get(clave, clave) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label small text-secondary" for="filtro-analista">
+          Analista asignado
+        </label>
+        <select class="form-select form-select-sm" id="filtro-analista"
+                name="analista">
+          <option value="">Todos</option>
+          {% for analista in analistas %}
+          <option value="{{ analista.id }}"
+                  {% if analista_id == analista.id %}selected{% endif %}>
+            {{ analista.username }}
+            {% if analista.analyst_code %}({{ analista.analyst_code }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-4 d-flex gap-2">
+        <button class="btn btn-sm btn-primary" type="submit">Filtrar</button>
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{{ url_for('revisiones.index') }}">Limpiar</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endif %}
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    {% if solicitudes %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Notificada</th>
+            <th>Trabajo</th>
+            <th class="text-end">Eventos</th>
+            <th>Creador</th>
+            <th>Asignada a</th>
+            <th>Estado</th>
+            <th>Aceptada</th>
+            <th>Cerrada</th>
+            <th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for solicitud in solicitudes %}
+          <tr>
+            <td class="text-nowrap">
+              {{ solicitud.notified_at.strftime('%Y-%m-%d %H:%M') }}
+            </td>
+            <td class="text-nowrap">
+              {% if alcance_total %}
+              <a href="{{ url_for('jobs.detalle', job_id=solicitud.job_id) }}">
+                {{ solicitud.job_id[:8] }}
+              </a>
+              {% else %}
+              {{ solicitud.job_id[:8] }}
+              {% endif %}
+            </td>
+            <td class="text-end">{{ solicitud.events|length }}</td>
+            <td>
+              {{ solicitud.created_by.username if solicitud.created_by else '—' }}
+            </td>
+            <td>
+              {% if solicitud.assigned_to %}
+              {{ solicitud.assigned_to.username }}
+              {% else %}
+              <span class="text-secondary">Sin asignar</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge {{ badges_estado.get(solicitud.status, 'text-bg-light text-dark') }}">
+                {{ etiquetas_estado.get(solicitud.status, solicitud.status) }}
+              </span>
+            </td>
+            <td class="text-nowrap">
+              {% if solicitud.accepted_at %}
+              {{ solicitud.accepted_at.strftime('%Y-%m-%d %H:%M') }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-nowrap">
+              {% if solicitud.closed_at %}
+              {{ solicitud.closed_at.strftime('%Y-%m-%d %H:%M') }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{{ url_for('revisiones.detalle', request_id=solicitud.id) }}">
+                Ver
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center text-secondary py-5">
+      <div class="mb-2">No hay solicitudes de revisión.</div>
+      <div class="small">
+        Se crean desde <strong>Ver revisión</strong> dentro de un trabajo.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

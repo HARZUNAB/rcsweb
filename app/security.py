@@ -24,7 +24,9 @@ PERMISOS = (
     "catalogos.ver",
     "resultados.ver",
     "resultados.exportar",
-    "revisiones.solicitar",
+    "revisiones.ver",
+    "revisiones.crear",
+    "revisiones.responder",
     "auditoria.ver",
     "usuarios.gestionar",
 )
@@ -43,6 +45,8 @@ _OPERATIVOS = frozenset(
         "catalogos.ver",
         "resultados.ver",
         "resultados.exportar",
+        "revisiones.ver",
+        "revisiones.responder",
     }
 )
 

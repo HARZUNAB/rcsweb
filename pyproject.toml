@@ -40,6 +40,9 @@ dependencies = [
     "psycopg2-binary>=2.9",
     "pytz>=2024.1",
     "Pillow>=10,<13",
+    # Informes de revisión
+    "python-docx>=1.1,<2",
+    "reportlab>=4.0,<5",
 ]
 
 [project.optional-dependencies]
@@ -48,7 +51,6 @@ dev = [
     "pytest-cov>=5,<7",
     "ruff>=0.6,<1",
     "markdown>=3.5,<4",
-    "python-docx>=1.1,<2",
     "beautifulsoup4>=4.12,<5",
 ]
 

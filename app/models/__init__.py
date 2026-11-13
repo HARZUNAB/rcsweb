@@ -393,7 +393,11 @@ class JobArtifact(db.Model):
 
 
 class EventReviewRequest(db.Model):
-    """Solicitud de revisión posterior de un evento."""
+    """Solicitud de revisión posterior de un evento.
+
+    Tabla histórica del flujo por evento. El flujo vigente usa
+    :class:`ReviewRequest` con varios eventos y PDF adjunto.
+    """
 
     __tablename__ = "event_review_requests"
     __table_args__ = (
@@ -423,6 +427,87 @@ class EventReviewRequest(db.Model):
 
     job = relationship("Job")
     requested_by = relationship("User")
+
+
+ESTADOS_REVISION = ("notificada", "en_proceso", "cerrada")
+
+
+class ReviewRequest(db.Model):
+    """Solicitud de revisión con uno o más eventos y PDF adjunto."""
+
+    __tablename__ = "review_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_id: Mapped[str] = mapped_column(
+        ForeignKey("jobs.id", ondelete="CASCADE"), index=True
+    )
+    source_id: Mapped[str] = mapped_column(String(64), index=True)
+    created_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    assigned_to_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), default="notificada", index=True
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+    report_path: Mapped[str | None] = mapped_column(String(255))
+    report_name: Mapped[str | None] = mapped_column(String(255))
+    report_format: Mapped[str] = mapped_column(String(8), default="pdf")
+    notified_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closing_note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+
+    job = relationship("Job")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    assigned_to = relationship("User", foreign_keys=[assigned_to_id])
+    events = relationship(
+        "ReviewRequestEvent",
+        back_populates="request",
+        cascade="all, delete-orphan",
+        order_by="ReviewRequestEvent.id",
+    )
+
+
+class ReviewRequestEvent(db.Model):
+    """Evento incluido en una solicitud de revisión."""
+
+    __tablename__ = "review_request_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "request_id",
+            "source_id",
+            "event_id",
+            name="uq_review_request_events_request_source_event",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    request_id: Mapped[int] = mapped_column(
+        ForeignKey("review_requests.id", ondelete="CASCADE"), index=True
+    )
+    source_id: Mapped[str] = mapped_column(String(64), index=True)
+    event_id: Mapped[str] = mapped_column(String(128), index=True)
+    source_event_id: Mapped[str] = mapped_column(String(128), default="")
+    fila_catalogo: Mapped[int | None] = mapped_column(Integer)
+    event_time: Mapped[str] = mapped_column(String(32), default="")
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    depth_km: Mapped[float | None] = mapped_column(Float)
+    magnitude: Mapped[float | None] = mapped_column(Float)
+    magnitude_type: Mapped[str] = mapped_column(String(16), default="")
+    analyst: Mapped[str] = mapped_column(String(80), default="")
+    priority: Mapped[str] = mapped_column(String(20), default="")
+    motive: Mapped[str] = mapped_column(String(20), default="")
+
+    request = relationship("ReviewRequest", back_populates="events")
 
 
 class AuditLog(db.Model):

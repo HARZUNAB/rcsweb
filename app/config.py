@@ -73,6 +73,11 @@ class Config:
     # de la variable para no fijar la conexión en el código.
     RCS_CENTRAL_DSN = os.environ.get("RCS_CENTRAL_DSN", "").strip()
 
+    # Informes de revisión
+    RCS_INFORME_MAX_EVENTOS = int(
+        os.environ.get("RCS_INFORME_MAX_EVENTOS") or 50
+    )
+
     # Celery
     CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
     CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")

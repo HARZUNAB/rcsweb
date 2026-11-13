@@ -30,6 +30,11 @@
           <a class="nav-link" href="{{ url_for('dashboard.index') }}">Trabajos</a>
         </li>
         {% endif %}
+        {% if puede('revisiones.ver') %}
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('revisiones.index') }}">Revisiones</a>
+        </li>
+        {% endif %}
         {% if puede('auditoria.ver') %}
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('admin.auditoria') }}">Auditoría</a>

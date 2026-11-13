@@ -644,7 +644,7 @@ para P y para S.
 La **fuerza** de las fases es `fuerte` o `débil`. Un residual alto en una fase
 con peso 0–2 genera una anomalía fuerte; en una fase con peso 3 genera una
 anomalía débil. Una anomalía débil se muestra igual, con la etiqueta **indicio
-débil**, para que el usuario decida si pide revisión.
+débil**, para que el usuario decida si solicita la revisión.
 
 El **peso** se muestra en la escala 0–4 que usan los analistas: 0 = mayor
 influencia, 4 = sin influencia. Solo las fases con peso 0–3 entran al análisis;
@@ -720,9 +720,37 @@ debajo del mapa y solo cuando **Propagación** está activa. Los analistas puede
 abrir el detalle del catálogo de sus propios eventos para usar estas vistas.
 
 Los analistas ven los eventos de revisión de sus propios trabajos.
-Administradores y supervisores ven todos y pueden **pedir revisión**; la
-solicitud queda registrada con usuario, fecha y nota. La app es de revisión
-posterior: no alerta antes de publicar ni modifica la solución.
+Administradores y supervisores ven todos. La revisión se solicita desde el
+listado, no desde el detalle de un evento suelto:
+
+1. Filtre por **Analista**. La selección solo admite eventos de un mismo
+   analista con usuario activo; **Todos** y **Sin analista** deshabilitan las
+   casillas.
+2. Marque los eventos con las casillas y pulse **Solicitar revisión**. El máximo
+   por solicitud se configura con `RCS_INFORME_MAX_EVENTOS` (50 por defecto).
+3. Escriba una nota opcional y elija el formato. La app genera un informe A4
+   horizontal con un bloque por evento: identificadores, fecha y hora,
+   coordenadas, profundidad, magnitud y tipo, analista, prioridad y motivo, mapa
+   de planta y perfil, evidencia de fases y enlace al detalle.
+4. Mientras se construye, el modal muestra el progreso. El PDF es el formato
+   principal; si falla, se genera un DOCX de respaldo.
+
+La solicitud se crea cuando el informe está listo y usa la hora del clic como
+fecha de notificación. La columna **Revisión** muestra el estado de la última
+solicitud: **Notificada**, **En proceso** o **Cerrada**. Mientras la solicitud
+está activa, el evento no se puede volver a seleccionar. Si está cerrada, se
+puede volver a incluir en una solicitud nueva.
+
+El menú **Revisiones** lista las solicitudes. Administradores y supervisores ven
+todas; los analistas ven solo las asignadas. El analista asignado pulsa
+**Aceptar solicitud** y el estado pasa a **En proceso**. Al terminar, escribe
+los antecedentes de lo realizado y pulsa **Cerrar solicitud**; el texto es
+obligatorio. El creador no acepta ni cierra. En esta versión la notificación es
+interna de la app; el correo queda para una etapa posterior.
+
+La selección se conserva por trabajo, fuente y analista al entrar al detalle de
+un evento y volver al listado. La app es de revisión posterior: no alerta antes
+de publicar ni modifica la solución.
 
 Si el análisis usa residuales completados temporalmente desde otra fuente local,
 aparece un aviso. Esos residuales no provienen de la base de la fuente

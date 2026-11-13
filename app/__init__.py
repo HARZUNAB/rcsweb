@@ -49,6 +49,7 @@ def create_app(config_object: type | None = None) -> Flask:
     from .blueprints.jobs import jobs_bp
     from .blueprints.panels import panels_bp
     from .blueprints.results import results_bp
+    from .blueprints.revisiones import revisiones_bp
     from .blueprints.solicitudes import solicitudes_bp
 
     app.register_blueprint(auth_bp)
@@ -57,6 +58,7 @@ def create_app(config_object: type | None = None) -> Flask:
     app.register_blueprint(jobs_bp)
     app.register_blueprint(panels_bp)
     app.register_blueprint(results_bp)
+    app.register_blueprint(revisiones_bp)
     app.register_blueprint(solicitudes_bp)
     app.register_blueprint(admin_bp)
 

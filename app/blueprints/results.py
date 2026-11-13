@@ -10,12 +10,12 @@ import re
 import zipfile
 from datetime import datetime
 from io import BytesIO, StringIO
+from uuid import uuid4
 
 from flask import (
     Blueprint,
     abort,
     current_app,
-    flash,
     jsonify,
     redirect,
     render_template,
@@ -32,7 +32,7 @@ from tasks.celery_app import celery
 from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
-from ..models import EventReviewRequest, Job, utcnow
+from ..models import Job, utcnow
 from ..security import permiso_requerido, puede_ver_trabajo, tiene_permiso
 from ..services import (
     amplification,
@@ -42,11 +42,14 @@ from ..services import (
     formatting,
     indicios,
     panels,
+    review,
+    review_reports,
 )
 from ..services.analysts import (
     campos_analista,
     codigos_usuario,
     evento_visible,
+    usuario_de_fila,
     usuario_restringido,
 )
 from ..services.attribution import indices_atribucion, texto_analista_probable
@@ -495,23 +498,8 @@ def overview(job_id: str):
     return redirect(url_for("jobs.detalle", job_id=job.id) + "#resultados")
 
 
-@results_bp.get("/jobs/<job_id>/indicios")
-@login_required
-@permiso_requerido("resultados.ver")
-def indicios_eventos(job_id: str):
-    """Listado de eventos con indicios de anomalías en las fases."""
-    job = _job(job_id)
-    workspace = ruta_workspace(job.id)
-    fuentes = _fuentes_job(job)
-    resumen = indicios.asegurar_indicios(workspace, fuentes, job_id=job.id)
-
-    fuente = request.args.get("fuente", "").strip()
-    if fuente not in fuentes:
-        fuente = fuentes[0] if fuentes else ""
-    alcance = request.args.get("alcance", "prioritarios").strip()
-    if alcance not in ("prioritarios", "publicados", "todos"):
-        alcance = "prioritarios"
-
+def _filas_revision(workspace, fuente, usuario) -> list[dict]:
+    """Filas de revisión: fase, solución, prioridad y visibilidad."""
     filas = indicios.leer_indicios(workspace, fuente) if fuente else []
     for fila in filas:
         clasificacion = _clasificacion_sospechoso(
@@ -542,8 +530,72 @@ def indicios_eventos(job_id: str):
         }.get(fila.get("sospechoso"), 0)
         fila["_fecha_orden"] = _fecha_orden(fila.get("fecha_hora"))
 
-    if usuario_restringido(current_user):
-        filas = [fila for fila in filas if evento_visible(fila, current_user)]
+    if usuario_restringido(usuario):
+        filas = [fila for fila in filas if evento_visible(fila, usuario)]
+    return filas
+
+
+@results_bp.get("/jobs/<job_id>/indicios")
+@login_required
+@permiso_requerido("resultados.ver")
+def indicios_eventos(job_id: str):
+    """Listado de eventos con indicios de anomalías en las fases."""
+    job = _job(job_id)
+    workspace = ruta_workspace(job.id)
+    fuentes = _fuentes_job(job)
+    resumen = indicios.asegurar_indicios(workspace, fuentes, job_id=job.id)
+
+    fuente = request.args.get("fuente", "").strip()
+    if fuente not in fuentes:
+        fuente = fuentes[0] if fuentes else ""
+    alcance = request.args.get("alcance", "prioritarios").strip()
+    if alcance not in ("prioritarios", "publicados", "todos"):
+        alcance = "prioritarios"
+
+    puede_crear_revision = tiene_permiso(current_user, "revisiones.crear")
+    analistas = review.usuarios_analistas() if puede_crear_revision else []
+    analista_sel = request.args.get("analista", "").strip()
+    analista_id: int | str | None = None
+    if analista_sel == "sin":
+        analista_id = "sin"
+    elif analista_sel:
+        try:
+            analista_id = int(analista_sel)
+        except ValueError:
+            analista_id = None
+    max_eventos = int(
+        current_app.config.get("RCS_INFORME_MAX_EVENTOS", 50) or 50
+    )
+    analista_nombre = next(
+        (a.username for a in analistas if a.id == analista_id), ""
+    )
+
+    filas = _filas_revision(workspace, fuente, current_user)
+
+    if analistas:
+        for fila in filas:
+            usuario = usuario_de_fila(fila, analistas)
+            fila["analista_usuario_id"] = (
+                usuario.id if usuario is not None else None
+            )
+        if analista_id == "sin":
+            filas = [
+                fila
+                for fila in filas
+                if fila.get("analista_usuario_id") is None
+            ]
+        elif analista_id is not None:
+            filas = [
+                fila
+                for fila in filas
+                if fila.get("analista_usuario_id") == analista_id
+            ]
+
+    solicitudes_evento = (
+        review.mapa_solicitudes(job.id, fuente) if fuente else {}
+    )
+    for fila in filas:
+        fila["solicitud_info"] = solicitudes_evento.get(fila.get("evento"))
 
     info_fuente = dict((resumen or {}).get("fuentes", {}).get(fuente, {}))
     info_fuente["con_anomalia_fuerte"] = sum(
@@ -604,12 +656,6 @@ def indicios_eventos(job_id: str):
             else ""
         )
 
-    solicitudes = {
-        (solicitud.source_id, solicitud.event_id): solicitud
-        for solicitud in EventReviewRequest.query.filter_by(job_id=job.id).all()
-    }
-    for fila in filas:
-        fila["solicitud"] = solicitudes.get((fuente, fila.get("evento")))
     etiquetas = {codigo: _alias(job, codigo) for codigo in fuentes}
     return render_template(
         "results/indicios.html",
@@ -620,8 +666,12 @@ def indicios_eventos(job_id: str):
         fuente=fuente,
         alcance=alcance,
         filas=filas,
-        solicitudes=solicitudes,
-        puede_solicitar=tiene_permiso(current_user, "revisiones.solicitar"),
+        analistas=analistas,
+        analista_id=analista_id,
+        analista_nombre=analista_nombre,
+        puede_crear_revision=puede_crear_revision,
+        puede_ver_revisiones=tiene_permiso(current_user, "revisiones.ver"),
+        max_eventos=max_eventos,
         info_fuente=info_fuente,
         volver=volver,
     )
@@ -629,52 +679,195 @@ def indicios_eventos(job_id: str):
 
 @results_bp.post("/jobs/<job_id>/indicios/revision")
 @login_required
-@permiso_requerido("revisiones.solicitar")
+@permiso_requerido("revisiones.crear")
 def solicitar_revision(job_id: str):
-    """Registra una solicitud de revisión posterior para un evento con indicios."""
+    """Encola la generación del PDF y la creación de la solicitud."""
     job = _job(job_id)
+    workspace = ruta_workspace(job.id)
     fuente = request.form.get("fuente", "").strip()
-    evento = request.form.get("evento", "").strip()
-    if not fuentes_manifest.es_local(fuente) or not evento:
-        abort(400)
+    formato = request.form.get("formato", "pdf").strip().lower()
+    nota = request.form.get("nota", "").strip()
+    if fuente not in _fuentes_job(job) or formato not in ("pdf", "docx"):
+        return jsonify({"error": "Datos de la solicitud inválidos."}), 400
 
-    existente = EventReviewRequest.query.filter_by(
-        job_id=job.id,
-        source_id=fuente,
-        event_id=evento,
-    ).first()
-    if existente is None:
-        nota = request.form.get("nota", "").strip()
-        db.session.add(
-            EventReviewRequest(
-                job_id=job.id,
-                source_id=fuente,
-                event_id=evento,
-                source_event_id=request.form.get("id_evento_fuente", "").strip(),
-                requested_by_id=current_user.id,
-                note=nota,
-                status="solicitada",
-                created_at=utcnow(),
-            )
+    try:
+        ids = sorted(
+            {
+                int(valor)
+                for valor in request.form.getlist("eventos")
+                if str(valor).strip()
+            }
         )
-        db.session.commit()
-        registrar(
-            "revision.solicitar",
-            f"job:{job.id}",
-            {"fuente": fuente, "evento": evento, "nota": nota},
-        )
-        flash("Revisión solicitada.", "success")
-    else:
-        flash("Ese evento ya tiene una revisión solicitada.", "info")
+    except ValueError:
+        return jsonify({"error": "Selección de eventos inválida."}), 400
 
-    volver = request.form.get("volver", "")
-    if not volver.startswith("/") or volver.startswith("//"):
-        volver = url_for(
-            "results.indicios_eventos",
-            job_id=job.id,
-            fuente=fuente,
+    max_eventos = int(
+        current_app.config.get("RCS_INFORME_MAX_EVENTOS", 50) or 50
+    )
+    if not ids:
+        return jsonify({"error": "Seleccione al menos un evento."}), 400
+    if len(ids) > max_eventos:
+        return (
+            jsonify(
+                {
+                    "error": (
+                        f"Máximo {max_eventos} eventos por solicitud."
+                    )
+                }
+            ),
+            400,
         )
-    return redirect(volver)
+
+    filas = _filas_revision(workspace, fuente, current_user)
+    por_fila = {
+        int(fila["fila_catalogo"]): fila
+        for fila in filas
+        if fila.get("fila_catalogo") not in (None, "")
+    }
+    seleccionadas = [por_fila[indice] for indice in ids if indice in por_fila]
+    if len(seleccionadas) != len(ids):
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Alguno de los eventos seleccionados ya no está "
+                        "en la revisión."
+                    )
+                }
+            ),
+            400,
+        )
+
+    analistas = review.usuarios_analistas()
+    asignados = {
+        usuario_de_fila(fila, analistas).id
+        if usuario_de_fila(fila, analistas) is not None
+        else None
+        for fila in seleccionadas
+    }
+    if len(asignados) != 1 or None in asignados:
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Seleccione eventos de un solo analista con "
+                        "usuario activo."
+                    )
+                }
+            ),
+            400,
+        )
+    asignado = next(iter(asignados))
+
+    conflictos = review.conflictos(
+        job.id, fuente, [fila["evento"] for fila in seleccionadas]
+    )
+    if conflictos:
+        detalle = "; ".join(
+            f"{conflicto['evento']} → solicitud "
+            f"#{conflicto['solicitud_id']} ({conflicto['estado']})"
+            for conflicto in conflictos
+        )
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Estos eventos ya están en revisión: " + detalle
+                    )
+                }
+            ),
+            409,
+        )
+
+    report_id = uuid4().hex
+    estado = {
+        "job_id": job.id,
+        "user_id": current_user.id,
+        "assigned_to_id": asignado,
+        "fuente": fuente,
+        "formato": formato,
+        "nota": nota,
+        "notified_at": utcnow().isoformat(),
+        "base_url": request.host_url.rstrip("/"),
+        "filas": [
+            {
+                clave: fila.get(clave)
+                for clave in (
+                    "evento",
+                    "id_evento_fuente",
+                    "fila_catalogo",
+                    "fecha_hora",
+                    "magnitud",
+                    "analista",
+                    "prioridad",
+                    "motivo",
+                    "fuerza",
+                    "patron",
+                    "contexto",
+                    "n_usadas",
+                    "max_residual_usado",
+                    "sospechoso",
+                    "sospechoso_residuo_km",
+                    "sospechoso_perp_km",
+                )
+            }
+            for fila in seleccionadas
+        ],
+        "estado": "en_cola",
+        "progreso": 0,
+        "paso": "Encolando…",
+    }
+    try:
+        review_reports.guardar_estado(report_id, estado)
+        from tasks.reports import generar_informe_revision
+
+        generar_informe_revision.delay(report_id)
+    except Exception as exc:  # noqa: BLE001 - Redis o Celery no disponibles
+        review_reports.borrar_estado(report_id)
+        return (
+            jsonify({"error": f"No se pudo encolar la solicitud: {exc}"}),
+            503,
+        )
+
+    registrar(
+        "revision.solicitar",
+        f"job:{job.id}",
+        {
+            "fuente": fuente,
+            "eventos": ids,
+            "formato": formato,
+            "asignado": asignado,
+            "report_id": report_id,
+        },
+    )
+    return jsonify({"report_id": report_id})
+
+
+@results_bp.get(
+    "/jobs/<job_id>/indicios/revision/<report_id>/estado"
+)
+@login_required
+@permiso_requerido("revisiones.crear")
+def estado_solicitud_revision(job_id: str, report_id: str):
+    job = _job(job_id)
+    estado = review_reports.leer_estado(report_id)
+    if (
+        not estado
+        or estado.get("job_id") != job.id
+        or estado.get("user_id") != current_user.id
+    ):
+        abort(404)
+    return jsonify(
+        {
+            "estado": estado.get("estado", ""),
+            "progreso": estado.get("progreso", 0),
+            "paso": estado.get("paso", ""),
+            "error": estado.get("error", ""),
+            "aviso": estado.get("aviso", ""),
+            "formato": estado.get("formato", ""),
+            "url_solicitud": estado.get("url_solicitud", ""),
+        }
+    )
 
 
 def _render_tabla(job_id: str, tabla: str, opcion: str):
@@ -1701,11 +1894,9 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
             explicacion_sospechoso=explicacion_sospechoso,
             perfil_disponible=perfil_datos is not None,
         )
-        revision_solicitud = EventReviewRequest.query.filter_by(
-            job_id=job.id,
-            source_id=source_id,
-            event_id=evento_canonico.get("event_id"),
-        ).first()
+        revision_solicitud = review.solicitud_de_evento(
+            job.id, source_id, evento_canonico.get("event_id")
+        )
     historico_activo = request.args.get("historico") == "1"
     historico = historico_datos(perfil_datos) if historico_activo else None
     leyenda = leyenda_detalle(
@@ -1725,6 +1916,14 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         tabla=tabla,
         opcion=opcion,
         fila=fila,
+    )
+    revision_visible = bool(
+        revision_solicitud
+        and tiene_permiso(current_user, "revisiones.ver")
+        and (
+            current_user.role in ("admin", "supervisor")
+            or revision_solicitud.get("asignada_id") == current_user.id
+        )
     )
 
     return render_template(
@@ -1753,7 +1952,8 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         revision_estaciones=revision_estaciones,
         indicios_evento=indicios_evento,
         revision_solicitud=revision_solicitud,
-        puede_solicitar=tiene_permiso(current_user, "revisiones.solicitar"),
+        revision_visible=revision_visible,
+        puede_crear_revision=tiene_permiso(current_user, "revisiones.crear"),
         **contexto,
     )
 

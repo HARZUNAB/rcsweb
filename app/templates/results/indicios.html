@@ -105,6 +105,57 @@
   </ul>
 </div>
 
+{% if puede_crear_revision %}
+<form method="get" class="d-flex flex-wrap align-items-end gap-2 mb-3"
+      action="{{ url_for('results.indicios_eventos', job_id=job.id) }}">
+  <input type="hidden" name="fuente" value="{{ fuente }}">
+  <input type="hidden" name="alcance" value="{{ alcance }}">
+  <div>
+    <label class="form-label small text-secondary mb-1"
+           for="filtro-analista-revision">Analista</label>
+    <select class="form-select form-select-sm" id="filtro-analista-revision"
+            name="analista">
+      <option value="">Todos</option>
+      <option value="sin" {% if analista_id == 'sin' %}selected{% endif %}>
+        Sin analista
+      </option>
+      {% for analista in analistas %}
+      <option value="{{ analista.id }}"
+              {% if analista_id == analista.id %}selected{% endif %}>
+        {{ analista.username }}
+        {% if analista.analyst_code %}({{ analista.analyst_code }}){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn btn-sm btn-primary" type="submit">Filtrar</button>
+  {% if analista_id %}
+  <a class="btn btn-sm btn-outline-secondary"
+     href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance=alcance) }}">
+    Limpiar
+  </a>
+  {% endif %}
+</form>
+
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2"
+     id="revision-seleccion"
+     data-url="{{ url_for('results.solicitar_revision', job_id=job.id) }}"
+     data-fuente="{{ fuente }}"
+     data-analista="{{ analista_id if analista_id not in (none, 'sin') else '' }}"
+     data-analista-nombre="{{ analista_nombre }}"
+     data-max="{{ max_eventos }}"
+     data-clave="{{ job.id }}:{{ fuente }}:{{ analista_id or '' }}">
+  <span class="small text-secondary" id="revision-seleccionados">
+    0 seleccionados
+  </span>
+  <button type="button" class="btn btn-sm btn-primary"
+          id="btn-solicitar-revision" disabled>
+    Solicitar revisión
+  </button>
+  <span class="small text-secondary" id="revision-aviso"></span>
+</div>
+{% endif %}
+
 <div class="card border-0 shadow-sm">
   <div class="card-body">
     {% if filas %}
@@ -116,6 +167,14 @@
       <table class="table table-sm table-hover align-middle mb-0" data-sortable>
         <thead class="table-light">
           <tr>
+            {% if puede_crear_revision %}
+            <th class="text-center" style="width: 2.2rem;">
+              <input class="form-check-input" type="checkbox"
+                     id="seleccionar-todos-revision"
+                     aria-label="Seleccionar todos los eventos del analista"
+                     {% if not analista_id or analista_id == 'sin' %}disabled{% endif %}>
+            </th>
+            {% endif %}
             <th data-sort-key="fecha" data-sort-type="text">Fecha y hora</th>
             <th data-sort-key="evento" data-sort-type="text">Evento</th>
             <th data-sort-key="magnitud" data-sort-type="number" class="text-end">Mag.</th>
@@ -133,13 +192,29 @@
                 title="Cobertura suficiente: al menos 5 estaciones, azimutal gap ≤ 180° y perfil asignado. Cobertura débil: pocas estaciones, azimutal gap > 180° o sin perfil asignado.">
               Cobertura
             </th>
+            {% if puede_crear_revision %}
+            <th data-sort-key="analista" data-sort-type="text">Analista</th>
+            {% endif %}
+            {% if puede_ver_revisiones %}
+            <th data-sort-key="revision" data-sort-type="text">Revisión</th>
+            {% endif %}
             <th data-sort-key="indicios" data-sort-type="text">Indicios</th>
-            <th class="text-end"></th>
           </tr>
         </thead>
         <tbody>
           {% for fila in filas %}
           <tr>
+            {% if puede_crear_revision %}
+            <td class="text-center">
+              <input type="checkbox" class="form-check-input seleccion-revision"
+                     value="{{ fila.fila_catalogo }}"
+                     data-evento="{{ fila.evento }}"
+                     data-analista="{{ fila.analista_usuario_id or '' }}"
+                     data-cerrada="{% if fila.solicitud_info and fila.solicitud_info.estado == 'cerrada' %}1{% else %}0{% endif %}"
+                     aria-label="Seleccionar {{ fila.id_evento_fuente or fila.evento }}"
+                     {% if not analista_id or analista_id == 'sin' or not fila.analista_usuario_id or (fila.solicitud_info and fila.solicitud_info.activa) %}disabled{% endif %}>
+            </td>
+            {% endif %}
             <td class="text-nowrap" data-sort-value="{{ fila.fecha_hora }}">{{ fila.fecha_hora }}</td>
             <td data-sort-value="{{ fila.id_evento_fuente or fila.evento }}">
               {% if fila.url_detalle %}
@@ -216,24 +291,41 @@
               —
               {% endif %}
             </td>
-            <td class="small" data-sort-value="{{ fila.tipos_indicio }}">{{ fila.tipos_indicio|tipos_indicio_texto }}</td>
-            <td class="text-end">
-              {% if fila.revision_prioritaria == 'Sí' %}
-              <span class="badge text-bg-danger">Revisión prioritaria</span>
-              {% endif %}
-              {% if fila.solicitud %}
-              <span class="badge text-bg-info">Revisión solicitada</span>
-              {% elif puede_solicitar %}
-              <form method="post" action="{{ url_for('results.solicitar_revision', job_id=job.id) }}" class="d-inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="fuente" value="{{ fuente }}">
-                <input type="hidden" name="evento" value="{{ fila.evento }}">
-                <input type="hidden" name="id_evento_fuente" value="{{ fila.id_evento_fuente }}">
-                <input type="hidden" name="volver" value="{{ volver }}">
-                <button class="btn btn-sm btn-outline-danger" type="submit">Pedir revisión</button>
-              </form>
+            {% if puede_crear_revision %}
+            <td data-sort-value="{{ fila.analista or '' }}">
+              {% if fila.analista_usuario_id %}
+              {{ fila.analista or '—' }}
+              {% else %}
+              <span class="badge text-bg-light text-dark">Sin analista</span>
               {% endif %}
             </td>
+            {% endif %}
+            {% if puede_ver_revisiones %}
+            <td data-sort-value="{% if fila.solicitud_info %}{{ fila.solicitud_info.estado }}{% endif %}">
+              {% if fila.solicitud_info %}
+              {% set info = fila.solicitud_info %}
+              <a class="text-decoration-none"
+                 href="{{ url_for('revisiones.detalle', request_id=info.id) }}">
+                <span class="badge {% if info.estado == 'notificada' %}text-bg-warning text-dark{% elif info.estado == 'en_proceso' %}text-bg-primary{% else %}text-bg-success{% endif %}">
+                  {% if info.estado == 'notificada' %}Notificada
+                  {% elif info.estado == 'en_proceso' %}En proceso
+                  {% else %}Cerrada{% endif %}
+                </span>
+              </a>
+              {% if info.asignada %}
+              <div class="small text-secondary">{{ info.asignada }}</div>
+              {% endif %}
+              {% if info.estado == 'cerrada' and info.cerrada %}
+              <div class="small text-secondary">
+                {{ info.cerrada.strftime('%Y-%m-%d') }}
+              </div>
+              {% endif %}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            {% endif %}
+            <td class="small" data-sort-value="{{ fila.tipos_indicio }}">{{ fila.tipos_indicio|tipos_indicio_texto }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -250,8 +342,83 @@
     {% endif %}
   </div>
 </div>
+
+{% if puede_crear_revision %}
+<div class="modal fade" id="modalRevision" tabindex="-1"
+     aria-labelledby="modalRevisionLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="modalRevisionLabel">
+          Solicitar revisión
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">
+          Analista: <strong id="revision-analista"></strong>
+        </p>
+        <p class="small text-secondary mb-3">
+          <span id="revision-cantidad">0</span> eventos seleccionados.
+        </p>
+        <div class="mb-3">
+          <label class="form-label small text-secondary" for="revision-nota">
+            Nota para el analista (opcional)
+          </label>
+          <textarea class="form-control" id="revision-nota" rows="3"
+                    placeholder="Qué revisar o por qué se solicita"></textarea>
+        </div>
+        <div class="mb-2">
+          <span class="form-label small text-secondary d-block">Formato</span>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio"
+                   name="revision-formato" id="revision-formato-pdf"
+                   value="pdf" checked>
+            <label class="form-check-label" for="revision-formato-pdf">PDF</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio"
+                   name="revision-formato" id="revision-formato-docx"
+                   value="docx">
+            <label class="form-check-label" for="revision-formato-docx">DOCX</label>
+          </div>
+        </div>
+        <div class="alert alert-warning small d-none"
+             id="revision-cerrada-aviso" role="status"></div>
+        <div class="d-none" id="revision-progreso">
+          <div class="progress" style="height: 1.2rem;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                 id="revision-barra" style="width: 0%">0%</div>
+          </div>
+          <div class="small text-secondary mt-1" id="revision-paso">
+            Encolando…
+          </div>
+        </div>
+        <div class="alert alert-success small d-none mt-3"
+             id="revision-resultado" role="status"></div>
+        <div class="alert alert-danger small d-none mt-3"
+             id="revision-error" role="alert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary"
+                data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-primary"
+                id="btn-generar-revision">
+          Generar y crear solicitud
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/tabla_orden.js') }}"></script>
+{% if puede_crear_revision %}
+<script src="{{ url_for('static', filename='js/revision_seleccion.js') }}"></script>
+{% endif %}
 {% endblock %}

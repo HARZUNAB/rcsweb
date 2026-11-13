@@ -15,6 +15,7 @@ celery = Celery(
         "tasks.catalogs",
         "tasks.availability",
         "tasks.amplification",
+        "tasks.reports",
     ),
 )
 

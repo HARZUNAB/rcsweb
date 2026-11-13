@@ -169,6 +169,41 @@ def filtrar_filas(filas: list[dict], usuario) -> list[dict]:
     return [fila for fila in filas if evento_visible(fila, usuario)]
 
 
+def usuario_de_fila(fila: dict, usuarios: list[User] | None = None) -> User | None:
+    """Usuario analista único que corresponde al nombre de la fila.
+
+    Devuelve None si la fila no tiene analista, si no coincide con ningún
+    usuario activo o si el nombre es ambiguo.
+    """
+    nombres = nombres_de_fila(fila)
+    if not nombres:
+        return None
+    if usuarios is None:
+        usuarios = (
+            db.session.execute(
+                db.select(User).where(
+                    User.role.in_(ROLES_RESTRINGIDOS),
+                    User.active.is_(True),
+                )
+            )
+            .scalars()
+            .all()
+        )
+    candidatos = []
+    for usuario in usuarios:
+        codigos = codigos_usuario(usuario)
+        if not codigos:
+            continue
+        if any(
+            any(coincide(codigo, nombre) for codigo in codigos)
+            for nombre in nombres
+        ):
+            candidatos.append(usuario)
+    if len(candidatos) == 1:
+        return candidatos[0]
+    return None
+
+
 __all__ = [
     "CAMPOS_ANALISTA",
     "ROLES_RESTRINGIDOS",
@@ -179,5 +214,6 @@ __all__ = [
     "filtrar_filas",
     "nombres_de_fila",
     "normalizar_nombre",
+    "usuario_de_fila",
     "usuario_restringido",
 ]

@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import json
+import zipfile
 
 from app.domain.catalogs import canonical
 from app.extensions import db
-from app.models import EventReviewRequest, Job, JobSource, User, nuevo_uuid
-from app.services import indicios
+from app.models import (
+    Job,
+    JobSource,
+    ReviewRequest,
+    ReviewRequestEvent,
+    User,
+    nuevo_uuid,
+    utcnow,
+)
+from app.services import indicios, review_reports
 from app.services.workspace import crear_workspace
 
 
@@ -162,7 +171,8 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Cobertura" in html
     assert "Evidencia" in html
     assert "244.2" in html
-    assert "Pedir revisión" in html
+    assert "La revisión se solicita desde el" in html
+    assert "Pedir revisión" not in html
     assert "data-sortable" in html
     assert "tabla_orden.js" in html
     assert "Fase inconsistente con la distancia" in html
@@ -250,28 +260,283 @@ def test_filas_sospechosas_sin_fase(monkeypatch, tmp_path):
     assert filas[0]["sospechoso"] == "Sí"
 
 
-def test_solicitar_revision_crea_registro(app, client, login):
+def test_solicitar_revision_encola_informe(app, client, login, monkeypatch):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    analista = User(username="mdur", role="analista", analyst_code="mdur")
+    analista.set_password("secret")
+    db.session.add(analista)
+    db.session.commit()
+    login()
+
+    estados = {}
+    monkeypatch.setattr(
+        review_reports, "guardar_estado", lambda key, datos: estados.__setitem__(key, dict(datos))
+    )
+    monkeypatch.setattr(
+        review_reports, "leer_estado", lambda key: estados.get(key)
+    )
+    encolados = []
+    monkeypatch.setattr(
+        "tasks.reports.generar_informe_revision.delay",
+        lambda report_id: encolados.append(report_id),
+    )
+
+    respuesta = client.post(
+        f"/jobs/{job.id}/indicios/revision",
+        data={
+            "fuente": "seiscomp",
+            "eventos": ["0"],
+            "formato": "pdf",
+            "nota": "Revisar la asociación de las P.",
+        },
+    )
+    assert respuesta.status_code == 200
+    report_id = respuesta.get_json()["report_id"]
+    assert encolados == [report_id]
+    estado = estados[report_id]
+    assert estado["job_id"] == job.id
+    assert estado["assigned_to_id"] == analista.id
+    assert estado["nota"] == "Revisar la asociación de las P."
+    assert len(estado["filas"]) == 1
+    assert estado["filas"][0]["evento"] == "seiscomp:000001"
+
+
+def test_solicitar_revision_exige_un_solo_analista(app, client, login):
     admin = User.query.filter_by(username="tester").first()
     job = _preparar(app, admin)
     login()
 
     respuesta = client.post(
         f"/jobs/{job.id}/indicios/revision",
-        data={
-            "fuente": "seiscomp",
-            "evento": "seiscomp:000001",
-            "id_evento_fuente": "csn_sc62026vdkls",
-            "nota": "Revisar la asociación de las P.",
-            "volver": f"/jobs/{job.id}/indicios?fuente=seiscomp",
-        },
+        data={"fuente": "seiscomp", "eventos": ["0", "1"]},
+    )
+    assert respuesta.status_code == 400
+    assert "un solo analista" in respuesta.get_json()["error"]
+
+
+def test_solicitar_revision_rechaza_conflicto_y_permite_cerrada(
+    app, client, login, monkeypatch
+):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    analista = User(username="mdur", role="analista", analyst_code="mdur")
+    analista.set_password("secret")
+    db.session.add(analista)
+    db.session.flush()
+    solicitud = ReviewRequest(
+        job_id=job.id,
+        source_id="seiscomp",
+        created_by_id=admin.id,
+        assigned_to_id=analista.id,
+        status="notificada",
+        notified_at=utcnow(),
+        report_format="pdf",
+    )
+    db.session.add(solicitud)
+    db.session.flush()
+    db.session.add(
+        ReviewRequestEvent(
+            request_id=solicitud.id,
+            source_id="seiscomp",
+            event_id="seiscomp:000001",
+            source_event_id="csn_sc62026vdkls",
+            fila_catalogo=0,
+        )
+    )
+    db.session.commit()
+    login()
+
+    estados = {}
+    monkeypatch.setattr(
+        review_reports,
+        "guardar_estado",
+        lambda key, datos: estados.__setitem__(key, dict(datos)),
+    )
+    monkeypatch.setattr(
+        review_reports, "leer_estado", lambda key: estados.get(key)
+    )
+    monkeypatch.setattr(
+        "tasks.reports.generar_informe_revision.delay", lambda report_id: None
+    )
+
+    respuesta = client.post(
+        f"/jobs/{job.id}/indicios/revision",
+        data={"fuente": "seiscomp", "eventos": ["0"]},
+    )
+    assert respuesta.status_code == 409
+    assert "ya están en revisión" in respuesta.get_json()["error"]
+
+    solicitud.status = "cerrada"
+    db.session.commit()
+    respuesta = client.post(
+        f"/jobs/{job.id}/indicios/revision",
+        data={"fuente": "seiscomp", "eventos": ["0"]},
+    )
+    assert respuesta.status_code == 200
+    assert respuesta.get_json()["report_id"]
+
+
+def test_ejecutar_informe_genera_docx(app, client, login, monkeypatch):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    analista = User(username="mdur", role="analista", analyst_code="mdur")
+    analista.set_password("secret")
+    db.session.add(analista)
+    db.session.commit()
+    login()
+
+    estados = {}
+    monkeypatch.setattr(
+        review_reports,
+        "guardar_estado",
+        lambda key, datos: estados.__setitem__(key, dict(datos)),
+    )
+    monkeypatch.setattr(
+        review_reports, "leer_estado", lambda key: estados.get(key)
+    )
+    monkeypatch.setattr(
+        "tasks.reports.generar_informe_revision.delay", lambda report_id: None
+    )
+
+    respuesta = client.post(
+        f"/jobs/{job.id}/indicios/revision",
+        data={"fuente": "seiscomp", "eventos": ["0"], "formato": "docx"},
+    )
+    assert respuesta.status_code == 200
+    report_id = respuesta.get_json()["report_id"]
+
+    resultado = review_reports.ejecutar(report_id)
+    assert resultado["estado"] == "listo"
+
+    solicitud = ReviewRequest.query.filter_by(job_id=job.id).one()
+    assert solicitud.report_format == "docx"
+    assert solicitud.report_path.endswith(".docx")
+    ruta = crear_workspace(job.id) / solicitud.report_path
+    assert zipfile.is_zipfile(ruta)
+
+
+def test_revisiones_visibilidad_y_ciclo(app, client, login):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    analista = User(username="mdur", role="analista", analyst_code="mdur")
+    analista.set_password("secret")
+    otro = User(username="otro", role="analista", analyst_code="otro")
+    otro.set_password("secret")
+    db.session.add_all([analista, otro])
+    db.session.flush()
+    solicitud = ReviewRequest(
+        job_id=job.id,
+        source_id="seiscomp",
+        created_by_id=admin.id,
+        assigned_to_id=analista.id,
+        status="notificada",
+        notified_at=utcnow(),
+        report_format="pdf",
+    )
+    db.session.add(solicitud)
+    db.session.commit()
+    login()
+
+    listado = client.get("/revisiones")
+    assert listado.status_code == 200
+    assert job.id[:8] in listado.get_data(as_text=True)
+    assert client.post(f"/revisiones/{solicitud.id}/aceptar").status_code == 403
+
+    client.post("/logout")
+    client.post(
+        "/login",
+        data={"username": "mdur", "password": "secret"},
+    )
+    listado = client.get("/revisiones")
+    assert job.id[:8] in listado.get_data(as_text=True)
+    detalle = client.get(f"/revisiones/{solicitud.id}")
+    assert detalle.status_code == 200
+    assert "Aceptar solicitud" in detalle.get_data(as_text=True)
+
+    respuesta = client.post(f"/revisiones/{solicitud.id}/aceptar")
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    assert solicitud.status == "en_proceso"
+    assert solicitud.accepted_at is not None
+
+    respuesta = client.post(
+        f"/revisiones/{solicitud.id}/cerrar", data={"antecedentes": ""}
     )
     assert respuesta.status_code == 302
-    solicitud = EventReviewRequest.query.filter_by(
-        job_id=job.id, source_id="seiscomp", event_id="seiscomp:000001"
-    ).first()
-    assert solicitud is not None
-    assert solicitud.note == "Revisar la asociación de las P."
-    assert solicitud.requested_by_id == admin.id
+    db.session.refresh(solicitud)
+    assert solicitud.status == "en_proceso"
+    assert solicitud.closing_note is None
+
+    respuesta = client.post(
+        f"/revisiones/{solicitud.id}/cerrar",
+        data={"antecedentes": "Se revisaron las fases y se confirmó el pick."},
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    assert solicitud.status == "cerrada"
+    assert solicitud.closed_at is not None
+    assert "confirmó el pick" in solicitud.closing_note
+
+    client.post("/logout")
+    client.post(
+        "/login",
+        data={"username": "otro", "password": "secret"},
+    )
+    listado = client.get("/revisiones")
+    assert job.id[:8] not in listado.get_data(as_text=True)
+    assert client.get(f"/revisiones/{solicitud.id}").status_code == 403
+
+
+def test_ejecutar_informe_crea_solicitud_con_pdf(
+    app, client, login, monkeypatch
+):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    analista = User(username="mdur", role="analista", analyst_code="mdur")
+    analista.set_password("secret")
+    db.session.add(analista)
+    db.session.commit()
+    login()
+
+    estados = {}
+    monkeypatch.setattr(
+        review_reports, "guardar_estado", lambda key, datos: estados.__setitem__(key, dict(datos))
+    )
+    monkeypatch.setattr(
+        review_reports, "leer_estado", lambda key: estados.get(key)
+    )
+    monkeypatch.setattr(
+        "tasks.reports.generar_informe_revision.delay", lambda report_id: None
+    )
+
+    respuesta = client.post(
+        f"/jobs/{job.id}/indicios/revision",
+        data={"fuente": "seiscomp", "eventos": ["0"], "formato": "pdf"},
+    )
+    assert respuesta.status_code == 200
+    report_id = respuesta.get_json()["report_id"]
+
+    resultado = review_reports.ejecutar(report_id)
+    assert resultado["estado"] == "listo"
+
+    solicitud = ReviewRequest.query.filter_by(job_id=job.id).one()
+    assert solicitud.status == "notificada"
+    assert solicitud.assigned_to_id == analista.id
+    assert solicitud.created_by_id == admin.id
+    assert solicitud.report_format == "pdf"
+    assert [evento.event_id for evento in solicitud.events] == [
+        "seiscomp:000001"
+    ]
+    assert solicitud.events[0].fila_catalogo == 0
+    assert solicitud.events[0].analyst == "mdur"
+    ruta = crear_workspace(job.id) / solicitud.report_path
+    assert ruta.is_file()
+    assert ruta.read_bytes().startswith(b"%PDF")
+
+    detalle = client.get(f"/revisiones/{solicitud.id}")
+    assert detalle.status_code == 200
+    assert "Solicitud #" in detalle.get_data(as_text=True)
 
 
 def test_analista_ve_solo_sus_eventos_y_no_puede_pedir_revision(app, client):

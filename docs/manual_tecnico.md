@@ -134,7 +134,7 @@ Los diagramas se regeneran con:
 | Seguridad | `users`, `audit_log` | Cuentas, roles y registro de acciones |
 | Solicitudes | `catalog_requests`, `catalog_request_files` | Pedidos de catálogos y archivos asociados |
 | Trabajos | `jobs`, `job_files`, `job_sources`, `job_steps`, `job_artifacts` | Ejecución, insumos, fuentes, pasos y descargas |
-| Revisión | `event_review_requests` | Solicitudes de revisión posterior de eventos |
+| Revisión | `event_review_requests`, `review_requests`, `review_request_events` | Solicitudes de revisión: histórico por evento y flujo vigente con varios eventos y PDF |
 | Catálogo canónico reservado | `catalog_events`, `stations`, `arrivals`, `waveform_availability` | Esquema futuro; en esta versión los eventos, arribos y estaciones se guardan en archivos JSONL del workspace |
 | Migraciones | `alembic_version` | Revisión aplicada por Alembic |
 
@@ -159,6 +159,10 @@ supervisores.
 | `job_artifacts.job_id` | `jobs` | N:1 | `CASCADE` |
 | `event_review_requests.job_id` | `jobs` | N:1 | `CASCADE` |
 | `event_review_requests.requested_by_id` | `users` | N:1 | `SET NULL` |
+| `review_requests.job_id` | `jobs` | N:1 | `CASCADE` |
+| `review_requests.created_by_id` | `users` | N:1 | `SET NULL` |
+| `review_requests.assigned_to_id` | `users` | N:1 | `SET NULL` |
+| `review_request_events.request_id` | `review_requests` | N:1 | `CASCADE` |
 | `catalog_events.job_id` | `jobs` | N:1 | `CASCADE` |
 | `stations.job_id` | `jobs` | N:1 | `CASCADE` |
 | `arrivals.job_id` | `jobs` | N:1 | `CASCADE` |
@@ -334,6 +338,54 @@ lógicas del catálogo canónico.
 
 Restricción: `UNIQUE (job_id, source_id, event_id)`.
 
+##### `review_requests`
+
+Solicitud vigente: agrupa varios eventos de un mismo analista y adjunta el
+informe generado.
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `job_id` | String(36) | No | FK → `jobs.id`, IDX | Trabajo asociado |
+| `source_id` | String(64) | No | IDX | Fuente local de los eventos |
+| `created_by_id` | Integer | Sí | FK → `users.id`, IDX | Usuario que solicitó la revisión |
+| `assigned_to_id` | Integer | Sí | FK → `users.id`, IDX | Analista asignado |
+| `status` | String(20) | No | IDX | `notificada`, `en_proceso` o `cerrada` |
+| `note` | Text | Sí | — | Nota del creador |
+| `report_path` | String(255) | Sí | — | Ruta del informe relativa al workspace |
+| `report_name` | String(255) | Sí | — | Nombre de descarga del informe |
+| `report_format` | String(8) | No | — | `pdf` o `docx` |
+| `notified_at` | DateTime(tz) | No | IDX | Fecha de notificación al analista |
+| `accepted_at` | DateTime(tz) | Sí | — | Fecha de aceptación |
+| `closed_at` | DateTime(tz) | Sí | — | Fecha de cierre |
+| `closing_note` | Text | Sí | — | Antecedentes escritos al cerrar |
+| `created_at` | DateTime(tz) | No | — | Fecha de creación |
+
+##### `review_request_events`
+
+Eventos incluidos en cada solicitud, con la foto de los datos usados en el
+informe.
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `request_id` | Integer | No | FK → `review_requests.id`, IDX | Solicitud |
+| `source_id` | String(64) | No | IDX | Fuente del evento |
+| `event_id` | String(128) | No | IDX | Identificador canónico |
+| `source_event_id` | String(128) | No | — | Identificador de la fuente |
+| `fila_catalogo` | Integer | Sí | — | Fila del catálogo para el enlace al detalle |
+| `event_time` | String(32) | No | — | Fecha y hora mostradas |
+| `latitude` | Float | Sí | — | Latitud |
+| `longitude` | Float | Sí | — | Longitud |
+| `depth_km` | Float | Sí | — | Profundidad |
+| `magnitude` | Float | Sí | — | Magnitud |
+| `magnitude_type` | String(16) | No | — | Tipo de magnitud |
+| `analyst` | String(80) | No | — | Analista de la fuente |
+| `priority` | String(20) | No | — | Prioridad calculada |
+| `motive` | String(20) | No | — | Motivo del evento |
+
+Restricción: `UNIQUE (request_id, source_id, event_id)`.
+
 ##### `alembic_version`
 
 | Columna | Tipo | Nulo | Clave / índice | Descripción |
@@ -461,6 +513,8 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `job_steps` | `IDX (job_id)` |
 | `job_artifacts` | `IDX (job_id)` |
 | `event_review_requests` | `UNIQUE (job_id, source_id, event_id)`, `IDX (job_id)`, `IDX (source_id)`, `IDX (event_id)`, `IDX (created_at)` |
+| `review_requests` | `IDX (job_id)`, `IDX (source_id)`, `IDX (created_by_id)`, `IDX (assigned_to_id)`, `IDX (status)`, `IDX (notified_at)` |
+| `review_request_events` | `UNIQUE (request_id, source_id, event_id)`, `IDX (request_id)`, `IDX (source_id)`, `IDX (event_id)` |
 | `audit_log` | `IDX (action)`, `IDX (created_at)` |
 | `catalog_events` | `UNIQUE (job_id, source_id, event_id)`, `IDX (job_id, source_id, event_id)` |
 | `stations` | `IDX (job_id, source_id)` |
@@ -483,6 +537,7 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `e5a1c2b3d604` | Código corto y alias de analista en usuarios |
 | `f3c1a7d9e205` | Fuentes directas en solicitudes |
 | `8f2b6c1d4a7e` | Solicitudes de revisión de eventos con indicios |
+| `a4d2f7c9b1e0` | Revisiones con varios eventos, PDF y estados |
 
 Para consultar o aplicar migraciones:
 
@@ -1127,8 +1182,24 @@ El estado **publicado** se usa como contexto, tomado de
 solución sospechosa (prioridad Alta o Media). La vista **Revisión de eventos**
 permite ver revisión prioritaria, publicados o todos; los eventos con fase y
 solución normal se muestran en publicados y todos. Los analistas ven solo sus
-propios eventos; administradores y supervisores ven todo y pueden **pedir
-revisión**. La solicitud se guarda en `event_review_requests` y en la auditoría.
+propios eventos; administradores y supervisores ven todo. La revisión se
+solicita desde el listado: se filtra por analista, se seleccionan varios eventos
+del mismo analista y se genera un informe en segundo plano. La solicitud se
+guarda en `review_requests` y sus eventos en `review_request_events`; la tabla
+`event_review_requests` se conserva como histórico del flujo anterior.
+
+La generación usa Celery (`tasks.generar_informe_revision`) y deja el progreso
+en Redis bajo `rcs:revision:<report_id>` durante 24 horas. El PDF se construye
+con ReportLab y el respaldo DOCX con python-docx, en A4 horizontal. El informe
+se guarda en `workspace/<job>/revisiones/<report_id>.<pdf|docx>`. El máximo de
+eventos por solicitud se configura con `RCS_INFORME_MAX_EVENTOS` (50 por
+defecto). Los conflictos se validan dos veces: al encolar y dentro de la tarea,
+antes de insertar la solicitud.
+
+Permisos: `revisiones.ver` para consultar, `revisiones.crear` para solicitar y
+`revisiones.responder` para aceptar y cerrar. El analista asignado es el único
+que puede responder; administradores y supervisores ven todas las solicitudes y
+los analistas solo las asignadas.
 
 Si una fuente no trae residual y otra fuente local lo aporta, el adaptador lo
 completa para el trabajo y deja la procedencia en `raw.residual_fuente` y
@@ -1734,6 +1805,9 @@ trabajos activos.
 | Paneles | Sí | Sí | Sí | Sí |
 | Catálogos y resultados | Sí | Sí | Sí | Sí |
 | Exportar listados | Sí | Sí | Sí | — |
+| Ver revisiones | Todas | Todas | Solo asignadas | — |
+| Solicitar revisiones | Sí | Sí | — | — |
+| Aceptar y cerrar revisiones | — | — | Solo asignadas | — |
 | Auditoría | Sí | Sí | — | — |
 | Gestión de usuarios | Sí | — | — | — |
 
