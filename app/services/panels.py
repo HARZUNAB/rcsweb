@@ -490,7 +490,7 @@ def _archivos_fuente(workspace: Path, dataset: str) -> list[Path]:
 
 
 def _fingerprint(workspace: Path, dataset: str) -> str:
-    partes = ["v5", dataset]
+    partes = ["v6", dataset]
     for ruta in _archivos_fuente(workspace, dataset):
         try:
             estado = ruta.stat()
@@ -506,6 +506,7 @@ def _fingerprint(workspace: Path, dataset: str) -> str:
         partes.append(f"{catalogo.name}:{estado.st_size}:{estado.st_mtime_ns}")
     except OSError:
         partes.append("catalogo_sismicidad:falta")
+    partes.append(plots.version_clasificacion())
     for perfil in plots._perfiles():
         partes.append(str(perfil.get("id")))
     return hashlib.sha1("|".join(partes).encode("utf-8")).hexdigest()

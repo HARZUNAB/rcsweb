@@ -293,6 +293,22 @@ def _es_sospechoso(evento: dict) -> bool:
         return False
 
 
+def version_clasificacion() -> str:
+    """Huella de los criterios que deciden si un evento es sospechoso."""
+    try:
+        _preparar_core()
+        import sismicidad  # type: ignore
+
+        criterios = json.dumps(
+            sismicidad.CRITERIOS_SOSPECHOSO,
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+        return hashlib.sha1(criterios.encode("utf-8")).hexdigest()
+    except Exception:
+        return "sin-clasificacion"
+
+
 def clasificar_eventos(
     tabla: str,
     archivo: str,
