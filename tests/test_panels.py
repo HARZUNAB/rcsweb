@@ -154,6 +154,8 @@ def test_ruta_paneles_renderiza_el_resumen(client, login, monkeypatch):
     assert "P001" in html
     assert "No publicado" in html
     assert "panel-mapa" in html
+    assert 'id="panel-mapa-vacio"' in html
+    assert "Sin eventos para mostrar" in html
     assert "panel-perfil-col" in html
     assert 'id="panel-grupos"' in html
     assert 'id="panel-perfil-vacio"' in html

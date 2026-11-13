@@ -24,6 +24,7 @@
 
   const mapaTitulo = document.getElementById("panel-mapa-titulo");
   const mapaDetalle = document.getElementById("panel-mapa-detalle");
+  const mapaVacio = document.getElementById("panel-mapa-vacio");
   const perfilTitulo = document.getElementById("panel-perfil-titulo");
   const perfilVacio = document.getElementById("panel-perfil-vacio");
   const perfilDetalle = document.getElementById("panel-perfil-detalle");
@@ -871,10 +872,28 @@
     window.requestAnimationFrame(dibujarOverlayRegiones);
   }
 
+  function mostrarMapaVacio(mostrar, titulo, detalle) {
+    if (!mapaVacio) {
+      return;
+    }
+    const tituloEl = mapaVacio.querySelector(".fw-semibold");
+    const detalleEl = mapaVacio.querySelector(".small");
+    if (titulo && tituloEl) {
+      tituloEl.textContent = titulo;
+    }
+    if (detalle && detalleEl) {
+      detalleEl.textContent = detalle;
+    }
+    mapaVacio.classList.toggle("d-none", !mostrar);
+  }
+
   function dibujarMapa() {
     if (!window.Plotly) {
-      mapaEl.innerHTML =
-        '<div class="text-secondary small p-3">No se pudo cargar el mapa.</div>';
+      mostrarMapaVacio(
+        true,
+        "No se pudo cargar el mapa",
+        "Revise la conexión y vuelva a cargar la página."
+      );
       return;
     }
     const esPerfil = estado.grupo && estado.grupo.tipo === "perfil";
@@ -886,10 +905,21 @@
     const eventos = eventosVisibles();
     actualizarConteos(eventos);
     if (!eventos.length) {
-      mapaEl.innerHTML =
-        '<div class="text-secondary small p-3">No hay eventos para este grupo con los filtros actuales.</div>';
+      try {
+        window.Plotly.purge(mapaEl);
+      } catch (error) {
+        // El mapa ya estaba vacío.
+      }
+      mapaEl._panelClick = false;
+      estado.trazaMapa = null;
+      mostrarMapaVacio(
+        true,
+        "Sin eventos para mostrar",
+        "El grupo seleccionado no tiene eventos con los filtros actuales."
+      );
       return;
     }
+    mostrarMapaVacio(false);
 
     const trazas = [];
     trazas.push(trazaContexto(eventos));

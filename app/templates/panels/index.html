@@ -273,8 +273,18 @@
                 </button>
               </div>
             </div>
-            <div id="panel-mapa" class="rounded border" style="height: 430px;"
-                 data-url-regiones="{{ url_for('static', filename='data/chile_regiones.json') }}"></div>
+            <div class="position-relative">
+              <div id="panel-mapa" class="rounded border" style="height: 430px;"
+                   data-url-regiones="{{ url_for('static', filename='data/chile_regiones.json') }}"></div>
+              <div id="panel-mapa-vacio" class="perfil-vacio d-none">
+                <div>
+                  <div class="fw-semibold">Sin eventos para mostrar</div>
+                  <div class="small text-secondary">
+                    El grupo seleccionado no tiene eventos con los filtros actuales.
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="small text-secondary mt-2">
               Marcadores grandes para distinguir eventos fuera del contexto del
               perfil. Pase el cursor por un evento para previsualizarlo; haga
