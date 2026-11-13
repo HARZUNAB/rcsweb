@@ -82,6 +82,15 @@ CRITERIOS_SOSPECHOSO = {
     },
     "min_por_grupo": {"slab": 1, "historica": 1},
     "sin_catalogo": "ninguno",
+    "veto_tendencia": {
+        "activo": os.environ.get("RCS_VETO_TENDENCIA", "1") == "1",
+        "radio_km": 20.0,
+        "banda_prof_km": 20.0,
+        "min_vecinos": 2,
+        "umbral_km": 20.0,
+        "knn_k": 5,
+        "knn_max_km": 20.0,
+    },
     "pruebas": {
         "perp_max_km": {"activo": False, "valor": 55.0},
         "residuo_max_km": {"activo": True, "valor": 30.0},
@@ -278,6 +287,44 @@ def _test_mediana_prof(ev, cfg, catalogo):
     return abs(prof_ev - mediana) > float(cfg["umbral_km"])
 
 
+def _veto_tendencia(ev, catalogo, cfg):
+    """Indica si el evento sigue la tendencia histórica local de profundidad.
+
+    Devuelve (consistente, vecinos, mediana). Un evento consistente no se
+    marca como sospechoso aunque el residual al slab y el knn se disparen: el
+    modelo de slab puede ser más somero que la sismicidad histórica local.
+    """
+    if not cfg or not cfg.get("activo") or catalogo is None:
+        return False, None, None
+    if ev.get("perfil") is None:
+        return False, None, None
+    mask, _ = _vecinos_ventana(
+        ev,
+        catalogo,
+        float(cfg.get("radio_km", 20.0)),
+        float(cfg.get("banda_prof_km", 20.0)),
+    )
+    if mask is None:
+        return False, None, None
+    vecinos = int(mask.sum())
+    if vecinos < int(cfg.get("min_vecinos", 2)):
+        return False, vecinos, None
+    try:
+        prof_ev = float(ev["prof"])
+        mediana = float(np.median(catalogo["prof"][mask]))
+    except (TypeError, ValueError, KeyError):
+        return False, vecinos, None
+    if abs(prof_ev - mediana) > float(cfg.get("umbral_km", 20.0)):
+        return False, vecinos, mediana
+    distancia = _dist_kkn(ev, catalogo, int(cfg.get("knn_k", 5)))
+    if distancia is None:
+        return False, vecinos, mediana
+    knn_max = cfg.get("knn_max_km")
+    if knn_max is not None and distancia > float(knn_max):
+        return False, vecinos, mediana
+    return True, vecinos, mediana
+
+
 # Mapa nombre de prueba -> función.
 _TEST_FUNCIONES = {
     "perp_max_km": _test_perp,
@@ -317,11 +364,15 @@ def evaluar(ev, catalogo=None, criterios=None):
         "d_knn_km": None,
         "vecinos_ventana": None,
         "desvio_mediana_km": None,
+        "tendencia_vecinos": None,
+        "tendencia_mediana_km": None,
+        "tendencia_consistente": False,
     }
 
 # Prueba interna: sin perfil -> fuera del umbral de asociación.
     if ev.get('perfil') is None:
         return {"sospechoso": True, "sin_perfil": True,
+                "vetado_por_tendencia": False,
                 "regla": criterios.get("regla", "ambos_grupos"),
                 "pruebas": {}, "grupos": {}, "metricas": metricas}
 
@@ -369,8 +420,16 @@ def evaluar(ev, catalogo=None, criterios=None):
                 except (TypeError, ValueError, KeyError):
                     pass
 
+    veto_consistente, tendencia_vecinos, tendencia_mediana = _veto_tendencia(
+        ev, catalogo, criterios.get("veto_tendencia")
+    )
+    metricas["tendencia_vecinos"] = tendencia_vecinos
+    metricas["tendencia_mediana_km"] = tendencia_mediana
+    metricas["tendencia_consistente"] = bool(veto_consistente)
+
     if not veredictos:
         return {"sospechoso": False, "sin_perfil": False,
+                "vetado_por_tendencia": False,
                 "regla": criterios.get("regla", "ambos_grupos"),
                 "pruebas": veredictos, "grupos": {}, "metricas": metricas}
 
@@ -400,7 +459,10 @@ def evaluar(ev, catalogo=None, criterios=None):
         # "cualquier_grupo" (u otro): comportamiento OR para experimentar.
         for nombre_grupo in grupos:
             res_grupos[nombre_grupo] = _resumen_grupo(nombre_grupo)
-        return {"sospechoso": any(veredictos.values()), "sin_perfil": False,
+        marcado = any(veredictos.values())
+        vetado = bool(marcado and veto_consistente)
+        return {"sospechoso": bool(marcado and not vetado), "sin_perfil": False,
+                "vetado_por_tendencia": vetado,
                 "regla": regla, "pruebas": veredictos, "grupos": res_grupos,
                 "metricas": metricas}
 
@@ -411,8 +473,11 @@ def evaluar(ev, catalogo=None, criterios=None):
         res_grupos[nombre_grupo] = info
         if not info["cumplido"]:
             cumple = False
-    return {"sospechoso": cumple, "sin_perfil": False, "regla": regla,
-            "pruebas": veredictos, "grupos": res_grupos, "metricas": metricas}
+    vetado = bool(cumple and veto_consistente)
+    return {"sospechoso": bool(cumple and not vetado), "sin_perfil": False,
+            "vetado_por_tendencia": vetado,
+            "regla": regla, "pruebas": veredictos, "grupos": res_grupos,
+            "metricas": metricas}
 
 
 def es_sospechoso(ev, catalogo=None, criterios=None):
@@ -446,6 +511,8 @@ def explicar_sospechoso(ev, catalogo=None, criterios=None):
     r = evaluar(ev, catalogo, criterios)
     id_ev = ev.get('id', '?')
     estado = "SOSPECHOSO" if r["sospechoso"] else "no marcado"
+    if r.get("vetado_por_tendencia"):
+        estado = "no marcado (veto por tendencia)"
 
     m = r["metricas"]
     def _fmt(v):
@@ -464,9 +531,16 @@ def explicar_sospechoso(ev, catalogo=None, criterios=None):
         dis = [n for n, v in r["pruebas"].items() if v and grupo_de.get(n) == g]
         piezas.append("%s:%s" % (g, ",".join(dis) if dis else "-"))
 
-    return ("id %s -> %s | perp=%s residuo=%s d_knn=%s vecinos=%s | grupos: %s"
+    tendencia = ""
+    if m.get("tendencia_mediana_km") is not None:
+        tendencia = " | tendencia: mediana=%s vecinos=%s" % (
+            _fmt(m["tendencia_mediana_km"]),
+            m.get("tendencia_vecinos", "-"),
+        )
+    return ("id %s -> %s | perp=%s residuo=%s d_knn=%s vecinos=%s | grupos: %s%s"
             % (id_ev, estado, _fmt(m["perp_km"]), _fmt(m["residuo_km"]),
-               _fmt(m["d_knn_km"]), m["vecinos_ventana"], "; ".join(piezas)))
+               _fmt(m["d_knn_km"]), m["vecinos_ventana"], "; ".join(piezas),
+               tendencia))
 
 
 if __name__ == "__main__":

@@ -1081,6 +1081,30 @@ paneles (`paneles/catalogo_<fuente>.json`) y agrega, con
 indicio de fase. Los sospechosos no publicados sin fase no se listan; quedan en
 los paneles.
 
+##### Veto por tendencia histórica
+
+Un evento puede seguir la tendencia local de profundidad de la sismicidad
+histórica aunque el residual al slab y el `knn` lo marquen. Para evitar ese
+falso positivo, `core/sismicidad.py` aplica un veto:
+
+- ventana de 20 km horizontal y ±20 km de profundidad;
+- al menos 2 vecinos históricos;
+- profundidad a ≤ 20 km de la mediana local;
+- `d_knn` ≤ 20 km.
+
+El resultado conserva `vetado_por_tendencia`, `tendencia_vecinos` y
+`tendencia_mediana_km`. No se aplica a eventos sin perfil.
+
+Para revertir sin cambiar código:
+
+```text
+# .env
+RCS_VETO_TENDENCIA=0
+```
+
+Reiniciar `web` y `worker`. La caché de paneles incluye una huella de
+`CRITERIOS_SOSPECHOSO`, así que se recalcula sola con los criterios anteriores.
+
 La salida queda en:
 
 ```text
@@ -1758,9 +1782,10 @@ El filtro se aplica en:
 - Paneles, sus grupos, conteos y PNG;
 - exportaciones de Resultados.
 
-En Catálogos, `analista` y `consulta` ven todas las fuentes y usan los filtros,
-pero la tabla oculta las columnas de analista, no permite detalle, miniaturas ni
-Web, y solo ofrece **Descargar catálogo**. El resto de las descargas queda
+En Catálogos, el analista ve todas las fuentes y usa los filtros, pero la tabla
+oculta las columnas de analista, no permite detalle, miniaturas ni Web, y solo
+ofrece **Descargar catálogo**. El observador y el rol Catálogos ven el catálogo
+completo, incluido el detalle y las miniaturas. El resto de las descargas queda
 bloqueada también por URL.
 
 `Descargar catálogo` usa `app/services/catalog_export.py`. Cada evento se asigna

@@ -776,10 +776,13 @@ aplicación.
 - **Administrador y supervisor** mantienen el acceso completo: columnas de
   analista, **Web**, **Ver**, **Ver miniaturas**, descargas completas y el nuevo
   **Descargar catálogo**.
-- **Analista y consulta** ven todas las fuentes y usan los filtros, pero no ven
-  las columnas **Analista** ni **Analista probable**, y no pueden abrir **Web**,
-  **Ver** ni **Ver miniaturas**. Tampoco pueden usar las descargas completas.
-  Su única descarga es **Descargar catálogo**.
+- **Analista** ve todas las fuentes y usa los filtros, pero no ve las columnas
+  **Analista** ni **Analista probable**, y no puede abrir **Web**, **Ver** ni
+  **Ver miniaturas**. Tampoco puede usar las descargas completas. Su única
+  descarga es **Descargar catálogo**.
+- **Observador y Catálogos** ven el catálogo completo, con **Web**, **Ver** y
+  **Ver miniaturas**, y pueden usar **Descargar catálogo**. No acceden a las
+  descargas de resultados.
 - **Descargar catálogo** abre una vista previa con mapas de planta por
   territorio y dos variantes por perfil. **Ningún mapa se genera al abrir la
   página**: use **Ver** para abrirlo en un modal con indicador de actividad, o
@@ -838,8 +841,9 @@ desactiva, su sesión se cierra en la siguiente petición.
 ## Preguntas frecuentes
 
 **No veo un trabajo que otro usuario creó.**
-Es normal: los analistas y las consultas solo ven sus propios trabajos. El
-administrador o el supervisor pueden verlo.
+Es normal: los analistas y el rol Catálogos solo ven los trabajos que crearon o
+que provienen de sus solicitudes. El observador, el administrador y el
+supervisor pueden verlo.
 
 **No aparece la fuente Eventquery.**
 Puede tener cero eventos. La pestaña se puede abrir y muestra el aviso de
