@@ -24,7 +24,7 @@ from ..domain.catalogs.registry import adaptador as obtener_adaptador
 from ..extensions import db
 from ..forms import JobForm
 from ..models import Job, JobArtifact, JobFile, JobSource, nuevo_uuid
-from ..security import permiso_requerido, puede_ver_trabajo
+from ..security import permiso_requerido, puede_ver_trabajo, tiene_permiso
 from ..services import indicios
 from ..services.audit import registrar
 from ..services.jobs import JobNoEliminable, eliminar_trabajo, puede_eliminar
@@ -83,10 +83,18 @@ def _contexto_detalle(job: Job) -> dict:
             codigo,
         ),
     )
+    resumen_indicios = indicios.leer_resumen(workspace)
+    if resumen_indicios and tiene_permiso(current_user, "resultados.ver"):
+        resumen_indicios = dict(resumen_indicios)
+        resumen_indicios["total"] = indicios.resumen_visible(
+            workspace,
+            list((resumen_indicios.get("fuentes") or {}).keys()),
+            current_user,
+        )
     return {
         "job": job,
         "indice": indice,
-        "indicios": indicios.leer_resumen(workspace),
+        "indicios": resumen_indicios,
         "log": leer_log(workspace, max_lineas=250),
         "artefactos": job.artifacts,
         "activo": job.activo,

@@ -7,14 +7,19 @@
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
   <div>
     <div class="text-secondary small text-uppercase mb-1">
+      {% if puede('resultados.ver') %}
       <a class="text-reset text-decoration-none"
          href="{{ url_for('jobs.detalle', job_id=job.id) }}#resultados">Resultados</a>
+      {% else %}
+      <a class="text-reset text-decoration-none"
+         href="{{ url_for('jobs.detalle', job_id=job.id) }}">Catálogos</a>
+      {% endif %}
     </div>
     <h1 class="h3 mb-1">{{ tabla_config.titulo }}</h1>
     <p class="text-secondary mb-0">{{ tabla_config.descripcion }}</p>
   </div>
   <div class="d-flex flex-wrap gap-2">
-    {% if artefacto %}
+    {% if artefacto and puede('trabajos.descargar') %}
       <a class="btn btn-outline-secondary"
          href="{{ url_for('jobs.descargar', job_id=job.id, artifact_id=artefacto.id) }}">
         CSV original

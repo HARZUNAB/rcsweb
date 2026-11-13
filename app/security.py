@@ -22,6 +22,7 @@ PERMISOS = (
     "solicitudes.todas",
     "paneles.ver",
     "catalogos.ver",
+    "resultados.ver",
     "resultados.exportar",
     "revisiones.solicitar",
     "auditoria.ver",
@@ -40,6 +41,7 @@ _OPERATIVOS = frozenset(
         "solicitudes.gestionar",
         "paneles.ver",
         "catalogos.ver",
+        "resultados.ver",
         "resultados.exportar",
     }
 )
@@ -50,9 +52,26 @@ ROLES = {
     # cuentas ni contraseñas.
     "supervisor": frozenset(PERMISOS) - {"usuarios.gestionar"},
     "analista": _OPERATIVOS,
-    # Consulta es solo lectura: no crea, no elimina, no descarga ni exporta.
-    "consulta": frozenset(
-        {"trabajos.ver", "paneles.ver", "catalogos.ver"}
+    # Observador global: ve todo el sistema en modo lectura, sin exportar ni
+    # descargar resultados. Sí puede descargar catálogos desde Catálogos.
+    "observador": frozenset(
+        {
+            "trabajos.ver",
+            "trabajos.todos",
+            "paneles.ver",
+            "catalogos.ver",
+            "resultados.ver",
+        }
+    ),
+    # Rol de extracción: solicita catálogos y accede solo a la sección de
+    # catálogos de los trabajos que generan sus solicitudes.
+    "catalogos": frozenset(
+        {
+            "trabajos.ver",
+            "catalogos.ver",
+            "solicitudes.ver",
+            "solicitudes.crear",
+        }
     ),
 }
 
@@ -60,7 +79,8 @@ ETIQUETAS_ROL = {
     "admin": "Administrador",
     "supervisor": "Supervisor",
     "analista": "Analista",
-    "consulta": "Consulta",
+    "observador": "Observador",
+    "catalogos": "Catálogos",
 }
 
 ROLES_VALIDOS = tuple(ROLES)

@@ -26,14 +26,16 @@ comando de recuperación.
 | **Administrador** | Acceso total, usuarios y auditoría |
 | **Supervisor** | Toda la operación y la auditoría, sin gestión de usuarios |
 | **Analista** | Operación diaria sobre sus propios trabajos y solicitudes |
-| **Consulta** | Solo lectura de sus propios trabajos |
+| **Observador** | Solo lectura de todos los trabajos, resultados, paneles y catálogos |
+| **Catálogos** | Solicita extracciones y accede solo a la sección Catálogos de esos trabajos |
 
-El **analista** y la **consulta** solo ven los trabajos que crearon. El
-administrador y el supervisor ven todos. La columna **Creador** del panel y la
-línea «por …» del detalle identifican al autor.
+El **analista** y el rol **Catálogos** solo ven los trabajos que crearon o que
+provienen de sus solicitudes. El **observador**, el administrador y el
+supervisor ven todos. La columna **Creador** del panel y la línea «por …» del
+detalle identifican al autor.
 
-Cada usuario tiene un **código corto de analista** y, opcionalmente, alias. El
-código no tiene que coincidir con el nombre de usuario de la app. Por ejemplo,
+Cada **analista** tiene un **código corto de analista** y, opcionalmente, alias.
+El código no tiene que coincidir con el nombre de usuario de la app. Por ejemplo,
 el usuario `gjerez` puede tener código `Jere` y alias `JereV, jerez`.
 
 En Resultados y Paneles, el analista solo ve los eventos cuyo campo de analista
@@ -42,8 +44,8 @@ espacios, y tolera variantes por prefijo de al menos tres caracteres, como
 `Jere` con `Jerez` o `JereV`. Si un nombre coincide con dos usuarios, no se
 muestra y queda para revisión del administrador.
 
-Sin código corto asignado, el analista o la consulta no ven eventos. El
-administrador y el supervisor no se filtran por este código.
+Sin código corto asignado, el analista no ve eventos. El observador no se
+filtra por este código y ve el total.
 
 ## Panel de trabajos
 
@@ -862,4 +864,5 @@ manual técnico detalla las rutas.
 
 **¿Puedo descargar los resultados?**
 Sí, si su rol lo permite. Analistas, supervisores y administradores pueden
-exportar; la consulta es solo lectura.
+exportar; el observador es solo lectura. El rol Catálogos puede descargar el
+catálogo desde la sección Catálogos, pero no exportar resultados.

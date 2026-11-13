@@ -85,8 +85,10 @@
         <span class="badge text-bg-light text-dark">
           {{ datos.total }} evento{{ '' if datos.total == 1 else 's' }}
         </span>
+        {% if puede('resultados.exportar') %}
         <button class="btn btn-sm btn-outline-secondary" type="button"
                 id="grupo-descargar-csv">Descargar CSV</button>
+        {% endif %}
       </div>
     </div>
     <div class="table-responsive">

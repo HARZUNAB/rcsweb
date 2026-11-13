@@ -188,7 +188,7 @@ lógicas del catálogo canónico.
 | `id` | Integer | No | PK | Identificador |
 | `username` | String(80) | No | UNIQUE | Nombre de acceso |
 | `password_hash` | String(255) | No | — | Hash de la contraseña |
-| `role` | String(32) | No | — | `admin`, `supervisor`, `analista` o `consulta` |
+| `role` | String(32) | No | — | `admin`, `supervisor`, `analista`, `observador` o `catalogos` |
 | `analyst_code` | String(80) | Sí | — | Código corto de analista |
 | `analyst_aliases` | Text | Sí | — | Alias separados por coma o punto y coma |
 | `active` | Boolean | No | — | Cuenta habilitada |
@@ -1745,7 +1745,7 @@ restablecer la clave.
 
 #### Restricción por código de analista
 
-Los roles `analista` y `consulta` se filtran por `users.analyst_code` y
+El rol `analista` se filtra por `users.analyst_code` y
 `users.analyst_aliases`. `app/services/analysts.py` normaliza mayúsculas,
 acentos, espacios y puntuación, y compara por igualdad o por prefijo de al menos
 tres caracteres. Si un nombre coincide con dos usuarios, no se muestra y se
@@ -1833,7 +1833,7 @@ sudo docker compose exec web flask --app app set-analyst-code gjerez Jere \
   --aliases "JereV,jerez"
 ```
 
-Roles válidos: `admin`, `supervisor`, `analista`, `consulta`.
+Roles válidos: `admin`, `supervisor`, `analista`, `observador`, `catalogos`.
 
 ## Autenticación y recuperación
 

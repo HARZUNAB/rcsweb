@@ -12,7 +12,7 @@
     {% if puede('solicitudes.crear') or puede('trabajos.crear') %}
     <a class="btn btn-primary"
        href="{% if puede('solicitudes.crear') %}{{ url_for('solicitudes.nueva') }}{% else %}{{ url_for('jobs.nuevo') }}{% endif %}">
-      Nuevo trabajo
+      {% if puede('trabajos.crear') %}Nuevo trabajo{% else %}Solicitar catálogos{% endif %}
     </a>
     {% endif %}
   </div>
@@ -165,7 +165,7 @@
               {% if puede('solicitudes.crear') or puede('trabajos.crear') %}
               <a class="btn btn-sm btn-primary"
                  href="{% if puede('solicitudes.crear') %}{{ url_for('solicitudes.nueva') }}{% else %}{{ url_for('jobs.nuevo') }}{% endif %}">
-                Nuevo trabajo
+                {% if puede('trabajos.crear') %}Nuevo trabajo{% else %}Solicitar catálogos{% endif %}
               </a>
               {% endif %}
             </div>

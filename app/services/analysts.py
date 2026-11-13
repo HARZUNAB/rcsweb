@@ -11,7 +11,7 @@ from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..models import User
 
-ROLES_RESTRINGIDOS = frozenset({"analista", "consulta"})
+ROLES_RESTRINGIDOS = frozenset({"analista"})
 CAMPOS_ANALISTA = (
     "Analista",
     "analista",

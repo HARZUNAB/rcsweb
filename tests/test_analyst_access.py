@@ -205,11 +205,11 @@ def test_catalogo_nuevo_csv_sanitizado_y_sin_analista(app, client):
     assert "Valparaíso" in texto
 
 
-def test_consulta_solo_tiene_descargar_catalogo(app, client):
-    consulta = _usuario("consulta", "cons", role="consulta")
+def test_catalogos_descarga_catalogo_sin_exportar(app, client):
+    catalogos = _usuario("catalogos", "cat", role="catalogos")
     _usuario("beto", "beto")
-    job = _preparar(app, consulta)
-    _login(client, "consulta")
+    job = _preparar(app, catalogos)
+    _login(client, "catalogos")
 
     html = client.get(
         f"/jobs/{job.id}/catalogos",
@@ -220,8 +220,6 @@ def test_consulta_solo_tiene_descargar_catalogo(app, client):
     assert "Descargar todo" not in html
     assert "Descargar filtrado" not in html
     assert "Descargar seleccionados" not in html
-    assert 'title="Abrir el catálogo diario de sismologia.cl"' not in html
-    assert "Ver miniaturas" not in html
     assert client.get(
         f"/jobs/{job.id}/resultados/catalogos/exportar",
         query_string={"catalogo": "seisan", "todo": "1"},

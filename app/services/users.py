@@ -29,9 +29,9 @@ def _validar_codigo(
 ) -> None:
     codigo = (analyst_code or "").strip()
     alias = (analyst_aliases or "").strip()
-    if role in ("analista", "consulta") and not codigo:
+    if role == "analista" and not codigo:
         raise UsuarioError(
-            "El código de analista es obligatorio para los roles analista y consulta."
+            "El código de analista es obligatorio para el rol analista."
         )
     valores = [codigo] + re.split(r"[;,]", alias)
     codigos = []

@@ -1052,6 +1052,48 @@ def leer_resumen(workspace: Path) -> dict | None:
         return None
 
 
+def resumen_visible(
+    workspace: Path,
+    fuentes: list[str] | tuple[str, ...],
+    usuario,
+) -> dict:
+    """Totales de revisión visibles para el usuario.
+
+    Admin, supervisor y observador reciben el total del reporte. El analista
+    recibe solo los eventos que le corresponden según ``evento_visible``.
+    """
+    from .analysts import evento_visible, usuario_restringido
+
+    resumen = leer_resumen(workspace) or {}
+    total = dict(resumen.get("total") or {})
+    if not usuario_restringido(usuario):
+        return total
+
+    visible = {
+        "con_anomalia": 0,
+        "con_anomalia_fuerte": 0,
+        "con_anomalia_debil": 0,
+        "publicados": 0,
+        "residual_temporal": bool(total.get("residual_temporal")),
+    }
+    for fuente in fuentes:
+        for fila in leer_indicios(workspace, fuente):
+            if not evento_visible(fila, usuario):
+                continue
+            visible["con_anomalia"] += 1
+            if fila.get("fuerza") == "fuerte":
+                visible["con_anomalia_fuerte"] += 1
+            elif fila.get("fuerza") == "débil":
+                visible["con_anomalia_debil"] += 1
+        indice = indice_publicados(workspace, fuente)
+        for evento in canonical.leer_canonico(workspace, fuente):
+            if not evento_visible({"analista": evento.get("analyst")}, usuario):
+                continue
+            if _publicado_evento(evento, indice) is True:
+                visible["publicados"] += 1
+    return visible
+
+
 def leer_indicios(workspace: Path, source_id: str) -> list[dict]:
     ruta = ruta_eventos(workspace, source_id)
     if not ruta.is_file():

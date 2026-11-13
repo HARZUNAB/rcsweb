@@ -407,6 +407,7 @@
         <span class="badge text-bg-light text-dark" id="panel-seleccionados-count">
           0 seleccionados
         </span>
+        {% if puede('resultados.exportar') %}
         <button class="btn btn-sm btn-outline-secondary" type="button"
                 id="panel-descargar-todo" disabled>Descargar todo</button>
         <button class="btn btn-sm btn-outline-secondary" type="button"
@@ -415,6 +416,7 @@
                 id="panel-descargar-seleccionados" disabled>
           Descargar seleccionados
         </button>
+        {% endif %}
         <a class="btn btn-sm btn-outline-secondary" href="#panel-filtros"
            data-volver-paneles>Volver a los paneles</a>
       </div>

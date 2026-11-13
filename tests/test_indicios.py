@@ -6,6 +6,8 @@ import csv
 from pathlib import Path
 
 from app.domain.catalogs import canonical
+from app.extensions import db
+from app.models import User
 from app.services import indicios
 
 
@@ -478,6 +480,71 @@ def test_genera_reportes_y_resumen(tmp_path):
     assert any(item["tipo_indicio"] == "residual_alto" for item in detalle)
 
     assert indicios.leer_resumen(workspace) == resumen
+
+
+def test_resumen_visible_filtra_por_analista(app, tmp_path):
+    ana = User(username="ana", role="analista", analyst_code="ana", active=True)
+    beto = User(username="beto", role="analista", analyst_code="beto", active=True)
+    admin = User(username="admin", role="admin", active=True)
+    for usuario in (ana, beto, admin):
+        usuario.set_password("secret")
+    db.session.add_all([ana, beto, admin])
+    db.session.commit()
+
+    workspace = tmp_path / "ws"
+    evento_a = _evento(
+        event_id="seiscomp:000101",
+        event_time="2020-01-01 00:00:00",
+        latitude=0.0,
+        longitude=0.0,
+        analyst="ana",
+    )
+    evento_b = _evento(
+        event_id="seiscomp:000102",
+        event_time="2020-01-01 00:00:00",
+        latitude=0.0,
+        longitude=0.0,
+        analyst="beto",
+    )
+    arribo_a = dict(
+        _arribo("A", 0.1, 0.0, "2020-01-01 00:00:05", 10.0),
+        event_id="seiscomp:000101",
+    )
+    arribo_b = dict(
+        _arribo("B", 0.2, 0.0, "2020-01-01 00:00:06", 10.0),
+        event_id="seiscomp:000102",
+    )
+    _escribir(
+        workspace,
+        "seiscomp",
+        [evento_a, evento_b],
+        [arribo_a, arribo_b],
+    )
+    atribucion = workspace / "datos" / "atribucion_seiscomp.csv"
+    atribucion.parent.mkdir(parents=True)
+    with atribucion.open("w", encoding="utf-8", newline="") as archivo:
+        escritor = csv.DictWriter(
+            archivo, fieldnames=["fecha_local", "lat_local", "lon_local"]
+        )
+        escritor.writeheader()
+        escritor.writerow(
+            {
+                "fecha_local": "2020-01-01 00:00:00",
+                "lat_local": "0.0",
+                "lon_local": "0.0",
+            }
+        )
+
+    indicios.generar_indicios(workspace, ["seiscomp"])
+
+    visible_ana = indicios.resumen_visible(workspace, ["seiscomp"], ana)
+    assert visible_ana["con_anomalia"] == 1
+    assert visible_ana["con_anomalia_fuerte"] == 1
+    assert visible_ana["publicados"] == 1
+
+    visible_admin = indicios.resumen_visible(workspace, ["seiscomp"], admin)
+    assert visible_admin["con_anomalia"] == 2
+    assert visible_admin["publicados"] == 2
 
 
 def test_asegurar_indicios_regenera_si_cambia_el_esquema(tmp_path):

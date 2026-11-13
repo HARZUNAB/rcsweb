@@ -489,7 +489,7 @@ def titulo_columna(clave: str) -> str:
 
 @results_bp.get("/jobs/<job_id>/resultados")
 @login_required
-@permiso_requerido("catalogos.ver")
+@permiso_requerido("resultados.ver")
 def overview(job_id: str):
     job = _job(job_id)
     return redirect(url_for("jobs.detalle", job_id=job.id) + "#resultados")
@@ -497,7 +497,7 @@ def overview(job_id: str):
 
 @results_bp.get("/jobs/<job_id>/indicios")
 @login_required
-@permiso_requerido("catalogos.ver")
+@permiso_requerido("resultados.ver")
 def indicios_eventos(job_id: str):
     """Listado de eventos con indicios de anomalías en las fases."""
     job = _job(job_id)
@@ -941,7 +941,7 @@ def _fuente_de_repetidos(clave: str) -> str:
 
 @results_bp.get("/jobs/<job_id>/resultados/no-publicados")
 @login_required
-@permiso_requerido("catalogos.ver")
+@permiso_requerido("resultados.ver")
 def no_publicados(job_id: str):
     return _render_tabla(
         job_id,
@@ -952,7 +952,7 @@ def no_publicados(job_id: str):
 
 @results_bp.get("/jobs/<job_id>/resultados/no-actualizados")
 @login_required
-@permiso_requerido("catalogos.ver")
+@permiso_requerido("resultados.ver")
 def no_actualizados(job_id: str):
     return _render_tabla(
         job_id,
@@ -963,7 +963,7 @@ def no_actualizados(job_id: str):
 
 @results_bp.get("/jobs/<job_id>/resultados/repetidos")
 @login_required
-@permiso_requerido("catalogos.ver")
+@permiso_requerido("resultados.ver")
 def repetidos(job_id: str):
     return _render_tabla(job_id, "repetidos", request.args.get("clave", "publica_amplio"))
 
@@ -1457,6 +1457,8 @@ def exportar_seleccionados(job_id: str, tabla: str):
 @permiso_requerido("catalogos.ver")
 def miniatura(job_id: str, tabla: str, opcion: str, fila: int):
     job = _job(job_id)
+    if tabla != "catalogos" and not tiene_permiso(current_user, "resultados.ver"):
+        abort(403)
     if tabla not in TABLAS:
         abort(404)
     if opcion not in [clave for clave, _titulo in _opciones(tabla, job)]:
@@ -1529,6 +1531,8 @@ def mapa(job_id: str, tabla: str, opcion: str, fila: int):
 @permiso_requerido("catalogos.ver")
 def detalle(job_id: str, tabla: str, opcion: str, fila: int):
     job = _job(job_id)
+    if tabla != "catalogos" and not tiene_permiso(current_user, "resultados.ver"):
+        abort(403)
     if tabla not in TABLAS:
         abort(404)
     config = TABLAS[tabla]
@@ -1844,7 +1848,7 @@ def _revision_de_fila(
     "/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>/estaciones/<tipo>.csv"
 )
 @login_required
-@permiso_requerido("catalogos.ver")
+@permiso_requerido("resultados.exportar")
 def estaciones_csv(job_id: str, tabla: str, opcion: str, fila: int, tipo: str):
     """Descarga los arribos o las estaciones sin arribos de un evento."""
     if tipo not in ("arribos", "sin-arribos"):
@@ -1911,7 +1915,7 @@ def estaciones_csv(job_id: str, tabla: str, opcion: str, fila: int, tipo: str):
     "/estaciones/disponibilidad"
 )
 @login_required
-@permiso_requerido("catalogos.ver")
+@permiso_requerido("trabajos.crear")
 def consultar_estaciones_disponibilidad(
     job_id: str, tabla: str, opcion: str, fila: int
 ):
@@ -2047,7 +2051,7 @@ def consultar_estaciones_disponibilidad(
     "/estaciones/disponibilidad/<task_id>"
 )
 @login_required
-@permiso_requerido("catalogos.ver")
+@permiso_requerido("trabajos.crear")
 def estado_estaciones_disponibilidad(
     job_id: str, tabla: str, opcion: str, fila: int, task_id: str
 ):
@@ -2119,7 +2123,7 @@ def estado_estaciones_disponibilidad(
     "/estaciones/ampliar"
 )
 @login_required
-@permiso_requerido("catalogos.ver")
+@permiso_requerido("trabajos.crear")
 def ampliar_estaciones(job_id: str, tabla: str, opcion: str, fila: int):
     """Encola la ampliación del inventario contra la base de SeisComp."""
     job = _job(job_id)
@@ -2248,7 +2252,7 @@ def ampliar_estaciones(job_id: str, tabla: str, opcion: str, fila: int):
     "/estaciones/ampliar/<task_id>"
 )
 @login_required
-@permiso_requerido("catalogos.ver")
+@permiso_requerido("trabajos.crear")
 def estado_ampliacion(
     job_id: str, tabla: str, opcion: str, fila: int, task_id: str
 ):

@@ -17,7 +17,7 @@ from app.services.workspace import crear_workspace
 @pytest.fixture()
 def usuarios(app):
     cuentas = {}
-    for rol in ("supervisor", "analista", "consulta"):
+    for rol in ("supervisor", "analista", "observador", "catalogos"):
         usuario = User(username=rol, role=rol)
         usuario.set_password("secret")
         db.session.add(usuario)
@@ -89,12 +89,26 @@ def _job_con_tabla(creador_id: int | None = None) -> Job:
         ("analista", "auditoria.ver", False),
         ("analista", "trabajos.eliminar", True),
         ("analista", "trabajos.todos", False),
+        ("analista", "resultados.ver", True),
         ("analista", "resultados.exportar", True),
-        ("consulta", "trabajos.ver", True),
-        ("consulta", "paneles.ver", True),
-        ("consulta", "catalogos.ver", True),
-        ("consulta", "trabajos.crear", False),
-        ("consulta", "resultados.exportar", False),
+        ("observador", "trabajos.ver", True),
+        ("observador", "trabajos.todos", True),
+        ("observador", "paneles.ver", True),
+        ("observador", "catalogos.ver", True),
+        ("observador", "resultados.ver", True),
+        ("observador", "trabajos.crear", False),
+        ("observador", "trabajos.descargar", False),
+        ("observador", "resultados.exportar", False),
+        ("observador", "solicitudes.ver", False),
+        ("catalogos", "trabajos.ver", True),
+        ("catalogos", "catalogos.ver", True),
+        ("catalogos", "solicitudes.ver", True),
+        ("catalogos", "solicitudes.crear", True),
+        ("catalogos", "resultados.ver", False),
+        ("catalogos", "paneles.ver", False),
+        ("catalogos", "trabajos.crear", False),
+        ("catalogos", "trabajos.descargar", False),
+        ("catalogos", "resultados.exportar", False),
         ("desconocido", "trabajos.ver", False),
     ],
 )
@@ -106,14 +120,20 @@ def test_matriz_de_permisos(rol, permiso, esperado):
 def test_etiquetas_y_alcance():
     assert etiqueta_rol("supervisor") == "Supervisor"
     assert etiqueta_rol("admin") == "Administrador"
+    assert etiqueta_rol("observador") == "Observador"
+    assert etiqueta_rol("catalogos") == "Catálogos"
     assert alcance_total(types.SimpleNamespace(is_authenticated=True, role="supervisor"))
+    assert alcance_total(types.SimpleNamespace(is_authenticated=True, role="observador"))
     assert not alcance_total(
         types.SimpleNamespace(is_authenticated=True, role="analista")
+    )
+    assert not alcance_total(
+        types.SimpleNamespace(is_authenticated=True, role="catalogos")
     )
 
 
 def test_reanalizar_requiere_permiso_de_creacion(client, usuarios):
-    _login(client, "consulta")
+    _login(client, "observador")
     job = _job()
 
     respuesta = client.post(f"/jobs/{job.id}/reanalizar")
@@ -137,8 +157,8 @@ def test_analista_reanaliza_solo_su_trabajo(client, usuarios, monkeypatch):
     assert llamados == [propio.id]
 
 
-def test_consulta_es_solo_lectura(client, usuarios):
-    _login(client, "consulta")
+def test_observador_es_solo_lectura(client, usuarios):
+    _login(client, "observador")
     assert client.get("/").status_code == 200
     assert client.get("/jobs/new/subir").status_code == 403
     assert client.get("/solicitudes/nueva").status_code == 403
@@ -160,14 +180,22 @@ def test_admin_ve_usuarios(client, usuarios):
 
 
 def test_navegacion_segun_rol(client, usuarios):
-    _login(client, "consulta")
+    _login(client, "observador")
     html = client.get("/").get_data(as_text=True)
     assert "Nuevo trabajo" not in html
     assert "Solicitar catálogos" not in html
     assert ">Solicitudes<" not in html
     assert "Auditoría" not in html
     assert "Usuarios" not in html
-    assert "Consulta" in html
+    assert "Observador" in html
+
+    _login(client, "catalogos")
+    html = client.get("/").get_data(as_text=True)
+    assert "Nuevo trabajo" not in html
+    assert "Solicitar catálogos" in html
+    assert "Auditoría" not in html
+    assert "Usuarios" not in html
+    assert "Catálogos" in html
 
     _login(client, "supervisor")
     html = client.get("/").get_data(as_text=True)
@@ -185,16 +213,19 @@ def test_navegacion_segun_rol(client, usuarios):
     assert ">Usuarios<" not in html
 
 
-def test_consulta_no_exporta_ni_descarga(client, usuarios):
-    job = _job_con_tabla(usuarios["consulta"].id)
-    _login(client, "consulta")
-    html = client.get(
+def test_observador_no_exporta_ni_descarga(client, usuarios):
+    job = _job_con_tabla(usuarios["observador"].id)
+    _login(client, "observador")
+    respuesta = client.get(
         f"/jobs/{job.id}/resultados/no-publicados",
         query_string={"fuente": "seisan"},
-    ).get_data(as_text=True)
+    )
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
     assert "Descargar todo" not in html
     assert "Descargar filtrado" not in html
     assert "Descargar seleccionados" not in html
+    assert "CSV original" not in html
     assert client.get(
         f"/jobs/{job.id}/resultados/no_publicados/exportar",
         query_string={"fuente": "seisan"},
@@ -243,12 +274,13 @@ def test_supervisor_elimina_y_cancela_ajenos(client, usuarios):
     assert db.session.get(Job, otro.id) is None
 
 
-def test_job_detail_oculta_descargas_para_consulta(client, usuarios):
-    job = _job_con_tabla(usuarios["consulta"].id)
-    _login(client, "consulta")
+def test_job_detail_observador_ve_resultados_sin_descargas(client, usuarios):
+    job = _job_con_tabla(usuarios["observador"].id)
+    _login(client, "observador")
     html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
     assert "Descargas" not in html
     assert "Eliminar" not in html
+    assert 'href="#resultados"' in html
 
 
 def test_admin_crea_usuario_y_cambia_rol(client, usuarios):
@@ -274,13 +306,13 @@ def test_admin_crea_usuario_y_cambia_rol(client, usuarios):
     respuesta = client.post(
         f"/admin/usuarios/{creado.id}/rol",
         data={
-            "role": "consulta",
+            "role": "observador",
             "active": "y",
             "analyst_code": "Nuevo",
         },
     )
     assert respuesta.status_code == 302
-    assert db.session.get(User, creado.id).role == "consulta"
+    assert db.session.get(User, creado.id).role == "observador"
 
     respuesta = client.post(
         f"/admin/usuarios/{creado.id}/password",
@@ -324,16 +356,16 @@ def test_cli_asigna_codigo_de_analista(app, usuarios):
     runner = app.test_cli_runner()
 
     resultado = runner.invoke(
-        args=["set-analyst-code", "consulta", "Cons", "--aliases", "Consu"]
+        args=["set-analyst-code", "analista", "Ana", "--aliases", "Anita"]
     )
 
     assert resultado.exit_code == 0, resultado.output
     db.session.expire_all()
-    consulta = db.session.execute(
-        db.select(User).filter_by(username="consulta")
+    analista = db.session.execute(
+        db.select(User).filter_by(username="analista")
     ).scalar_one()
-    assert consulta.analyst_code == "Cons"
-    assert consulta.analyst_aliases == "Consu"
+    assert analista.analyst_code == "Ana"
+    assert analista.analyst_aliases == "Anita"
 
 
 def test_no_se_puede_dejar_sin_administradores(client, usuarios):
@@ -343,7 +375,7 @@ def test_no_se_puede_dejar_sin_administradores(client, usuarios):
     ).scalar_one()
     respuesta = client.post(
         f"/admin/usuarios/{admin.id}/rol",
-        data={"role": "consulta", "active": "y"},
+        data={"role": "observador", "active": "y"},
         follow_redirects=True,
     )
     assert respuesta.status_code == 200
@@ -352,8 +384,8 @@ def test_no_se_puede_dejar_sin_administradores(client, usuarios):
 
 
 def test_usuario_desactivado_pierde_la_sesion(client, usuarios):
-    _login(client, "consulta")
-    usuario = usuarios["consulta"]
+    _login(client, "observador")
+    usuario = usuarios["observador"]
     usuario.active = False
     db.session.commit()
     respuesta = client.get("/")
@@ -363,24 +395,24 @@ def test_usuario_desactivado_pierde_la_sesion(client, usuarios):
 
 def test_cli_roles_y_password(app, usuarios):
     runner = app.test_cli_runner()
-    resultado = runner.invoke(args=["set-role", "consulta", "supervisor"])
+    resultado = runner.invoke(args=["set-role", "observador", "supervisor"])
     assert resultado.exit_code == 0
     assert db.session.execute(
-        db.select(User).filter_by(username="consulta")
+        db.select(User).filter_by(username="observador")
     ).scalar_one().role == "supervisor"
 
     resultado = runner.invoke(
-        args=["reset-password", "consulta"],
+        args=["reset-password", "observador"],
         input="nueva12345\nnueva12345\n",
     )
     assert resultado.exit_code == 0
     assert db.session.execute(
-        db.select(User).filter_by(username="consulta")
+        db.select(User).filter_by(username="observador")
     ).scalar_one().check_password("nueva12345")
 
     resultado = runner.invoke(args=["list-users"])
     assert resultado.exit_code == 0
-    assert "consulta" in resultado.output
+    assert "observador" in resultado.output
     assert "Supervisor" in resultado.output
 
 
@@ -423,11 +455,55 @@ def test_admin_ve_trabajo_ajeno_y_creador(client, usuarios):
     assert client.get(f"/jobs/{job.id}").status_code == 200
 
 
-def test_consulta_ve_solo_su_trabajo(client, usuarios):
-    consulta = usuarios["consulta"]
-    job = _job(consulta.id)
-    _login(client, "consulta")
+def test_catalogos_ve_solo_su_trabajo(client, usuarios):
+    catalogos = usuarios["catalogos"]
+    propio = _job(catalogos.id)
+    ajeno = _job(usuarios["supervisor"].id)
+    _login(client, "catalogos")
+    html = client.get("/").get_data(as_text=True)
+    assert propio.id in html
+    assert ajeno.id not in html
+    assert client.get(f"/jobs/{propio.id}").status_code == 200
+    assert client.get(f"/jobs/{ajeno.id}").status_code == 403
+    assert client.post(f"/jobs/{propio.id}/eliminar").status_code == 403
+
+
+def test_catalogos_solo_accede_a_catalogos(client, usuarios):
+    catalogos = usuarios["catalogos"]
+    job = _job_con_tabla(catalogos.id)
+    _login(client, "catalogos")
+
+    assert client.get(f"/jobs/{job.id}").status_code == 200
+    assert client.get(f"/jobs/{job.id}/catalogos").status_code in (200, 404)
+    assert client.get(f"/jobs/{job.id}/resultados").status_code == 403
+    assert (
+        client.get(
+            f"/jobs/{job.id}/resultados/no-publicados",
+            query_string={"fuente": "seisan"},
+        ).status_code
+        == 403
+    )
+    assert client.get(f"/jobs/{job.id}/indicios").status_code == 403
+    assert (
+        client.get(
+            f"/jobs/{job.id}/paneles",
+            query_string={"dataset": "catalogo_seisan"},
+        ).status_code
+        == 403
+    )
+    assert client.get(f"/jobs/{job.id}/descargas").status_code == 403
+    assert client.get("/jobs/new/subir").status_code == 403
+    assert client.get("/solicitudes/nueva").status_code == 200
+
+    html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
+    assert 'href="#resultados"' not in html
+    assert "Revisión de eventos" not in html
+    assert "Descargas" not in html
+
+
+def test_observador_ve_todos_los_trabajos(client, usuarios):
+    job = _job(usuarios["supervisor"].id)
+    _login(client, "observador")
     html = client.get("/").get_data(as_text=True)
     assert job.id in html
     assert client.get(f"/jobs/{job.id}").status_code == 200
-    assert client.post(f"/jobs/{job.id}/eliminar").status_code == 403

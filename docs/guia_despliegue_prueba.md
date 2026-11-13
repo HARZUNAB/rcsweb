@@ -267,14 +267,16 @@ sudo docker compose -p rcsweb-test exec web \
 
 El comando pedirá una contraseña. Usar una contraseña fuerte y distinta de las de desarrollo.
 
-Si el tester debe ver solo datos restringidos, usar `consulta` con un código que exista en los datos de prueba:
+Si el tester debe ver solo datos restringidos, usar `analista` con un código que exista en los datos de prueba:
 
 ```bash
 sudo docker compose -p rcsweb-test exec web \
   flask --app app create-user tester \
-  --role consulta \
+  --role analista \
   --analyst-code PRUEBA
 ```
+
+Si debe ver todo en modo lectura, usar `observador`.
 
 No entregar el usuario `admin`.
 

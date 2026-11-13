@@ -308,7 +308,7 @@ def test_validar_periodo_sin_eventos_es_advertencia(app, monkeypatch):
 
 def test_validar_periodo_sin_codigo_es_advertencia(app, monkeypatch):
     with app.app_context():
-        usuario = _usuario("consulta", "consulta", "")
+        usuario = _usuario("sin-codigo", "analista", "")
         job = _job(usuario.id)
         adaptador = Adaptador()
         adaptador.source_id = "central"

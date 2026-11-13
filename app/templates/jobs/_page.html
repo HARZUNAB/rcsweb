@@ -28,7 +28,9 @@
     <div class="d-flex align-items-center gap-2">
       {{ badge_estado(job.status) }}
       {% if job.status == 'done' %}
+        {% if puede('resultados.ver') %}
         <a class="btn btn-sm btn-outline-primary" href="#resultados">Resultados</a>
+        {% endif %}
         {% if paneles and puede('paneles.ver') %}
         <a class="btn btn-sm btn-outline-primary"
            href="{{ url_for('panels.index', job_id=job.id, dataset=paneles[0].clave) }}">
@@ -124,6 +126,7 @@
   {% endif %}
 
   {% if job.status == 'done' %}
+  {% if puede('resultados.ver') %}
   <div class="row g-3 mt-1" id="resultados">
     <div class="col-12 col-lg-4">
       <div class="card border-0 shadow-sm h-100">
@@ -178,8 +181,9 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
-  {% if indicios %}
+  {% if indicios and puede('resultados.ver') %}
   <div class="card border-0 shadow-sm mt-3">
     <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
       <div>
@@ -213,7 +217,7 @@
   </div>
   {% endif %}
 
-  {% if indice.catalogos %}
+  {% if indice.catalogos and puede('catalogos.ver') %}
   <div class="card border-0 shadow-sm mt-3">
     <div class="card-body">
       <div class="text-secondary small text-uppercase mb-2">Catálogos procesados</div>
