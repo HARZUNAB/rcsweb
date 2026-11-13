@@ -1870,6 +1870,23 @@ de root.
 5. Los resultados se normalizan en `workspace/<job_id>/resultados/`.
 6. La interfaz lee esos archivos para las tablas, miniaturas, mapas y paneles.
 
+### Re-análisis
+
+El detalle de un trabajo terminado, fallido o cancelado ofrece **Re-analizar**.
+La ruta `POST /jobs/<id>/reanalizar` exige `trabajos.crear` y la propiedad del
+trabajo, o `trabajos.todos` para administradores y supervisores.
+
+Hace una actualización condicional a `queued` para evitar el doble encolado,
+borra `job_steps` y `job_artifacts`, limpia los directorios generados
+(`datos/`, `informes/`, `analistas/`, `trabajo/`, `ploteo/`, `descargas/`,
+`resultados/`, `plots/`, `logs/` y `paneles/`), conserva `inputs/` y los
+archivos canónicos, y vuelve a encolar `tasks.run_job`. Registra
+`job.reanalyze` en la auditoría.
+
+El re-análisis usa el catálogo histórico vigente. Por eso sirve para comparar
+la clasificación de sospechosos después de actualizar
+`core_data/base_2018_2026.dat`.
+
 El core incorporado no se modifica en tiempo de ejecución. Las miniaturas, mapas
 y paneles se cachean en el workspace. `plots._ruta_cache()` conserva la
 ruta relativa del archivo de resultados y rechaza rutas absolutas o con `..`.

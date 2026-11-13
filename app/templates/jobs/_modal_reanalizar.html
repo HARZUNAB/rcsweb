@@ -1,0 +1,46 @@
+<div class="modal fade" id="modalReanalizar" tabindex="-1"
+     aria-labelledby="modalReanalizarLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="modalReanalizarLabel">
+          Re-analizar trabajo
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">
+          Se volverá a ejecutar el análisis completo del trabajo
+          <strong>
+            {% if job.period_start and job.period_end %}
+              {{ job.period_start.strftime('%Y-%m-%d') }} →
+              {{ job.period_end.strftime('%Y-%m-%d') }}
+            {% else %}
+              {{ job.id }}
+            {% endif %}
+          </strong>.
+        </p>
+        <p class="text-secondary small mb-2">
+          Se borrarán los resultados, mapas, reportes y la clasificación de
+          sospechosos actuales. Se conservan los archivos de entrada.
+        </p>
+        <p class="text-secondary small mb-0">
+          Se usará el catálogo histórico vigente. El trabajo vuelve a la cola
+          y el progreso se actualiza automáticamente.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary"
+                data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <form method="post"
+              action="{{ url_for('jobs.reanalizar', job_id=job.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-warning">Re-analizar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

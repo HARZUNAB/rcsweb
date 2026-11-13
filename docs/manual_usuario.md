@@ -147,6 +147,12 @@ resultados.
 - **Paneles** abre el contexto sismotectónico.
 - **Catálogos** permite revisar los catálogos procesados.
 - **Descargas** reúne los archivos generados.
+- **Re-analizar** vuelve a ejecutar el análisis completo de un trabajo
+  terminado, fallido o cancelado. Conserva los archivos de entrada y borra los
+  resultados, mapas, reportes, indicios y la clasificación de sospechosos
+  anteriores. Usa el catálogo histórico vigente. Aparece solo para quien puede
+  crear trabajos y es dueño del trabajo, o para administradores y supervisores.
+  El trabajo vuelve a la cola y el progreso se actualiza solo.
 - **Cancelar trabajo** detiene un trabajo en cola o en ejecución.
 - **Eliminar** borra el trabajo, sus archivos y sus resultados. La auditoría
   conserva el registro de la eliminación.

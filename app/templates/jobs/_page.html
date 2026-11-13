@@ -59,6 +59,14 @@
            href="{{ url_for('jobs.descargas', job_id=job.id) }}">Descargas</a>
         {% endif %}
       {% endif %}
+      {% if puede('trabajos.crear')
+            and job.status in ('done', 'failed', 'cancelled')
+            and (puede('trabajos.todos') or job.created_by_id == current_user.id) %}
+        <button type="button" class="btn btn-sm btn-outline-warning"
+                data-bs-toggle="modal" data-bs-target="#modalReanalizar">
+          Re-analizar
+        </button>
+      {% endif %}
       {% if puede('trabajos.eliminar')
             and job.status in ('draft', 'done', 'failed', 'cancelled')
             and (puede('trabajos.todos') or job.created_by_id == current_user.id) %}

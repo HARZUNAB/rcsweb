@@ -276,6 +276,115 @@ def test_detalle_muestra_advertencias_de_fuentes(client, login):
     assert "no tiene eventos" in html
 
 
+def test_reanalizar_reencola_y_limpia(client, login, sin_celery):
+    login()
+    job = Job(
+        id=nuevo_uuid(),
+        period_start=datetime(2026, 10, 1, tzinfo=UTC),
+        period_end=datetime(2026, 10, 31, tzinfo=UTC),
+        status="done",
+        progress=100,
+        current_step="Terminado",
+    )
+    db.session.add(job)
+    db.session.commit()
+    workspace = crear_workspace(job.id)
+    (workspace / "inputs").mkdir(exist_ok=True)
+    (workspace / "inputs" / "entrada.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    for nombre in ("resultados", "paneles", "plots", "logs", "datos"):
+        carpeta = workspace / nombre
+        carpeta.mkdir(exist_ok=True)
+        (carpeta / "archivo.txt").write_text("x", encoding="utf-8")
+    db.session.add(
+        JobStep(
+            job_id=job.id,
+            orden=1,
+            script="paso",
+            status="done",
+            log_path="logs/pipeline.log",
+        )
+    )
+    db.session.add(
+        JobArtifact(
+            job_id=job.id,
+            tipo="resultado",
+            ruta="resultados/archivo.txt",
+            size=1,
+        )
+    )
+    db.session.commit()
+
+    respuesta = client.post(f"/jobs/{job.id}/reanalizar")
+
+    assert respuesta.status_code == 302
+    job = db.session.get(Job, job.id)
+    assert job.status == "queued"
+    assert job.progress == 0
+    assert job.current_step == "En cola"
+    assert job.error is None
+    assert sin_celery == [job.id]
+    assert (
+        db.session.execute(db.select(JobStep).filter_by(job_id=job.id))
+        .scalars()
+        .all()
+        == []
+    )
+    assert (
+        db.session.execute(db.select(JobArtifact).filter_by(job_id=job.id))
+        .scalars()
+        .all()
+        == []
+    )
+    assert (workspace / "inputs" / "entrada.csv").is_file()
+    for nombre in ("resultados", "paneles", "plots", "logs", "datos"):
+        assert not (workspace / nombre).exists()
+
+
+def test_reanalizar_rechaza_trabajo_en_curso(client, login, sin_celery):
+    login()
+    job = Job(
+        id=nuevo_uuid(),
+        period_start=datetime(2026, 10, 1, tzinfo=UTC),
+        period_end=datetime(2026, 10, 31, tzinfo=UTC),
+        status="running",
+        progress=42,
+        current_step="Paso en curso",
+    )
+    db.session.add(job)
+    db.session.commit()
+
+    respuesta = client.post(
+        f"/jobs/{job.id}/reanalizar", follow_redirects=True
+    )
+
+    assert respuesta.status_code == 200
+    assert "en curso" in respuesta.get_data(as_text=True)
+    assert db.session.get(Job, job.id).status == "running"
+    assert sin_celery == []
+
+
+def test_detalle_muestra_reanalizar_solo_si_corresponde(client, login):
+    login()
+    job = Job(
+        id=nuevo_uuid(),
+        period_start=datetime(2026, 10, 1, tzinfo=UTC),
+        period_end=datetime(2026, 10, 31, tzinfo=UTC),
+        status="done",
+    )
+    db.session.add(job)
+    db.session.commit()
+
+    html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
+    assert "Re-analizar" in html
+    assert 'id="modalReanalizar"' in html
+
+    job.status = "running"
+    db.session.commit()
+    html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
+    assert "Re-analizar" not in html
+    assert 'id="modalReanalizar"' not in html
+
+
 def test_detalle_valida_fuente_directa_sin_mensaje(
     app, client, login, monkeypatch
 ):

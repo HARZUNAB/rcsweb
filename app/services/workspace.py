@@ -42,6 +42,31 @@ INSUMOS = (
     "relieve_chile.tif",
 )
 
+# Directorios que produce el pipeline. Se borran antes de reanalizar un
+# trabajo; las entradas y los insumos se conservan.
+GENERADOS = (
+    "datos",
+    "informes",
+    "analistas",
+    "trabajo",
+    "ploteo",
+    "descargas",
+    "resultados",
+    "plots",
+    "logs",
+    "paneles",
+)
+
+
+def limpiar_generados(workspace: Path) -> None:
+    """Borra los resultados derivados y conserva las entradas del trabajo."""
+    for nombre in GENERADOS:
+        ruta = workspace / nombre
+        if ruta.is_symlink() or ruta.is_file():
+            ruta.unlink(missing_ok=True)
+        elif ruta.is_dir():
+            shutil.rmtree(ruta)
+
 
 def ruta_workspace(job_id: str) -> Path:
     raiz = Path(current_app.config["WORKSPACE_ROOT"]).resolve()

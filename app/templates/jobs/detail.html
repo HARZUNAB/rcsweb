@@ -3,6 +3,11 @@
 
 {% block content %}
 {% include "jobs/_page.html" %}
+{% if puede('trabajos.crear')
+      and job.status in ('done', 'failed', 'cancelled')
+      and (puede('trabajos.todos') or job.created_by_id == current_user.id) %}
+{% include "jobs/_modal_reanalizar.html" %}
+{% endif %}
 {% if puede('trabajos.eliminar') %}
 {% include "jobs/_modal_eliminar.html" %}
 {% endif %}

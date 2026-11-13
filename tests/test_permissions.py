@@ -112,6 +112,31 @@ def test_etiquetas_y_alcance():
     )
 
 
+def test_reanalizar_requiere_permiso_de_creacion(client, usuarios):
+    _login(client, "consulta")
+    job = _job()
+
+    respuesta = client.post(f"/jobs/{job.id}/reanalizar")
+
+    assert respuesta.status_code == 403
+    assert db.session.get(Job, job.id).status == "done"
+
+
+def test_analista_reanaliza_solo_su_trabajo(client, usuarios, monkeypatch):
+    llamados = []
+    monkeypatch.setattr(
+        "app.blueprints.jobs.encolar_trabajo",
+        lambda job_id: llamados.append(job_id),
+    )
+    _login(client, "analista")
+    propio = _job(creador_id=usuarios["analista"].id)
+    ajeno = _job(creador_id=usuarios["supervisor"].id)
+
+    assert client.post(f"/jobs/{ajeno.id}/reanalizar").status_code == 403
+    assert client.post(f"/jobs/{propio.id}/reanalizar").status_code == 302
+    assert llamados == [propio.id]
+
+
 def test_consulta_es_solo_lectura(client, usuarios):
     _login(client, "consulta")
     assert client.get("/").status_code == 200

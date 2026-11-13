@@ -17,6 +17,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
+from sqlalchemy import update
 
 from ..domain.catalogs import manifest as fuentes_manifest
 from ..domain.catalogs.registry import adaptador as obtener_adaptador
@@ -44,6 +45,7 @@ from ..services.workspace import (
     crear_workspace,
     guardar_archivo,
     leer_log,
+    limpiar_generados,
     nombre_entrada,
     ruta_workspace,
 )
@@ -458,6 +460,68 @@ def cancelar(job_id: str):
         flash("Se solicitó cancelar el trabajo.", "warning")
     else:
         flash("El trabajo ya terminó; no hay nada que cancelar.", "info")
+    return redirect(url_for("jobs.detalle", job_id=job.id))
+
+
+ESTADOS_REANALIZABLES = ("done", "failed", "cancelled")
+
+
+@jobs_bp.post("/<job_id>/reanalizar")
+@login_required
+@permiso_requerido("trabajos.crear")
+def reanalizar(job_id: str):
+    """Vuelve a ejecutar el pipeline completo con las entradas existentes."""
+    job = _job(job_id)
+    estado_previo = job.status
+    resultado = db.session.execute(
+        update(Job)
+        .where(
+            Job.id == job.id,
+            Job.status.in_(ESTADOS_REANALIZABLES),
+        )
+        .values(
+            status="queued",
+            progress=0,
+            current_step="En cola",
+            error=None,
+            started_at=None,
+            finished_at=None,
+        )
+    )
+    db.session.commit()
+    if resultado.rowcount != 1:
+        db.session.refresh(job)
+        flash(
+            "El trabajo está en curso. Espere a que termine antes de reanalizarlo.",
+            "warning",
+        )
+        return redirect(url_for("jobs.detalle", job_id=job.id))
+
+    db.session.refresh(job)
+    try:
+        for paso in list(job.steps):
+            db.session.delete(paso)
+        for artefacto in list(job.artifacts):
+            db.session.delete(artefacto)
+        db.session.commit()
+        limpiar_generados(ruta_workspace(job.id))
+        encolar_trabajo(job.id)
+    except Exception as exc:  # noqa: BLE001 - deja rastro en la base
+        job.status = "failed"
+        job.error = f"No se pudo reanalizar: {exc}"
+        job.current_step = "Error al reanalizar"
+        db.session.commit()
+        flash("No se pudo reanalizar el trabajo. Revise el detalle.", "danger")
+    else:
+        registrar(
+            "job.reanalyze",
+            entity=job.id,
+            meta={"estado_previo": estado_previo},
+        )
+        flash(
+            "Trabajo reencolado. Los resultados se recalcularán desde cero.",
+            "success",
+        )
     return redirect(url_for("jobs.detalle", job_id=job.id))
 
 
