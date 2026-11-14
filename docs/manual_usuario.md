@@ -618,13 +618,14 @@ la página del trabajo abre el listado. Hay tres alcances:
   para revisar la calidad del catálogo. Los sospechosos no publicados sin fase
   quedan en los paneles.
 
-Cada evento muestra un **motivo**:
+Cada evento combina dos lecturas:
 
-| Motivo | Significado |
-|---|---|
-| `Fase inconsistente` | Tiene anomalía de fases y la solución es normal |
-| `Solución sospechosa` | La localización es sospechosa y no hay anomalía de fases |
-| `Fase y solución` | Tiene las dos señales |
+- **Solución:** indica si la localización es sospechosa, normal o no evaluable.
+- **Señales de fase:** detalla los indicios de fases. Si el evento solo tiene
+  solución sospechosa, muestra **Sin señal de fase**.
+
+La vista ya no tiene una columna **Motivo** separada: esa información se deduce
+de **Solución** y **Señales de fase**.
 
 Cada evento muestra también el **patrón** de las fases y la **cobertura**:
 
@@ -634,7 +635,7 @@ Cada evento muestra también el **patrón** de las fases y la **cobertura**:
 | `sistemático` | Muchas estaciones con residuales del mismo signo; modelo, profundidad u origen |
 | `fuera_de_orden` | Una fase no respeta el orden esperado por distancia: la estación más cercana tiene mayor residual que una más lejana |
 | `fuera_de_orden_debil` | La estación más cercana llega después, pero su fase influyó poco en la solución (peso 3) |
-| `mixto` | Varias señales a la vez |
+| `Varias señales` | Se combinan residuales altos, fases fuera de orden o picks antes del origen |
 | `pick_antes_origen` | El pick es anterior al origen |
 
 Una **fase inconsistente con la distancia** solo indica que su tiempo o
@@ -689,10 +690,10 @@ El listado muestra dos conteos distintos:
 - **Usadas:** estaciones que influyeron en la solución.
 
 La columna **Analista** muestra siempre el nombre de la fuente. Si ese nombre no
-coincide con un usuario activo de la aplicación, agrega un icono de advertencia
-con tooltip; el evento se sigue viendo con normalidad, pero no se puede asignar
-a una solicitud. El filtro **Analista** incluye tanto los usuarios asignables
-como los nombres de la fuente que no tienen usuario.
+coincide con un usuario activo de la aplicación, agrega ` · sin usuario` en texto
+pequeño; el evento se sigue viendo con normalidad, pero no se puede asignar a una
+solicitud. El filtro **Analista** incluye tanto los usuarios asignables como los
+nombres de la fuente que no tienen usuario.
 
 Cuando la solución es sospechosa y el evento tiene perfil asignado, la celda
 **Solución** agrega `slab X km` en la misma línea. Es la diferencia vertical

@@ -1180,10 +1180,15 @@ Conservan el motivo **Solución sospechosa** y el patrón **Sin inconsistencia d
 fases**.
 
 La columna **Analista** muestra el nombre de la fuente. Si no coincide con un
-usuario activo, se agrega un icono de advertencia con tooltip y el evento queda
+usuario activo, se agrega ` · sin usuario` en texto pequeño y el evento queda
 visible pero no asignable. El filtro de analista incluye los nombres de la fuente
 sin usuario con el prefijo `fuente:`; en ese caso las casillas de selección se
 deshabilitan.
+
+La columna **Señales de fase** detalla los indicios de fases. Para eventos que
+solo tienen solución sospechosa se muestra **Sin señal de fase**. La vista no
+tiene una columna **Motivo** separada: la combinación se deduce de **Solución** y
+**Señales de fase**.
 
 La celda **Solución** muestra el residuo al slab en la misma línea como
 `slab X km`. Es la diferencia vertical entre la profundidad del evento y el slab

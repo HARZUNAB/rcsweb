@@ -93,6 +93,7 @@ def create_app(config_object: type | None = None) -> Flask:
     app.jinja_env.globals["url_catalogo_dia"] = url_catalogo_dia
     app.jinja_env.filters["patron_texto"] = formatting.patron_texto
     app.jinja_env.filters["patron_corto"] = formatting.patron_corto
+    app.jinja_env.filters["patron_descripcion"] = formatting.descripcion_patron
     app.jinja_env.filters["tipo_indicio_texto"] = formatting.tipo_indicio_texto
     app.jinja_env.filters["tipos_indicio_texto"] = formatting.tipos_indicio_texto
 

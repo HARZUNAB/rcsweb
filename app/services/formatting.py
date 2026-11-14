@@ -51,7 +51,7 @@ def peso_04(valor) -> float | None:
 ETIQUETAS_PATRON = {
     "puntual": "Puntual",
     "sistemático": "Sistemático",
-    "mixto": "Mixto",
+    "mixto": "Varias señales",
     "fuera_de_orden": "Fase inconsistente con la distancia",
     "fuera_de_orden_debil": (
         "Fase inconsistente con la distancia (baja influencia)"
@@ -60,6 +60,35 @@ ETIQUETAS_PATRON = {
     "sin_patron": "Sin patrón",
     "sin_datos": "Sin datos",
     "sin_fase": "Sin inconsistencia de fases",
+}
+
+DESCRIPCIONES_PATRON = {
+    "puntual": (
+        "Una o pocas estaciones con residual extremo; posible pick o "
+        "asociación errónea."
+    ),
+    "sistemático": (
+        "Muchas estaciones con residuales del mismo signo; posible modelo, "
+        "profundidad u origen."
+    ),
+    "mixto": (
+        "Se combinan varias señales de fases: residuales altos, fases fuera "
+        "de orden o picks antes del origen."
+    ),
+    "fuera_de_orden": (
+        "Una estación más cercana tiene mayor residual que una más lejana; "
+        "el orden esperado por distancia no se cumple."
+    ),
+    "fuera_de_orden_debil": (
+        "La estación más cercana llega después, pero su fase influyó poco en "
+        "la solución (peso 3)."
+    ),
+    "pick_antes_origen": "El pick es anterior al origen.",
+    "sin_patron": "No hay una señal dominante en las fases.",
+    "sin_datos": "No hay datos de fases suficientes para clasificar el patrón.",
+    "sin_fase": (
+        "La localización es sospechosa, pero las fases son coherentes."
+    ),
 }
 
 ETIQUETAS_TIPO_INDICIO = {
@@ -85,6 +114,11 @@ def patron_corto(valor) -> str:
         corto = patron_texto(texto).replace("Fase ", "", 1)
         return corto[:1].upper() + corto[1:]
     return patron_texto(texto)
+
+
+def descripcion_patron(valor) -> str:
+    texto = "" if valor is None else str(valor).strip()
+    return DESCRIPCIONES_PATRON.get(texto, "")
 
 
 def tipo_indicio_texto(valor) -> str:
@@ -130,6 +164,7 @@ __all__ = [
     "numero",
     "patron_corto",
     "patron_texto",
+    "descripcion_patron",
     "peso_04",
     "peso_04_texto",
     "peso_original",

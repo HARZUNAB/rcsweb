@@ -190,9 +190,8 @@
             <th data-sort-key="fecha" data-sort-type="text">Fecha y hora</th>
             <th data-sort-key="evento" data-sort-type="text">Evento</th>
             <th data-sort-key="magnitud" data-sort-type="number" class="text-end">Mag.</th>
-            <th data-sort-key="publicado" data-sort-type="order">Publicado (contexto)</th>
+            <th data-sort-key="publicado" data-sort-type="order">Publicado</th>
             <th data-sort-key="solucion" data-sort-type="order">Solución</th>
-            <th data-sort-key="motivo" data-sort-type="text">Motivo</th>
             <th data-sort-key="prioridad" data-sort-type="order"
                 data-sort-dir="desc" aria-sort="descending">
               Prioridad <span class="orden-flecha ms-1">↓</span>
@@ -217,7 +216,7 @@
             {% if puede_ver_revisiones %}
             <th data-sort-key="revision" data-sort-type="text">Revisión</th>
             {% endif %}
-            <th data-sort-key="indicios" data-sort-type="text">Indicios</th>
+            <th data-sort-key="indicios" data-sort-type="text">Señales de fase</th>
           </tr>
         </thead>
         <tbody>
@@ -270,15 +269,6 @@
               </span>
               {% endif %}
             </td>
-            <td class="text-nowrap" data-sort-value="{{ fila.motivo }}">
-              {% if fila.motivo == 'ambas' %}
-              <span class="badge text-bg-danger">Fase y solución</span>
-              {% elif fila.motivo == 'sospechosa' %}
-              <span class="badge text-bg-warning text-dark">Solución sospechosa</span>
-              {% else %}
-              <span class="badge text-bg-light text-dark">Fase inconsistente</span>
-              {% endif %}
-            </td>
             <td class="text-nowrap" data-sort-value="{{ fila.prioridad_orden }}">
               {% if fila.prioridad == 'Alta' %}
               <span class="badge text-bg-danger">Alta</span>
@@ -294,7 +284,8 @@
             <td class="text-end text-nowrap" data-sort-value="{{ fila.n_usadas }}">{{ fila.n_usadas if fila.n_usadas not in (none, '') else '—' }}</td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.max_residual_usado or '' }}">{{ fila.max_residual_usado or '—' }}</td>
             <td data-sort-value="{{ fila.patron }}">
-              <span class="badge text-bg-light text-dark">{{ fila.patron|patron_corto }}</span>
+              <span class="badge text-bg-light text-dark"
+                    title="{{ fila.patron|patron_descripcion }}">{{ fila.patron|patron_corto }}</span>
               {% if fila.fuerza == 'débil' %}
               <span class="badge text-bg-secondary">indicio débil</span>
               {% endif %}
@@ -317,13 +308,7 @@
               {% if fila.analista %}
               {{ fila.analista }}
               {% if not fila.analista_usuario_id %}
-              <svg class="revision-aviso-analista text-warning-emphasis ms-1"
-                   xmlns="http://www.w3.org/2000/svg" width="13" height="13"
-                   fill="currentColor" viewBox="0 0 16 16" role="img"
-                   aria-label="Analista de la fuente sin usuario activo; el evento se puede ver, pero no asignar">
-                <title>Analista de la fuente sin usuario activo; el evento se puede ver, pero no asignar</title>
-                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
-              </svg>
+              <span class="small text-secondary ms-1">· sin usuario</span>
               {% endif %}
               {% else %}
               <span class="text-secondary">—</span>
@@ -355,7 +340,15 @@
               {% endif %}
             </td>
             {% endif %}
-            <td class="small" data-sort-value="{{ fila.tipos_indicio }}">{{ fila.tipos_indicio|tipos_indicio_texto }}</td>
+            <td class="small" data-sort-value="{% if fila.motivo == 'sospechosa' or fila.tipos_indicio == 'solución_sospechosa' %}sin señal de fase{% else %}{{ fila.tipos_indicio }}{% endif %}">
+              {% if fila.motivo == 'sospechosa' or fila.tipos_indicio == 'solución_sospechosa' %}
+              <span class="text-secondary">Sin señal de fase</span>
+              {% elif fila.tipos_indicio %}
+              {{ fila.tipos_indicio|tipos_indicio_texto }}
+              {% else %}
+              <span class="text-secondary">—</span>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>

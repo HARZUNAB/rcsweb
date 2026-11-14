@@ -149,7 +149,7 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert listado.status_code == 200
     html = listado.get_data(as_text=True)
     assert "Revisión de eventos" in html
-    assert "Motivo" in html
+    assert "Señales de fase" in html
     assert "Cobertura" in html
     assert "csn_sc62026vdkls" in html
     assert "Revisión prioritaria" in html
@@ -162,8 +162,7 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Puntual" in html
     assert "Estaciones" in html
     assert "mdur" in html
-    assert "revision-aviso-analista" in html
-    assert "sin usuario activo" in html
+    assert "· sin usuario" in html
     assert "inversion" not in html.lower()
 
     ajeno = client.get(

@@ -96,11 +96,6 @@ footer {
   line-height: 1.25;
 }
 
-.revision-aviso-analista {
-  cursor: help;
-  vertical-align: -0.15em;
-}
-
 /* Las filas activas o en hover no deben usar alfa: con columnas fijas el
    contenido que se desplaza por debajo se transparenta en la columna de
    acciones. */
