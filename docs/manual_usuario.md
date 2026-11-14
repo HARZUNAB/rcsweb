@@ -689,10 +689,15 @@ El listado muestra dos conteos distintos:
 - **Usadas:** estaciones que influyeron en la solución.
 
 La columna **Analista** muestra siempre el nombre de la fuente. Si ese nombre no
-coincide con un usuario activo de la aplicación, agrega el badge **Sin usuario**:
-el evento se sigue viendo con normalidad, pero no se puede asignar a una
-solicitud. El filtro **Analista** incluye tanto los usuarios asignables como los
-nombres de la fuente que no tienen usuario.
+coincide con un usuario activo de la aplicación, agrega un icono de advertencia
+con tooltip; el evento se sigue viendo con normalidad, pero no se puede asignar
+a una solicitud. El filtro **Analista** incluye tanto los usuarios asignables
+como los nombres de la fuente que no tienen usuario.
+
+Cuando la solución es sospechosa y el evento tiene perfil asignado, la celda
+**Solución** agrega `slab X km` en la misma línea. Es la diferencia vertical
+entre la profundidad del evento y el slab de subducción; no es un residual de
+tiempos de fase.
 
 Un residual alto en una zona con pocas estaciones o con un azimutal gap grande
 puede deberse al modelo o a la cobertura, no solo a la asociación. La app

@@ -1180,9 +1180,14 @@ Conservan el motivo **Solución sospechosa** y el patrón **Sin inconsistencia d
 fases**.
 
 La columna **Analista** muestra el nombre de la fuente. Si no coincide con un
-usuario activo, se agrega **Sin usuario** y el evento queda visible pero no
-asignable. El filtro de analista incluye los nombres de la fuente sin usuario
-con el prefijo `fuente:`; en ese caso las casillas de selección se deshabilitan.
+usuario activo, se agrega un icono de advertencia con tooltip y el evento queda
+visible pero no asignable. El filtro de analista incluye los nombres de la fuente
+sin usuario con el prefijo `fuente:`; en ese caso las casillas de selección se
+deshabilitan.
+
+La celda **Solución** muestra el residuo al slab en la misma línea como
+`slab X km`. Es la diferencia vertical entre la profundidad del evento y el slab
+de subducción; no es un residual de tiempos de fase.
 
 El pipeline ejecuta el paso `generar_indicios` después de las comparaciones y
 antes de `detectar_repetidos`. El reporte no modifica el catálogo canónico ni la

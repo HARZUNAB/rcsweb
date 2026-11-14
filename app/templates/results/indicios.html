@@ -176,7 +176,7 @@
       con indicios en {{ etiquetas.get(fuente, fuente) }}.
     </div>
     <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0" data-sortable>
+      <table class="table table-sm table-hover align-middle mb-0 tabla-revision" data-sortable>
         <thead class="table-light">
           <tr>
             {% if puede_crear_revision %}
@@ -245,8 +245,8 @@
               <div class="small text-secondary">{{ fila.region }}</div>
               {% endif %}
             </td>
-            <td class="text-end" data-sort-value="{{ fila.magnitud or '' }}">{{ fila.magnitud or '' }}</td>
-            <td data-sort-value="{% if fila.publicado == 'Sí' %}2{% elif fila.publicado == 'No' %}1{% else %}0{% endif %}">
+            <td class="text-end text-nowrap" data-sort-value="{{ fila.magnitud or '' }}">{{ fila.magnitud or '' }}</td>
+            <td class="text-nowrap" data-sort-value="{% if fila.publicado == 'Sí' %}2{% elif fila.publicado == 'No' %}1{% else %}0{% endif %}">
               {% if fila.publicado == 'Sí' %}
               <span class="badge text-bg-primary">Sí</span>
               {% elif fila.publicado == 'No' %}
@@ -255,7 +255,7 @@
               <span class="badge text-bg-light text-dark">Desconocido</span>
               {% endif %}
             </td>
-            <td data-sort-value="{% if fila.sospechoso == 'Sí' %}2{% elif fila.sospechoso == 'No' %}1{% else %}0{% endif %}">
+            <td class="text-nowrap" data-sort-value="{% if fila.sospechoso == 'Sí' %}2{% elif fila.sospechoso == 'No' %}1{% else %}0{% endif %}">
               {% if fila.sospechoso == 'Sí' %}
               <span class="badge text-bg-danger">Sospechosa</span>
               {% elif fila.sospechoso == 'No' %}
@@ -264,12 +264,13 @@
               <span class="badge text-bg-light text-dark">No evaluable</span>
               {% endif %}
               {% if fila.sospechoso_residuo_km %}
-              <div class="small text-secondary">
-                residuo {{ "%.1f"|format(fila.sospechoso_residuo_km|float) }} km
-              </div>
+              <span class="small text-secondary ms-1"
+                    title="Diferencia vertical entre la profundidad del evento y el slab de subducción. No es un residual de tiempos de fase.">
+                · slab {{ "%.1f"|format(fila.sospechoso_residuo_km|float) }} km
+              </span>
               {% endif %}
             </td>
-            <td data-sort-value="{{ fila.motivo }}">
+            <td class="text-nowrap" data-sort-value="{{ fila.motivo }}">
               {% if fila.motivo == 'ambas' %}
               <span class="badge text-bg-danger">Fase y solución</span>
               {% elif fila.motivo == 'sospechosa' %}
@@ -278,7 +279,7 @@
               <span class="badge text-bg-light text-dark">Fase inconsistente</span>
               {% endif %}
             </td>
-            <td data-sort-value="{{ fila.prioridad_orden }}">
+            <td class="text-nowrap" data-sort-value="{{ fila.prioridad_orden }}">
               {% if fila.prioridad == 'Alta' %}
               <span class="badge text-bg-danger">Alta</span>
               {% elif fila.prioridad == 'Media' %}
@@ -289,9 +290,9 @@
               <span class="badge text-bg-light text-dark">{{ fila.prioridad }}</span>
               {% endif %}
             </td>
-            <td class="text-end" data-sort-value="{{ fila.n_disponibles or '' }}">{{ fila.n_disponibles if fila.n_disponibles not in (none, '') else '—' }}</td>
-            <td class="text-end" data-sort-value="{{ fila.n_usadas }}">{{ fila.n_usadas if fila.n_usadas not in (none, '') else '—' }}</td>
-            <td class="text-end" data-sort-value="{{ fila.max_residual_usado or '' }}">{{ fila.max_residual_usado or '—' }}</td>
+            <td class="text-end text-nowrap" data-sort-value="{{ fila.n_disponibles or '' }}">{{ fila.n_disponibles if fila.n_disponibles not in (none, '') else '—' }}</td>
+            <td class="text-end text-nowrap" data-sort-value="{{ fila.n_usadas }}">{{ fila.n_usadas if fila.n_usadas not in (none, '') else '—' }}</td>
+            <td class="text-end text-nowrap" data-sort-value="{{ fila.max_residual_usado or '' }}">{{ fila.max_residual_usado or '—' }}</td>
             <td data-sort-value="{{ fila.patron }}">
               <span class="badge text-bg-light text-dark">{{ fila.patron|patron_corto }}</span>
               {% if fila.fuerza == 'débil' %}
@@ -301,7 +302,7 @@
               <span class="badge text-bg-danger">extremo</span>
               {% endif %}
             </td>
-            <td data-sort-value="{% if fila.contexto == 'fuerte' %}1{% else %}0{% endif %}">
+            <td class="text-nowrap" data-sort-value="{% if fila.contexto == 'fuerte' %}1{% else %}0{% endif %}">
               {% if fila.contexto %}
               <span class="badge {% if fila.contexto == 'fuerte' %}text-bg-success{% else %}text-bg-warning text-dark{% endif %}"
                     title="{% if fila.contexto == 'fuerte' %}Cobertura suficiente: al menos 5 estaciones, azimutal gap ≤ 180° y perfil asignado.{% else %}Cobertura débil: pocas estaciones, azimutal gap > 180° o sin perfil asignado.{% endif %}">
@@ -312,14 +313,17 @@
               {% endif %}
             </td>
             {% if puede_crear_revision %}
-            <td data-sort-value="{{ fila.analista or '' }}">
+            <td class="text-nowrap" data-sort-value="{{ fila.analista or '' }}">
               {% if fila.analista %}
               {{ fila.analista }}
               {% if not fila.analista_usuario_id %}
-              <span class="badge text-bg-light text-dark ms-1"
-                    title="El analista de la fuente no coincide con un usuario activo; el evento se puede ver, pero no asignar.">
-                Sin usuario
-              </span>
+              <svg class="revision-aviso-analista text-warning-emphasis ms-1"
+                   xmlns="http://www.w3.org/2000/svg" width="13" height="13"
+                   fill="currentColor" viewBox="0 0 16 16" role="img"
+                   aria-label="Analista de la fuente sin usuario activo; el evento se puede ver, pero no asignar">
+                <title>Analista de la fuente sin usuario activo; el evento se puede ver, pero no asignar</title>
+                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
+              </svg>
               {% endif %}
               {% else %}
               <span class="text-secondary">—</span>
@@ -327,7 +331,7 @@
             </td>
             {% endif %}
             {% if puede_ver_revisiones %}
-            <td data-sort-value="{% if fila.solicitud_info %}{{ fila.solicitud_info.estado }}{% endif %}">
+            <td class="text-nowrap" data-sort-value="{% if fila.solicitud_info %}{{ fila.solicitud_info.estado }}{% endif %}">
               {% if fila.solicitud_info %}
               {% set info = fila.solicitud_info %}
               <a class="text-decoration-none"
