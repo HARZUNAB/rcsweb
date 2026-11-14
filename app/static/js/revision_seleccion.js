@@ -120,7 +120,7 @@
     if (seleccionarTodos) {
       seleccionarTodos.disabled = true;
     }
-    mostrarAviso("Filtre por un analista para seleccionar eventos.");
+    mostrarAviso("Filtre por un usuario analista para seleccionar eventos.");
   } else {
     sincronizar();
   }

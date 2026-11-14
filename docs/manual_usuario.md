@@ -682,6 +682,18 @@ estaciones, no el contexto sismotectónico:
   inventario), azimutal gap ≤ 180° y perfil asignado.
 - **Débil:** falla alguna de esas condiciones.
 
+El listado muestra dos conteos distintos:
+
+- **Estaciones:** estaciones disponibles, sumando las usadas en la solución y
+  las del inventario que no tienen arribos.
+- **Usadas:** estaciones que influyeron en la solución.
+
+La columna **Analista** muestra siempre el nombre de la fuente. Si ese nombre no
+coincide con un usuario activo de la aplicación, agrega el badge **Sin usuario**:
+el evento se sigue viendo con normalidad, pero no se puede asignar a una
+solicitud. El filtro **Analista** incluye tanto los usuarios asignables como los
+nombres de la fuente que no tienen usuario.
+
 Un residual alto en una zona con pocas estaciones o con un azimutal gap grande
 puede deberse al modelo o a la cobertura, no solo a la asociación. La app
 entrega la evidencia y el patrón; no sentencia la causa. La cobertura no cambia
@@ -724,8 +736,8 @@ Administradores y supervisores ven todos. La revisión se solicita desde el
 listado, no desde el detalle de un evento suelto:
 
 1. Filtre por **Analista**. La selección solo admite eventos de un mismo
-   analista con usuario activo; **Todos** y **Sin analista** deshabilitan las
-   casillas.
+   analista con usuario activo; **Todos**, **Sin usuario asignable** y los
+   analistas de la fuente sin usuario deshabilitan las casillas.
 2. Marque los eventos con las casillas y pulse **Solicitar revisión**. El máximo
    por solicitud se configura con `RCS_INFORME_MAX_EVENTOS` (50 por defecto).
 3. Escriba una nota opcional y elija el formato. La app genera un informe A4

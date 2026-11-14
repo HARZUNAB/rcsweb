@@ -1172,6 +1172,18 @@ El CSV conserva las filas de fase. Como el generador no conoce la clasificación
 de solución, sus campos `revision_prioritaria` y `prioridad` son conservadores;
 el listado y el detalle recalculan la prioridad con la solución.
 
+El listado agrega, además, los eventos publicados con solución sospechosa que no
+tienen anomalía de fases. Esas filas se construyen desde la caché de paneles y
+se completan con una evaluación de sus arribos y estaciones para mostrar
+`n_disponibles`, `n_usadas`, `max_residual_usado` y `contexto` (cobertura).
+Conservan el motivo **Solución sospechosa** y el patrón **Sin inconsistencia de
+fases**.
+
+La columna **Analista** muestra el nombre de la fuente. Si no coincide con un
+usuario activo, se agrega **Sin usuario** y el evento queda visible pero no
+asignable. El filtro de analista incluye los nombres de la fuente sin usuario
+con el prefijo `fuente:`; en ese caso las casillas de selección se deshabilitan.
+
 El pipeline ejecuta el paso `generar_indicios` después de las comparaciones y
 antes de `detectar_repetidos`. El reporte no modifica el catálogo canónico ni la
 base de la fuente.

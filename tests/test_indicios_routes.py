@@ -160,7 +160,19 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "/resultados/catalogos/seiscomp/0" in html
     assert "#indicios-fases" in html
     assert "Puntual" in html
+    assert "Estaciones" in html
+    assert "mdur" in html
+    assert "Sin usuario" in html
     assert "inversion" not in html.lower()
+
+    ajeno = client.get(
+        f"/jobs/{job.id}/indicios?fuente=seiscomp&alcance=todos&analista=fuente:mdur"
+    )
+    assert ajeno.status_code == 200
+    html_ajeno = ajeno.get_data(as_text=True)
+    assert "csn_sc62026vdkls" in html_ajeno
+    assert "csn_otro" not in html_ajeno
+    assert 'value="fuente:mdur"' in html_ajeno
 
     detalle = client.get(
         f"/jobs/{job.id}/resultados/catalogos/seiscomp/0"
@@ -248,6 +260,43 @@ def test_filas_sospechosas_sin_fase(monkeypatch, tmp_path):
         "estado_publicado",
         lambda ws, fuente, evento, indice=None: evento["raw_index"] != 902,
     )
+    monkeypatch.setattr(
+        results_bp.canonical,
+        "leer_arribos",
+        lambda *a, **k: [
+            {
+                "event_id": "seiscomp:000900",
+                "network": "C1",
+                "station": estacion,
+                "phase": "P",
+                "pick_time": "2026-10-29 10:00:10",
+                "residual": 0.1,
+                "weight": 1.0,
+                "is_used_in_solution": True,
+                "azimuth": azimut,
+                "station_latitude": -30.0,
+                "station_longitude": -71.0,
+                "raw": {},
+            }
+            for estacion, azimut in (
+                ("A01", 0.0),
+                ("A02", 120.0),
+                ("A03", 240.0),
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        results_bp.canonical,
+        "leer_estaciones_sin_arribos",
+        lambda *a, **k: [
+            {
+                "event_id": "seiscomp:000900",
+                "network": "C1",
+                "station": "A04",
+                "raw": {},
+            }
+        ],
+    )
 
     filas = results_bp._filas_sospechosas_sin_fase(
         tmp_path, "seiscomp", []
@@ -258,6 +307,11 @@ def test_filas_sospechosas_sin_fase(monkeypatch, tmp_path):
     assert filas[0]["patron"] == "sin_fase"
     assert filas[0]["publicado"] == "Sí"
     assert filas[0]["sospechoso"] == "Sí"
+    assert filas[0]["analista"] == "mdur"
+    assert filas[0]["n_usadas"] == 3
+    assert filas[0]["n_disponibles"] == 4
+    assert filas[0]["contexto"] == "débil"
+    assert filas[0]["max_residual_usado"] == "0.10"
 
 
 def test_solicitar_revision_encola_informe(app, client, login, monkeypatch):

@@ -117,19 +117,31 @@
             name="analista">
       <option value="">Todos</option>
       <option value="sin" {% if analista_id == 'sin' %}selected{% endif %}>
-        Sin analista
+        Sin usuario asignable
       </option>
-      {% for analista in analistas %}
-      <option value="{{ analista.id }}"
-              {% if analista_id == analista.id %}selected{% endif %}>
-        {{ analista.username }}
-        {% if analista.analyst_code %}({{ analista.analyst_code }}){% endif %}
-      </option>
-      {% endfor %}
+      <optgroup label="Usuarios asignables">
+        {% for analista in analistas %}
+        <option value="{{ analista.id }}"
+                {% if analista_id == analista.id %}selected{% endif %}>
+          {{ analista.username }}
+          {% if analista.analyst_code %}({{ analista.analyst_code }}){% endif %}
+        </option>
+        {% endfor %}
+      </optgroup>
+      {% if analistas_fuente %}
+      <optgroup label="Analistas de la fuente sin usuario">
+        {% for nombre in analistas_fuente %}
+        <option value="fuente:{{ nombre }}"
+                {% if analista_fuente == nombre %}selected{% endif %}>
+          {{ nombre }}
+        </option>
+        {% endfor %}
+      </optgroup>
+      {% endif %}
     </select>
   </div>
   <button class="btn btn-sm btn-primary" type="submit">Filtrar</button>
-  {% if analista_id %}
+  {% if analista_id or analista_fuente %}
   <a class="btn btn-sm btn-outline-secondary"
      href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance=alcance) }}">
     Limpiar
@@ -185,7 +197,14 @@
                 data-sort-dir="desc" aria-sort="descending">
               Prioridad <span class="orden-flecha ms-1">↓</span>
             </th>
-            <th data-sort-key="usadas" data-sort-type="number" class="text-end">Usadas</th>
+            <th data-sort-key="disponibles" data-sort-type="number" class="text-end"
+                title="Estaciones disponibles: usadas en la solución más inventario sin arribos">
+              Estaciones
+            </th>
+            <th data-sort-key="usadas" data-sort-type="number" class="text-end"
+                title="Estaciones usadas en la solución">
+              Usadas
+            </th>
             <th data-sort-key="residual" data-sort-type="number" class="text-end">Máx. residual</th>
             <th data-sort-key="patron" data-sort-type="text">Patrón</th>
             <th data-sort-key="contexto" data-sort-type="order"
@@ -270,6 +289,7 @@
               <span class="badge text-bg-light text-dark">{{ fila.prioridad }}</span>
               {% endif %}
             </td>
+            <td class="text-end" data-sort-value="{{ fila.n_disponibles or '' }}">{{ fila.n_disponibles if fila.n_disponibles not in (none, '') else '—' }}</td>
             <td class="text-end" data-sort-value="{{ fila.n_usadas }}">{{ fila.n_usadas if fila.n_usadas not in (none, '') else '—' }}</td>
             <td class="text-end" data-sort-value="{{ fila.max_residual_usado or '' }}">{{ fila.max_residual_usado or '—' }}</td>
             <td data-sort-value="{{ fila.patron }}">
@@ -293,10 +313,16 @@
             </td>
             {% if puede_crear_revision %}
             <td data-sort-value="{{ fila.analista or '' }}">
-              {% if fila.analista_usuario_id %}
-              {{ fila.analista or '—' }}
+              {% if fila.analista %}
+              {{ fila.analista }}
+              {% if not fila.analista_usuario_id %}
+              <span class="badge text-bg-light text-dark ms-1"
+                    title="El analista de la fuente no coincide con un usuario activo; el evento se puede ver, pero no asignar.">
+                Sin usuario
+              </span>
+              {% endif %}
               {% else %}
-              <span class="badge text-bg-light text-dark">Sin analista</span>
+              <span class="text-secondary">—</span>
               {% endif %}
             </td>
             {% endif %}

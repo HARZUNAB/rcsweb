@@ -314,8 +314,24 @@ def _bool_desde_texto(valor) -> bool | None:
     return None
 
 
-def _fila_sospechosa(evento: dict, fuente: str, fila_catalogo, publicado) -> dict:
+def _fila_sospechosa(
+    evento: dict,
+    fuente: str,
+    fila_catalogo,
+    publicado,
+    evaluacion: dict | None = None,
+) -> dict:
     """Fila de revisión para un evento sospechoso sin indicios de fase."""
+    evaluacion = evaluacion or {}
+    n_usadas = evaluacion.get("n_usadas")
+    n_disponibles = evaluacion.get("n_disponibles")
+    contexto = evaluacion.get("contexto") or ""
+    max_residual = evaluacion.get("max_residual_usado")
+    if not n_usadas and not n_disponibles:
+        n_usadas = ""
+        n_disponibles = ""
+        contexto = ""
+        max_residual = ""
     return {
         "fuente": fuente,
         "evento": evento.get("event_id") or "",
@@ -331,10 +347,15 @@ def _fila_sospechosa(evento: dict, fuente: str, fila_catalogo, publicado) -> dic
         "anomalia": False,
         "fuerza": "",
         "patron": "sin_fase",
-        "contexto": "",
+        "contexto": contexto,
         "extremo": "",
-        "n_usadas": "",
-        "max_residual_usado": "",
+        "n_disponibles": n_disponibles or "",
+        "inventario_disponible": evaluacion.get(
+            "inventario_disponible", ""
+        ),
+        "n_usadas": n_usadas or "",
+        "azimutal_gap": evaluacion.get("azimutal_gap", ""),
+        "max_residual_usado": max_residual or "",
         "n_outliers": 0,
         "n_fuera_de_orden": 0,
         "n_fuera_de_orden_debiles": 0,
@@ -346,6 +367,20 @@ def _fila_sospechosa(evento: dict, fuente: str, fila_catalogo, publicado) -> dic
         "prioridad": "Informativa",
         "prioridad_orden": 2,
     }
+
+
+def _registros_por_evento(registros: list[dict]) -> dict[str, list[dict]]:
+    """Agrupa arribos o estaciones por identificador de evento."""
+    agrupados: dict[str, list[dict]] = {}
+    for registro in registros:
+        clave = str(
+            registro.get("event_id")
+            or registro.get("source_event_id")
+            or ""
+        ).strip()
+        if clave:
+            agrupados.setdefault(clave, []).append(registro)
+    return agrupados
 
 
 def _filas_sospechosas_sin_fase(
@@ -377,6 +412,8 @@ def _filas_sospechosas_sin_fase(
         str(evento.get("raw_index")): evento
         for evento in canonical.leer_canonico(workspace, fuente)
     }
+    arribos = None
+    sin_arribos = None
     indice = indicios.indice_publicados(workspace, fuente)
     filas = []
     for evento_panel in datos.get("eventos", []):
@@ -396,8 +433,31 @@ def _filas_sospechosas_sin_fase(
         )
         if publicado is not True:
             continue
+        if arribos is None or sin_arribos is None:
+            arribos = _registros_por_evento(
+                canonical.leer_arribos(workspace, fuente)
+            )
+            sin_arribos = _registros_por_evento(
+                canonical.leer_estaciones_sin_arribos(workspace, fuente)
+            )
+        event_id = str(evento.get("event_id") or "")
+        evaluacion = indicios.evaluar_evento(
+            evento,
+            arribos.get(event_id, []),
+            sin_arribos.get(event_id, []),
+            source_id=fuente,
+            publicado=True,
+            sospechoso=True,
+            perfil_disponible=bool(evento_panel.get("perfil")),
+        )
         filas.append(
-            _fila_sospechosa(evento, fuente, fila_catalogo, publicado)
+            _fila_sospechosa(
+                evento,
+                fuente,
+                fila_catalogo,
+                publicado,
+                evaluacion=evaluacion,
+            )
         )
     return filas
 
@@ -556,8 +616,11 @@ def indicios_eventos(job_id: str):
     analistas = review.usuarios_analistas() if puede_crear_revision else []
     analista_sel = request.args.get("analista", "").strip()
     analista_id: int | str | None = None
+    analista_fuente = ""
     if analista_sel == "sin":
         analista_id = "sin"
+    elif analista_sel.startswith("fuente:"):
+        analista_fuente = analista_sel[len("fuente:") :].strip()
     elif analista_sel:
         try:
             analista_id = int(analista_sel)
@@ -578,18 +641,33 @@ def indicios_eventos(job_id: str):
             fila["analista_usuario_id"] = (
                 usuario.id if usuario is not None else None
             )
-        if analista_id == "sin":
-            filas = [
-                fila
-                for fila in filas
-                if fila.get("analista_usuario_id") is None
-            ]
-        elif analista_id is not None:
-            filas = [
-                fila
-                for fila in filas
-                if fila.get("analista_usuario_id") == analista_id
-            ]
+    analistas_fuente = sorted(
+        {
+            str(fila.get("analista")).strip()
+            for fila in filas
+            if str(fila.get("analista") or "").strip()
+            and not fila.get("analista_usuario_id")
+        }
+    )
+    if analista_fuente:
+        analista_nombre = analista_fuente
+        filas = [
+            fila
+            for fila in filas
+            if str(fila.get("analista") or "").strip() == analista_fuente
+        ]
+    elif analista_id == "sin":
+        filas = [
+            fila
+            for fila in filas
+            if fila.get("analista_usuario_id") is None
+        ]
+    elif analista_id is not None:
+        filas = [
+            fila
+            for fila in filas
+            if fila.get("analista_usuario_id") == analista_id
+        ]
 
     solicitudes_evento = (
         review.mapa_solicitudes(job.id, fuente) if fuente else {}
@@ -668,6 +746,8 @@ def indicios_eventos(job_id: str):
         filas=filas,
         analistas=analistas,
         analista_id=analista_id,
+        analista_fuente=analista_fuente,
+        analistas_fuente=analistas_fuente,
         analista_nombre=analista_nombre,
         puede_crear_revision=puede_crear_revision,
         puede_ver_revisiones=tiene_permiso(current_user, "revisiones.ver"),
