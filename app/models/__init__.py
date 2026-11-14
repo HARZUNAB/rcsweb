@@ -47,6 +47,14 @@ class User(UserMixin, db.Model):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
+    roles = relationship(
+        "UserRole",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="UserRole.role",
+    )
+
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
 
@@ -59,6 +67,23 @@ class User(UserMixin, db.Model):
 
     def __repr__(self) -> str:  # pragma: no cover - ayuda de depuración
         return f"<User {self.username}>"
+
+
+class UserRole(db.Model):
+    """Rol adicional de un usuario.
+
+    ``users.role`` se conserva como rol principal/legado; la autorización usa
+    la unión de esta tabla con ese valor.
+    """
+
+    __tablename__ = "user_roles"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role: Mapped[str] = mapped_column(String(32), primary_key=True, index=True)
+
+    user = relationship("User", back_populates="roles")
 
 
 @login_manager.user_loader

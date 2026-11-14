@@ -9,9 +9,11 @@ from flask import current_app, g, has_request_context
 
 from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
-from ..models import User
+from ..models import User, UserRole
+from ..security import roles_de_usuario
 
 ROLES_RESTRINGIDOS = frozenset({"analista"})
+ROLES_GLOBALES = frozenset({"admin", "supervisor", "observador"})
 CAMPOS_ANALISTA = (
     "Analista",
     "analista",
@@ -86,7 +88,27 @@ def codigos_usuario(usuario) -> list[str]:
 
 
 def usuario_restringido(usuario) -> bool:
-    return getattr(usuario, "role", None) in ROLES_RESTRINGIDOS
+    roles = set(roles_de_usuario(usuario))
+    return "analista" in roles and not (roles & ROLES_GLOBALES)
+
+
+def usuarios_analistas_activos() -> list[User]:
+    """Usuarios activos con rol analista, aunque tengan otros roles."""
+    return (
+        db.session.execute(
+            db.select(User)
+            .where(
+                User.active.is_(True),
+                db.or_(
+                    User.role == "analista",
+                    User.roles.any(UserRole.role == "analista"),
+                ),
+            )
+            .order_by(User.username)
+        )
+        .scalars()
+        .all()
+    )
 
 
 def coincide(codigo: str, nombre: str) -> bool:
@@ -110,16 +132,7 @@ def _usuarios_codigos() -> list[tuple[int, list[str]]]:
         cache = getattr(g, "_rcs_usuarios_codigos", None)
         if cache is not None:
             return cache
-    usuarios = (
-        db.session.execute(
-            db.select(User).where(
-                User.role.in_(ROLES_RESTRINGIDOS),
-                User.active.is_(True),
-            )
-        )
-        .scalars()
-        .all()
-    )
+    usuarios = usuarios_analistas_activos()
     datos = [
         (usuario.id, codigos_usuario(usuario))
         for usuario in usuarios
@@ -179,16 +192,7 @@ def usuario_de_fila(fila: dict, usuarios: list[User] | None = None) -> User | No
     if not nombres:
         return None
     if usuarios is None:
-        usuarios = (
-            db.session.execute(
-                db.select(User).where(
-                    User.role.in_(ROLES_RESTRINGIDOS),
-                    User.active.is_(True),
-                )
-            )
-            .scalars()
-            .all()
-        )
+        usuarios = usuarios_analistas_activos()
     candidatos = []
     for usuario in usuarios:
         codigos = codigos_usuario(usuario)
@@ -207,6 +211,7 @@ def usuario_de_fila(fila: dict, usuarios: list[User] | None = None) -> User | No
 __all__ = [
     "CAMPOS_ANALISTA",
     "ROLES_RESTRINGIDOS",
+    "ROLES_GLOBALES",
     "campos_analista",
     "codigos_usuario",
     "coincide",
@@ -216,4 +221,5 @@ __all__ = [
     "normalizar_nombre",
     "usuario_de_fila",
     "usuario_restringido",
+    "usuarios_analistas_activos",
 ]

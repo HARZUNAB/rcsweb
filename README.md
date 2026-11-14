@@ -419,9 +419,9 @@ desactiva, su sesión se cierra en la siguiente petición.
 
 ```bash
 docker compose exec web flask --app app list-users
-docker compose exec web flask --app app set-role <usuario> <rol>
+docker compose exec web flask --app app set-role <usuario> <rol1,rol2>
 docker compose exec web flask --app app reset-password <usuario>
-docker compose exec web flask --app app create-user <usuario> --role analista \
+docker compose exec web flask --app app create-user <usuario> --role supervisor,analista \
   --analyst-code Jere --analyst-aliases "JereV,jerez"
 docker compose exec web flask --app app set-analyst-code gjerez Jere \
   --aliases "JereV,jerez"

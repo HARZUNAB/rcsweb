@@ -12,7 +12,7 @@ from wtforms import (
     IntegerField,
     PasswordField,
     RadioField,
-    SelectField,
+    SelectMultipleField,
     StringField,
     SubmitField,
 )
@@ -24,7 +24,7 @@ from wtforms.validators import (
     Optional,
     ValidationError,
 )
-from wtforms.widgets import TextInput
+from wtforms.widgets import CheckboxInput, ListWidget, TextInput
 
 from .security import ETIQUETAS_ROL, ROLES_VALIDOS
 
@@ -172,10 +172,12 @@ class UsuarioForm(FlaskForm):
     username = StringField(
         "Usuario", validators=[DataRequired(), Length(min=3, max=80)]
     )
-    role = SelectField(
-        "Rol",
+    role = SelectMultipleField(
+        "Roles",
         choices=[(rol, ETIQUETAS_ROL[rol]) for rol in ROLES_VALIDOS],
-        default="analista",
+        default=["analista"],
+        option_widget=CheckboxInput(),
+        widget=ListWidget(prefix_label=False),
     )
     analyst_code = StringField(
         "Código de analista",
@@ -203,8 +205,11 @@ class UsuarioForm(FlaskForm):
 class RolUsuarioForm(FlaskForm):
     """Cambio de rol, estado y código de analista de un usuario."""
 
-    role = SelectField(
-        "Rol", choices=[(rol, ETIQUETAS_ROL[rol]) for rol in ROLES_VALIDOS]
+    role = SelectMultipleField(
+        "Roles",
+        choices=[(rol, ETIQUETAS_ROL[rol]) for rol in ROLES_VALIDOS],
+        option_widget=CheckboxInput(),
+        widget=ListWidget(prefix_label=False),
     )
     analyst_code = StringField(
         "Código de analista",

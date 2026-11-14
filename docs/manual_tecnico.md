@@ -131,7 +131,7 @@ Los diagramas se regeneran con:
 
 | Grupo | Tablas | Función |
 |---|---|---|
-| Seguridad | `users`, `audit_log` | Cuentas, roles y registro de acciones |
+| Seguridad | `users`, `user_roles`, `audit_log` | Cuentas, roles y registro de acciones |
 | Solicitudes | `catalog_requests`, `catalog_request_files` | Pedidos de catálogos y archivos asociados |
 | Trabajos | `jobs`, `job_files`, `job_sources`, `job_steps`, `job_artifacts` | Ejecución, insumos, fuentes, pasos y descargas |
 | Revisión | `event_review_requests`, `review_requests`, `review_request_events` | Solicitudes de revisión: histórico por evento y flujo vigente con varios eventos y PDF |
@@ -148,6 +148,7 @@ supervisores.
 | Tabla hija / campo | Tabla padre | Cardinalidad | Al borrar |
 |---|---|---|---|
 | `catalog_requests.requested_by_id` | `users` | N:1 | `SET NULL` |
+| `user_roles.user_id` | `users` | N:1 | `CASCADE` |
 | `jobs.created_by_id` | `users` | N:1 | `SET NULL` |
 | `audit_log.user_id` | `users` | N:1 | `SET NULL` |
 | `catalog_request_files.request_id` | `catalog_requests` | N:1 | `CASCADE` |
@@ -192,11 +193,23 @@ lógicas del catálogo canónico.
 | `id` | Integer | No | PK | Identificador |
 | `username` | String(80) | No | UNIQUE | Nombre de acceso |
 | `password_hash` | String(255) | No | — | Hash de la contraseña |
-| `role` | String(32) | No | — | `admin`, `supervisor`, `analista`, `observador` o `catalogos` |
+| `role` | String(32) | No | — | Rol principal/legado; la autorización usa `user_roles` |
 | `analyst_code` | String(80) | Sí | — | Código corto de analista |
 | `analyst_aliases` | Text | Sí | — | Alias separados por coma o punto y coma |
 | `active` | Boolean | No | — | Cuenta habilitada |
 | `created_at` | DateTime(tz) | No | — | Fecha de creación |
+
+##### `user_roles`
+
+Roles efectivos de cada usuario. Un usuario puede tener más de uno y sus
+permisos son la unión de todos.
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `user_id` | Integer | No | PK, FK → `users.id` | Usuario |
+| `role` | String(32) | No | PK, IDX | `admin`, `supervisor`, `analista`, `observador` o `catalogos` |
+
+Restricción: `PRIMARY KEY (user_id, role)`.
 
 ##### `audit_log`
 
@@ -505,6 +518,7 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | Tabla | Índice o restricción |
 |---|---|
 | `users` | `UNIQUE (username)` |
+| `user_roles` | `PK (user_id, role)`, `IDX (role)` |
 | `catalog_requests` | `IDX (status)`, `IDX (created_at)` |
 | `catalog_request_files` | `IDX (request_id)`, `IDX (sha256)` |
 | `jobs` | `IDX (status)`, `IDX (created_at)` |
@@ -538,6 +552,7 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `f3c1a7d9e205` | Fuentes directas en solicitudes |
 | `8f2b6c1d4a7e` | Solicitudes de revisión de eventos con indicios |
 | `a4d2f7c9b1e0` | Revisiones con varios eventos, PDF y estados |
+| `d9f3a2c7b8e1` | Multirrol de usuarios |
 
 Para consultar o aplicar migraciones:
 
@@ -1833,10 +1848,16 @@ trabajos activos.
 | Auditoría | Sí | Sí | — | — |
 | Gestión de usuarios | Sí | — | — | — |
 
+Los roles se acumulan: si un usuario tiene varios, sus permisos son la unión.
+Por ejemplo, **Supervisor + Analista** conserva la visibilidad global y además
+puede recibir solicitudes de revisión como analista.
+
 ### Implementación
 
 - `app/security.py` define los permisos, los roles, las etiquetas y los
   decoradores.
+- Un usuario puede tener varios roles en `user_roles`; sus permisos son la unión
+  de todos. `users.role` se conserva como rol principal/legado.
 - `@permiso_requerido("...")` exige sesión y permiso; sin permiso responde
   **403**.
 - El administrador tiene todos los permisos.
@@ -1946,9 +1967,9 @@ columnas `*_eventquery` son contrato de datos del core, no nombres visibles.
 
 ```bash
 sudo docker compose exec web flask --app app list-users
-sudo docker compose exec web flask --app app set-role <usuario> <rol>
+sudo docker compose exec web flask --app app set-role <usuario> <rol1,rol2>
 sudo docker compose exec web flask --app app reset-password <usuario>
-sudo docker compose exec web flask --app app create-user <usuario> --role analista \
+sudo docker compose exec web flask --app app create-user <usuario> --role supervisor,analista \
   --analyst-code Jere --analyst-aliases "JereV,jerez"
 sudo docker compose exec web flask --app app set-analyst-code gjerez Jere \
   --aliases "JereV,jerez"

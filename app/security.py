@@ -95,14 +95,56 @@ def etiqueta_rol(rol: str | None) -> str:
     return ETIQUETAS_ROL.get(rol or "", rol or "")
 
 
-def tiene_permiso(usuario, permiso: str) -> bool:
-    """True si el usuario tiene el permiso; el administrador tiene todos."""
+def roles_de_usuario(usuario) -> tuple[str, ...]:
+    """Roles efectivos del usuario, principal más los adicionales."""
+    if usuario is None:
+        return ()
+    roles: set[str] = set()
+    principal = getattr(usuario, "role", None)
+    if principal:
+        roles.add(principal)
+    for asignado in getattr(usuario, "roles", ()) or ():
+        rol = (
+            asignado
+            if isinstance(asignado, str)
+            else getattr(asignado, "role", None)
+        )
+        if rol:
+            roles.add(rol)
+    orden = {rol: posicion for posicion, rol in enumerate(ROLES_VALIDOS)}
+    return tuple(sorted(roles, key=lambda rol: orden.get(rol, len(orden))))
+
+
+def etiqueta_roles(roles) -> str:
+    """Etiquetas legibles de varios roles, sin repetir."""
+    etiquetas: list[str] = []
+    for rol in roles:
+        etiqueta = etiqueta_rol(rol)
+        if etiqueta and etiqueta not in etiquetas:
+            etiquetas.append(etiqueta)
+    return " · ".join(etiquetas)
+
+
+def etiquetas_usuario(usuario) -> str:
+    """Etiquetas de todos los roles de un usuario."""
+    return etiqueta_roles(roles_de_usuario(usuario))
+
+
+def tiene_rol(usuario, *roles: str) -> bool:
+    """True si el usuario tiene alguno de los roles indicados."""
     if usuario is None or not getattr(usuario, "is_authenticated", False):
         return False
-    rol = getattr(usuario, "role", None)
-    if rol == "admin":
+    return bool(set(roles_de_usuario(usuario)).intersection(roles))
+
+
+def tiene_permiso(usuario, permiso: str) -> bool:
+    """True si alguno de los roles del usuario concede el permiso."""
+    if usuario is None or not getattr(usuario, "is_authenticated", False):
+        return False
+    roles = set(roles_de_usuario(usuario))
+    if "admin" in roles:
         return True
-    return permiso in ROLES.get(rol, frozenset())
+    return any(permiso in ROLES.get(rol, frozenset()) for rol in roles)
 
 
 def alcance_total(usuario) -> bool:

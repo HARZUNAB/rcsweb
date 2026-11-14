@@ -19,8 +19,14 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from ..extensions import db
 from ..models import ESTADOS_REVISION, ReviewRequest, User, utcnow
-from ..security import permiso_requerido, puede_ver_trabajo, tiene_permiso
+from ..security import (
+    alcance_total,
+    permiso_requerido,
+    puede_ver_trabajo,
+    tiene_permiso,
+)
 from ..services import formatting
+from ..services.analysts import usuarios_analistas_activos
 from ..services.audit import registrar
 from ..services.workspace import ruta_workspace
 
@@ -41,7 +47,7 @@ ESTADOS_BADGE = {
 def _puede_ver(solicitud: ReviewRequest, usuario) -> bool:
     if not tiene_permiso(usuario, "revisiones.ver"):
         return False
-    if getattr(usuario, "role", None) in ("admin", "supervisor"):
+    if alcance_total(usuario):
         return True
     return solicitud.assigned_to_id == getattr(usuario, "id", None)
 
@@ -60,15 +66,7 @@ def _es_asignado(solicitud: ReviewRequest) -> bool:
 
 
 def _analistas() -> list[User]:
-    return (
-        db.session.execute(
-            db.select(User)
-            .where(User.role == "analista", User.active.is_(True))
-            .order_by(User.username)
-        )
-        .scalars()
-        .all()
-    )
+    return usuarios_analistas_activos()
 
 
 def _volver(solicitud: ReviewRequest) -> str:
@@ -98,7 +96,8 @@ def index():
             ReviewRequest.notified_at.desc(), ReviewRequest.id.desc()
         )
     )
-    if getattr(current_user, "role", None) not in ("admin", "supervisor"):
+    ver_todas = alcance_total(current_user)
+    if not ver_todas:
         consulta = consulta.where(
             ReviewRequest.assigned_to_id == current_user.id
         )
@@ -119,8 +118,7 @@ def index():
         estados=ESTADOS_REVISION,
         etiquetas_estado=ESTADOS_ETIQUETA,
         badges_estado=ESTADOS_BADGE,
-        alcance_total=getattr(current_user, "role", None)
-        in ("admin", "supervisor"),
+        alcance_total=ver_todas,
     )
 
 

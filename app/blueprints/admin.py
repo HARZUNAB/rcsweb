@@ -19,7 +19,7 @@ from sqlalchemy import func
 from ..extensions import db
 from ..forms import ResetPasswordForm, RolUsuarioForm, UsuarioForm
 from ..models import AuditLog, User
-from ..security import ETIQUETAS_ROL, permiso_requerido
+from ..security import permiso_requerido, roles_de_usuario
 from ..services.audit import registrar
 from ..services.users import (
     UsuarioError,
@@ -115,7 +115,6 @@ def usuarios():
         "admin/users.html",
         usuarios=_lista_usuarios(),
         form=UsuarioForm(),
-        etiquetas=ETIQUETAS_ROL,
     )
 
 
@@ -141,7 +140,7 @@ def crear_usuario_web():
                 "user.create",
                 entity=usuario.username,
                 meta={
-                    "rol": usuario.role,
+                    "roles": list(roles_de_usuario(usuario)),
                     "activo": usuario.active,
                     "codigo_analista": usuario.analyst_code,
                 },
@@ -155,7 +154,6 @@ def crear_usuario_web():
         "admin/users.html",
         usuarios=_lista_usuarios(),
         form=form,
-        etiquetas=ETIQUETAS_ROL,
     )
 
 
@@ -164,12 +162,13 @@ def crear_usuario_web():
 @permiso_requerido("usuarios.gestionar")
 def usuario(user_id: int):
     objetivo = _usuario(user_id)
+    rol_form = RolUsuarioForm(obj=objetivo)
+    rol_form.role.data = list(roles_de_usuario(objetivo))
     return render_template(
         "admin/user_detail.html",
         usuario=objetivo,
-        rol_form=RolUsuarioForm(obj=objetivo),
+        rol_form=rol_form,
         pass_form=ResetPasswordForm(),
-        etiquetas=ETIQUETAS_ROL,
     )
 
 
@@ -199,7 +198,7 @@ def actualizar_usuario_web(user_id: int):
         "user.update",
         entity=objetivo.username,
         meta={
-            "rol": objetivo.role,
+            "roles": list(roles_de_usuario(objetivo)),
             "activo": objetivo.active,
             "codigo_analista": objetivo.analyst_code,
         },

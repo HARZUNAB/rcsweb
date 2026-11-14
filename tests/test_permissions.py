@@ -10,7 +10,16 @@ import pytest
 
 from app.extensions import db
 from app.models import Job, User, nuevo_uuid
-from app.security import alcance_total, etiqueta_rol, tiene_permiso
+from app.security import (
+    alcance_total,
+    etiqueta_rol,
+    roles_de_usuario,
+    tiene_permiso,
+)
+from app.services.analysts import (
+    usuario_de_fila,
+    usuario_restringido,
+)
 from app.services.workspace import crear_workspace
 
 
@@ -283,6 +292,81 @@ def test_job_detail_observador_ve_resultados_sin_descargas(client, usuarios):
     assert 'href="#resultados"' in html
 
 
+def test_admin_crea_usuario_con_varios_roles(client, usuarios):
+    _login(client, "tester")
+    respuesta = client.post(
+        "/admin/usuarios/crear",
+        data={
+            "username": "cris",
+            "role": ["supervisor", "analista"],
+            "analyst_code": "cris",
+            "password": "clave12345",
+            "confirm_password": "clave12345",
+            "active": "y",
+        },
+    )
+    assert respuesta.status_code == 302
+    creado = db.session.execute(
+        db.select(User).filter_by(username="cris")
+    ).scalar_one()
+    assert roles_de_usuario(creado) == ("supervisor", "analista")
+    assert tiene_permiso(creado, "trabajos.todos") is True
+    assert tiene_permiso(creado, "revisiones.responder") is True
+    assert usuario_restringido(creado) is False
+    assert (
+        usuario_de_fila({"analista": "cris"}, [creado]).username
+        == "cris"
+    )
+
+    html = client.get("/admin/usuarios").get_data(as_text=True)
+    assert "Supervisor · Analista" in html
+
+
+def test_admin_exige_codigo_si_incluye_rol_analista(client, usuarios):
+    _login(client, "tester")
+    respuesta = client.post(
+        "/admin/usuarios/crear",
+        data={
+            "username": "supervisor-analista",
+            "role": ["supervisor", "analista"],
+            "password": "clave12345",
+            "confirm_password": "clave12345",
+            "active": "y",
+        },
+        follow_redirects=True,
+    )
+    assert respuesta.status_code == 200
+    assert "código de analista" in respuesta.get_data(as_text=True).lower()
+    assert (
+        db.session.execute(
+            db.select(User).filter_by(username="supervisor-analista")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+def test_admin_exige_al_menos_un_rol(client, usuarios):
+    _login(client, "tester")
+    respuesta = client.post(
+        "/admin/usuarios/crear",
+        data={
+            "username": "sin-rol",
+            "password": "clave12345",
+            "confirm_password": "clave12345",
+            "active": "y",
+        },
+        follow_redirects=True,
+    )
+    assert respuesta.status_code == 200
+    assert "al menos un rol" in respuesta.get_data(as_text=True).lower()
+    assert (
+        db.session.execute(
+            db.select(User).filter_by(username="sin-rol")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
 def test_admin_crea_usuario_y_cambia_rol(client, usuarios):
     _login(client, "tester")
     respuesta = client.post(
@@ -395,11 +479,19 @@ def test_usuario_desactivado_pierde_la_sesion(client, usuarios):
 
 def test_cli_roles_y_password(app, usuarios):
     runner = app.test_cli_runner()
-    resultado = runner.invoke(args=["set-role", "observador", "supervisor"])
-    assert resultado.exit_code == 0
-    assert db.session.execute(
+    resultado = runner.invoke(
+        args=["set-analyst-code", "observador", "obs"]
+    )
+    assert resultado.exit_code == 0, resultado.output
+    resultado = runner.invoke(
+        args=["set-role", "observador", "supervisor,analista"]
+    )
+    assert resultado.exit_code == 0, resultado.output
+    observador = db.session.execute(
         db.select(User).filter_by(username="observador")
-    ).scalar_one().role == "supervisor"
+    ).scalar_one()
+    assert roles_de_usuario(observador) == ("supervisor", "analista")
+    assert observador.role == "supervisor"
 
     resultado = runner.invoke(
         args=["reset-password", "observador"],

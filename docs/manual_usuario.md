@@ -29,14 +29,24 @@ comando de recuperación.
 | **Observador** | Solo lectura de todos los trabajos, resultados, paneles y catálogos |
 | **Catálogos** | Solicita extracciones y accede solo a la sección Catálogos de esos trabajos |
 
+Un usuario puede tener **más de un rol**. Por ejemplo, una persona puede ser
+**Supervisor + Analista**: conserva la visibilidad global del supervisor y
+además puede recibir y responder solicitudes de revisión como analista. Los
+permisos efectivos son la unión de todos sus roles. El administrador define los
+roles desde **Usuarios** con casillas de selección múltiple.
+
 El **analista** y el rol **Catálogos** solo ven los trabajos que crearon o que
 provienen de sus solicitudes. El **observador**, el administrador y el
-supervisor ven todos. La columna **Creador** del panel y la línea «por …» del
+supervisor ven todos. Si un usuario combina un rol global con Analista, conserva
+la visibilidad global. La columna **Creador** del panel y la línea «por …» del
 detalle identifican al autor.
 
-Cada **analista** tiene un **código corto de analista** y, opcionalmente, alias.
-El código no tiene que coincidir con el nombre de usuario de la app. Por ejemplo,
-el usuario `gjerez` puede tener código `Jere` y alias `JereV, jerez`.
+Cada usuario que tenga el rol **Analista** necesita un **código corto de
+analista** y, opcionalmente, alias. El código no tiene que coincidir con el
+nombre de usuario de la app. Por ejemplo, el usuario `gjerez` puede tener código
+`Jere` y alias `JereV, jerez`. Si un supervisor también es analista, debe
+configurar el código o alias que aparece en la fuente; por ejemplo, el código
+`cris` para los eventos cuyo analista es `cris`.
 
 En Resultados y Paneles, el analista solo ve los eventos cuyo campo de analista
 coincide con su código o alias. La comparación ignora mayúsculas, acentos y

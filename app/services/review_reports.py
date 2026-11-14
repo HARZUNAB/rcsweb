@@ -13,6 +13,7 @@ from flask import current_app
 from ..domain.catalogs import canonical
 from ..extensions import db
 from ..models import Job, User
+from ..security import tiene_rol
 from . import indicios, plots, review
 from .audit import registrar
 from .detail import leer_filas
@@ -172,7 +173,7 @@ def ejecutar(report_id: str) -> dict:
         assigned = db.session.get(User, assigned_to_id)
         if job is None or assigned is None:
             raise RuntimeError("Trabajo o analista no encontrado.")
-        if assigned.role != "analista" or not assigned.active:
+        if not tiene_rol(assigned, "analista") or not assigned.active:
             raise RuntimeError("El analista asignado no está activo.")
 
         info = (cargar_indice(workspace).get("catalogos") or {}).get(fuente)

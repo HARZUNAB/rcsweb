@@ -11,8 +11,8 @@ from flask.cli import with_appcontext
 from .domain.catalogs.manifest import ManifestError
 from .domain.catalogs.manifest import validar as validar_manifiesto
 from .extensions import db
-from .models import Job, User
-from .security import ETIQUETAS_ROL, ROLES_VALIDOS
+from .models import Job, User, UserRole
+from .security import etiquetas_usuario, roles_de_usuario
 from .services.audit import registrar
 from .services.jobs import JobNoEliminable, eliminar_trabajo
 from .services.users import (
@@ -46,6 +46,7 @@ def _crear_admin() -> None:
     ).scalar_one_or_none()
     if existente is None:
         admin = User(username=username, role="admin", analyst_code="admin")
+        admin.roles.append(UserRole(role="admin"))
         admin.set_password(password)
         db.session.add(admin)
         db.session.commit()
@@ -95,9 +96,10 @@ def seed_admin() -> None:
 @click.option("--password", prompt=True, hide_input=True, confirmation_prompt=True)
 @click.option(
     "--role",
-    type=click.Choice(ROLES_VALIDOS),
+    "roles",
     default="analista",
     show_default=True,
+    help="Roles separados por coma.",
 )
 @click.option("--analyst-code", default="", help="Código corto de analista.")
 @click.option("--analyst-aliases", default="", help="Alias separados por coma.")
@@ -105,7 +107,7 @@ def seed_admin() -> None:
 def create_user(
     username: str,
     password: str,
-    role: str,
+    roles: str,
     analyst_code: str,
     analyst_aliases: str,
 ) -> None:
@@ -114,7 +116,7 @@ def create_user(
         user = crear_usuario(
             username,
             password,
-            role,
+            roles,
             analyst_code=analyst_code,
             analyst_aliases=analyst_aliases,
         )
@@ -123,37 +125,37 @@ def create_user(
     registrar(
         "user.create",
         entity=user.username,
-        meta={"rol": user.role, "origen": "cli"},
+        meta={"roles": list(roles_de_usuario(user)), "origen": "cli"},
     )
     click.echo(
-        f"Usuario '{user.username}' creado con rol "
-        f"'{ETIQUETAS_ROL.get(user.role, user.role)}'."
+        f"Usuario '{user.username}' creado con roles "
+        f"'{etiquetas_usuario(user)}'."
     )
 
 
 @click.command("set-role")
 @click.argument("username")
-@click.argument("role", type=click.Choice(ROLES_VALIDOS))
+@click.argument("roles")
 @with_appcontext
-def set_role(username: str, role: str) -> None:
-    """Cambia el rol de un usuario."""
+def set_role(username: str, roles: str) -> None:
+    """Cambia los roles de un usuario (separados por coma)."""
     user = db.session.execute(
         db.select(User).filter_by(username=username)
     ).scalar_one_or_none()
     if user is None:
         raise click.ClickException(f"No existe el usuario '{username}'.")
     try:
-        actualizar_usuario(user, role, user.active)
+        actualizar_usuario(user, roles, user.active)
     except UsuarioError as exc:
         raise click.ClickException(str(exc)) from exc
     registrar(
         "user.update",
         entity=user.username,
-        meta={"rol": user.role, "origen": "cli"},
+        meta={"roles": list(roles_de_usuario(user)), "origen": "cli"},
     )
     click.echo(
-        f"Usuario '{user.username}' ahora tiene rol "
-        f"'{ETIQUETAS_ROL.get(user.role, user.role)}'."
+        f"Usuario '{user.username}' ahora tiene roles "
+        f"'{etiquetas_usuario(user)}'."
     )
 
 
@@ -172,7 +174,7 @@ def set_analyst_code(username: str, analyst_code: str, aliases: str) -> None:
     try:
         actualizar_usuario(
             user,
-            user.role,
+            list(roles_de_usuario(user)),
             user.active,
             analyst_code=analyst_code,
             analyst_aliases=aliases,
@@ -233,7 +235,7 @@ def list_users() -> None:
         estado = "activo" if user.active else "inactivo"
         click.echo(
             f"{user.username}\t"
-            f"{ETIQUETAS_ROL.get(user.role, user.role)}\t{estado}"
+            f"{etiquetas_usuario(user)}\t{estado}"
         )
 
 

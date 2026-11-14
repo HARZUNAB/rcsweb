@@ -8,20 +8,13 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from ..extensions import db
 from ..models import ReviewRequest, ReviewRequestEvent, User
+from .analysts import usuarios_analistas_activos
 
 ESTADOS_ACTIVOS = ("notificada", "en_proceso")
 
 
 def usuarios_analistas() -> list[User]:
-    return (
-        db.session.execute(
-            db.select(User)
-            .where(User.role == "analista", User.active.is_(True))
-            .order_by(User.username)
-        )
-        .scalars()
-        .all()
-    )
+    return usuarios_analistas_activos()
 
 
 def _resumen(solicitud: ReviewRequest) -> dict:

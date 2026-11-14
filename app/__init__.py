@@ -11,7 +11,13 @@ from .config import Config
 from .domain.catalogs.manifest import ManifestError
 from .domain.catalogs.manifest import validar as validar_manifiesto
 from .extensions import csrf, db, login_manager, migrate
-from .security import etiqueta_rol, tiene_permiso
+from .security import (
+    etiqueta_rol,
+    etiqueta_roles,
+    etiquetas_usuario,
+    roles_de_usuario,
+    tiene_permiso,
+)
 
 
 def create_app(config_object: type | None = None) -> Flask:
@@ -71,6 +77,9 @@ def create_app(config_object: type | None = None) -> Flask:
         return {
             "puede": lambda permiso: tiene_permiso(current_user, permiso),
             "etiqueta_rol": etiqueta_rol,
+            "etiqueta_roles": etiqueta_roles,
+            "etiquetas_usuario": etiquetas_usuario,
+            "roles_usuario": roles_de_usuario,
         }
 
     @app.before_request

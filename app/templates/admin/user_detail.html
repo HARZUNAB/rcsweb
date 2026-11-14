@@ -7,7 +7,7 @@
     <div class="text-secondary small text-uppercase mb-1">Usuario</div>
     <h1 class="h3 mb-1">{{ usuario.username }}</h1>
     <div class="text-secondary small">
-      {{ etiquetas.get(usuario.role, usuario.role) }}
+      {{ etiquetas_usuario(usuario) }}
       · creado {{ usuario.created_at.strftime('%Y-%m-%d %H:%M') }}
       {% if usuario.id == current_user.id %}· usted{% endif %}
     </div>
@@ -27,8 +27,15 @@
               novalidate>
           {{ rol_form.hidden_tag() }}
           <div class="mb-3">
-            {{ rol_form.role.label(class="form-label") }}
-            {{ rol_form.role(class="form-select") }}
+            {{ rol_form.role.label(class="form-label d-block") }}
+            <div class="d-flex flex-wrap gap-3">
+              {% for opcion in rol_form.role %}
+              <div class="form-check">
+                {{ opcion(class="form-check-input") }}
+                {{ opcion.label(class="form-check-label") }}
+              </div>
+              {% endfor %}
+            </div>
             {% for error in rol_form.role.errors %}
               <div class="invalid-feedback d-block">{{ error }}</div>
             {% endfor %}

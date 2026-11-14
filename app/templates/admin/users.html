@@ -27,9 +27,16 @@
           <div class="invalid-feedback d-block">{{ error }}</div>
         {% endfor %}
       </div>
-      <div class="col-12 col-md-3">
-        {{ form.role.label(class="form-label") }}
-        {{ form.role(class="form-select") }}
+      <div class="col-12 col-md-4">
+        {{ form.role.label(class="form-label d-block") }}
+        <div class="d-flex flex-wrap gap-3">
+          {% for opcion in form.role %}
+          <div class="form-check">
+            {{ opcion(class="form-check-input") }}
+            {{ opcion.label(class="form-check-label") }}
+          </div>
+          {% endfor %}
+        </div>
         {% for error in form.role.errors %}
           <div class="invalid-feedback d-block">{{ error }}</div>
         {% endfor %}
@@ -105,7 +112,7 @@
               <div class="small text-secondary">{{ item.analyst_aliases }}</div>
             {% endif %}
           </td>
-          <td>{{ etiquetas.get(item.role, item.role) }}</td>
+          <td>{{ etiquetas_usuario(item) }}</td>
           <td>
             {% if item.active %}
               <span class="badge text-bg-success">Activo</span>

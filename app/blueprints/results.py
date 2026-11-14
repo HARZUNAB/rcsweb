@@ -2001,7 +2001,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         revision_solicitud
         and tiene_permiso(current_user, "revisiones.ver")
         and (
-            current_user.role in ("admin", "supervisor")
+            tiene_permiso(current_user, "trabajos.todos")
             or revision_solicitud.get("asignada_id") == current_user.id
         )
     )
