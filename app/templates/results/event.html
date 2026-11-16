@@ -46,6 +46,13 @@
     {% endif %}
   </div>
   <div class="d-flex flex-wrap gap-2">
+    {% for item in urls_web_publicado %}
+    <a class="btn btn-outline-secondary" href="{{ item.url }}"
+       target="_blank" rel="noopener"
+       title="Abrir el catálogo de sismologia.cl del día publicado">
+      Web {{ item.fecha }}
+    </a>
+    {% endfor %}
     <a class="btn btn-outline-secondary"
        href="{{ url_for('jobs.detalle', job_id=job.id) }}">Volver al trabajo</a>
     <a class="btn btn-outline-primary" href="{{ volver }}">{{ volver_etiqueta|default('Volver a la tabla') }}</a>

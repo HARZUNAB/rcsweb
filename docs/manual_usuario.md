@@ -869,15 +869,18 @@ aplicación.
   y **Revisión** (`Revisado`, `Final`, `Confirmado`, etc.). Así se distingue un
   evento local de uno que no está publicado, sin ocultar los publicados.
 - **Administrador y supervisor** mantienen el acceso completo: columnas de
-  analista, **Web**, **Ver**, **Ver miniaturas**, descargas completas y el nuevo
+  analista, **Ver**, **Ver miniaturas**, descargas completas y el nuevo
   **Descargar catálogo**.
 - **Analista** ve todas las fuentes y usa los filtros, pero no ve las columnas
-  **Analista** ni **Analista probable**, y no puede abrir **Web**, **Ver** ni
+  **Analista** ni **Analista probable**, y no puede abrir **Ver** ni
   **Ver miniaturas**. Tampoco puede usar las descargas completas. Su única
   descarga es **Descargar catálogo**.
-- **Observador y Catálogos** ven el catálogo completo, con **Web**, **Ver** y
+- **Observador y Catálogos** ven el catálogo completo, con **Ver** y
   **Ver miniaturas**, y pueden usar **Descargar catálogo**. No acceden a las
   descargas de resultados.
+- El enlace **Web** al catálogo público ya no está en las tablas: aparece en el
+  detalle del evento cuando corresponde, usando la fecha del evento de
+  referencia Eventquery.
 - **Descargar catálogo** abre una vista previa con mapas de planta por
   territorio y dos variantes por perfil. **Ningún mapa se genera al abrir la
   página**: use **Ver** para abrirlo en un modal con indicador de actividad, o

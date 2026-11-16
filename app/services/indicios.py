@@ -888,6 +888,46 @@ def estado_cruce_eventquery(
     return _cruza_eventquery(evento, indice)
 
 
+def referencia_eventquery(
+    workspace: Path,
+    source_id: str,
+    evento: dict,
+) -> dict | None:
+    """Fila de Eventquery que sostiene el cruce de un evento local.
+
+    Devuelve la fecha de referencia y los datos del cruce. Se usa para abrir el
+    catálogo publicado del día correcto, incluso si el evento local está cerca
+    de la medianoche.
+    """
+    ruta = Path(workspace) / "datos" / f"atribucion_{source_id}.csv"
+    if not ruta.is_file():
+        return None
+    clave = _clave_tiempo(evento.get("event_time"))
+    lat = _numero(evento.get("latitude"))
+    lon = _numero(evento.get("longitude"))
+    if not clave:
+        return None
+    try:
+        with ruta.open(encoding="utf-8-sig", newline="") as archivo:
+            for fila in csv.DictReader(archivo):
+                if _clave_tiempo(fila.get("fecha_local")) != clave:
+                    continue
+                otra_lat = _numero(fila.get("lat_local"))
+                otra_lon = _numero(fila.get("lon_local"))
+                if lat is None or lon is None:
+                    return dict(fila)
+                if (
+                    otra_lat is not None
+                    and otra_lon is not None
+                    and abs(lat - otra_lat) <= 0.01
+                    and abs(lon - otra_lon) <= 0.01
+                ):
+                    return dict(fila)
+    except OSError:
+        return None
+    return None
+
+
 def evaluar_desde_canonico(
     workspace: Path,
     source_id: str,

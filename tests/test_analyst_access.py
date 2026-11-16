@@ -174,7 +174,7 @@ def test_catalogos_admin_mantiene_columnas_y_botones(app, client):
     assert 'name="f_Analista"' in html
     assert "Descargar catálogo" in html
     assert "Descargar todo" in html
-    assert 'title="Abrir el catálogo diario de sismologia.cl"' in html
+    assert 'title="Abrir el catálogo diario de sismologia.cl"' not in html
     assert "Ver miniaturas" in html
 
 

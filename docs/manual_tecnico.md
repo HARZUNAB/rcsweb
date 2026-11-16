@@ -1950,6 +1950,11 @@ ofrece **Descargar catálogo**. El observador y el rol Catálogos ven el catálo
 completo, incluido el detalle y las miniaturas. El resto de las descargas queda
 bloqueada también por URL.
 
+El enlace **Web** al catálogo diario de sismologia.cl no se muestra en las
+tablas. Se muestra solo en el detalle cuando existe una fecha de referencia
+válida: evento de Eventquery, evento local con cruce, No actualizados y
+Repetidos.
+
 `Descargar catálogo` usa `app/services/catalog_export.py`. Cada evento se asigna
 individualmente a su perfil más cercano con `asigna_perfiles.asignar_eventos`;
 no se usa el perfil de referencia del grupo. Luego se categoriza por territorio

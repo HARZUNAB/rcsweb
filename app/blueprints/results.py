@@ -67,6 +67,7 @@ from ..services.detail import (
     superpuestos,
 )
 from ..services.history import datos as historico_datos
+from ..services.links import url_catalogo_dia
 from ..services.maps import modo_mapa
 from ..services.plots import (
     clasificar_eventos,
@@ -2052,6 +2053,42 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         url_revision = url_for(
             "results.indicios_eventos", job_id=job.id, fuente=opcion
         )
+    urls_web_publicado = []
+    urls_vistos = set()
+
+    def _agregar_web_publicado(fecha):
+        url = url_catalogo_dia(fecha)
+        if not url or url in urls_vistos:
+            return
+        urls_vistos.add(url)
+        urls_web_publicado.append(
+            {"url": url, "fecha": str(fecha or "").replace("T", " ")[:10]}
+        )
+
+    if tabla == "catalogos" and opcion:
+        if fuentes_manifest.es_referencia(opcion):
+            _agregar_web_publicado(
+                contexto["fila"].get("Fecha_Hora")
+                or evento_canonico.get("event_time")
+            )
+        elif source_id and indicios_evento and indicios_evento.get("cruce_eventquery") is True:
+            referencia = indicios.referencia_eventquery(
+                ruta_workspace(job.id), source_id, evento_canonico
+            )
+            _agregar_web_publicado(
+                (referencia or {}).get("fecha_eventquery")
+                or evento_canonico.get("event_time")
+                or contexto["fila"].get("Fecha_Hora")
+            )
+    elif tabla == "no_actualizados":
+        _agregar_web_publicado(
+            contexto["fila"].get("fecha_eventquery")
+            or contexto["fila"].get("fecha_local")
+        )
+    elif tabla == "repetidos":
+        _agregar_web_publicado(contexto["fila"].get("fecha_hora"))
+        for item in contexto.get("grupo") or []:
+            _agregar_web_publicado((item.get("fila") or {}).get("fecha_hora"))
 
     return render_template(
         "results/event.html",
@@ -2082,6 +2119,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         revision_visible=revision_visible,
         coincidencias_otras_fuentes=coincidencias_otras_fuentes,
         url_revision=url_revision,
+        urls_web_publicado=urls_web_publicado,
         puede_crear_revision=tiene_permiso(current_user, "revisiones.crear"),
         **contexto,
     )

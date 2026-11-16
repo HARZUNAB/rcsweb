@@ -17,7 +17,7 @@ from app.models import (
     utcnow,
 )
 from app.services import indicios, review_reports
-from app.services.workspace import crear_workspace
+from app.services.workspace import crear_workspace, ruta_workspace
 
 
 def _evento(
@@ -198,6 +198,32 @@ def test_lista_y_detalle_de_indicios(app, client, login):
         f"/jobs/{job.id}/indicios/seiscomp/seiscomp:000001"
     )
     assert antigua.status_code == 404
+
+
+def test_detalle_con_cruce_muestra_web_del_dia_eventquery(app, client, login):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    workspace = ruta_workspace(job.id)
+    (workspace / "datos" / "atribucion_seiscomp.csv").write_text(
+        "fecha_local,lat_local,lon_local,fecha_eventquery,n_fila_eventquery\n"
+        "2026-10-28 15:23:36,-52.857,-71.570,2026-10-29 00:01:00,10\n",
+        encoding="utf-8",
+    )
+    login()
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/catalogos/seiscomp/0",
+        query_string={
+            "volver": f"/jobs/{job.id}/indicios?fuente=seiscomp"
+        },
+    ).get_data(as_text=True)
+
+    assert "Web 2026-10-29" in html
+    assert (
+        "https://www.sismologia.cl/sismicidad/catalogo/2026/10/20261029.html"
+        in html
+    )
+    assert 'target="_blank"' in html
 
 
 def test_alcance_publicados_redirige_a_cruce_eventquery(app, client, login):

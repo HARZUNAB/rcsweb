@@ -198,16 +198,6 @@
           <tbody>
             {% for fila in tabla.filas %}
             <tr>
-              {% if clave == 'no_publicados' %}
-                {% set fecha_evento = fila.get('Fecha_Hora', '') %}
-              {% elif clave == 'catalogos' %}
-                {% set fecha_evento = fila.get('Fecha_Hora', '') %}
-              {% elif clave == 'no_actualizados' %}
-                {% set fecha_evento = fila.get('fecha_local') or fila.get('fecha_eventquery', '') %}
-              {% else %}
-                {% set fecha_evento = fila.get('fecha_hora', '') %}
-              {% endif %}
-              {% set url_web = url_catalogo_dia(fecha_evento) %}
               <td class="celda-ubicacion">
                 <div class="d-flex align-items-start gap-2">
                   {% if puede('resultados.exportar') and not catalogo_restringido %}
@@ -284,11 +274,6 @@
               {% endfor %}
               {% if not catalogo_restringido %}
               <td class="text-end text-nowrap">
-                {% if url_web %}
-                <a class="btn btn-sm btn-outline-secondary"
-                   href="{{ url_web }}" target="_blank" rel="noopener"
-                   title="Abrir el catálogo diario de sismologia.cl">Web</a>
-                {% endif %}
                 <a class="btn btn-sm btn-outline-primary"
                    href="{{ url_detalle(fila.get('_fila')) }}">Ver</a>
               </td>

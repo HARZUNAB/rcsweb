@@ -409,8 +409,9 @@ Cada usuario tiene `analyst_code` y alias opcionales. En Resultados y Paneles,
 analista y consulta solo ven eventos cuyo analista coincide con su código,
 ignorando mayúsculas, acentos y espacios, y tolerando prefijos de al menos tres
 caracteres. Sin código asignado no ven eventos. En Catálogos ven todas las
-fuentes y datos, pero sin columnas de analista, sin detalle/miniaturas/Web y con
-una única descarga sanitizada: **Descargar catálogo**.
+fuentes y datos, pero sin columnas de analista, sin detalle/miniaturas y con
+una única descarga sanitizada: **Descargar catálogo**. El enlace Web al catálogo
+público está solo en el detalle, al que este rol no accede.
 
 Los permisos se aplican en el servidor. Ocultar un botón no reemplaza el
 control: un acceso directo sin permiso responde **403**. Si una cuenta se
@@ -811,9 +812,10 @@ se instalan con `scripts/instalar_core_data.sh`.
   **Ver** y volver, se conserva seleccionado el mismo perfil o territorio.
 - **Catálogos**: el detalle del trabajo tiene un menú con los catálogos de
   entrada disponibles según el manifiesto de fuentes. Administrador y supervisor
-  mantienen el listado completo, columnas de analista, Web, Ver, miniaturas y
-  descargas. Analista y consulta ven todas las fuentes y filtros, pero sin
-  columnas de analista, sin Web/Ver/miniaturas y solo con **Descargar catálogo**.
+  mantienen el listado completo, columnas de analista, Ver, miniaturas y
+  descargas. El enlace Web está en el detalle del evento. Analista y consulta
+  ven todas las fuentes y filtros, pero sin columnas de analista, sin
+  Ver/miniaturas y solo con **Descargar catálogo**.
   Esa descarga abre una vista previa con el CSV sanitizado, mapas de planta por
   territorio y dos variantes por perfil. **Los mapas no se generan al abrir la
   página**: aparecen solo al presionar **Ver** o **Descargar**, con un indicador

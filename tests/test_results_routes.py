@@ -580,7 +580,7 @@ def test_exportar_sin_datos_devuelve_404(client, login):
     assert respuesta.status_code == 404
 
 
-def test_tabla_ofrece_enlace_al_catalogo_diario(client, login):
+def test_tabla_no_muestra_enlace_al_catalogo_diario(client, login):
     job = _job_con_tabla(login)
 
     html = client.get(
@@ -588,13 +588,8 @@ def test_tabla_ofrece_enlace_al_catalogo_diario(client, login):
         query_string={"fuente": "seisan"},
     ).get_data(as_text=True)
 
-    assert (
-        "https://www.sismologia.cl/sismicidad/catalogo/2026/10/20261001.html"
-        in html
-    )
-    assert "20261002" in html
-    assert 'target="_blank"' in html
-    assert 'rel="noopener"' in html
+    assert "sismologia.cl" not in html
+    assert 'title="Abrir el catálogo diario de sismologia.cl"' not in html
 
 
 def test_tabla_repetidos_usa_la_ficha_compacta(client, login):
@@ -659,10 +654,6 @@ def test_catalogo_lista_con_las_mismas_prestaciones(client, login):
     assert "Descargar filtrado" in html
     assert "data-src=" in html
     assert "2026-10-01" in html
-    assert (
-        "https://www.sismologia.cl/sismicidad/catalogo/2026/10/20261001.html"
-        in html
-    )
 
 
 def test_catalogo_detalle_de_evento(client, login):
