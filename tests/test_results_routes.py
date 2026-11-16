@@ -6,6 +6,7 @@ import json
 import re
 from datetime import UTC, datetime
 
+from app.domain.catalogs import canonical
 from app.extensions import db
 from app.models import Job, JobSource, nuevo_uuid
 from app.services.workspace import crear_workspace, ruta_workspace
@@ -55,6 +56,38 @@ def _perfil_falso() -> dict:
         "slab_depth": [10.0, 20.0],
         "eventos": [],
     }
+
+
+def test_detalle_no_publicado_envia_a_ver_revision(client, login):
+    job = _job_con_tabla(login)
+    workspace = ruta_workspace(job.id)
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seisan"),
+        [
+            {
+                "source_id": "seisan",
+                "event_id": "seisan:000000",
+                "source_event_id": "0",
+                "event_time": "2026-10-01 00:00:00",
+                "latitude": -30.0,
+                "longitude": -71.0,
+                "depth_km": 10.0,
+                "magnitude": 2.5,
+                "magnitude_type": "ML",
+                "analyst": "ana",
+                "raw_index": 0,
+                "raw": {},
+            }
+        ],
+    )
+
+    html = client.get(
+        f"/jobs/{job.id}/resultados/no_publicados/seisan/0"
+    ).get_data(as_text=True)
+
+    assert "Este evento no forma parte del listado de selección de revisiones" in html
+    assert f"/jobs/{job.id}/indicios" in html
+    assert "Ver revisión" in html
 
 
 def test_tabla_filtra_y_muestra_total(client, login):

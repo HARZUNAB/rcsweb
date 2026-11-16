@@ -1261,6 +1261,12 @@ del mismo analista y se genera un informe en segundo plano. La solicitud se
 guarda en `review_requests` y sus eventos en `review_request_events`; la tabla
 `event_review_requests` se conserva como histórico del flujo anterior.
 
+En el detalle del evento, el aviso de revisión distingue si se abrió desde
+**Ver revisión** (`desde_indicios`) o desde otra tabla. En el primer caso enlaza
+de vuelta al listado de revisión; en No publicados, No actualizados o Repetidos
+enlaza a **Ver revisión** del trabajo y aclara que ese evento no forma parte del
+listado de selección.
+
 La generación usa Celery (`tasks.generar_informe_revision`) y deja el progreso
 en Redis bajo `rcs:revision:<report_id>` durante 24 horas. El PDF se construye
 con ReportLab y el respaldo DOCX con python-docx, en A4 horizontal. El informe

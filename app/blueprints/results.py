@@ -2047,6 +2047,11 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
             contexto["fila"],
             otras_fuentes,
         )
+    url_revision = url_for("results.indicios_eventos", job_id=job.id)
+    if opcion in _fuentes_job(job):
+        url_revision = url_for(
+            "results.indicios_eventos", job_id=job.id, fuente=opcion
+        )
 
     return render_template(
         "results/event.html",
@@ -2076,6 +2081,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         revision_solicitud=revision_solicitud,
         revision_visible=revision_visible,
         coincidencias_otras_fuentes=coincidencias_otras_fuentes,
+        url_revision=url_revision,
         puede_crear_revision=tiene_permiso(current_user, "revisiones.crear"),
         **contexto,
     )

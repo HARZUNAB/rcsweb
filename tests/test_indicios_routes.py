@@ -184,7 +184,8 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Cobertura" in html
     assert "Evidencia" in html
     assert "244.2" in html
-    assert "La revisión se solicita desde el" in html
+    assert "Este evento no forma parte del listado de selección de revisiones" in html
+    assert "Ver revisión" in html
     assert "Pedir revisión" not in html
     assert "data-sortable" in html
     assert "tabla_orden.js" in html

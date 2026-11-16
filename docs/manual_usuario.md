@@ -214,6 +214,11 @@ Al pulsar **Ver** en una fila se abre la ficha del evento.
   fuente local indica si el evento existe, si esa solución tiene cruce con
   Eventquery, la diferencia de tiempo, la distancia y el analista. Central se
   marca como fuente derivada y no se usa para concluir publicación.
+- La solicitud de revisión no se crea desde este detalle. Si el evento se abrió
+  desde **Ver revisión**, el aviso permite volver a ese listado. Si se abrió
+  desde **No publicados**, **No actualizados** o **Repetidos**, el aviso indica
+  que el evento no forma parte del listado de selección y enlaza a **Ver
+  revisión** del trabajo.
 - El mapa interactivo permite acercar, alejar y seleccionar eventos.
 - La planta abre con una vista regional para que el evento se ubique en el
   contexto del país.
@@ -783,8 +788,8 @@ debajo del mapa y solo cuando **Propagación** está activa. Los analistas puede
 abrir el detalle del catálogo de sus propios eventos para usar estas vistas.
 
 Los analistas ven los eventos de revisión de sus propios trabajos.
-Administradores y supervisores ven todos. La revisión se solicita desde el
-listado, no desde el detalle de un evento suelto:
+Administradores y supervisores ven todos. La revisión se solicita desde
+**Ver revisión**, no desde el detalle de un evento suelto:
 
 1. Filtre por **Analista**. La selección solo admite eventos de un mismo
    analista con usuario activo; **Todos**, **Sin usuario asignable** y los

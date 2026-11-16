@@ -458,9 +458,16 @@
     </div>
     {% elif puede_crear_revision %}
     <div class="alert alert-light border small mb-0" role="status">
-      La revisión se solicita desde el
-      <a href="{{ volver }}">listado de eventos</a>: filtre por analista,
-      seleccione varios eventos y genere el informe.
+      {% if desde_indicios %}
+      La solicitud de revisión se crea desde
+      <a href="{{ volver }}">Ver revisión</a>. Vuelva al listado para
+      seleccionar varios eventos del mismo analista y generar el informe.
+      {% else %}
+      Este evento no forma parte del listado de selección de revisiones.
+      Las solicitudes se crean desde
+      <a href="{{ url_revision }}">Ver revisión</a>, seleccionando eventos
+      con indicios del mismo analista.
+      {% endif %}
     </div>
     {% endif %}
   </div>
