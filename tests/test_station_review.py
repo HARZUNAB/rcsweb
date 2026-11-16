@@ -982,7 +982,7 @@ def test_detalle_muestra_boton_disponibilidad_y_descarga(client, login, app):
     assert re.search(r"<a[^>]*\bdownload\b[^>]*arribos\.csv", html, re.S)
 
 
-def test_detalle_oculta_disponibilidad_si_viene_de_indicios(
+def test_detalle_muestra_disponibilidad_desde_indicios(
     client, login, app
 ):
     job = _job_con_revision(app)
@@ -996,9 +996,9 @@ def test_detalle_oculta_disponibilidad_si_viene_de_indicios(
         },
     ).get_data(as_text=True)
 
-    assert "Consultar formas de onda" not in html
+    assert "Consultar formas de onda" in html
     assert "Consultar todas" not in html
-    assert 'data-puede-consultar="0"' in html
+    assert 'data-puede-consultar="1"' in html
     assert "panel-sin-arribos-contenido" in html
 
 

@@ -1589,9 +1589,12 @@ escribe el progreso en el panel y `bloquearBotonesConsulta` habilita o
 deshabilita los botones de la solapa.
 
 Cuando el detalle se abre desde el listado de indicios, el controlador calcula
-`desde_indicios` a partir de `volver`. En ese caso no renderiza los botones de
-consulta y deja `data-puede-consultar="0"` para que `autoConsultar` no inicie
-la consulta automática. La solapa y la tabla de disponibilidad siguen visibles.
+`desde_indicios` a partir de `volver`, pero eso solo afecta el aviso del flujo
+de solicitud de revisión. La disponibilidad de formas de onda mantiene el mismo
+comportamiento sin importar el origen: los botones de consulta se muestran con
+los mismos permisos y `data-puede-consultar="1"` permite que `autoConsultar`
+inicie la consulta al abrir la solapa. La solapa y la tabla de disponibilidad
+siguen visibles.
 `actualizarResumenEstados` cuenta las estaciones visibles por estado y actualiza
 la leyenda y el resumen de la barra de propagación.
 

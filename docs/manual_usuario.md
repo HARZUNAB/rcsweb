@@ -299,11 +299,10 @@ El botón **Consultar formas de onda** permite iniciar la consulta manualmente.
 Cuando ya hay resultados, cambia a **Volver a consultar formas de onda** para
 actualizarlos.
 
-Cuando se entra desde el listado de **Revisión de eventos**, los botones de
-consulta y la consulta automática se ocultan: esa visita está enfocada en las
-fases. La solapa **Sin arribos** y su tabla de disponibilidad siguen visibles.
-Para consultar las ondas, entre al detalle desde **Catálogos** o desde la
-revisión normal del evento.
+El comportamiento es el mismo sin importar desde dónde se abra el detalle:
+Catálogo, Revisión de eventos, No publicados, No actualizados o Repetidos. Si la
+consulta no se ha hecho, se inicia al abrir la solapa; también se puede lanzar
+manualmente con el botón.
 
 Después de la consulta:
 
