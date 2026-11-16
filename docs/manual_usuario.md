@@ -934,6 +934,22 @@ El **administrador** además dispone de la pantalla **Usuarios**.
 El sistema no permite dejar sin administradores activos. Si una cuenta se
 desactiva, su sesión se cierra en la siguiente petición.
 
+## Ayuda y glosario
+
+La barra superior incluye **Ayuda**, que abre un glosario con los términos de
+publicación, fases, cobertura, prioridad, resultados y solicitudes.
+
+Además, las pantallas principales tienen un bloque desplegable:
+
+```text
+¿Qué significan estos términos?
+```
+
+Está cerrado por defecto. Al abrirlo explica los conceptos de esa pantalla y
+enlaza al glosario completo. Está disponible en Revisión de eventos, detalle del
+evento, No publicados, No actualizados, Repetidos, Paneles, Revisiones,
+Usuarios y resumen del trabajo.
+
 ## Preguntas frecuentes
 
 **No veo un trabajo que otro usuario creó.**

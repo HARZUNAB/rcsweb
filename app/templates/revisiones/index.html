@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/ayuda.html" import panel as ayuda_panel with context %}
 {% block title %}Revisiones · RCS Web{% endblock %}
 
 {% block content %}
@@ -12,6 +13,11 @@
     </p>
   </div>
 </div>
+
+{{ ayuda_panel("¿Qué significan estos estados?", [
+  "revision_notificada", "revision_en_proceso", "revision_cerrada",
+  "sin_usuario", "rol_multiple"
+]) }}
 
 {% if alcance_total %}
 <form method="get" class="card border-0 shadow-sm mb-3">

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import badge_revision %}
+{% from "components/ayuda.html" import panel as ayuda_panel with context %}
 {% block title %}{{ tabla_config.titulo }} · Trabajo {{ job.id[:8] }}{% endblock %}
 
 {% block content %}
@@ -28,6 +29,19 @@
     <a class="btn btn-outline-primary" href="{{ volver }}">Volver al trabajo</a>
   </div>
 </div>
+
+{% if clave == 'no_publicados' %}
+{{ ayuda_panel("¿Qué significan estos resultados?", [
+  "no_publicados", "coincidencias_otras_fuentes", "sin_evaluar",
+  "fuente_derivada", "publicado_otra_fuente"
+]) }}
+{% elif clave == 'no_actualizados' %}
+{{ ayuda_panel("¿Qué significan estos resultados?", [
+  "no_actualizados", "publicado_otra_fuente"
+]) }}
+{% elif clave == 'repetidos' %}
+{{ ayuda_panel("¿Qué significan estos resultados?", ["repetidos"]) }}
+{% endif %}
 
 {% if grupos %}
 <div class="d-flex flex-wrap gap-2 mb-3">

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/ayuda.html" import panel as ayuda_panel with context %}
 {% block main_class %} container-detalle{% endblock %}
 {% block title %}{{ detalle.titulo }} · Paneles{% endblock %}
 
@@ -34,6 +35,11 @@
     <a class="btn btn-outline-secondary" href="{{ volver }}">Volver a Paneles</a>
   </div>
 </div>
+
+{{ ayuda_panel("¿Qué significan estos términos?", [
+  "solucion_sospechosa", "no_publicados", "no_actualizados", "repetidos",
+  "cobertura"
+]) }}
 
 <div class="row g-3 mb-3">
   <div class="col-6 col-lg-3">

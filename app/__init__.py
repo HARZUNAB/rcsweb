@@ -18,6 +18,7 @@ from .security import (
     roles_de_usuario,
     tiene_permiso,
 )
+from .services import glossary
 
 
 def create_app(config_object: type | None = None) -> Flask:
@@ -50,6 +51,7 @@ def create_app(config_object: type | None = None) -> Flask:
     from . import models  # noqa: F401
     from .blueprints.admin import admin_bp
     from .blueprints.auth import auth_bp
+    from .blueprints.ayuda import ayuda_bp
     from .blueprints.dashboard import dashboard_bp
     from .blueprints.health import health_bp
     from .blueprints.jobs import jobs_bp
@@ -59,6 +61,7 @@ def create_app(config_object: type | None = None) -> Flask:
     from .blueprints.solicitudes import solicitudes_bp
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(ayuda_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(jobs_bp)
@@ -80,6 +83,7 @@ def create_app(config_object: type | None = None) -> Flask:
             "etiqueta_roles": etiqueta_roles,
             "etiquetas_usuario": etiquetas_usuario,
             "roles_usuario": roles_de_usuario,
+            "definicion_glosario": glossary.definicion,
         }
 
     @app.before_request

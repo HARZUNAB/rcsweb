@@ -104,6 +104,7 @@ def test_tabla_filtra_y_muestra_total(client, login):
     assert ">ana<" not in html
     assert "Descargar filtrado (1)" in html
     assert "catálogo: 4" in html
+    assert "¿Qué significan estos resultados?" in html
 
 
 def _job_repetidos(login):

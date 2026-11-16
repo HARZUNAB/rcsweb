@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/ayuda.html" import panel as ayuda_panel with context %}
 {% block title %}Usuarios{% endblock %}
 
 {% block content %}
@@ -13,6 +14,10 @@
     Auditoría
   </a>
 </div>
+
+{{ ayuda_panel("¿Qué significan estos términos?", [
+  "rol_multiple", "codigo_analista", "alias_analista", "sin_usuario"
+]) }}
 
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body">

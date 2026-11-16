@@ -164,6 +164,7 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "mdur" in html
     assert "· sin usuario" in html
     assert "Cruce Eventquery" in html
+    assert "¿Qué significan estos términos?" in html
     assert "inversion" not in html.lower()
 
     ajeno = client.get(
@@ -184,6 +185,7 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Cobertura" in html
     assert "Evidencia" in html
     assert "244.2" in html
+    assert "¿Qué significan estos términos?" in html
     assert "Este evento no forma parte del listado de selección de revisiones" in html
     assert "Ver revisión" in html
     assert "Pedir revisión" not in html

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/ayuda.html" import panel as ayuda_panel with context %}
 {% block title %}Revisión de eventos · Trabajo {{ job.id[:8] }}{% endblock %}
 
 {% block content %}
@@ -23,6 +24,16 @@
     Volver al trabajo
   </a>
 </div>
+
+{{ ayuda_panel("¿Qué significan estos términos?", [
+  "cruce_eventquery", "con_cruce", "sin_cruce", "sin_evaluar",
+  "solucion_sospechosa", "solucion_normal",
+  "prioridad_alta", "prioridad_media", "prioridad_baja",
+  "patron", "patron_puntual", "patron_sistematico", "patron_varias_senales",
+  "patron_sin_fase",
+  "cobertura", "cobertura_debil", "indicio_debil", "residual_extremo",
+  "senales_fase", "estaciones_disponibles", "estaciones_usadas"
+]) }}
 
 {% if info_fuente.residual_temporal or resumen.total.residual_temporal %}
 <div class="alert alert-warning" role="status">

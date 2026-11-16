@@ -1,0 +1,471 @@
+"""Glosario único de términos de la aplicación.
+
+Las definiciones se reutilizan en los paneles de ayuda contextual, en los
+tooltips y en la página /ayuda. No se guardan en base de datos.
+"""
+
+from __future__ import annotations
+
+GRUPOS = (
+    ("publicacion", "Publicación y cruce Eventquery"),
+    ("fases", "Fases y patrones"),
+    ("cobertura", "Cobertura y estaciones"),
+    ("residuales", "Residuales y peso"),
+    ("prioridad", "Prioridad"),
+    ("resultados", "Resultados y cruces"),
+    ("revisiones", "Solicitudes de revisión"),
+    ("usuarios", "Roles y analistas"),
+)
+
+TERMINOS = {
+    "cruce_eventquery": {
+        "titulo": "Cruce Eventquery",
+        "texto": (
+            "Estimación de si una solución local corresponde a un evento "
+            "publicado en Eventquery. La fuente local no declara publicación "
+            "por sí sola."
+        ),
+    },
+    "con_cruce": {
+        "titulo": "Con cruce",
+        "texto": (
+            "La solución local coincide en tiempo y posición con un evento de "
+            "Eventquery dentro de la ventana de comparación."
+        ),
+    },
+    "sin_cruce": {
+        "titulo": "Sin cruce",
+        "texto": (
+            "La solución local no encontró un evento equivalente en Eventquery. "
+            "No confirma que el evento no esté publicado: solo que no se pudo "
+            "establecer el cruce."
+        ),
+    },
+    "sin_evaluar": {
+        "titulo": "Sin evaluar",
+        "texto": (
+            "No hay datos suficientes para decidir el cruce, o la fuente es "
+            "derivada y no se usa como evidencia de publicación."
+        ),
+    },
+    "eventos_referencia": {
+        "titulo": "Eventos de referencia",
+        "texto": "Eventos únicos del catálogo publicado Eventquery.",
+    },
+    "soluciones_con_cruce": {
+        "titulo": "Soluciones con cruce",
+        "texto": (
+            "Soluciones locales que cruzaron con Eventquery. Puede haber más "
+            "de una solución local para un mismo evento de referencia."
+        ),
+    },
+    "coincidencias_extra": {
+        "titulo": "Coincidencias extra",
+        "texto": (
+            "Soluciones locales adicionales para una referencia que ya tenía "
+            "al menos otra coincidencia."
+        ),
+    },
+    "referencias_con_cruce": {
+        "titulo": "Referencias con cruce",
+        "texto": (
+            "Eventos de Eventquery que tienen al menos una solución local "
+            "asociada."
+        ),
+    },
+    "referencias_sin_cruce": {
+        "titulo": "Referencias sin cruce",
+        "texto": (
+            "Eventos de Eventquery que no tienen ninguna solución local "
+            "asociada en el trabajo."
+        ),
+    },
+    "fuente_derivada": {
+        "titulo": "Fuente derivada",
+        "texto": (
+            "Fuente que se llena desde otras fuentes locales, como Central. No "
+            "se usa como referencia ni como evidencia independiente de "
+            "publicación."
+        ),
+    },
+    "percibido": {
+        "titulo": "Percibido",
+        "texto": (
+            "Indica si el evento fue percibido por la población. Eventquery es "
+            "la fuente que trae este dato; en una fuente local puede ser un "
+            "valor heredado del cruce, no declarado por esa fuente."
+        ),
+    },
+    "solucion_sospechosa": {
+        "titulo": "Solución sospechosa",
+        "texto": (
+            "La localización no calza con el contexto sismotectónico esperado. "
+            "Es una clasificación de la solución, no de las fases."
+        ),
+    },
+    "solucion_normal": {
+        "titulo": "Solución normal",
+        "texto": (
+            "La localización es consistente con el contexto y no activa una "
+            "señal de sospecha."
+        ),
+    },
+    "solucion_no_evaluable": {
+        "titulo": "Solución no evaluable",
+        "texto": "No hay datos suficientes para clasificar la localización.",
+    },
+    "patron": {
+        "titulo": "Patrón",
+        "texto": (
+            "Resumen de cómo se comportan las fases anómalas: puntual, "
+            "sistemático, varias señales, fuera de orden o pick antes del "
+            "origen."
+        ),
+    },
+    "patron_puntual": {
+        "titulo": "Puntual",
+        "texto": (
+            "Una o pocas estaciones con residual extremo. Suele sugerir un "
+            "pick o una asociación errónea."
+        ),
+    },
+    "patron_sistematico": {
+        "titulo": "Sistemático",
+        "texto": (
+            "Muchas estaciones con residuales del mismo signo. Puede indicar "
+            "un problema de modelo, profundidad u origen."
+        ),
+    },
+    "patron_varias_senales": {
+        "titulo": "Varias señales",
+        "texto": (
+            "Se combinan residuales altos, fases fuera de orden o picks antes "
+            "del origen. No hay un único patrón dominante."
+        ),
+    },
+    "patron_fuera_orden": {
+        "titulo": "Fase inconsistente con la distancia",
+        "texto": (
+            "Una estación más cercana tiene mayor residual que una más lejana: "
+            "el orden esperado por distancia no se cumple."
+        ),
+    },
+    "patron_pick_antes_origen": {
+        "titulo": "Pick antes del origen",
+        "texto": "La lectura de fase es anterior al instante del origen.",
+    },
+    "patron_sin_fase": {
+        "titulo": "Sin inconsistencia de fases",
+        "texto": (
+            "No se encontró una anomalía de fases. La solución puede seguir "
+            "siendo sospechosa por su localización."
+        ),
+    },
+    "senales_fase": {
+        "titulo": "Señales de fase",
+        "texto": (
+            "Detalle de las anomalías encontradas en las fases: residual alto, "
+            "fuera de orden, pick antes del origen o patrón sistemático."
+        ),
+    },
+    "evidencia_principal": {
+        "titulo": "Evidencia principal",
+        "texto": (
+            "Arribo con mayor residual absoluto entre los que generan el "
+            "indicio. No es necesariamente la única evidencia."
+        ),
+    },
+    "cobertura": {
+        "titulo": "Cobertura",
+        "texto": (
+            "Calidad geométrica de las estaciones para sostener la solución. "
+            "Depende del número de estaciones, del azimutal gap y de si hay "
+            "perfil asignado."
+        ),
+    },
+    "cobertura_fuerte": {
+        "titulo": "Cobertura fuerte",
+        "texto": (
+            "Al menos 5 estaciones disponibles y usadas, azimutal gap ≤ 180° y "
+            "perfil asignado."
+        ),
+    },
+    "cobertura_debil": {
+        "titulo": "Cobertura débil",
+        "texto": (
+            "Falla alguna condición de cobertura: pocas estaciones, azimutal "
+            "gap > 180° o ausencia de perfil. Hace menos concluyente la "
+            "evidencia."
+        ),
+    },
+    "estaciones_disponibles": {
+        "titulo": "Estaciones disponibles",
+        "texto": (
+            "Estaciones usadas más las del inventario sin arribos. Es el total "
+            "conocido para el evento."
+        ),
+    },
+    "estaciones_usadas": {
+        "titulo": "Estaciones usadas",
+        "texto": "Estaciones cuyos arribos influyeron en la solución.",
+    },
+    "azimutal_gap": {
+        "titulo": "Azimutal gap",
+        "texto": (
+            "Mayor hueco angular sin estaciones alrededor del evento. Un valor "
+            "grande indica cobertura desigual."
+        ),
+    },
+    "residual": {
+        "titulo": "Residual",
+        "texto": (
+            "Diferencia entre el tiempo de la fase observada y el esperado por "
+            "el modelo. Un residual grande indica una fase que no calza."
+        ),
+    },
+    "residual_extremo": {
+        "titulo": "Residual extremo",
+        "texto": (
+            "El residual supera el umbral de extremo o se aparta mucho de la "
+            "mediana de las fases usadas."
+        ),
+    },
+    "indicio_debil": {
+        "titulo": "Indicio débil",
+        "texto": (
+            "La anomalía existe, pero la fase tiene peso 3: influyó poco en la "
+            "solución. No basta por sí sola para priorizar la revisión."
+        ),
+    },
+    "peso": {
+        "titulo": "Peso",
+        "texto": (
+            "Escala 0–4 de influencia de una fase: 0 es máxima influencia y 4 "
+            "es sin influencia. Solo las fases con peso 0–3 entran al análisis."
+        ),
+    },
+    "residuo_slab": {
+        "titulo": "Residuo al slab",
+        "texto": (
+            "Diferencia vertical entre la profundidad del evento y la "
+            "profundidad del slab de subducción. No es un residual de tiempos "
+            "de fase."
+        ),
+    },
+    "distancia_slab": {
+        "titulo": "Distancia al slab",
+        "texto": (
+            "Distancia entre el evento y la superficie del slab. Complementa al "
+            "residuo vertical."
+        ),
+    },
+    "prioridad_alta": {
+        "titulo": "Prioridad alta",
+        "texto": (
+            "Con cruce Eventquery, solución sospechosa y fase fuerte."
+        ),
+    },
+    "prioridad_media": {
+        "titulo": "Prioridad media",
+        "texto": (
+            "Con cruce Eventquery y solución sospechosa, con fase débil o sin "
+            "fase."
+        ),
+    },
+    "prioridad_baja": {
+        "titulo": "Prioridad baja",
+        "texto": (
+            "Con cruce y solución normal con fase fuerte; o sin cruce, "
+            "sospechosa y con fase fuerte."
+        ),
+    },
+    "prioridad_informativa": {
+        "titulo": "Prioridad informativa",
+        "texto": (
+            "Combinaciones restantes. No entra a la revisión prioritaria."
+        ),
+    },
+    "prioridad_sin_evaluar": {
+        "titulo": "Prioridad sin evaluar",
+        "texto": "No se pudo determinar el cruce o la solución.",
+    },
+    "no_publicados": {
+        "titulo": "No publicados",
+        "texto": (
+            "Eventos locales que no encontraron un cruce con Eventquery. Es una "
+            "estimación, no una declaración de la fuente local."
+        ),
+    },
+    "no_actualizados": {
+        "titulo": "No actualizados",
+        "texto": (
+            "Eventos que sí aparecen en Eventquery o en otra fuente, pero cuyos "
+            "parámetros difieren de la versión de referencia."
+        ),
+    },
+    "repetidos": {
+        "titulo": "Repetidos",
+        "texto": (
+            "Dos o más soluciones que probablemente representan el mismo "
+            "evento dentro de un catálogo o entre fuentes."
+        ),
+    },
+    "coincidencias_otras_fuentes": {
+        "titulo": "Coincidencias en otras fuentes",
+        "texto": (
+            "Para un evento no publicado, indica en qué otras fuentes locales "
+            "existe y si esa solución tiene cruce con Eventquery."
+        ),
+    },
+    "publicado_otra_fuente": {
+        "titulo": "Publicado en otra fuente",
+        "texto": (
+            "Columna antigua del cruce por pares. Indica una fuente donde el "
+            "evento parece publicado; el detalle actual muestra todas las "
+            "fuentes."
+        ),
+    },
+    "revision_notificada": {
+        "titulo": "Notificada",
+        "texto": "La solicitud fue creada y está pendiente de aceptación.",
+    },
+    "revision_en_proceso": {
+        "titulo": "En proceso",
+        "texto": "El analista asignado aceptó la solicitud y está revisando.",
+    },
+    "revision_cerrada": {
+        "titulo": "Cerrada",
+        "texto": "El analista terminó y registró los antecedentes del cierre.",
+    },
+    "sin_usuario": {
+        "titulo": "Sin usuario",
+        "texto": (
+            "El analista de la fuente no coincide con un usuario activo de la "
+            "aplicación. El evento se puede ver, pero no asignar."
+        ),
+    },
+    "rol_multiple": {
+        "titulo": "Roles múltiples",
+        "texto": (
+            "Un usuario puede tener más de un rol. Los permisos son la unión de "
+            "todos sus roles."
+        ),
+    },
+    "codigo_analista": {
+        "titulo": "Código de analista",
+        "texto": (
+            "Nombre corto con el que la fuente identifica al analista. Se usa "
+            "para asociar eventos con un usuario; no tiene que coincidir con el "
+            "nombre de usuario."
+        ),
+    },
+    "alias_analista": {
+        "titulo": "Alias de analista",
+        "texto": (
+            "Nombres alternativos del mismo analista, separados por coma. "
+            "Ayudan a reconocer variantes de escritura en la fuente."
+        ),
+    },
+    "estacion_observada": {
+        "titulo": "Estación observada",
+        "texto": "La estación tiene un pick observado en la solución.",
+    },
+    "estacion_sin_consultar": {
+        "titulo": "Sin consultar",
+        "texto": "No se consultaron las formas de onda de la estación.",
+    },
+    "estacion_sin_datos": {
+        "titulo": "Sin datos",
+        "texto": "Se consultaron las formas de onda y no hay datos disponibles.",
+    },
+    "estacion_disponible_no_usada": {
+        "titulo": "Disponible no usada",
+        "texto": (
+            "Hay formas de onda disponibles, pero la estación no tiene un pick "
+            "usado en la solución."
+        ),
+    },
+}
+
+
+def definicion(clave: str) -> dict | None:
+    return TERMINOS.get(clave)
+
+
+def terminos(claves) -> list[dict]:
+    return [
+        {"clave": clave, **TERMINOS[clave]}
+        for clave in claves
+        if clave in TERMINOS
+    ]
+
+
+def grupos() -> list[dict]:
+    return [
+        {
+            "clave": clave,
+            "titulo": titulo,
+            "terminos": [
+                {"clave": termino, **datos}
+                for termino, datos in TERMINOS.items()
+                if datos.get("grupo", _grupo_de(termino)) == clave
+            ],
+        }
+        for clave, titulo in GRUPOS
+    ]
+
+
+def _grupo_de(clave: str) -> str:
+    if clave in {
+        "cruce_eventquery",
+        "con_cruce",
+        "sin_cruce",
+        "sin_evaluar",
+        "eventos_referencia",
+        "soluciones_con_cruce",
+        "coincidencias_extra",
+        "referencias_con_cruce",
+        "referencias_sin_cruce",
+        "fuente_derivada",
+        "percibido",
+    }:
+        return "publicacion"
+    if clave.startswith("patron") or clave in {
+        "solucion_sospechosa",
+        "solucion_normal",
+        "solucion_no_evaluable",
+        "senales_fase",
+        "evidencia_principal",
+    }:
+        return "fases"
+    if clave in {
+        "cobertura",
+        "cobertura_fuerte",
+        "cobertura_debil",
+        "estaciones_disponibles",
+        "estaciones_usadas",
+        "azimutal_gap",
+    }:
+        return "cobertura"
+    if clave in {
+        "residual",
+        "residual_extremo",
+        "indicio_debil",
+        "peso",
+        "residuo_slab",
+        "distancia_slab",
+    }:
+        return "residuales"
+    if clave.startswith("prioridad"):
+        return "prioridad"
+    if clave in {
+        "no_publicados",
+        "no_actualizados",
+        "repetidos",
+        "coincidencias_otras_fuentes",
+        "publicado_otra_fuente",
+    }:
+        return "resultados"
+    if clave.startswith("revision"):
+        return "revisiones"
+    return "usuarios"

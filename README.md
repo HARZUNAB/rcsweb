@@ -9,7 +9,8 @@ plataforma puede solicitar y descargar catálogos del servidor y obtener SeisCom
 desde PostgreSQL en solo lectura, combinando todas las bases. El radio de
 estaciones es editable por solicitud, con 400 km por defecto. Las fechas se
 ingresan como `dd/mm/aaaa` y el detalle del evento incluye mapas interactivos
-online/offline con zoom, colores por fuente y panel de parámetros.
+online/offline con zoom, colores por fuente y panel de parámetros. La interfaz
+incluye ayuda contextual desplegable y un glosario en `/ayuda`.
 
 ## Documentación
 

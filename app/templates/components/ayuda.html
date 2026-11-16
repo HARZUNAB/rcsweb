@@ -1,0 +1,19 @@
+{% macro panel(titulo, claves) -%}
+<details class="ayuda-contextual mb-3">
+  <summary>{{ titulo }}</summary>
+  <div class="ayuda-contenido">
+    <dl class="row mb-2 small">
+      {% for clave in claves %}
+      {% set dato = definicion_glosario(clave) %}
+      {% if dato %}
+      <dt class="col-sm-4 text-secondary fw-normal">{{ dato.titulo }}</dt>
+      <dd class="col-sm-8">{{ dato.texto }}</dd>
+      {% endif %}
+      {% endfor %}
+    </dl>
+    <a class="small text-decoration-none" href="{{ url_for('ayuda.index') }}">
+      Ver glosario completo
+    </a>
+  </div>
+</details>
+{%- endmacro %}

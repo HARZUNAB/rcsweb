@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block main_class %} container-detalle{% endblock %}
 {% from "_macros.html" import badge_revision %}
+{% from "components/ayuda.html" import panel as ayuda_panel with context %}
 {% block title %}Detalle · {{ tabla_config.titulo }}{% endblock %}
 
 {% block content %}
@@ -323,6 +324,13 @@
         </div>
       </div>
     </div>
+
+    {{ ayuda_panel("¿Qué significan estos términos?", [
+      "cruce_eventquery", "solucion_sospechosa", "solucion_normal",
+      "patron", "cobertura", "cobertura_debil", "indicio_debil",
+      "residual_extremo", "peso", "residuo_slab", "distancia_slab",
+      "evidencia_principal", "patron_sin_fase"
+    ]) }}
 
     <div class="small text-secondary mb-2">
       Cruce Eventquery:
