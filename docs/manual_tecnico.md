@@ -634,7 +634,8 @@ Ejemplo:
       "description": "Base central CSN, solo lectura",
       "requires_file": false,
       "extraction_name": "central_{inicio}_{fin}.csv",
-      "dsn_env": "RCS_CENTRAL_DSN"
+      "dsn_env": "RCS_CENTRAL_DSN",
+      "derived": true
     }
   ]
 }
@@ -655,6 +656,7 @@ Campos principales:
 | `requires_file` | `false` para fuentes que se consultan directamente y no reciben archivo |
 | `extraction_name` | Nombre sugerido de la extracción, con `{inicio}` y `{fin}` |
 | `dsn_env` | Variable de entorno con la cadena de conexión de solo lectura |
+| `derived` | `true` para fuentes derivadas de otras fuentes locales; no se usan como referencia de publicación ni suman al conteo de publicados |
 
 La app debe usar `role=local` para los filtros de Resultados y excluir
 `role=reference`. No debe comparar el texto `eventquery`, `seisan` o
@@ -1216,7 +1218,23 @@ base de la fuente.
 El estado **publicado** se usa como contexto, tomado de
 `datos/atribucion_<fuente>.csv`; no es un resultado del análisis.
 `revision_prioritaria` es verdadero cuando el evento está publicado y tiene
-solución sospechosa (prioridad Alta o Media). La vista **Revisión de eventos**
+solución sospechosa (prioridad Alta o Media).
+
+La referencia de publicación es **Eventquery**. Cada fuente local con arribos se
+cruza contra ella y deja una atribución por fuente. El resumen separa
+`publicados_referencia` (eventos únicos de Eventquery) de `publicados_locales`
+(soluciones locales que cruzaron, sumadas por fuente). Una referencia puede
+tener varias soluciones locales; por eso `publicados_locales` puede superar a
+`publicados_referencia`. Las fuentes con `derived=true`, como Central, no se
+usan como referencia ni suman a ninguno de los dos conteos de publicación.
+`referencias_con_cruce` y `referencias_sin_cruce` indican cuántas referencias
+tienen o no al menos una solución local asociada.
+
+La comparación temporal usa la diferencia absoluta del instante completo, no la
+hora del día. Así dos eventos de fechas distintas con la misma hora no se
+confunden.
+
+La vista **Revisión de eventos**
 permite ver revisión prioritaria, publicados o todos; los eventos con fase y
 solución normal se muestran en publicados y todos. Los analistas ven solo sus
 propios eventos; administradores y supervisores ven todo. La revisión se

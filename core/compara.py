@@ -178,19 +178,13 @@ def comparar(listacsv_1, listacsv_2, max_seg, max_lat, max_lon, sufijo,
         cruce_espacial=False
 
         for sismo1 in listacsv_1:
-            # con esto tengo dudas de como programe al principio, podria hacer falta sumarle un minuto a las horas 1 y 2
             hora1=sismo1['dt']
             hora2=sismo2['dt']
 
-            # determinando el delta en dias y segundos
-            h2_menos_h1=hora2-hora1
-            h1_menos_h2=hora1-hora2
-            delta_dia=float(h2_menos_h1.days)
-            delta_dia_aux=float(h1_menos_h2.days)
-            delta_1=hora1-hora2
-            delta_2=hora2-hora1
-            delta_seg=float(delta_1.seconds)
-            delta_seg_aux=float(delta_2.seconds)
+            # Diferencia temporal absoluta real: no se pueden usar .seconds
+            # porque descartan los días y harían cruzar eventos de días
+            # distintos con la misma hora.
+            delta_total_seg = abs((hora2 - hora1).total_seconds())
 
             # determinando el delta en latitud y longitud
             lat2=float(sismo2['lat'])
@@ -207,11 +201,10 @@ def comparar(listacsv_1, listacsv_2, max_seg, max_lat, max_lon, sufijo,
             if delta_lon<0:
                 delta_lon=delta_lon*(-1)
 
-            # el delta dia evita que sismos de distinto dia y con horas similares (horas dentro de la ventana de segundos)
-            # sean considerados como no actualizados al ser comparados entre el evento que esta en los datos del evenquery
-            # con los eventos extraidos con seisan
-            # solo entraran a este if eventos comparados que sean del mismo dia en una ventana de segundos como maximo
-            if (delta_dia == 0 or delta_dia_aux== 0) and (delta_seg <= max_seg or delta_seg_aux <= max_seg):
+            # Solo entran eventos con la misma fecha/hora dentro de la ventana
+            # de segundos. La diferencia se calcula sobre el instante completo,
+            # no sobre la hora del día.
+            if delta_total_seg <= max_seg:
                 pub=1
                 # el delta maximo en coordenadas es de 1 grado en latitud y longitud
                 if delta_lat <= max_lat and delta_lon <= max_lon:
@@ -241,7 +234,7 @@ def comparar(listacsv_1, listacsv_2, max_seg, max_lat, max_lon, sufijo,
                         "mag_local": sismo2['mag'],
                         "tipo_mag_local": sismo2['tipo_mag'],
                         "analista": sismo2['analista'],
-                        "dt_seg": round(min(delta_seg, delta_seg_aux), 3),
+                        "dt_seg": round(delta_total_seg, 3),
                         "dlat": round(delta_lat, 4),
                         "dlon": round(delta_lon, 4),
                     })

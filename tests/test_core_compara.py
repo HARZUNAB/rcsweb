@@ -38,6 +38,29 @@ def test_indice_y_publicado(core):
     assert compara._publicado("") is None
 
 
+def test_no_cruza_eventos_de_dias_distintos_con_la_misma_hora(core, tmp_path):
+    compara = importlib.import_module("compara")
+
+    (tmp_path / "eventquery.csv").write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Referencia,Percep.\n"
+        "0,2026-10-01 00:00:00,-30.0,-71.0,10.0,2.5,ML,Ref,N\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "local.csv").write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Analista,Publicado\n"
+        "0,2026-10-02 00:00:00,-30.0,-71.0,10.0,2.5,ML,eatl,No\n",
+        encoding="utf-8",
+    )
+
+    compara.main(["compara.py", "eventquery.csv", "local.csv", "central_"])
+
+    assert not (tmp_path / "datos/atribucion_central.csv").exists()
+    no_pub = (
+        tmp_path / "datos/no_pub_desde_2_5_central_estricto.csv"
+    ).read_text(encoding="utf-8")
+    assert "2026-10-02 00:00:00" in no_pub
+
+
 def test_publicados_sin_cruce_y_no_publicados(core, tmp_path):
     compara = importlib.import_module("compara")
 

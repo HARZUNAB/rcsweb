@@ -460,6 +460,9 @@ def test_genera_reportes_y_resumen(tmp_path):
     assert resumen["total"]["con_anomalia_debil"] == 0
     assert resumen["total"]["revision_prioritaria"] == 0
     assert resumen["fuentes"]["seiscomp"]["publicados"] == 1
+    assert resumen["fuentes"]["seiscomp"]["publicados_locales"] == 1
+    assert resumen["total"]["publicados_locales"] == 1
+    assert resumen["total"]["publicados_referencia"] == 0
 
     filas = indicios.leer_indicios(workspace, "seiscomp")
     assert len(filas) == 1
@@ -541,10 +544,59 @@ def test_resumen_visible_filtra_por_analista(app, tmp_path):
     assert visible_ana["con_anomalia"] == 1
     assert visible_ana["con_anomalia_fuerte"] == 1
     assert visible_ana["publicados"] == 1
+    assert visible_ana["publicados_locales"] == 1
 
     visible_admin = indicios.resumen_visible(workspace, ["seiscomp"], admin)
     assert visible_admin["con_anomalia"] == 2
     assert visible_admin["publicados"] == 2
+    assert visible_admin["publicados_locales"] == 2
+
+
+def test_central_derivada_no_cuenta_publicados(tmp_path):
+    workspace = tmp_path / "ws"
+    central = _evento(
+        source_id="central",
+        event_id="central:000001",
+        source_event_id="central-1",
+        analyst="central",
+    )
+    central_arribo = dict(
+        _arribo("A", 0.1, 0.0, "2026-10-28 15:23:41", 10.0),
+        source_id="central",
+        event_id="central:000001",
+    )
+    referencia = _evento(
+        source_id="eventquery",
+        event_id="eventquery:000001",
+        source_event_id="ref-1",
+        analyst="eventquery_catalog",
+    )
+    _escribir(workspace, "central", [central], [central_arribo])
+    _escribir(workspace, "eventquery", [referencia], [])
+
+    atribucion = workspace / "datos" / "atribucion_central.csv"
+    atribucion.parent.mkdir(parents=True)
+    with atribucion.open("w", encoding="utf-8", newline="") as archivo:
+        escritor = csv.DictWriter(
+            archivo, fieldnames=["fecha_local", "lat_local", "lon_local"]
+        )
+        escritor.writeheader()
+        escritor.writerow(
+            {
+                "fecha_local": central["event_time"],
+                "lat_local": central["latitude"],
+                "lon_local": central["longitude"],
+            }
+        )
+
+    resumen = indicios.generar_indicios(workspace, ["central"])
+
+    assert resumen["fuentes"]["central"]["derived"] is True
+    assert resumen["fuentes"]["central"]["publicados"] == 0
+    assert resumen["total"]["publicados_locales"] == 0
+    assert resumen["total"]["publicados_referencia"] == 1
+    filas = indicios.leer_indicios(workspace, "central")
+    assert filas[0]["publicado"] == "Desconocido"
 
 
 def test_asegurar_indicios_regenera_si_cambia_el_esquema(tmp_path):

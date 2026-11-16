@@ -249,6 +249,30 @@ def _distancia_evento(evento: dict, arribo: dict) -> float | None:
     return 2 * 6371.0088 * math.asin(min(1.0, math.sqrt(h)))
 
 
+def _fuente_derivada(source_id: str) -> bool:
+    """True si la fuente se llena desde otras fuentes locales (p. ej. Central)."""
+    fuente = fuentes_manifest.por_id(source_id)
+    return bool(fuente and fuente.derived)
+
+
+def _referencias_cruzadas(workspace: Path) -> set[str]:
+    """Filas de Eventquery con al menos un cruce local no derivado."""
+    referencias: set[str] = set()
+    for ruta in sorted((Path(workspace) / "datos").glob("atribucion_*.csv")):
+        source_id = ruta.stem.removeprefix("atribucion_")
+        if _fuente_derivada(source_id):
+            continue
+        try:
+            with ruta.open(encoding="utf-8-sig", newline="") as archivo:
+                for fila in csv.DictReader(archivo):
+                    referencia = _texto(fila.get("n_fila_eventquery"))
+                    if referencia:
+                        referencias.add(referencia)
+        except OSError:
+            continue
+    return referencias
+
+
 def _publicados(workspace: Path, source_id: str) -> dict[str, list[tuple[float | None, float | None]]] | None:
     """Eventos locales que cruzaron con la referencia publicada.
 
@@ -960,16 +984,18 @@ def generar_indicios(
         "con_anomalia_debil": 0,
         "revision_prioritaria": 0,
         "publicados": 0,
+        "publicados_locales": 0,
         "residual_temporal": False,
     }
 
     for source_id in fuentes:
+        derivada = _fuente_derivada(source_id)
         eventos = canonical.leer_canonico(workspace, source_id)
         arribos = _agrupar_por_evento(canonical.leer_arribos(workspace, source_id))
         sin_arribos = _agrupar_por_evento(
             canonical.leer_estaciones_sin_arribos(workspace, source_id)
         )
-        indice_publicados = _publicados(workspace, source_id)
+        indice_publicados = None if derivada else _publicados(workspace, source_id)
         evaluados: list[dict] = []
         for evento in eventos:
             event_id = _texto(evento.get("event_id"))
@@ -978,7 +1004,11 @@ def generar_indicios(
                 arribos.get(event_id, []),
                 sin_arribos.get(event_id, []),
                 source_id=source_id,
-                publicado=_publicado_evento(evento, indice_publicados),
+                publicado=(
+                    None
+                    if derivada
+                    else _publicado_evento(evento, indice_publicados)
+                ),
             )
             evaluados.append(resultado)
 
@@ -1011,6 +1041,10 @@ def generar_indicios(
                 1 for evento in evaluados if evento["revision_prioritaria"]
             ),
             "publicados": sum(1 for evento in evaluados if evento["publicado"] is True),
+            "publicados_locales": sum(
+                1 for evento in evaluados if evento["publicado"] is True
+            ),
+            "derived": derivada,
             "residual_temporal": any(
                 evento["residual_temporal"] for evento in evaluados
             ),
@@ -1033,6 +1067,16 @@ def generar_indicios(
             else:
                 total[clave] += info[clave]
 
+    referencia = fuentes_manifest.referencia()
+    total["publicados_referencia"] = len(
+        canonical.leer_canonico(workspace, referencia.id)
+    )
+    referencias_cruzadas = _referencias_cruzadas(workspace)
+    total["referencias_con_cruce"] = len(referencias_cruzadas)
+    total["referencias_sin_cruce"] = max(
+        0, total["publicados_referencia"] - len(referencias_cruzadas)
+    )
+    total["referencia"] = referencia.id
     resumen["total"] = total
     ruta_resumen(workspace).parent.mkdir(parents=True, exist_ok=True)
     ruta_resumen(workspace).write_text(
@@ -1074,6 +1118,10 @@ def resumen_visible(
         "con_anomalia_fuerte": 0,
         "con_anomalia_debil": 0,
         "publicados": 0,
+        "publicados_locales": 0,
+        "publicados_referencia": total.get("publicados_referencia", 0),
+        "referencias_con_cruce": total.get("referencias_con_cruce", 0),
+        "referencias_sin_cruce": total.get("referencias_sin_cruce", 0),
         "residual_temporal": bool(total.get("residual_temporal")),
     }
     for fuente in fuentes:
@@ -1085,12 +1133,15 @@ def resumen_visible(
                 visible["con_anomalia_fuerte"] += 1
             elif fila.get("fuerza") == "débil":
                 visible["con_anomalia_debil"] += 1
+        if _fuente_derivada(fuente):
+            continue
         indice = indice_publicados(workspace, fuente)
         for evento in canonical.leer_canonico(workspace, fuente):
             if not evento_visible({"analista": evento.get("analyst")}, usuario):
                 continue
             if _publicado_evento(evento, indice) is True:
                 visible["publicados"] += 1
+    visible["publicados_locales"] = visible["publicados"]
     return visible
 
 

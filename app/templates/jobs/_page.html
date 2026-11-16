@@ -198,8 +198,16 @@
             </div>
           </div>
           <div>
-            <span class="fs-4 fw-semibold">{{ indicios.total.publicados }}</span>
-            <span class="text-secondary small">publicados evaluados</span>
+            <span class="fs-4 fw-semibold">{{ indicios.total.get('publicados_referencia', 0) }}</span>
+            <span class="text-secondary small">publicados de referencia</span>
+            <div class="small text-secondary">
+              {{ indicios.total.get('referencias_con_cruce', 0) }} con cruce local ·
+              {{ indicios.total.get('referencias_sin_cruce', 0) }} sin cruce
+            </div>
+          </div>
+          <div>
+            <span class="fs-4 fw-semibold">{{ indicios.total.get('publicados_locales', indicios.total.get('publicados', 0)) }}</span>
+            <span class="text-secondary small">soluciones locales publicadas</span>
           </div>
         </div>
         {% if indicios.total.residual_temporal %}

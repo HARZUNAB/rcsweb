@@ -104,7 +104,8 @@
           }
         ],
         "default": "seisan"
-      }
+      },
+      "derived": true
     }
   ]
 }

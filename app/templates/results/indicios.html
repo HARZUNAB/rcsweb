@@ -14,6 +14,10 @@
       en las fases. La revisión es posterior al procesamiento. La prioridad
       combina publicación, solución y fuerza de las fases.
     </p>
+    <div class="small text-secondary mt-1">
+      Publicación estimada por cruce con Eventquery
+      ({{ resumen.total.get('publicados_referencia', 0) }} eventos de referencia).
+    </div>
   </div>
   <a class="btn btn-outline-primary" href="{{ url_for('jobs.detalle', job_id=job.id) }}#resultados">
     Volver al trabajo
@@ -53,9 +57,9 @@
   <div class="col-6 col-lg-3">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
-        <div class="text-secondary small text-uppercase">Publicados</div>
+        <div class="text-secondary small text-uppercase">Publicados en esta vista</div>
         <div class="fs-3 fw-semibold">{{ info_fuente.publicados or 0 }}</div>
-        <div class="small text-secondary">con contexto de publicación</div>
+        <div class="small text-secondary">estimados por cruce con Eventquery</div>
       </div>
     </div>
   </div>

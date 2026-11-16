@@ -628,6 +628,19 @@ la página del trabajo abre el listado. Hay tres alcances:
   para revisar la calidad del catálogo. Los sospechosos no publicados sin fase
   quedan en los paneles.
 
+La publicación no viene como un campo de la fuente local: se **estima** cruzando
+cada fuente local con **Eventquery**, que es la referencia publicada. Central no
+se usa como referencia porque es una base derivada y puede estar desactualizada.
+
+El resumen distingue dos conteos:
+
+- **Publicados de referencia:** eventos únicos de Eventquery.
+- **Soluciones locales publicadas:** soluciones de SeisComp, Seisán u otras
+  fuentes locales que cruzaron con Eventquery. Puede ser mayor que el conteo de
+  referencia si dos soluciones locales representan el mismo evento publicado.
+- **Cobertura del cruce:** cuántas referencias tienen al menos un cruce local y
+  cuántas no lo tienen.
+
 Cada evento combina dos lecturas:
 
 - **Solución:** indica si la localización es sospechosa, normal o no evaluable.

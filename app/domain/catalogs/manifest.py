@@ -48,6 +48,9 @@ class Fuente:
     requires_file: bool = True
     extraction_name: str = ""
     dsn_env: str = ""
+    # Fuente derivada de otras fuentes locales (por ejemplo, Central). No se
+    # usa como referencia de publicación ni suma al conteo de publicados.
+    derived: bool = False
     # Configuración de proveedores de estaciones. Es un dato del manifiesto:
     # la app no conoce nombres de fuentes ni formatos de lista.
     stations: dict = field(default_factory=dict)
@@ -121,6 +124,7 @@ def _leer(ruta: str, _mtime: int) -> tuple[Fuente, ...]:
             requires_file=_booleano(item, "requires_file", True),
             extraction_name=str(item.get("extraction_name") or "").strip(),
             dsn_env=str(item.get("dsn_env") or "").strip(),
+            derived=_booleano(item, "derived", False),
             stations=_estaciones(item.get("stations")),
         )
         if not fuente.id or fuente.id in vistos:

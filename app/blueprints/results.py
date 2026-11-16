@@ -396,6 +396,9 @@ def _filas_sospechosas_sin_fase(
     """
     if not fuente:
         return []
+    definicion = fuentes_manifest.por_id(fuente)
+    if definicion is not None and definicion.derived:
+        return []
     try:
         datos = panels.cargar(workspace, f"catalogo_{fuente}")
     except Exception:
