@@ -45,6 +45,9 @@ from ..services import (
     review,
     review_reports,
 )
+from ..services import (
+    no_publicados as no_publicados_service,
+)
 from ..services.analysts import (
     campos_analista,
     codigos_usuario,
@@ -2033,6 +2036,17 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
             or revision_solicitud.get("asignada_id") == current_user.id
         )
     )
+    coincidencias_otras_fuentes = None
+    if tabla == "no_publicados" and source_id:
+        otras_fuentes = [
+            codigo for codigo in _fuentes_job(job) if codigo != source_id
+        ]
+        coincidencias_otras_fuentes = no_publicados_service.coincidencias(
+            ruta_workspace(job.id),
+            source_id,
+            contexto["fila"],
+            otras_fuentes,
+        )
 
     return render_template(
         "results/event.html",
@@ -2061,6 +2075,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         indicios_evento=indicios_evento,
         revision_solicitud=revision_solicitud,
         revision_visible=revision_visible,
+        coincidencias_otras_fuentes=coincidencias_otras_fuentes,
         puede_crear_revision=tiene_permiso(current_user, "revisiones.crear"),
         **contexto,
     )

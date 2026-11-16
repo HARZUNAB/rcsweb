@@ -907,6 +907,19 @@ Comparación:
   `informes/publicados_sin_cruce_<fuente>_<filtro>.txt`. No se mezclan con
   «No publicados» porque no lo son.
 
+El detalle de **No publicados** usa `app/services/no_publicados.py`. Para el
+evento abierto busca coincidencias en **todas las demás fuentes locales** del
+trabajo, no solo en una pareja fija. Por cada fuente devuelve:
+
+- si el evento existe en esa fuente;
+- si esa solución tiene cruce Eventquery;
+- diferencia de tiempo, distancia y analista;
+- número de candidatos y si el caso es ambiguo.
+
+Ventanas: confirmación con Δt ≤ 6 s y coordenadas ≤ 0.5°; revisión con
+Δt ≤ 120 s y coordenadas ≤ 2°. Las fuentes `derived=true`, como Central, se
+muestran como derivadas y no se usan para concluir publicación.
+
 #### Catálogo canónico JSONL
 
 Ruta:
@@ -2063,7 +2076,7 @@ valida que el grupo exista en el conjunto filtrado y lo preselecciona al cargar;
 si ya no existe, vuelve al primer perfil o territorio.
 
 Los PNG de evento llevan un encabezado con una fila por evento: fecha, magnitud,
-profundidad, coordenadas, analista, frontera y estado en la otra fuente. En los
+profundidad, coordenadas, analista, frontera y estado en otras fuentes. En los
 no actualizados se agregan las filas local y publicada y la diferencia; en los
 repetidos, una fila por solución. El resumen se arma en `app/services/plots.py`
 y la caché usa el sufijo `_resumen2` para no servir imágenes antiguas sin datos.

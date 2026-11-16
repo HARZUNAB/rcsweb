@@ -191,8 +191,10 @@ de la fuente local.
   no hay ninguno, muestra «Sin repetidos en el período».
 - **Ficha de ubicación**: indica Chile continental, insular, costa, mar
   chileno, otro país o alta mar.
-- **Publicado en otra fuente**: cuando corresponde, indica la otra fuente donde
-  se publicó el evento. **Tipo mag.** es el tipo de magnitud, no la fuente.
+- **Publicado en otra fuente**: cuando el cruce antiguo entre pares dejó esa
+  columna, indica una fuente donde se publicó el evento. El detalle actual
+  muestra todas las demás fuentes locales, no solo una. **Tipo mag.** es el tipo
+  de magnitud, no la fuente.
 - **Descargar todo** incluye todas las filas del archivo.
 - **Descargar filtrado** incluye todas las filas que cumplen el filtro, no solo
   la página visible.
@@ -208,7 +210,10 @@ Al pulsar **Ver** en una fila se abre la ficha del evento.
 ![Mapa y perfil del evento](img/detalle.png)
 
 - La columna izquierda muestra los parámetros de la solución local.
-- La columna derecha muestra el estado en la otra fuente, cuando existe.
+- La columna derecha muestra **Coincidencias en otras fuentes**: para cada
+  fuente local indica si el evento existe, si esa solución tiene cruce con
+  Eventquery, la diferencia de tiempo, la distancia y el analista. Central se
+  marca como fuente derivada y no se usa para concluir publicación.
 - El mapa interactivo permite acercar, alejar y seleccionar eventos.
 - La planta abre con una vista regional para que el evento se ubique en el
   contexto del país.
@@ -242,10 +247,12 @@ Más abajo está el perfil de subducción.
 - Si **Publicación probable** indica **No evaluable**, la ficha muestra el
   motivo, por ejemplo: **No evaluable: falta la atribución de otra fuente de
   datos**. Esto no invalida el evento: solo indica que no se pudo inferir la
-  prioridad de revisión comparando las fuentes.
+  prioridad de revisión comparando las fuentes. En **Coincidencias en otras
+  fuentes**, “Sin evaluar” significa que el evento existe en esa fuente pero no
+  se pudo determinar su cruce con Eventquery.
 - **Abrir PNG** y **Descargar PNG** generan una imagen del mapa.
 - El PNG incluye un encabezado con una fila por evento: fecha y hora, magnitud,
-  profundidad, coordenadas, analista y estado en la otra fuente, separados por
+  profundidad, coordenadas, analista y estado en otras fuentes, separados por
   «|». En los no actualizados se muestran el local y el publicado, y debajo la
   diferencia.
 - La vista en planta se adapta a la cantidad de soluciones:

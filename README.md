@@ -697,10 +697,10 @@ runner de solo lectura. Total actual: **358 tests**.
 - El listado de eventos de los paneles también permite seleccionar y descargar
   todo, lo filtrado o lo seleccionado.
 - El detalle de cada fila conserva el filtro y el orden al volver.
-- **Publicado en otra fuente**: en los listados que tienen esa columna se
-  muestra junto a «Analista», antes de la frontera. Indica la otra fuente donde
-  se publicó el evento (por ejemplo, SeisComp); «Tipo mag.» es el tipo de
-  magnitud y no la fuente.
+- **Publicado en otra fuente**: en los listados que conservan esa columna
+  antigua se muestra junto a «Analista», antes de la frontera. El detalle actual
+  muestra **Coincidencias en otras fuentes** con todas las fuentes locales;
+  «Tipo mag.» es el tipo de magnitud y no la fuente.
 - **Aviso de carga**: las navegaciones internas muestran un aviso con spinner
   y «Cargando…» cuando tardan más de ~120 ms. Se excluyen descargas, enlaces
   externos, anclas y peticiones HTMX.
