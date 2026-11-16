@@ -89,7 +89,7 @@ def test_detecta_caso_puntual_extremo_y_lo_marca_prioritario():
         _evento(),
         _caso_mg04(),
         source_id="seiscomp",
-        publicado=True,
+        con_cruce=True,
         sospechoso=True,
     )
 
@@ -124,13 +124,13 @@ def test_no_alarma_si_el_evento_no_esta_publicado():
         _evento(),
         _caso_mg04(),
         source_id="seiscomp",
-        publicado=False,
+        con_cruce=False,
         sospechoso=True,
     )
 
     assert resultado["anomalia"] is True
     assert resultado["revision_prioritaria"] is False
-    assert resultado["publicado"] is False
+    assert resultado["cruce_eventquery"] is False
     assert resultado["prioridad"] == "Baja"
     assert resultado["prioridad_orden"] == 3
 
@@ -160,7 +160,7 @@ def test_patron_sistematico_con_contexto_fuerte():
         arribos,
         sin_arribos,
         source_id="seiscomp",
-        publicado=True,
+        con_cruce=True,
         perfil_disponible=True,
         sospechoso=True,
     )
@@ -183,7 +183,7 @@ def test_detecta_pick_antes_del_origen():
         _arribo("A", 0.5, 0.0, "2019-12-31 23:59:55", -10.0),
     ]
     resultado = indicios.evaluar_evento(
-        evento, arribos, source_id="seiscomp", publicado=True
+        evento, arribos, source_id="seiscomp", con_cruce=True
     )
 
     assert resultado["anomalia"] is True
@@ -203,7 +203,7 @@ def test_peso_bajo_no_genera_indicio():
         _arribo("A", 0.1, 0.0, "2020-01-01 00:00:05", 100.0, weight=0.1),
     ]
     resultado = indicios.evaluar_evento(
-        evento, arribos, source_id="seiscomp", publicado=True
+        evento, arribos, source_id="seiscomp", con_cruce=True
     )
 
     assert resultado["anomalia"] is False
@@ -233,7 +233,7 @@ def test_peso_4_no_genera_indicio():
         _arribo("PB12", 1.5, 0.0, "2020-01-01 00:00:16", 0.32, weight=1.37),
     ]
     resultado = indicios.evaluar_evento(
-        evento, arribos, source_id="seiscomp", publicado=True
+        evento, arribos, source_id="seiscomp", con_cruce=True
     )
 
     assert resultado["anomalia"] is False
@@ -265,7 +265,7 @@ def test_detecta_fuera_de_orden_debil_con_peso_3():
         _arribo("PB12", 1.5, 0.0, "2020-01-01 00:00:16", 0.32, weight=1.37),
     ]
     resultado = indicios.evaluar_evento(
-        evento, arribos, source_id="seiscomp", publicado=True
+        evento, arribos, source_id="seiscomp", con_cruce=True
     )
 
     assert resultado["anomalia"] is True
@@ -296,7 +296,7 @@ def test_residual_alto_con_peso_3_genera_indicio_debil():
         _arribo("E2", 1.5, 0.0, "2020-01-01 00:00:30", 1.0, weight=1.0),
     ]
     resultado = indicios.evaluar_evento(
-        evento, arribos, source_id="seiscomp", publicado=True
+        evento, arribos, source_id="seiscomp", con_cruce=True
     )
 
     assert resultado["anomalia"] is True
@@ -405,7 +405,7 @@ def test_ambas_fases_con_peso_4_no_generan_indicio():
             s={"residuales": (10.0, 1.0, 1.0), "pesos": (1e-6, 1e-6, 1e-6)},
         ),
         source_id="seiscomp",
-        publicado=True,
+        con_cruce=True,
     )
 
     assert resultado["anomalia"] is False
@@ -459,15 +459,14 @@ def test_genera_reportes_y_resumen(tmp_path):
     assert resumen["total"]["con_anomalia_fuerte"] == 1
     assert resumen["total"]["con_anomalia_debil"] == 0
     assert resumen["total"]["revision_prioritaria"] == 0
-    assert resumen["fuentes"]["seiscomp"]["publicados"] == 1
-    assert resumen["fuentes"]["seiscomp"]["publicados_locales"] == 1
-    assert resumen["total"]["publicados_locales"] == 1
-    assert resumen["total"]["publicados_referencia"] == 0
+    assert resumen["fuentes"]["seiscomp"]["soluciones_con_cruce"] == 1
+    assert resumen["total"]["soluciones_con_cruce"] == 1
+    assert resumen["total"]["eventos_referencia"] == 0
 
     filas = indicios.leer_indicios(workspace, "seiscomp")
     assert len(filas) == 1
     assert filas[0]["id_evento_fuente"] == "csn_sc62026vdkls"
-    assert filas[0]["publicado"] == "Sí"
+    assert filas[0]["cruce_eventquery"] == "con_cruce"
     # El reporte no conoce la clasificación de solución: queda conservador.
     assert filas[0]["revision_prioritaria"] == "No"
     assert filas[0]["fuerza"] == "fuerte"
@@ -543,16 +542,14 @@ def test_resumen_visible_filtra_por_analista(app, tmp_path):
     visible_ana = indicios.resumen_visible(workspace, ["seiscomp"], ana)
     assert visible_ana["con_anomalia"] == 1
     assert visible_ana["con_anomalia_fuerte"] == 1
-    assert visible_ana["publicados"] == 1
-    assert visible_ana["publicados_locales"] == 1
+    assert visible_ana["soluciones_con_cruce"] == 1
 
     visible_admin = indicios.resumen_visible(workspace, ["seiscomp"], admin)
     assert visible_admin["con_anomalia"] == 2
-    assert visible_admin["publicados"] == 2
-    assert visible_admin["publicados_locales"] == 2
+    assert visible_admin["soluciones_con_cruce"] == 2
 
 
-def test_central_derivada_no_cuenta_publicados(tmp_path):
+def test_central_derivada_no_cuenta_cruces(tmp_path):
     workspace = tmp_path / "ws"
     central = _evento(
         source_id="central",
@@ -592,11 +589,11 @@ def test_central_derivada_no_cuenta_publicados(tmp_path):
     resumen = indicios.generar_indicios(workspace, ["central"])
 
     assert resumen["fuentes"]["central"]["derived"] is True
-    assert resumen["fuentes"]["central"]["publicados"] == 0
-    assert resumen["total"]["publicados_locales"] == 0
-    assert resumen["total"]["publicados_referencia"] == 1
+    assert resumen["fuentes"]["central"]["soluciones_con_cruce"] == 0
+    assert resumen["total"]["soluciones_con_cruce"] == 0
+    assert resumen["total"]["eventos_referencia"] == 1
     filas = indicios.leer_indicios(workspace, "central")
-    assert filas[0]["publicado"] == "Desconocido"
+    assert filas[0]["cruce_eventquery"] == "sin_evaluar"
 
 
 def test_asegurar_indicios_regenera_si_cambia_el_esquema(tmp_path):
@@ -612,9 +609,9 @@ def test_asegurar_indicios_regenera_si_cambia_el_esquema(tmp_path):
     assert resumen["generado"] != "2026-01-01"
 
 
-def test_estado_publicado_sin_atribucion_es_desconocido(tmp_path):
+def test_estado_cruce_sin_atribucion_es_desconocido(tmp_path):
     workspace = tmp_path / "ws"
     assert (
-        indicios.estado_publicado(workspace, "seiscomp", _evento())
+        indicios.estado_cruce_eventquery(workspace, "seiscomp", _evento())
         is None
     )

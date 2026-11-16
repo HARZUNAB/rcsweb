@@ -198,16 +198,19 @@
             </div>
           </div>
           <div>
-            <span class="fs-4 fw-semibold">{{ indicios.total.get('publicados_referencia', 0) }}</span>
-            <span class="text-secondary small">publicados de referencia</span>
+            <span class="fs-4 fw-semibold">{{ indicios.total.get('eventos_referencia', 0) }}</span>
+            <span class="text-secondary small">eventos de referencia</span>
             <div class="small text-secondary">
               {{ indicios.total.get('referencias_con_cruce', 0) }} con cruce local ·
               {{ indicios.total.get('referencias_sin_cruce', 0) }} sin cruce
             </div>
           </div>
           <div>
-            <span class="fs-4 fw-semibold">{{ indicios.total.get('publicados_locales', indicios.total.get('publicados', 0)) }}</span>
-            <span class="text-secondary small">soluciones locales publicadas</span>
+            <span class="fs-4 fw-semibold">{{ indicios.total.get('soluciones_con_cruce', 0) }}</span>
+            <span class="text-secondary small">soluciones con cruce Eventquery</span>
+            <div class="small text-secondary">
+              {{ indicios.total.get('coincidencias_extra', 0) }} coincidencias extra
+            </div>
           </div>
         </div>
         {% if indicios.total.residual_temporal %}

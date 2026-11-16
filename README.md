@@ -43,7 +43,9 @@ Los Markdown son la fuente de verdad. Los DOCX se regeneran con:
 - **Seisan** es una fuente local secundaria, desmarcada por defecto.
 - **Central** es una fuente local sin archivo: consulta la base CSN en modo de
   solo lectura para el período del trabajo. Lista los eventos publicados y no
-  publicados, con columnas `Publicado` y `Revisión`.
+  publicados, con columnas `Publicado` y `Revisión`. Es una fuente derivada: su
+  columna `Publicado` no se usa como referencia ni en el conteo de cruces con
+  Eventquery.
 - Cada fuente tiene un **alias** visible y un **formato** interno. La app no
   depende del nombre: un formato nuevo solo agrega un adaptador.
 - Un trabajo necesita **al menos una fuente local** además de eventquery.
@@ -303,11 +305,17 @@ Permisos y comparación:
 
 - admin y supervisor ven todos los eventos;
 - analista y consulta ven solo los eventos de su `origin.author`;
-- `No publicados` solo incluye `Publicado = No`;
+- `No publicados` solo incluye `Publicado = No` y sin cruce con Eventquery;
 - `No actualizados` incluye publicados y locales con diferencias;
 - `Repetidos` se calcula sobre el catálogo completo;
-- los publicados sin cruce en Eventquery, por tiempo o por espacio, se escriben
-  en `informes/publicados_sin_cruce_<fuente>_<filtro>.txt`.
+- los eventos publicados de Eventquery sin cruce local, por tiempo o por
+  espacio, se escriben en
+  `informes/publicados_sin_cruce_<fuente>_<filtro>.txt`.
+
+En la revisión de eventos, las soluciones locales no se consideran publicadas
+por sí mismas: se muestran como **Con cruce Eventquery**, **Sin cruce** o **Sin
+evaluar**. Central es una fuente derivada y no se usa como referencia de
+publicación.
 
 `/solicitudes/nueva` incluye **Probar conexión SeisComp**, que valida las
 credenciales y lista las bases visibles sin escribir nada. Si faltan las
@@ -713,6 +721,7 @@ runner de solo lectura. Total actual: **358 tests**.
 | GET | `/jobs/<id>/resultados/no-publicados` | Tabla de no publicados |
 | GET | `/jobs/<id>/resultados/no-actualizados` | Tabla de no actualizados |
 | GET | `/jobs/<id>/resultados/repetidos` | Informes de repetidos |
+| GET | `/jobs/<id>/indicios?alcance=cruce_eventquery` | Revisión: soluciones con cruce Eventquery |
 | GET | `/jobs/<id>/resultados/<tabla>/exportar` | CSV filtrado |
 | GET | `/jobs/<id>/resultados/<tabla>/<opcion>/<fila>` | Detalle del evento |
 | GET | `/jobs/<id>/resultados/<tabla>/<opcion>/<fila>/miniatura.png` | Miniatura del perfil |

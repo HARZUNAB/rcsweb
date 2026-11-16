@@ -10,13 +10,13 @@
     </div>
     <h1 class="h3 mb-1">Revisión de eventos</h1>
     <p class="text-secondary mb-0">
-      Eventos publicados con solución sospechosa y eventos con inconsistencias
-      en las fases. La revisión es posterior al procesamiento. La prioridad
-      combina publicación, solución y fuerza de las fases.
+      Eventos con cruce Eventquery y solución sospechosa, y eventos con
+      inconsistencias en las fases. La revisión es posterior al procesamiento.
+      La prioridad combina cruce, solución y fuerza de las fases.
     </p>
     <div class="small text-secondary mt-1">
-      Publicación estimada por cruce con Eventquery
-      ({{ resumen.total.get('publicados_referencia', 0) }} eventos de referencia).
+      Cruce estimado contra Eventquery
+      ({{ resumen.total.get('eventos_referencia', 0) }} eventos de referencia).
     </div>
   </div>
   <a class="btn btn-outline-primary" href="{{ url_for('jobs.detalle', job_id=job.id) }}#resultados">
@@ -38,7 +38,7 @@
       <div class="card-body">
         <div class="text-secondary small text-uppercase">Revisión prioritaria</div>
         <div class="fs-3 fw-semibold">{{ info_fuente.revision_prioritaria or 0 }}</div>
-        <div class="small text-secondary">publicados con solución sospechosa</div>
+        <div class="small text-secondary">con cruce Eventquery y solución sospechosa</div>
       </div>
     </div>
   </div>
@@ -57,9 +57,9 @@
   <div class="col-6 col-lg-3">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
-        <div class="text-secondary small text-uppercase">Publicados en esta vista</div>
-        <div class="fs-3 fw-semibold">{{ info_fuente.publicados or 0 }}</div>
-        <div class="small text-secondary">estimados por cruce con Eventquery</div>
+        <div class="text-secondary small text-uppercase">Con cruce en esta vista</div>
+        <div class="fs-3 fw-semibold">{{ info_fuente.con_cruce_eventquery or 0 }}</div>
+        <div class="small text-secondary">soluciones locales que cruzan con Eventquery</div>
       </div>
     </div>
   </div>
@@ -95,9 +95,9 @@
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link {% if alcance == 'publicados' %}active{% endif %}"
-         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='publicados') }}">
-        Publicados
+      <a class="nav-link {% if alcance == 'cruce_eventquery' %}active{% endif %}"
+         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='cruce_eventquery') }}">
+        Con cruce Eventquery
       </a>
     </li>
     <li class="nav-item">
@@ -194,7 +194,7 @@
             <th data-sort-key="fecha" data-sort-type="text">Fecha y hora</th>
             <th data-sort-key="evento" data-sort-type="text">Evento</th>
             <th data-sort-key="magnitud" data-sort-type="number" class="text-end">Mag.</th>
-            <th data-sort-key="publicado" data-sort-type="order">Publicado</th>
+            <th data-sort-key="cruce_eventquery" data-sort-type="order">Cruce Eventquery</th>
             <th data-sort-key="solucion" data-sort-type="order">Solución</th>
             <th data-sort-key="prioridad" data-sort-type="order"
                 data-sort-dir="desc" aria-sort="descending">
@@ -249,13 +249,13 @@
               {% endif %}
             </td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.magnitud or '' }}">{{ fila.magnitud or '' }}</td>
-            <td class="text-nowrap" data-sort-value="{% if fila.publicado == 'Sí' %}2{% elif fila.publicado == 'No' %}1{% else %}0{% endif %}">
-              {% if fila.publicado == 'Sí' %}
-              <span class="badge text-bg-primary">Sí</span>
-              {% elif fila.publicado == 'No' %}
-              <span class="badge text-bg-secondary">No</span>
+            <td class="text-nowrap" data-sort-value="{% if fila.cruce_eventquery == 'con_cruce' %}2{% elif fila.cruce_eventquery == 'sin_cruce' %}1{% else %}0{% endif %}">
+              {% if fila.cruce_eventquery == 'con_cruce' %}
+              <span class="badge text-bg-primary">Con cruce</span>
+              {% elif fila.cruce_eventquery == 'sin_cruce' %}
+              <span class="badge text-bg-secondary">Sin cruce</span>
               {% else %}
-              <span class="badge text-bg-light text-dark">Desconocido</span>
+              <span class="badge text-bg-light text-dark">Sin evaluar</span>
               {% endif %}
             </td>
             <td class="text-nowrap" data-sort-value="{% if fila.sospechoso == 'Sí' %}2{% elif fila.sospechoso == 'No' %}1{% else %}0{% endif %}">

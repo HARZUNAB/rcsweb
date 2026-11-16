@@ -163,6 +163,7 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Estaciones" in html
     assert "mdur" in html
     assert "· sin usuario" in html
+    assert "Cruce Eventquery" in html
     assert "inversion" not in html.lower()
 
     ajeno = client.get(
@@ -194,6 +195,24 @@ def test_lista_y_detalle_de_indicios(app, client, login):
         f"/jobs/{job.id}/indicios/seiscomp/seiscomp:000001"
     )
     assert antigua.status_code == 404
+
+
+def test_alcance_publicados_redirige_a_cruce_eventquery(app, client, login):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    login()
+
+    respuesta = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp", "alcance": "publicados"},
+    )
+    assert respuesta.status_code == 302
+    assert "alcance=cruce_eventquery" in respuesta.headers["Location"]
+
+    final = client.get(respuesta.headers["Location"])
+    assert final.status_code == 200
+    html = final.get_data(as_text=True)
+    assert "Con cruce Eventquery" in html
 
 
 def test_filas_sospechosas_sin_fase(monkeypatch, tmp_path):
@@ -253,11 +272,11 @@ def test_filas_sospechosas_sin_fase(monkeypatch, tmp_path):
         ],
     )
     monkeypatch.setattr(
-        results_bp.indicios, "indice_publicados", lambda *a, **k: {}
+        results_bp.indicios, "indice_cruces_eventquery", lambda *a, **k: {}
     )
     monkeypatch.setattr(
         results_bp.indicios,
-        "estado_publicado",
+        "estado_cruce_eventquery",
         lambda ws, fuente, evento, indice=None: evento["raw_index"] != 902,
     )
     monkeypatch.setattr(
@@ -305,7 +324,7 @@ def test_filas_sospechosas_sin_fase(monkeypatch, tmp_path):
     assert [fila["evento"] for fila in filas] == ["seiscomp:000900"]
     assert filas[0]["motivo"] == "sospechosa"
     assert filas[0]["patron"] == "sin_fase"
-    assert filas[0]["publicado"] == "Sí"
+    assert filas[0]["cruce_eventquery"] == "con_cruce"
     assert filas[0]["sospechoso"] == "Sí"
     assert filas[0]["analista"] == "mdur"
     assert filas[0]["n_usadas"] == 3

@@ -251,11 +251,11 @@
     </div>
 
     <div class="small text-secondary mb-2">
-      Publicado:
+      Cruce Eventquery:
       <strong>
-        {% if indicios_evento.publicado is none %}desconocido
-        {% elif indicios_evento.publicado %}Sí
-        {% else %}No{% endif %}
+        {% if indicios_evento.cruce_eventquery is none %}sin evaluar
+        {% elif indicios_evento.cruce_eventquery %}con cruce
+        {% else %}sin cruce{% endif %}
       </strong>
       · Solución:
       <strong>

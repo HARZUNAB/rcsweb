@@ -3,7 +3,7 @@
 Este módulo no clasifica la localización ni reemplaza ``sospechoso``. Trabaja
 solo con los arribos canónicos y entrega evidencia de que las fases asociadas a
 un evento no calzan: residuales altos, fases fuera de orden y picks
-anteriores al origen. El estado publicado se usa únicamente como contexto para
+anteriores al origen. El cruce con Eventquery se usa únicamente como contexto para
 distinguir una revisión prioritaria de un indicio de calidad de catálogo.
 
 Los adaptadores son los responsables de entregar los arribos con su residual
@@ -40,7 +40,7 @@ UMBRAL_CONTEXTO_ESTACIONES = 5
 UMBRAL_CONTEXTO_SIN_INVENTARIO = 8
 UMBRAL_CONTEXTO_AZGAP = 180.0
 MAX_PARES_DETALLE = 40
-ESQUEMA_INDICIOS = 5
+ESQUEMA_INDICIOS = 6
 
 ORDEN_PRIORIDAD = {
     "Alta": 5,
@@ -51,24 +51,32 @@ ORDEN_PRIORIDAD = {
 }
 
 
-def prioridad_evento(publicado, fuerza, sospechoso) -> str:
-    """Prioridad de revisión según publicación, fases y solución.
+def prioridad_evento(con_cruce, fuerza, sospechoso) -> str:
+    """Prioridad de revisión según cruce con Eventquery, fases y solución.
 
-    La revisión prioritaria exige un evento publicado con solución sospechosa.
-    La inconsistencia de fases agrega evidencia y sube la prioridad, pero no
-    basta por sí sola para entrar a la revisión prioritaria.
+    La revisión prioritaria exige una solución local con cruce Eventquery y
+    solución sospechosa. La inconsistencia de fases agrega evidencia y sube la
+    prioridad, pero no basta por sí sola para entrar a la revisión prioritaria.
     """
-    if publicado is None:
+    if con_cruce is None:
         return "Sin evaluar"
     confirmado = sospechoso is True
     fuerte = fuerza == "fuerte"
-    if publicado:
+    if con_cruce:
         if confirmado:
             return "Alta" if fuerte else "Media"
         return "Baja" if fuerte else "Informativa"
     if confirmado and fuerte:
         return "Baja"
     return "Informativa"
+
+
+def _estado_cruce_texto(valor) -> str:
+    if valor is True:
+        return "con_cruce"
+    if valor is False:
+        return "sin_cruce"
+    return "sin_evaluar"
 
 
 CAMPOS_EVENTO = (
@@ -83,7 +91,7 @@ CAMPOS_EVENTO = (
     "analista",
     "region",
     "fila_catalogo",
-    "publicado",
+    "cruce_eventquery",
     "revision_prioritaria",
     "anomalia",
     "fuerza",
@@ -273,11 +281,11 @@ def _referencias_cruzadas(workspace: Path) -> set[str]:
     return referencias
 
 
-def _publicados(workspace: Path, source_id: str) -> dict[str, list[tuple[float | None, float | None]]] | None:
+def _indice_cruces_eventquery(workspace: Path, source_id: str) -> dict[str, list[tuple[float | None, float | None]]] | None:
     """Eventos locales que cruzaron con la referencia publicada.
 
     La comparación estricta deja ``datos/atribucion_<fuente>.csv``. Si el
-    archivo no existe, el estado publicado queda desconocido: no se inventa.
+    archivo no existe, el estado de cruce queda desconocido: no se inventa.
     """
     ruta = Path(workspace) / "datos" / f"atribucion_{source_id}.csv"
     if not ruta.is_file():
@@ -297,7 +305,7 @@ def _publicados(workspace: Path, source_id: str) -> dict[str, list[tuple[float |
     return dict(indice) or None
 
 
-def _publicado_evento(
+def _cruza_eventquery(
     evento: dict,
     indice: dict[str, list[tuple[float | None, float | None]]] | None,
 ) -> bool | None:
@@ -572,7 +580,7 @@ def evaluar_evento(
     sin_arribos: list[dict] | None = None,
     *,
     source_id: str = "",
-    publicado: bool | None = None,
+    con_cruce: bool | None = None,
     sospechoso: bool | None = None,
     explicacion_sospechoso: str = "",
     perfil_disponible: bool | None = None,
@@ -640,7 +648,7 @@ def evaluar_evento(
         anomalia_fuerte or outliers_debiles or fuera_de_orden_debiles
     )
     fuerza = "fuerte" if anomalia_fuerte else ("débil" if anomalia else "")
-    prioridad = prioridad_evento(publicado, fuerza, sospechoso)
+    prioridad = prioridad_evento(con_cruce, fuerza, sospechoso)
     prioridad_orden = ORDEN_PRIORIDAD[prioridad]
     if anomalia_fuerte:
         patron = _patron(fuertes, outliers, fuera_de_orden, antes, extremo)
@@ -830,7 +838,7 @@ def evaluar_evento(
         "analista": _texto(evento.get("analyst")),
         "region": _texto((evento.get("raw") or {}).get("region")),
         "fila_catalogo": evento.get("raw_index", ""),
-        "publicado": publicado,
+        "cruce_eventquery": con_cruce,
         "revision_prioritaria": prioridad in ("Alta", "Media"),
         "anomalia": anomalia,
         "fuerza": fuerza,
@@ -862,22 +870,22 @@ def evaluar_evento(
     }
 
 
-def indice_publicados(workspace: Path, source_id: str):
+def indice_cruces_eventquery(workspace: Path, source_id: str):
     """Índice de atribución reutilizable para resolver varios eventos."""
-    return _publicados(workspace, source_id)
+    return _indice_cruces_eventquery(workspace, source_id)
 
 
-def estado_publicado(
+def estado_cruce_eventquery(
     workspace: Path,
     source_id: str,
     evento: dict,
     *,
     indice=None,
 ) -> bool | None:
-    """Estado publicado de un evento, según la atribución de la comparación."""
+    """Estado de cruce con Eventquery, según la atribución de la comparación."""
     if indice is None:
-        indice = _publicados(workspace, source_id)
-    return _publicado_evento(evento, indice)
+        indice = _indice_cruces_eventquery(workspace, source_id)
+    return _cruza_eventquery(evento, indice)
 
 
 def evaluar_desde_canonico(
@@ -885,7 +893,7 @@ def evaluar_desde_canonico(
     source_id: str,
     evento: dict,
     *,
-    publicado: bool | None = None,
+    con_cruce: bool | None = None,
     sospechoso: bool | None = None,
     explicacion_sospechoso: str = "",
     perfil_disponible: bool | None = None,
@@ -907,7 +915,7 @@ def evaluar_desde_canonico(
         arribos,
         sin_arribos,
         source_id=source_id,
-        publicado=publicado,
+        con_cruce=con_cruce,
         sospechoso=sospechoso,
         explicacion_sospechoso=explicacion_sospechoso,
         perfil_disponible=perfil_disponible,
@@ -945,7 +953,9 @@ def _si_no(valor) -> str:
 def _registro_csv(evento: dict) -> dict:
     fila = dict(evento)
     fila.pop("evidencia", None)
-    fila["publicado"] = _si_no(evento.get("publicado"))
+    fila["cruce_eventquery"] = _estado_cruce_texto(
+        evento.get("cruce_eventquery")
+    )
     fila["revision_prioritaria"] = _si_no(evento.get("revision_prioritaria"))
     fila["anomalia"] = _si_no(evento.get("anomalia"))
     fila["extremo"] = _si_no(evento.get("extremo"))
@@ -983,8 +993,7 @@ def generar_indicios(
         "con_anomalia_fuerte": 0,
         "con_anomalia_debil": 0,
         "revision_prioritaria": 0,
-        "publicados": 0,
-        "publicados_locales": 0,
+        "soluciones_con_cruce": 0,
         "residual_temporal": False,
     }
 
@@ -995,7 +1004,9 @@ def generar_indicios(
         sin_arribos = _agrupar_por_evento(
             canonical.leer_estaciones_sin_arribos(workspace, source_id)
         )
-        indice_publicados = None if derivada else _publicados(workspace, source_id)
+        indice_cruces = (
+            None if derivada else _indice_cruces_eventquery(workspace, source_id)
+        )
         evaluados: list[dict] = []
         for evento in eventos:
             event_id = _texto(evento.get("event_id"))
@@ -1004,10 +1015,10 @@ def generar_indicios(
                 arribos.get(event_id, []),
                 sin_arribos.get(event_id, []),
                 source_id=source_id,
-                publicado=(
+                con_cruce=(
                     None
                     if derivada
-                    else _publicado_evento(evento, indice_publicados)
+                    else _cruza_eventquery(evento, indice_cruces)
                 ),
             )
             evaluados.append(resultado)
@@ -1040,9 +1051,8 @@ def generar_indicios(
             "revision_prioritaria": sum(
                 1 for evento in evaluados if evento["revision_prioritaria"]
             ),
-            "publicados": sum(1 for evento in evaluados if evento["publicado"] is True),
-            "publicados_locales": sum(
-                1 for evento in evaluados if evento["publicado"] is True
+            "soluciones_con_cruce": sum(
+                1 for evento in evaluados if evento["cruce_eventquery"] is True
             ),
             "derived": derivada,
             "residual_temporal": any(
@@ -1068,13 +1078,16 @@ def generar_indicios(
                 total[clave] += info[clave]
 
     referencia = fuentes_manifest.referencia()
-    total["publicados_referencia"] = len(
+    total["eventos_referencia"] = len(
         canonical.leer_canonico(workspace, referencia.id)
     )
     referencias_cruzadas = _referencias_cruzadas(workspace)
     total["referencias_con_cruce"] = len(referencias_cruzadas)
     total["referencias_sin_cruce"] = max(
-        0, total["publicados_referencia"] - len(referencias_cruzadas)
+        0, total["eventos_referencia"] - len(referencias_cruzadas)
+    )
+    total["coincidencias_extra"] = max(
+        0, total["soluciones_con_cruce"] - len(referencias_cruzadas)
     )
     total["referencia"] = referencia.id
     resumen["total"] = total
@@ -1117,11 +1130,11 @@ def resumen_visible(
         "con_anomalia": 0,
         "con_anomalia_fuerte": 0,
         "con_anomalia_debil": 0,
-        "publicados": 0,
-        "publicados_locales": 0,
-        "publicados_referencia": total.get("publicados_referencia", 0),
+        "soluciones_con_cruce": 0,
+        "eventos_referencia": total.get("eventos_referencia", 0),
         "referencias_con_cruce": total.get("referencias_con_cruce", 0),
         "referencias_sin_cruce": total.get("referencias_sin_cruce", 0),
+        "coincidencias_extra": total.get("coincidencias_extra", 0),
         "residual_temporal": bool(total.get("residual_temporal")),
     }
     for fuente in fuentes:
@@ -1135,13 +1148,12 @@ def resumen_visible(
                 visible["con_anomalia_debil"] += 1
         if _fuente_derivada(fuente):
             continue
-        indice = indice_publicados(workspace, fuente)
+        indice = indice_cruces_eventquery(workspace, fuente)
         for evento in canonical.leer_canonico(workspace, fuente):
             if not evento_visible({"analista": evento.get("analyst")}, usuario):
                 continue
-            if _publicado_evento(evento, indice) is True:
-                visible["publicados"] += 1
-    visible["publicados_locales"] = visible["publicados"]
+            if _cruza_eventquery(evento, indice) is True:
+                visible["soluciones_con_cruce"] += 1
     return visible
 
 

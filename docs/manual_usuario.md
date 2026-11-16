@@ -174,7 +174,9 @@ resultados.
 ## Resultados
 
 Las tablas **No publicados**, **No actualizados** y **Repetidos** permiten
-revisar los eventos.
+revisar los eventos. En **No publicados**, “no publicado” significa que el evento
+local no encontró un cruce con Eventquery; es una estimación, no una declaración
+de la fuente local.
 
 ![Listado de resultados](img/resultados.png)
 
@@ -620,26 +622,37 @@ Después del procesamiento, la app reúne dos señales:
 La revisión es posterior a la publicación. La tarjeta **Revisión de eventos** de
 la página del trabajo abre el listado. Hay tres alcances:
 
-- **Revisión prioritaria:** eventos publicados con solución sospechosa, tengan o
-  no fases inconsistentes. Es la vista más crítica y la que se abre por defecto.
-- **Publicados:** todos los eventos publicados, con solución sospechosa o con
-  fases inconsistentes.
-- **Todos:** agrega los eventos no publicados que tienen fases inconsistentes,
-  para revisar la calidad del catálogo. Los sospechosos no publicados sin fase
-  quedan en los paneles.
+- **Revisión prioritaria:** soluciones con cruce Eventquery y solución
+  sospechosa, tengan o no fases inconsistentes. Es la vista más crítica y la que
+  se abre por defecto.
+- **Con cruce Eventquery:** soluciones locales que cruzan con Eventquery, con
+  solución sospechosa o con fases inconsistentes.
+- **Todos:** agrega las soluciones sin cruce Eventquery que tienen fases
+  inconsistentes, para revisar la calidad del catálogo. Las soluciones
+  sospechosas sin cruce y sin fase quedan en los paneles.
 
 La publicación no viene como un campo de la fuente local: se **estima** cruzando
 cada fuente local con **Eventquery**, que es la referencia publicada. Central no
 se usa como referencia porque es una base derivada y puede estar desactualizada.
 
-El resumen distingue dos conteos:
+El resumen distingue estos conteos:
 
-- **Publicados de referencia:** eventos únicos de Eventquery.
-- **Soluciones locales publicadas:** soluciones de SeisComp, Seisán u otras
+- **Eventos de referencia:** eventos únicos de Eventquery.
+- **Soluciones con cruce Eventquery:** soluciones de SeisComp, Seisán u otras
   fuentes locales que cruzaron con Eventquery. Puede ser mayor que el conteo de
-  referencia si dos soluciones locales representan el mismo evento publicado.
+  referencia si dos soluciones locales representan el mismo evento de referencia.
+- **Coincidencias extra:** soluciones adicionales para una misma referencia.
 - **Cobertura del cruce:** cuántas referencias tienen al menos un cruce local y
   cuántas no lo tienen.
+
+Cada evento muestra una columna **Cruce Eventquery** con estos valores:
+
+- **Con cruce**
+- **Sin cruce**
+- **Sin evaluar**
+
+No es una afirmación de que la fuente local haya publicado el evento: es una
+estimación basada en la referencia.
 
 Cada evento combina dos lecturas:
 
@@ -680,20 +693,22 @@ Los números se muestran con pocos decimales: residual 2, distancia y tiempo 1,
 azimut 1, magnitud y profundidad 1, conteos enteros. Un valor distinto de cero
 que redondea a cero se muestra como `<0,01` o `<0,1`.
 
-La columna **Prioridad** combina publicación, solución y fuerza de las fases:
+La columna **Prioridad** combina cruce Eventquery, solución y fuerza de las
+fases:
 
 | Prioridad | Combinación |
 |---|---|
-| Alta | publicado + solución sospechosa + fase fuerte |
-| Media | publicado + solución sospechosa (fase débil o sin fase) |
-| Baja | publicado + solución normal + fase fuerte; o no publicado + sospechoso + fase fuerte |
+| Alta | con cruce + solución sospechosa + fase fuerte |
+| Media | con cruce + solución sospechosa (fase débil o sin fase) |
+| Baja | con cruce + solución normal + fase fuerte; o sin cruce + sospechoso + fase fuerte |
 | Informativa | resto de las combinaciones |
-| Sin evaluar | no se pudo determinar si está publicado |
+| Sin evaluar | no se pudo determinar el cruce con Eventquery |
 
-La **Revisión prioritaria** incluye Alta y Media: exige un evento publicado con
-solución sospechosa. Una fase fuerte con solución normal queda en **Baja** y no
-entra a la vista prioritaria: se revisa como calidad de catálogo. La columna
-**Solución** es la que decide la prioridad; ya no es solo un criterio de orden.
+La **Revisión prioritaria** incluye Alta y Media: exige una solución con cruce
+Eventquery y solución sospechosa. Una fase fuerte con solución normal queda en
+**Baja** y no entra a la vista prioritaria: se revisa como calidad de catálogo.
+La columna **Solución** es la que decide la prioridad; ya no es solo un criterio
+de orden.
 
 El listado principal y la tabla de evidencia se ordenan haciendo clic en
 cualquier encabezado. El segundo clic invierte el orden. No se recarga la
@@ -733,7 +748,7 @@ de revisión. No hay un botón **Mapa** separado: el detalle del catálogo es el
 único destino y ahí están la evidencia, las estaciones, el mapa y los tiempos.
 
 La sección **Revisión del evento** del detalle muestra patrón, cobertura,
-publicación y solución, sin badges de estado. Debajo aparece la **evidencia
+cruce Eventquery y solución, sin badges de estado. Debajo aparece la **evidencia
 principal**, es decir, el arribo con mayor residual:
 
 ```text
@@ -745,9 +760,9 @@ fase, pick, `t (s)`, residual, peso, distancia y tipo de indicio. Si el evento
 no tiene anomalía de fases, la sección muestra **Sin inconsistencia de fases** y
 la explicación de la solución, por ejemplo el residuo al slab.
 
-En el listado, un evento publicado con solución sospechosa se marca como
-**Revisión prioritaria**. Un evento no publicado se muestra igual, como calidad
-de catálogo.
+En el listado, una solución con cruce Eventquery y solución sospechosa se marca
+como **Revisión prioritaria**. Una solución sin cruce se muestra igual, como
+calidad de catálogo.
 
 El listado incluye una columna **Solución** con la clasificación de localización
 que ya calculan los paneles y el detalle del catálogo. Es una dimensión distinta

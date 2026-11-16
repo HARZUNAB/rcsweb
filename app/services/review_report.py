@@ -29,6 +29,18 @@ def _primero(*valores):
     return None
 
 
+CRUCE_TEXTO = {
+    "con_cruce": "Con cruce",
+    "sin_cruce": "Sin cruce",
+    "sin_evaluar": "Sin evaluar",
+}
+
+
+def _cruce(valor) -> str:
+    texto = "" if valor is None else str(valor).strip()
+    return CRUCE_TEXTO.get(texto, _texto(valor))
+
+
 def _identificador(evento: dict) -> str:
     fila = evento.get("fila") or {}
     return _texto(
@@ -64,7 +76,7 @@ def _resumen(evento: dict) -> list[tuple[str, str]]:
             "Analista",
             _texto(fila.get("analista") or canonico.get("analyst")),
         ),
-        ("Publicado", _texto(fila.get("publicado"))),
+        ("Cruce Eventquery", _cruce(fila.get("cruce_eventquery"))),
         (
             "Solución",
             (

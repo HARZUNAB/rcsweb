@@ -656,7 +656,7 @@ Campos principales:
 | `requires_file` | `false` para fuentes que se consultan directamente y no reciben archivo |
 | `extraction_name` | Nombre sugerido de la extracción, con `{inicio}` y `{fin}` |
 | `dsn_env` | Variable de entorno con la cadena de conexión de solo lectura |
-| `derived` | `true` para fuentes derivadas de otras fuentes locales; no se usan como referencia de publicación ni suman al conteo de publicados |
+| `derived` | `true` para fuentes derivadas de otras fuentes locales; no se usan como referencia de publicación ni suman al conteo de cruces |
 
 La app debe usar `role=local` para los filtros de Resultados y excluir
 `role=reference`. No debe comparar el texto `eventquery`, `seisan` o
@@ -896,7 +896,8 @@ mensajes. El trabajo puede continuar aunque una fuente no aporte datos.
 Comparación:
 
 - **No publicados:** solo eventos con `Publicado = No` que no aparecen en
-  Eventquery.
+  Eventquery. Es una estimación local de ausencia de cruce, no una declaración
+  de la fuente.
 - **No actualizados:** eventos publicados o locales que sí aparecen pero cuyos
   parámetros difieren.
 - **Repetidos:** se calculan sobre el catálogo completo de Central, de modo que
@@ -1064,19 +1065,19 @@ La fase fuera de orden débil sirve para fases con peso 3, que influyeron poco
 pero influyeron. La fuerza no decide por sí sola la revisión: una anomalía
 fuerte con solución normal queda como calidad de catálogo.
 
-La **prioridad** combina publicación, solución y fuerza:
+La **prioridad** combina cruce Eventquery, solución y fuerza:
 
 | Prioridad | Combinación |
 |---|---|
-| Alta | publicado + solución sospechosa + fase fuerte |
-| Media | publicado + solución sospechosa (fase débil o sin fase) |
-| Baja | publicado + solución normal + fase fuerte; o no publicado + sospechoso + fase fuerte |
+| Alta | con cruce + solución sospechosa + fase fuerte |
+| Media | con cruce + solución sospechosa (fase débil o sin fase) |
+| Baja | con cruce + solución normal + fase fuerte; o sin cruce + sospechoso + fase fuerte |
 | Informativa | resto de las combinaciones |
-| Sin evaluar | no se pudo determinar si está publicado |
+| Sin evaluar | no se pudo determinar el cruce con Eventquery |
 
 `revision_prioritaria` es verdadero para **Alta** y **Media**, es decir, para
-todo evento publicado con solución sospechosa. `sospechoso` deja de ser un
-criterio de orden y pasa a decidir la prioridad. El orden por defecto del
+toda solución con cruce Eventquery y solución sospechosa. `sospechoso` deja de
+ser un criterio de orden y pasa a decidir la prioridad. El orden por defecto del
 listado sigue siendo prioridad, solución, mayor residual y fecha.
 
 El listado principal y la tabla de evidencia se pueden ordenar en el navegador
@@ -1149,9 +1150,9 @@ restringido.
 La clasificación **sospechoso** se reutiliza de `plots.clasificar_eventos` y
 `sismicidad.es_sospechoso`. El listado de revisión la toma de la caché de
 paneles (`paneles/catalogo_<fuente>.json`) y agrega, con
-`_filas_sospechosas_sin_fase`, los eventos publicados sospechosos que no tienen
-indicio de fase. Los sospechosos no publicados sin fase no se listan; quedan en
-los paneles.
+`_filas_sospechosas_sin_fase`, las soluciones con cruce Eventquery y solución
+sospechosa que no tienen indicio de fase. Las soluciones sin cruce y sin fase no
+se listan; quedan en los paneles.
 
 ##### Veto por tendencia histórica
 
@@ -1187,14 +1188,16 @@ resultados/indicios/resumen.json
 
 El CSV conserva las filas de fase. Como el generador no conoce la clasificación
 de solución, sus campos `revision_prioritaria` y `prioridad` son conservadores;
-el listado y el detalle recalculan la prioridad con la solución.
+el listado y el detalle recalculan la prioridad con la solución. La columna
+`cruce_eventquery` contiene `con_cruce`, `sin_cruce` o `sin_evaluar`. El esquema
+actual de estos reportes es 6; al cambiarlo, `asegurar_indicios` los regenera.
 
-El listado agrega, además, los eventos publicados con solución sospechosa que no
-tienen anomalía de fases. Esas filas se construyen desde la caché de paneles y
-se completan con una evaluación de sus arribos y estaciones para mostrar
-`n_disponibles`, `n_usadas`, `max_residual_usado` y `contexto` (cobertura).
-Conservan el motivo **Solución sospechosa** y el patrón **Sin inconsistencia de
-fases**.
+El listado agrega, además, las soluciones con cruce Eventquery y solución
+sospechosa que no tienen anomalía de fases. Esas filas se construyen desde la
+caché de paneles y se completan con una evaluación de sus arribos y estaciones
+para mostrar `n_disponibles`, `n_usadas`, `max_residual_usado` y `contexto`
+(cobertura). Conservan el motivo **Solución sospechosa** y el patrón **Sin
+inconsistencia de fases**.
 
 La columna **Analista** muestra el nombre de la fuente. Si no coincide con un
 usuario activo, se agrega ` · sin usuario` en texto pequeño y el evento queda
@@ -1215,29 +1218,31 @@ El pipeline ejecuta el paso `generar_indicios` después de las comparaciones y
 antes de `detectar_repetidos`. El reporte no modifica el catálogo canónico ni la
 base de la fuente.
 
-El estado **publicado** se usa como contexto, tomado de
+El estado de **cruce Eventquery** se usa como contexto, tomado de
 `datos/atribucion_<fuente>.csv`; no es un resultado del análisis.
-`revision_prioritaria` es verdadero cuando el evento está publicado y tiene
+`revision_prioritaria` es verdadero cuando la solución tiene cruce Eventquery y
 solución sospechosa (prioridad Alta o Media).
 
 La referencia de publicación es **Eventquery**. Cada fuente local con arribos se
 cruza contra ella y deja una atribución por fuente. El resumen separa
-`publicados_referencia` (eventos únicos de Eventquery) de `publicados_locales`
+`eventos_referencia` (eventos únicos de Eventquery) de `soluciones_con_cruce`
 (soluciones locales que cruzaron, sumadas por fuente). Una referencia puede
-tener varias soluciones locales; por eso `publicados_locales` puede superar a
-`publicados_referencia`. Las fuentes con `derived=true`, como Central, no se
-usan como referencia ni suman a ninguno de los dos conteos de publicación.
+tener varias soluciones locales; por eso `soluciones_con_cruce` puede superar a
+`eventos_referencia`. `coincidencias_extra` es la diferencia entre ambas.
 `referencias_con_cruce` y `referencias_sin_cruce` indican cuántas referencias
-tienen o no al menos una solución local asociada.
+tienen o no al menos una solución local asociada. Las fuentes con `derived=true`,
+como Central, no se usan como referencia ni suman a los conteos de cruce.
 
 La comparación temporal usa la diferencia absoluta del instante completo, no la
 hora del día. Así dos eventos de fechas distintas con la misma hora no se
 confunden.
 
-La vista **Revisión de eventos**
-permite ver revisión prioritaria, publicados o todos; los eventos con fase y
-solución normal se muestran en publicados y todos. Los analistas ven solo sus
-propios eventos; administradores y supervisores ven todo. La revisión se
+La vista **Revisión de eventos** permite ver **Prioritarios**, **Con cruce
+Eventquery** o **Todos**. El parámetro de URL es
+`alcance=cruce_eventquery`; `alcance=publicados` se acepta como alias y redirige
+al valor nuevo. Los eventos con fase y solución normal se muestran en **Con
+cruce Eventquery** y **Todos**. Los analistas ven solo sus propios eventos;
+administradores y supervisores ven todo. La revisión se
 solicita desde el listado: se filtra por analista, se seleccionan varios eventos
 del mismo analista y se genera un informe en segundo plano. La solicitud se
 guarda en `review_requests` y sus eventos en `review_request_events`; la tabla

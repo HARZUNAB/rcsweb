@@ -314,14 +314,22 @@ def _bool_desde_texto(valor) -> bool | None:
     return None
 
 
+def _estado_cruce_desde_texto(valor) -> bool | None:
+    if valor == "con_cruce":
+        return True
+    if valor == "sin_cruce":
+        return False
+    return None
+
+
 def _fila_sospechosa(
     evento: dict,
     fuente: str,
     fila_catalogo,
-    publicado,
+    con_cruce,
     evaluacion: dict | None = None,
 ) -> dict:
-    """Fila de revisión para un evento sospechoso sin indicios de fase."""
+    """Fila de revisión para una solución sospechosa sin indicios de fase."""
     evaluacion = evaluacion or {}
     n_usadas = evaluacion.get("n_usadas")
     n_disponibles = evaluacion.get("n_disponibles")
@@ -341,7 +349,11 @@ def _fila_sospechosa(
         "region": (evento.get("raw") or {}).get("region", ""),
         "analista": evento.get("analyst") or "",
         "fila_catalogo": fila_catalogo,
-        "publicado": "Sí" if publicado else ("No" if publicado is False else ""),
+        "cruce_eventquery": (
+            "con_cruce"
+            if con_cruce
+            else ("sin_cruce" if con_cruce is False else "sin_evaluar")
+        ),
         "sospechoso": "Sí",
         "sospechoso_residuo_km": None,
         "anomalia": False,
@@ -388,11 +400,11 @@ def _filas_sospechosas_sin_fase(
     fuente: str,
     filas_fase: list[dict],
 ) -> list[dict]:
-    """Eventos publicados con solución sospechosa y sin indicio de fase.
+    """Soluciones con cruce Eventquery, sospechosas y sin indicio de fase.
 
     Se leen de la caché de paneles, que ya tiene la clasificación de todo el
-    catálogo. Solo se agregan los publicados: los sospechosos no publicados sin
-    fase son calidad de catálogo y quedan en los paneles.
+    catálogo. Solo se agregan las soluciones con cruce: las sospechosas sin
+    cruce y sin fase son calidad de catálogo y quedan en los paneles.
     """
     if not fuente:
         return []
@@ -417,7 +429,7 @@ def _filas_sospechosas_sin_fase(
     }
     arribos = None
     sin_arribos = None
-    indice = indicios.indice_publicados(workspace, fuente)
+    indice = indicios.indice_cruces_eventquery(workspace, fuente)
     filas = []
     for evento_panel in datos.get("eventos", []):
         origen = evento_panel.get("origen") or {}
@@ -431,10 +443,10 @@ def _filas_sospechosas_sin_fase(
         evento = eventos.get(str(fila_catalogo))
         if not evento:
             continue
-        publicado = indicios.estado_publicado(
+        con_cruce = indicios.estado_cruce_eventquery(
             workspace, fuente, evento, indice=indice
         )
-        if publicado is not True:
+        if con_cruce is not True:
             continue
         if arribos is None or sin_arribos is None:
             arribos = _registros_por_evento(
@@ -449,7 +461,7 @@ def _filas_sospechosas_sin_fase(
             arribos.get(event_id, []),
             sin_arribos.get(event_id, []),
             source_id=fuente,
-            publicado=True,
+            con_cruce=True,
             sospechoso=True,
             perfil_disponible=bool(evento_panel.get("perfil")),
         )
@@ -458,7 +470,7 @@ def _filas_sospechosas_sin_fase(
                 evento,
                 fuente,
                 fila_catalogo,
-                publicado,
+                con_cruce,
                 evaluacion=evaluacion,
             )
         )
@@ -577,10 +589,12 @@ def _filas_revision(workspace, fuente, usuario) -> list[dict]:
     filas.extend(_filas_sospechosas_sin_fase(workspace, fuente, filas))
 
     for fila in filas:
-        publicado = _bool_desde_texto(fila.get("publicado"))
+        con_cruce = _estado_cruce_desde_texto(
+            fila.get("cruce_eventquery")
+        )
         sospechoso = _bool_desde_texto(fila.get("sospechoso"))
         prioridad = indicios.prioridad_evento(
-            publicado, fila.get("fuerza") or "", sospechoso
+            con_cruce, fila.get("fuerza") or "", sospechoso
         )
         fila["prioridad"] = prioridad
         fila["prioridad_orden"] = indicios.ORDEN_PRIORIDAD[prioridad]
@@ -612,7 +626,13 @@ def indicios_eventos(job_id: str):
     if fuente not in fuentes:
         fuente = fuentes[0] if fuentes else ""
     alcance = request.args.get("alcance", "prioritarios").strip()
-    if alcance not in ("prioritarios", "publicados", "todos"):
+    if alcance == "publicados":
+        argumentos = request.args.to_dict(flat=True)
+        argumentos["alcance"] = "cruce_eventquery"
+        return redirect(
+            url_for("results.indicios_eventos", job_id=job.id, **argumentos)
+        )
+    if alcance not in ("prioritarios", "cruce_eventquery", "todos"):
         alcance = "prioritarios"
 
     puede_crear_revision = tiene_permiso(current_user, "revisiones.crear")
@@ -692,16 +712,20 @@ def indicios_eventos(job_id: str):
     info_fuente["revision_prioritaria"] = sum(
         1 for fila in filas if fila["revision_prioritaria"] == "Sí"
     )
-    info_fuente["publicados"] = sum(
-        1 for fila in filas if fila.get("publicado") == "Sí"
+    info_fuente["con_cruce_eventquery"] = sum(
+        1 for fila in filas if fila.get("cruce_eventquery") == "con_cruce"
     )
 
     if alcance == "prioritarios":
         filas = [
             fila for fila in filas if fila["revision_prioritaria"] == "Sí"
         ]
-    elif alcance == "publicados":
-        filas = [fila for fila in filas if fila.get("publicado") == "Sí"]
+    elif alcance == "cruce_eventquery":
+        filas = [
+            fila
+            for fila in filas
+            if fila.get("cruce_eventquery") == "con_cruce"
+        ]
 
     filas.sort(
         key=lambda fila: (
@@ -890,6 +914,7 @@ def solicitar_revision(job_id: str):
                     "n_usadas",
                     "max_residual_usado",
                     "sospechoso",
+                    "cruce_eventquery",
                     "sospechoso_residuo_km",
                     "sospechoso_perp_km",
                 )
@@ -1927,13 +1952,13 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
     indicios_evento = None
     revision_solicitud = None
     if source_id and evento_canonico.get("event_id"):
-        publicado = None
+        con_cruce = None
         if tabla == "no_publicados":
-            publicado = False
+            con_cruce = False
         elif tabla == "no_actualizados":
-            publicado = True
+            con_cruce = True
         elif tabla == "catalogos":
-            publicado = indicios.estado_publicado(
+            con_cruce = indicios.estado_cruce_eventquery(
                 ruta_workspace(job.id), source_id, evento_canonico
             )
         sospechoso = None
@@ -1972,7 +1997,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
             ruta_workspace(job.id),
             source_id,
             evento_canonico,
-            publicado=publicado,
+            con_cruce=con_cruce,
             sospechoso=sospechoso,
             explicacion_sospechoso=explicacion_sospechoso,
             perfil_disponible=perfil_datos is not None,

@@ -57,6 +57,25 @@ def test_manual_tecnico_documenta_relaciones_y_catalogos():
     assert "CASCADE" in texto
 
 
+def test_manuales_usan_el_vocabulario_de_cruce_eventquery():
+    usuario = (DOCS / "manual_usuario.md").read_text(encoding="utf-8")
+    tecnico = (DOCS / "manual_tecnico.md").read_text(encoding="utf-8")
+
+    assert "Con cruce Eventquery" in usuario
+    assert "Cruce Eventquery" in usuario
+    assert "**Publicados:**" not in usuario
+    assert "cruce_eventquery" in tecnico
+    assert "soluciones_con_cruce" in tecnico
+    assert "eventos_referencia" in tecnico
+    assert "publicados_referencia" not in tecnico
+    assert "publicados_locales" not in tecnico
+
+    with zipfile.ZipFile(DOCS / "manual_usuario.docx") as archivo:
+        xml = archivo.read("word/document.xml").decode("utf-8")
+    assert "Con cruce Eventquery" in xml
+    assert "Cruce Eventquery" in xml
+
+
 def test_guia_despliegue_prueba_existe_y_tiene_anexo():
     markdown = DOCS / "guia_despliegue_prueba.md"
     docx = DOCS / "guia_despliegue_prueba.docx"
