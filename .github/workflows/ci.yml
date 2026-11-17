@@ -37,8 +37,18 @@ jobs:
           estado=${PIPESTATUS[0]}
           if [ "$estado" -ne 0 ]; then
             echo "::error::pytest terminó con código $estado"
-            tail -40 /tmp/pytest.log | while IFS= read -r linea; do
-              echo "::error::$linea"
-            done
+            grep -nE "ModuleNotFoundError|ImportError|ERROR collecting|E   |No module named" /tmp/pytest.log \
+              | tail -20 \
+              | while IFS= read -r linea; do
+                  echo "::error::$linea"
+                done
           fi
           exit "$estado"
+
+      - name: Subir log de tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-log
+          path: /tmp/pytest.log
+          if-no-files-found: warn
