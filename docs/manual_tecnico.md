@@ -3,7 +3,7 @@
 Documentación de instalación, operación, almacenamiento y mantenimiento de
 RCS Web.
 
-**Versión:** 0.7.3 · **Actualizado:** noviembre de 2026
+**Versión:** 0.8.0 · **Actualizado:** noviembre de 2026
 
 ## Arquitectura
 

@@ -5,7 +5,7 @@ catálogos, preparar trabajos con fuentes locales, procesarlos, revisar los
 resultados, abrir el detalle de cada evento y consultar los paneles de contexto
 sismotectónico.
 
-**Versión:** 0.7.3 · **Actualizado:** noviembre de 2026
+**Versión:** 0.8.0 · **Actualizado:** noviembre de 2026
 
 ## Acceso
 

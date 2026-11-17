@@ -4,7 +4,7 @@ Plataforma web del **Revisor de Catálogos Sísmicos (RCS)** del CSN. Migración
 incremental de la aplicación de escritorio, conservando el pipeline de análisis
 ya validado.
 
-**Estado actual: etapa 4C completada (v0.7.3).** Además de la carga local, la
+**Estado actual: etapa 4C completada (v0.8.0).** Además de la carga local, la
 plataforma puede solicitar y descargar catálogos del servidor y obtener SeisComp
 desde PostgreSQL en solo lectura, combinando todas las bases. El radio de
 estaciones es editable por solicitud, con 400 km por defecto. Las fechas se
