@@ -89,10 +89,8 @@ def test_parsear_canal_nslco():
     assert arribos_csv.parsear_canal("BL.PLTB..HHZ") == ("BL", "PLTB", "", "HHZ")
 
 
-def test_bloques_select_out_lee_fases_y_descarta_amplitudes():
-    from pathlib import Path
-
-    ruta = Path("/tmp/opencode") / "select_prueba.out"
+def test_bloques_select_out_lee_fases_y_descarta_amplitudes(tmp_path):
+    ruta = tmp_path / "select_prueba.out"
     ruta.write_text(SELECT_OUT, encoding="latin-1")
     bloques = seisan._bloques_select_out(ruta)
 
