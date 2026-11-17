@@ -417,10 +417,27 @@ Agrega una capa de **triángulos** al mapa de planta:
 - **triángulo relleno azul petróleo**: estación con pick observado;
 - **triángulo hueco**: estación sin arribos.
 
-Incluye todas las estaciones con arribos y hasta **20 estaciones sin arribos**,
-las más cercanas. La opción **Mostrar todas** quita ese límite. El radio y
-**Solo cercanas** se aplican a las estaciones sin arribos; los arribos se
-muestran siempre. Cada triángulo abre un popup con estación, distancia, fase,
+Incluye las estaciones con arribos y hasta **20 estaciones sin arribos**, las
+más cercanas. El **radio** y **Solo cercanas** se aplican a **todas** las
+estaciones del mapa, incluidas las que tienen arribos. **Mostrar todas** quita
+el tope de 20, pero no el radio.
+
+Debajo de los botones aparecen las casillas de estado:
+
+```text
+[✓] ▲ con arribos   [✓] △• disponibles   [ ] △× sin datos   [✓] △ sin consultar
+```
+
+**Sin datos** empieza desmarcado: después de consultar formas de onda, las
+estaciones donde no hay datos no se dibujan. Las demás se pueden ocultar o
+mostrar en cualquier momento. El resumen indica cuántas quedaron fuera del
+radio, ocultas por estado o fuera del tope.
+
+Si ningún punto cumple los filtros, aparece un aviso con la causa y el botón
+**Quitar filtros**, que desmarca **Solo cercanas**, restaura el radio exportado
+y vuelve a mostrar todos los estados.
+
+Cada triángulo abre un popup con estación, distancia, fase,
 hora del pick, tiempo desde el origen, modo y uso en la solución. Cuando el
 origen lo informa, el popup también muestra **Listado**, **Vigencia** y
 **Procesado por**: de qué archivo o inventario salió la coordenada, si es una
@@ -435,7 +452,7 @@ Los estados de las formas de onda se muestran igual que en propagación:
 Y el resumen:
 
 ```text
-En el mapa: 10 observadas · 0 sin consultar · 6 sin datos · 14 disponibles no usadas
+En el mapa: 10 observadas · 0 sin consultar · 0 sin datos · 14 disponibles no usadas · 6 ocultas por estado
 ```
 
 #### Propagación
@@ -462,6 +479,10 @@ P alcanzadas: 27 · S alcanzadas: 27 · pendientes: 3
   estimado.
 - El resumen muestra cuántas estaciones alcanzó cada frente y cuántas siguen
   pendientes.
+
+La animación usa el mismo conjunto filtrado que **Estaciones en el mapa**:
+radio, **Solo cercanas** y las casillas de estado. Si no queda ninguna
+estación, se muestra el mismo aviso de filtros.
 
 Cada estación se enciende en dos etapas:
 
@@ -513,6 +534,8 @@ de disponibilidad de formas de onda:
 | **Sin datos (verificado)** | `×` | Se consultaron las ondas y no hay. La estación no estaba grabando o no hay datos. |
 | **Disponible y no usada** | `•` | Hay formas de onda, pero la estación no tiene pick. Estaba operativa. |
 
+- **Sin datos** empieza oculto en el mapa; se activa con la casilla
+  `△× sin datos`. Las demás casillas permiten ocultar o mostrar cada estado.
 - Los anillos **P** y **S** indican si cada frente ya la alcanzó.
 - El triángulo conserva el estado de ondas.
 - La marca `×` o `•` indica el estado de las ondas.
@@ -529,7 +552,7 @@ de disponibilidad de formas de onda:
 - La leyenda y el resumen están visibles cuando la capa está activa:
   ```text
   ▲ observada · △ sin consultar · △× sin datos · △• disponible no usada
-  En el mapa: 10 observadas · 0 sin consultar · 6 sin datos · 14 disponibles no usadas
+  En el mapa: 10 observadas · 0 sin consultar · 0 sin datos · 14 disponibles no usadas · 6 ocultas por estado
   ```
 
 La consulta de formas de onda se realiza desde la solapa **Sin arribos**, con

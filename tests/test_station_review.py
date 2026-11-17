@@ -515,6 +515,26 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert 'id="consulta-ondas-texto"' in html
     assert 'id="leyenda-estados-estaciones"' in html
     assert 'id="resumen-estados-estaciones"' in html
+    assert 'id="mapa-estaciones-opciones"' in html
+    assert 'id="mapa-mostrar-arribos"' in html
+    assert 'id="mapa-mostrar-disponibles"' in html
+    assert 'id="mapa-mostrar-sin-datos"' in html
+    assert 'id="mapa-mostrar-sin-consultar"' in html
+    assert 'id="mapa-estaciones-vacio"' in html
+    assert 'id="btn-quitar-filtro-distancia"' in html
+    assert "Quitar filtros" in html
+    assert "Mostrar todas (sin tope)" in html
+    casilla_arribos = re.search(
+        r'<input[^>]*id="mapa-mostrar-arribos"[^>]*>', html
+    )
+    casilla_sin_datos = re.search(
+        r'<input[^>]*id="mapa-mostrar-sin-datos"[^>]*>', html
+    )
+    assert casilla_arribos is not None and "checked" in casilla_arribos.group(0)
+    assert (
+        casilla_sin_datos is not None
+        and "checked" not in casilla_sin_datos.group(0)
+    )
     assert "△× sin datos" in html
     assert "△• disponible no usada" in html
     assert html.count('id="btn-propagacion"') == 1

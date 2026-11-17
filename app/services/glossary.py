@@ -393,6 +393,15 @@ TERMINOS = {
             "abrir la fila."
         ),
     },
+    "filtros_estaciones_mapa": {
+        "titulo": "Filtros del mapa de estaciones",
+        "texto": (
+            "El radio y Solo cercanas recortan todas las estaciones del mapa, "
+            "incluidas las que tienen arribos. Las casillas de estado permiten "
+            "mostrar u ocultar con arribos, disponibles no usadas, sin datos y "
+            "sin consultar. Sin datos queda oculto por defecto."
+        ),
+    },
 }
 
 
@@ -453,6 +462,7 @@ def _grupo_de(clave: str) -> str:
         "estaciones_disponibles",
         "estaciones_usadas",
         "azimutal_gap",
+        "filtros_estaciones_mapa",
     }:
         return "cobertura"
     if clave in {

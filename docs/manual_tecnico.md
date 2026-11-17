@@ -1521,9 +1521,29 @@ La revisión calcula dos datos derivados y los expone en el contexto:
   un pick, para no duplicar puntos en la curva.
 
 Los datos se calculan con las listas **completas** del evento, antes de aplicar
-los filtros de tabla `solo_disponibles` y `solo_no_usadas`. El radio y **Solo
-cercanas** se aplican en el cliente solo a las estaciones sin arribos; los
-arribos se muestran siempre.
+los filtros de tabla `solo_disponibles` y `solo_no_usadas`. El filtro de
+distancia se aplica en el cliente a **todas** las estaciones, incluidas las que
+tienen arribos.
+
+`estacionesMapaFiltradas()` concentra el filtro del mapa y devuelve
+`{ visibles, resumen }`:
+
+1. Descarta por distancia. Con **Solo cercanas** usa `cerca_km` y exige una
+   distancia conocida; en caso contrario usa `radio_km` si tiene valor y
+   conserva las estaciones sin distancia. Sin radio, no recorta.
+2. Descarta por estado según `#mapa-mostrar-arribos`,
+   `#mapa-mostrar-disponibles`, `#mapa-mostrar-sin-datos` y
+   `#mapa-mostrar-sin-consultar`. **Sin datos** empieza desmarcado.
+3. Aplica el tope de 20 estaciones sin arribos, salvo **Mostrar todas**. El
+   tope se cuenta después del filtro de estado.
+4. Devuelve el resumen con `fueraRadio`, `ocultasEstado` y `capadas`.
+
+`puntosMapaVisibles()` conserva la firma anterior para el resto del código y
+devuelve `estacionesMapaFiltradas().visibles`. El resumen del mapa suma esos
+conteos. Si no queda ninguna estación, `#mapa-estaciones-vacio` explica la causa
+y **Quitar filtros** desmarca **Solo cercanas**, restaura el radio exportado y
+vuelve a marcar todos los estados. `#mapa-estaciones-todas` solo quita el tope,
+no el radio.
 
 La plantilla `results/_controles_estaciones.html` concentra los controles y
 se incluye desde `_mapa_detalle.html`, justo arriba de `#mapa-detalle`. Solo se
@@ -1543,8 +1563,8 @@ consultar disponibilidad.
 
 `static/js/estaciones.js` implementa el controlador de propagación:
 
-1. `datosPropagacion()` toma las estaciones visibles y los arribos, y separa
-   los picks **P** y **S** por estación.
+1. `datosPropagacion()` toma `estacionesMapaFiltradas().visibles` y los arribos,
+   y separa los picks **P** y **S** por estación.
 2. `crearEnvolvente()` construye los nudos `(tiempo, distancia)` de cada fase
    con el máximo acumulado, partiendo de `(0, 0)`.
 3. `radioEnvolvente(t, velocidad)` interpola el radio de cada frente. Si no hay

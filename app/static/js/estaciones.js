@@ -363,11 +363,8 @@
       }
       window.history.replaceState({}, "", actual.toString());
 
-      if (mapaEstacionesActivo) {
-        dibujarMapaEstaciones();
-      } else if (propagacionActiva) {
-        prepararPropagacion();
-        actualizarPropagacion();
+      if (mapaEstacionesActivo || propagacionActiva) {
+        redibujarEstacionesMapa();
       }
     }
 
@@ -784,49 +781,104 @@
     }
   }
 
-  function puntosMapaVisibles() {
+  function leerNumeroMapa(id) {
+    var campo = document.getElementById(id);
+    if (!campo) {
+      return null;
+    }
+    var valor = parseFloat(String(campo.value || "").replace(",", "."));
+    return Number.isFinite(valor) ? valor : null;
+  }
+
+  function radioExportadoMapa() {
+    var contenedor = document.getElementById("panel-sin-arribos-contenido");
+    if (!contenedor) {
+      return null;
+    }
+    var valor = parseFloat(
+      String(contenedor.dataset.radioExportado || "").replace(",", ".")
+    );
+    return Number.isFinite(valor) ? valor : null;
+  }
+
+  function filtrosEstadoMapa() {
+    function marcada(id, defecto) {
+      var casilla = document.getElementById(id);
+      return casilla ? casilla.checked : defecto;
+    }
+    return {
+      arribos: marcada("mapa-mostrar-arribos", true),
+      disponibles: marcada("mapa-mostrar-disponibles", true),
+      sinDatos: marcada("mapa-mostrar-sin-datos", false),
+      sinConsultar: marcada("mapa-mostrar-sin-consultar", true),
+    };
+  }
+
+  function estadoPermitidoMapa(estado, filtros) {
+    if (estado === "observada") {
+      return filtros.arribos;
+    }
+    if (estado === "disponible") {
+      return filtros.disponibles;
+    }
+    if (estado === "sin_datos") {
+      return filtros.sinDatos;
+    }
+    return filtros.sinConsultar;
+  }
+
+  function estacionesMapaFiltradas() {
     var datos = datosEstacionesMapa();
-    var radio = parseFloat(
-      ((document.getElementById("filtro-radio") || {}).value || "").replace(
-        ",",
-        "."
-      )
-    );
-    var cerca = parseFloat(
-      ((document.getElementById("filtro-cerca") || {}).value || "").replace(
-        ",",
-        "."
-      )
-    );
+    var radio = leerNumeroMapa("filtro-radio");
+    var cerca = leerNumeroMapa("filtro-cerca");
     var solo = Boolean(
       (document.getElementById("filtro-solo") || {}).checked
     );
     var todas = Boolean(
       (document.getElementById("mapa-estaciones-todas") || {}).checked
     );
-    if (!Number.isFinite(cerca)) {
-      cerca = 50;
-    }
-    var arribos = datos.filter(function (punto) {
-      return punto.tipo === "arribo";
-    });
-    var sinArribos = datos.filter(function (punto) {
-      if (punto.tipo === "arribo") {
-        return false;
-      }
+    var estados = filtrosEstadoMapa();
+    var limite = solo ? (cerca === null ? 50 : cerca) : radio;
+    var resumen = {
+      total: datos.length,
+      fueraRadio: 0,
+      ocultasEstado: 0,
+      capadas: 0,
+    };
+    var arribos = [];
+    var candidatas = [];
+    datos.forEach(function (punto) {
       var distancia = Number(punto.distancia_km);
-      if (solo) {
-        return Number.isFinite(distancia) && distancia <= cerca;
+      if (Number.isFinite(limite)) {
+        var excede = solo
+          ? !Number.isFinite(distancia) || distancia > limite
+          : Number.isFinite(distancia) && distancia > limite;
+        if (excede) {
+          resumen.fueraRadio += 1;
+          return;
+        }
       }
-      if (Number.isFinite(radio)) {
-        return !Number.isFinite(distancia) || distancia <= radio;
+      var estado = estadoOndasPunto(punto);
+      if (!estadoPermitidoMapa(estado, estados)) {
+        resumen.ocultasEstado += 1;
+        return;
       }
-      return true;
+      if (punto.tipo === "arribo") {
+        arribos.push(punto);
+      } else {
+        candidatas.push(punto);
+      }
     });
-    if (!todas) {
-      sinArribos = sinArribos.slice(0, 20);
-    }
-    return arribos.concat(sinArribos);
+    var limiteCandidatas = todas ? candidatas.length : 20;
+    resumen.capadas = Math.max(0, candidatas.length - limiteCandidatas);
+    return {
+      visibles: arribos.concat(candidatas.slice(0, limiteCandidatas)),
+      resumen: resumen,
+    };
+  }
+
+  function puntosMapaVisibles() {
+    return estacionesMapaFiltradas().visibles;
   }
 
   function claveEstacion(punto) {
@@ -947,7 +999,7 @@
     return "sin_consultar";
   }
 
-  function actualizarResumenEstados(puntos) {
+  function actualizarResumenEstados(puntos, extras) {
     var resumen = document.getElementById("resumen-estados-estaciones");
     if (!resumen) {
       return;
@@ -980,7 +1032,93 @@
         disponibles +
         " disponibles no usadas"
       : "Sin estaciones en el mapa.";
+    var notas = [];
+    if (extras) {
+      if (extras.fueraRadio) {
+        notas.push(extras.fueraRadio + " fuera del radio");
+      }
+      if (extras.ocultasEstado) {
+        notas.push(extras.ocultasEstado + " ocultas por estado");
+      }
+      if (extras.capadas) {
+        notas.push(extras.capadas + " fuera del tope");
+      }
+    }
+    if (notas.length) {
+      texto += " · " + notas.join(" · ");
+    }
     resumen.textContent = texto;
+  }
+
+  function ocultarAvisoMapa() {
+    var aviso = document.getElementById("mapa-estaciones-vacio");
+    if (aviso) {
+      aviso.classList.add("d-none");
+    }
+  }
+
+  function actualizarAvisoMapaVacio(resultado) {
+    var aviso = document.getElementById("mapa-estaciones-vacio");
+    if (!aviso) {
+      return;
+    }
+    var visibles = (resultado && resultado.visibles) || [];
+    aviso.classList.toggle("d-none", visibles.length > 0);
+    if (visibles.length) {
+      return;
+    }
+    var texto = document.getElementById("mapa-estaciones-vacio-texto");
+    if (!texto) {
+      return;
+    }
+    var resumen = (resultado && resultado.resumen) || {};
+    var causas = [];
+    if (resumen.fueraRadio) {
+      causas.push(resumen.fueraRadio + " fuera del radio");
+    }
+    if (resumen.ocultasEstado) {
+      causas.push(resumen.ocultasEstado + " ocultas por estado");
+    }
+    texto.textContent = causas.length
+      ? "Ninguna estación cumple los filtros: " +
+        causas.join(" · ") +
+        "."
+      : "No hay estaciones para mostrar.";
+  }
+
+  function quitarFiltrosMapa() {
+    var solo = document.getElementById("filtro-solo");
+    var radio = document.getElementById("filtro-radio");
+    var exportado = radioExportadoMapa();
+    if (solo) {
+      solo.checked = false;
+      solo.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    if (radio) {
+      radio.value = exportado === null ? "" : String(exportado);
+      radio.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    [
+      "mapa-mostrar-arribos",
+      "mapa-mostrar-disponibles",
+      "mapa-mostrar-sin-datos",
+      "mapa-mostrar-sin-consultar",
+    ].forEach(function (id) {
+      var casilla = document.getElementById(id);
+      if (casilla) {
+        casilla.checked = true;
+      }
+    });
+    redibujarEstacionesMapa();
+  }
+
+  function redibujarEstacionesMapa() {
+    if (mapaEstacionesActivo) {
+      dibujarMapaEstaciones();
+    } else if (propagacionActiva) {
+      prepararPropagacion();
+      actualizarPropagacion();
+    }
   }
 
   function mostrarLeyendaEstados(mostrar) {
@@ -1284,7 +1422,8 @@
   }
 
   function datosPropagacion() {
-    var puntos = puntosMapaVisibles();
+    var filtradas = estacionesMapaFiltradas();
+    var puntos = filtradas.visibles;
     var tiempos = datosTiemposLlegada();
     var evento = tiempos.evento || {};
     var latEvento = Number(evento.lat);
@@ -1487,6 +1626,7 @@
       maxT: maxTiempo,
       fuenteP: observadosP.length ? "observado" : "estimado",
       fuenteS: observadosS.length ? "observado" : "estimado",
+      resumen: filtradas.resumen,
     };
   }
 
@@ -1495,6 +1635,7 @@
     if (!propagacionDatos) {
       propagacionMax = 0;
       renderListadoPropagacion([]);
+      ocultarAvisoMapa();
       return false;
     }
     renderListadoPropagacion(leerListadoPropagacion(propagacionDatos));
@@ -1648,7 +1789,11 @@
     if (typeof api.mostrarPropagacionPerfil === "function") {
       api.mostrarPropagacionPerfil(instantanea);
     }
-    actualizarResumenEstados(estaciones);
+    actualizarResumenEstados(estaciones, datos.resumen);
+    actualizarAvisoMapaVacio({
+      visibles: datos.estaciones,
+      resumen: datos.resumen,
+    });
     actualizarResumenFrentes(estaciones);
     var reloj = document.getElementById("propagacion-reloj");
     if (reloj) {
@@ -1854,6 +1999,7 @@
     }
     if (!mapaEstacionesActivo) {
       mostrarLeyendaEstados(false);
+      ocultarAvisoMapa();
     }
   }
 
@@ -1877,12 +2023,23 @@
       );
       return;
     }
-    var puntos = puntosMapaVisibles();
-    api.mostrarEstaciones(puntos);
-    if (typeof api.mostrarEstacionesPerfil === "function") {
-      api.mostrarEstacionesPerfil(puntos);
+    var resultado = estacionesMapaFiltradas();
+    var puntos = resultado.visibles;
+    if (!puntos.length) {
+      if (typeof api.ocultarEstaciones === "function") {
+        api.ocultarEstaciones();
+      }
+      if (typeof api.ocultarEstacionesPerfil === "function") {
+        api.ocultarEstacionesPerfil();
+      }
+    } else {
+      api.mostrarEstaciones(puntos);
+      if (typeof api.mostrarEstacionesPerfil === "function") {
+        api.mostrarEstacionesPerfil(puntos);
+      }
     }
-    actualizarResumenEstados(puntos);
+    actualizarResumenEstados(puntos, resultado.resumen);
+    actualizarAvisoMapaVacio(resultado);
     var boton = document.getElementById("btn-estaciones-mapa");
     if (boton) {
       boton.textContent = "Ocultar estaciones";
@@ -1924,6 +2081,7 @@
     }
     if (!propagacionActiva) {
       mostrarLeyendaEstados(false);
+      ocultarAvisoMapa();
     }
   }
 
@@ -2251,13 +2409,26 @@
     }
     var todas = document.getElementById("mapa-estaciones-todas");
     if (todas) {
-      todas.addEventListener("change", function () {
-        if (mapaEstacionesActivo) {
-          dibujarMapaEstaciones();
-        } else if (propagacionActiva) {
-          prepararPropagacion();
-          actualizarPropagacion();
-        }
+      todas.addEventListener("change", redibujarEstacionesMapa);
+    }
+    [
+      "mapa-mostrar-arribos",
+      "mapa-mostrar-disponibles",
+      "mapa-mostrar-sin-datos",
+      "mapa-mostrar-sin-consultar",
+    ].forEach(function (id) {
+      var casilla = document.getElementById(id);
+      if (casilla) {
+        casilla.addEventListener("change", redibujarEstacionesMapa);
+      }
+    });
+    var quitarFiltros = document.getElementById(
+      "btn-quitar-filtro-distancia"
+    );
+    if (quitarFiltros) {
+      quitarFiltros.addEventListener("click", function (evento) {
+        evento.preventDefault();
+        quitarFiltrosMapa();
       });
     }
     document.addEventListener("rcs:perfil-redibujado", function () {
