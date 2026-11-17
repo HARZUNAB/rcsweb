@@ -20,13 +20,6 @@ jobs:
       - name: Instalar dependencias
         run: pip install -e ".[dev]"
 
-      - name: Entorno
-        run: |
-          python -V
-          pip --version
-          pytest --version
-          pip freeze
-
       - name: Lint
         run: ruff check .
 
