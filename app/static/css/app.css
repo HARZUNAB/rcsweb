@@ -381,7 +381,8 @@ footer {
 }
 
 .miniaturas-fila.abierta,
-.tabla-resultados.con-miniaturas .miniaturas-fila {
+.tabla-resultados.con-miniaturas .miniaturas-fila,
+.tabla-miniaturas.con-miniaturas .miniaturas-fila {
   display: flex;
 }
 
@@ -403,7 +404,8 @@ footer {
   line-height: 1.2;
 }
 
-.tabla-resultados.con-miniaturas .btn-miniaturas {
+.tabla-resultados.con-miniaturas .btn-miniaturas,
+.tabla-miniaturas.con-miniaturas .btn-miniaturas {
   display: none;
 }
 

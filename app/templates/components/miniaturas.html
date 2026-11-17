@@ -1,0 +1,32 @@
+{% macro miniaturas_fila(url, mapa=None, color=None, ubicacion='') -%}
+{% set mapa = mapa or {} %}
+{% set color = color or '#0d6efd' %}
+{% if url or mapa.get('visible') %}
+<div class="miniaturas-fila" data-miniaturas-fila>
+  {% if url %}
+  <img class="miniatura-perfil"
+       data-src="{{ url }}"
+       alt="Miniatura del perfil"
+       loading="lazy" decoding="async"
+       width="120" height="55">
+  {% endif %}
+  <div class="minimapa-planta">
+    <svg class="minimapa-svg" viewBox="0 0 100 140"
+         role="img" aria-label="Ubicación del evento en Chile">
+      <use href="#mapa-chile-mini"></use>
+      {% if mapa.get('visible') %}
+      <circle cx="{{ mapa.get('x') }}" cy="{{ mapa.get('y') }}" r="3.1"
+              fill="{{ color }}"
+              stroke="{% if ubicacion == 'Fuera' %}#fd7e14{% elif ubicacion == 'Mar' %}#0dcaf0{% else %}#ffffff{% endif %}"
+              stroke-width="{% if ubicacion == 'Fuera' %}1.6{% else %}0.8{% endif %}"></circle>
+      {% endif %}
+    </svg>
+  </div>
+</div>
+<button type="button"
+        class="btn btn-sm btn-link btn-miniaturas px-0"
+        data-toggle-miniaturas-fila aria-expanded="false">
+  Ver miniaturas
+</button>
+{% endif %}
+{%- endmacro %}

@@ -174,7 +174,7 @@
     });
   }
 
-  const tablaMiniaturas = document.querySelector(".tabla-resultados");
+  const tablaMiniaturas = document.querySelector("[data-miniaturas-tabla]");
   const interruptorMiniaturas = document.querySelector("[data-toggle-miniaturas]");
   if (tablaMiniaturas && interruptorMiniaturas) {
     let activo = false;
@@ -206,7 +206,7 @@
       caja.classList.toggle("abierta", abrir);
       boton.textContent = abrir ? "Ocultar miniaturas" : "Ver miniaturas";
       boton.setAttribute("aria-expanded", String(abrir));
-      const tabla = boton.closest(".tabla-resultados");
+      const tabla = boton.closest("[data-miniaturas-tabla]");
       if (tabla) {
         const abiertas = tabla.querySelectorAll(".miniaturas-fila.abierta").length;
         tabla.classList.toggle("con-miniaturas-fila", abiertas > 0);

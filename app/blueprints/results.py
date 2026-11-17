@@ -349,6 +349,8 @@ def _fila_sospechosa(
         "evento": evento.get("event_id") or "",
         "id_evento_fuente": evento.get("source_event_id") or "",
         "fecha_hora": evento.get("event_time") or "",
+        "latitud": evento.get("latitude", ""),
+        "longitud": evento.get("longitude", ""),
         "magnitud": formatting.numero(evento.get("magnitude"), 1),
         "region": (evento.get("raw") or {}).get("region", ""),
         "analista": evento.get("analyst") or "",
@@ -699,8 +701,27 @@ def indicios_eventos(job_id: str):
     solicitudes_evento = (
         review.mapa_solicitudes(job.id, fuente) if fuente else {}
     )
+    puede_miniaturas = tiene_permiso(current_user, "catalogos.ver")
     for fila in filas:
         fila["solicitud_info"] = solicitudes_evento.get(fila.get("evento"))
+        mapa = mapa_fila(fila.get("latitud"), fila.get("longitud"))
+        fila["_mapa"] = mapa
+        fila["_mapa_color"] = colores.COLOR_NO_PERCIBIDO
+        try:
+            indice_fila = int(fila.get("fila_catalogo"))
+        except (TypeError, ValueError):
+            indice_fila = None
+        fila["url_miniatura"] = (
+            url_for(
+                "results.miniatura",
+                job_id=job.id,
+                tabla="catalogos",
+                opcion=fuente,
+                fila=indice_fila,
+            )
+            if puede_miniaturas and fuente and indice_fila is not None
+            else ""
+        )
 
     info_fuente = dict((resumen or {}).get("fuentes", {}).get(fuente, {}))
     info_fuente["con_anomalia_fuerte"] = sum(

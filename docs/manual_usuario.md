@@ -725,6 +725,11 @@ El listado principal y la tabla de evidencia se ordenan haciendo clic en
 cualquier encabezado. El segundo clic invierte el orden. No se recarga la
 página. El orden inicial es prioridad, solución, mayor residual y fecha.
 
+Sobre la tabla hay un interruptor **Mostrar miniaturas de perfil y planta**.
+Cada fila también permite abrir solo sus miniaturas con **Ver miniaturas**.
+Se cargan al activarlas, no al abrir la página. Es el mismo componente que usan
+las tablas de Resultados.
+
 La **cobertura** es `fuerte` o `débil` y describe la geometría de las
 estaciones, no el contexto sismotectónico:
 

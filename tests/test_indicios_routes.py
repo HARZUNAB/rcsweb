@@ -165,6 +165,10 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "· sin usuario" in html
     assert "Cruce Eventquery" in html
     assert "¿Qué significan estos términos?" in html
+    assert "Mostrar miniaturas de perfil y planta" in html
+    assert "Ver miniaturas" in html
+    assert "miniatura.png" in html
+    assert 'id="mapa-chile-mini"' in html
     assert "inversion" not in html.lower()
 
     ajeno = client.get(
@@ -242,6 +246,19 @@ def test_alcance_publicados_redirige_a_cruce_eventquery(app, client, login):
     assert final.status_code == 200
     html = final.get_data(as_text=True)
     assert "Con cruce Eventquery" in html
+
+
+def test_miniatura_de_evento_de_revision(app, client, login):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    login()
+
+    respuesta = client.get(
+        f"/jobs/{job.id}/resultados/catalogos/seiscomp/0/miniatura.png"
+    )
+    assert respuesta.status_code == 200
+    assert respuesta.content_type == "image/png"
+    assert respuesta.data.startswith(b"\x89PNG")
 
 
 def test_filas_sospechosas_sin_fase(monkeypatch, tmp_path):

@@ -385,6 +385,14 @@ TERMINOS = {
             "usado en la solución."
         ),
     },
+    "miniaturas_perfil_planta": {
+        "titulo": "Miniaturas de perfil y planta",
+        "texto": (
+            "Vista compacta del perfil de subducción y de la ubicación del "
+            "evento en el mapa de planta. Se cargan al activar la opción o al "
+            "abrir la fila."
+        ),
+    },
 }
 
 
@@ -464,6 +472,7 @@ def _grupo_de(clave: str) -> str:
         "repetidos",
         "coincidencias_otras_fuentes",
         "publicado_otra_fuente",
+        "miniaturas_perfil_planta",
     }:
         return "resultados"
     if clave.startswith("revision"):

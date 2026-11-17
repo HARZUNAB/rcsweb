@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "_macros.html" import badge_revision %}
 {% from "components/ayuda.html" import panel as ayuda_panel with context %}
+{% from "components/miniaturas.html" import miniaturas_fila %}
 {% block title %}{{ tabla_config.titulo }} · Trabajo {{ job.id[:8] }}{% endblock %}
 
 {% block content %}
@@ -151,6 +152,7 @@
       <div class="table-responsive">
         {# La selección se guarda por trabajo/tabla/opción en el navegador. #}
         <table class="table table-sm table-hover align-middle tabla-resultados mb-0"
+               data-miniaturas-tabla
                data-seleccion-clave="{{ job.id }}:{{ tabla }}:{{ opcion }}"
                data-url-seleccionados="{{ url_exportar_seleccionados() }}">
           <thead class="table-light">
@@ -235,30 +237,12 @@
                 {% endif %}
 
                 {% if not catalogo_restringido %}
-                <div class="miniaturas-fila" data-miniaturas-fila>
-                  <img class="miniatura-perfil"
-                       data-src="{{ url_miniatura(fila.get('_fila')) }}"
-                       alt="Miniatura del perfil"
-                       loading="lazy" decoding="async"
-                       width="120" height="55">
-                  <div class="minimapa-planta">
-                    <svg class="minimapa-svg" viewBox="0 0 100 140"
-                         role="img" aria-label="Ubicación del evento en Chile">
-                      <use href="#mapa-chile-mini"></use>
-                      {% if mapa.get('visible') %}
-                      <circle cx="{{ mapa.get('x') }}" cy="{{ mapa.get('y') }}" r="3.1"
-                              fill="{{ fila.get('_mapa_color', '#0d6efd') }}"
-                              stroke="{% if ubicacion == 'Fuera' %}#fd7e14{% elif ubicacion == 'Mar' %}#0dcaf0{% else %}#ffffff{% endif %}"
-                              stroke-width="{% if ubicacion == 'Fuera' %}1.6{% else %}0.8{% endif %}"></circle>
-                      {% endif %}
-                    </svg>
-                  </div>
-                </div>
-                <button type="button"
-                        class="btn btn-sm btn-link btn-miniaturas px-0"
-                        data-toggle-miniaturas-fila aria-expanded="false">
-                  Ver miniaturas
-                </button>
+                {{ miniaturas_fila(
+                     url_miniatura(fila.get('_fila')),
+                     fila.get('_mapa'),
+                     fila.get('_mapa_color'),
+                     (fila.get('_mapa') or {}).get('ubicacion', '')
+                ) }}
                 {% endif %}
                   </div>
                 </div>

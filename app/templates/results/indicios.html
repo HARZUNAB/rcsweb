@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% from "components/ayuda.html" import panel as ayuda_panel with context %}
+{% from "components/miniaturas.html" import miniaturas_fila %}
 {% block title %}Revisión de eventos · Trabajo {{ job.id[:8] }}{% endblock %}
 
 {% block content %}
+{% include "results/_mapa_chile.svg" %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
   <div>
     <div class="text-secondary small text-uppercase mb-1">
@@ -32,7 +34,8 @@
   "patron", "patron_puntual", "patron_sistematico", "patron_varias_senales",
   "patron_sin_fase",
   "cobertura", "cobertura_debil", "indicio_debil", "residual_extremo",
-  "senales_fase", "estaciones_disponibles", "estaciones_usadas"
+  "senales_fase", "estaciones_disponibles", "estaciones_usadas",
+  "miniaturas_perfil_planta"
 ]) }}
 
 {% if info_fuente.residual_temporal or resumen.total.residual_temporal %}
@@ -190,8 +193,16 @@
       {{ filas|length }} evento{{ '' if filas|length == 1 else 's' }}
       con indicios en {{ etiquetas.get(fuente, fuente) }}.
     </div>
+    <div class="form-check form-switch small mb-2">
+      <input class="form-check-input" type="checkbox" id="toggle-miniaturas"
+             data-toggle-miniaturas>
+      <label class="form-check-label" for="toggle-miniaturas">
+        Mostrar miniaturas de perfil y planta
+      </label>
+    </div>
     <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0 tabla-revision" data-sortable>
+      <table class="table table-sm table-hover align-middle mb-0 tabla-revision tabla-miniaturas"
+             data-miniaturas-tabla data-sortable>
         <thead class="table-light">
           <tr>
             {% if puede_crear_revision %}
@@ -258,6 +269,12 @@
               {% if fila.region %}
               <div class="small text-secondary">{{ fila.region }}</div>
               {% endif %}
+              {{ miniaturas_fila(
+                   fila.url_miniatura,
+                   fila.get('_mapa'),
+                   fila.get('_mapa_color'),
+                   (fila.get('_mapa') or {}).get('ubicacion', '')
+              ) }}
             </td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.magnitud or '' }}">{{ fila.magnitud or '' }}</td>
             <td class="text-nowrap" data-sort-value="{% if fila.cruce_eventquery == 'con_cruce' %}2{% elif fila.cruce_eventquery == 'sin_cruce' %}1{% else %}0{% endif %}">

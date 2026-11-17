@@ -2085,6 +2085,13 @@ ruta relativa del archivo de resultados y rechaza rutas absolutas o con `..`.
 Así los catálogos usan, por ejemplo,
 `plots/miniaturas/catalogos/resultados/catalogo_eventquery/0.png`.
 
+El listado de **Revisión de eventos** reutiliza el macro
+`app/templates/components/miniaturas.html`. La ruta `results.miniatura` se llama
+con `tabla=catalogos`, la fuente y `fila_catalogo`. El JavaScript detecta la
+tabla con `data-miniaturas-tabla`, activa la carga diferida con
+`data-toggle-miniaturas` y permite abrir las miniaturas de una fila con
+`data-toggle-miniaturas-fila`.
+
 En Paneles, el enlace de vuelta del detalle incluye `grupo` e `ident`. El índice
 valida que el grupo exista en el conjunto filtrado y lo preselecciona al cargar;
 si ya no existe, vuelve al primer perfil o territorio.
