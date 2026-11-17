@@ -974,7 +974,7 @@ paneles, use **Centrar** para volver al encuadre del grupo.
 
 **La página tarda y no sé si está trabajando.**
 Después de una navegación lenta aparece un aviso con un spinner y
-«Cargando…».
+«Cargando…». Las descargas de PDF, DOCX, CSV y artefactos no activan ese aviso.
 
 **Olvidé mi contraseña.**
 Use **«¿Olvidó su contraseña?»** en el ingreso. La clave solo puede

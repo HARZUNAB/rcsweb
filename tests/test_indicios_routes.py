@@ -655,7 +655,10 @@ def test_ejecutar_informe_crea_solicitud_con_pdf(
 
     detalle = client.get(f"/revisiones/{solicitud.id}")
     assert detalle.status_code == 200
-    assert "Solicitud #" in detalle.get_data(as_text=True)
+    html = detalle.get_data(as_text=True)
+    assert "Solicitud #" in html
+    assert f'href="/revisiones/{solicitud.id}/pdf"' in html
+    assert "download" in html
 
 
 def test_analista_ve_solo_sus_eventos_y_no_puede_pedir_revision(app, client):

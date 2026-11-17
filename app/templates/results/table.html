@@ -23,7 +23,8 @@
   <div class="d-flex flex-wrap gap-2">
     {% if artefacto and puede('trabajos.descargar') %}
       <a class="btn btn-outline-secondary"
-         href="{{ url_for('jobs.descargar', job_id=job.id, artifact_id=artefacto.id) }}">
+         href="{{ url_for('jobs.descargar', job_id=job.id, artifact_id=artefacto.id) }}"
+         download>
         CSV original
       </a>
     {% endif %}

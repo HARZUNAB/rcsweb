@@ -272,6 +272,9 @@
     }
     if (
       href.includes("/exportar") ||
+      href.includes("/descargar") ||
+      href.includes("/pdf") ||
+      href.includes("/docx") ||
       href.includes("/mapa.png") ||
       href.includes("/miniatura.png")
     ) {

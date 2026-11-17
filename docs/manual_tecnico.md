@@ -1420,6 +1420,10 @@ El botón **Volver a consultar** fuerza una consulta nueva. Los enlaces de
 descarga llevan `download` para que el overlay de navegación no quede visible
 mientras el navegador descarga el CSV.
 
+El mismo criterio se aplica al PDF/DOCX de una solicitud de revisión y a los
+artefactos del trabajo. `app.js` no muestra el overlay para rutas que contienen
+`/exportar`, `/descargar`, `/pdf` o `/docx`, ni para enlaces con `download`.
+
 #### Ampliación contra la base de SeisComp
 
 Cuando el radio pedido supera el de exportación o se marca **Sin límite**, la

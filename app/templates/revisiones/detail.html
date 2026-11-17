@@ -18,7 +18,8 @@
   </div>
   {% if puede_descargar %}
   <a class="btn btn-primary"
-     href="{{ url_for('revisiones.pdf', request_id=solicitud.id) }}">
+     href="{{ url_for('revisiones.pdf', request_id=solicitud.id) }}"
+     download>
     Descargar {{ solicitud.report_format|upper }}
   </a>
   {% endif %}

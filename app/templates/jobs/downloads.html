@@ -61,7 +61,8 @@
             <td class="text-end text-secondary small">{{ archivo.size|filesizeformat }}</td>
             <td class="text-end">
               <a class="btn btn-sm btn-outline-primary"
-                 href="{{ url_for('jobs.descargar', job_id=job.id, artifact_id=archivo.id) }}">
+                 href="{{ url_for('jobs.descargar', job_id=job.id, artifact_id=archivo.id) }}"
+                 download>
                 Descargar
               </a>
             </td>
