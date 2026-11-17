@@ -20,8 +20,25 @@ jobs:
       - name: Instalar dependencias
         run: pip install -e ".[dev]"
 
+      - name: Entorno
+        run: |
+          python -V
+          pip --version
+          pytest --version
+          pip freeze
+
       - name: Lint
         run: ruff check .
 
       - name: Tests
-        run: pytest
+        run: |
+          set +e
+          pytest -q --maxfail=1 2>&1 | tee /tmp/pytest.log
+          estado=${PIPESTATUS[0]}
+          if [ "$estado" -ne 0 ]; then
+            echo "::error::pytest terminó con código $estado"
+            tail -40 /tmp/pytest.log | while IFS= read -r linea; do
+              echo "::error::$linea"
+            done
+          fi
+          exit "$estado"
