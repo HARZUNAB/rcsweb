@@ -77,6 +77,28 @@ class Config:
     RCS_INFORME_MAX_EVENTOS = int(
         os.environ.get("RCS_INFORME_MAX_EVENTOS") or 50
     )
+    RCS_EVIDENCIA_MAX_MB = int(
+        os.environ.get("RCS_EVIDENCIA_MAX_MB") or 20
+    )
+    RCS_PUBLIC_URL = os.environ.get("RCS_PUBLIC_URL", "").strip()
+
+    # Correo saliente para notificar solicitudes de revisión
+    MAIL_SERVER = os.environ.get("MAIL_SERVER", "").strip()
+    MAIL_PORT = int(os.environ.get("MAIL_PORT") or 25)
+    MAIL_USE_SSL = _bool("MAIL_USE_SSL", False)
+    MAIL_USE_TLS = _bool("MAIL_USE_TLS", False)
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "").strip()
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
+    MAIL_DEFAULT_SENDER = os.environ.get(
+        "MAIL_DEFAULT_SENDER", "rcsweb@localhost"
+    ).strip()
+    MAIL_FROM_NAME = os.environ.get("MAIL_FROM_NAME", "RCS Web").strip()
+    MAIL_SIGNATURE = os.environ.get(
+        "MAIL_SIGNATURE",
+        "RCS Web|Centro Sismológico Nacional|Universidad de Chile",
+    )
+    MAIL_TIMEOUT = int(os.environ.get("MAIL_TIMEOUT") or 10)
+    MAIL_SUPPRESS_SEND = _bool("MAIL_SUPPRESS_SEND", False)
 
     # Celery
     CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
@@ -110,3 +132,6 @@ class TestConfig(Config):
     }
     WTF_CSRF_ENABLED = False
     SERVER_NAME = "localhost"
+    MAIL_SUPPRESS_SEND = True
+    MAIL_SERVER = ""
+    RCS_PUBLIC_URL = "http://localhost"

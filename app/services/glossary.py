@@ -402,6 +402,29 @@ TERMINOS = {
             "sin consultar. Sin datos queda oculto por defecto."
         ),
     },
+    "correo_analista": {
+        "titulo": "Correo del analista",
+        "texto": (
+            "Dirección configurada en Usuarios. Se usa para avisar al analista "
+            "cuando se le asigna una solicitud de revisión."
+        ),
+    },
+    "evidencia_cierre": {
+        "titulo": "Evidencia de cierre",
+        "texto": (
+            "Archivo opcional que el analista adjunta al cerrar la solicitud. "
+            "Se aceptan PDF, imágenes, DOC/DOCX, XLS/XLSX, TXT, CSV y ZIP, "
+            "con un máximo de 20 MB."
+        ),
+    },
+    "url_actualizada_evento": {
+        "titulo": "URL actualizada del evento",
+        "texto": (
+            "Enlace que se registra por evento cuando sus parámetros cambiaron "
+            "durante la revisión. Es obligatorio si se marca que el evento "
+            "cambió."
+        ),
+    },
 }
 
 
@@ -485,6 +508,10 @@ def _grupo_de(clave: str) -> str:
         "miniaturas_perfil_planta",
     }:
         return "resultados"
-    if clave.startswith("revision"):
+    if clave in {
+        "correo_analista",
+        "evidencia_cierre",
+        "url_actualizada_evento",
+    } or clave.startswith("revision"):
         return "revisiones"
     return "usuarios"

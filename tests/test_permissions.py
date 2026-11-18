@@ -377,6 +377,7 @@ def test_admin_crea_usuario_y_cambia_rol(client, usuarios):
             "password": "clave12345",
             "confirm_password": "clave12345",
             "active": "y",
+            "email": "nuevo@csn.uchile.cl",
         },
     )
     assert respuesta.status_code == 302
@@ -385,6 +386,7 @@ def test_admin_crea_usuario_y_cambia_rol(client, usuarios):
     ).scalar_one()
     assert creado.role == "supervisor"
     assert creado.active is True
+    assert creado.email == "nuevo@csn.uchile.cl"
     assert creado.check_password("clave12345")
 
     respuesta = client.post(
@@ -393,10 +395,13 @@ def test_admin_crea_usuario_y_cambia_rol(client, usuarios):
             "role": "observador",
             "active": "y",
             "analyst_code": "Nuevo",
+            "email": "cambiado@csn.uchile.cl",
         },
     )
     assert respuesta.status_code == 302
-    assert db.session.get(User, creado.id).role == "observador"
+    actualizado = db.session.get(User, creado.id)
+    assert actualizado.role == "observador"
+    assert actualizado.email == "cambiado@csn.uchile.cl"
 
     respuesta = client.post(
         f"/admin/usuarios/{creado.id}/password",
@@ -410,6 +415,52 @@ def test_admin_crea_usuario_y_cambia_rol(client, usuarios):
 
     _login(client, "nuevo", "otraclave123")
     assert client.get("/").status_code == 200
+
+
+def test_admin_valida_correo_de_usuario(client, usuarios):
+    _login(client, "tester")
+
+    base = {
+        "role": "supervisor",
+        "password": "clave12345",
+        "confirm_password": "clave12345",
+        "active": "y",
+    }
+    respuesta = client.post(
+        "/admin/usuarios/crear",
+        data={**base, "username": "correo-malo", "email": "no-es-correo"},
+        follow_redirects=True,
+    )
+    assert respuesta.status_code == 200
+    assert "correo electrónico no es válido" in respuesta.get_data(
+        as_text=True
+    ).lower()
+    assert User.query.filter_by(username="correo-malo").first() is None
+
+    respuesta = client.post(
+        "/admin/usuarios/crear",
+        data={
+            **base,
+            "username": "correo-uno",
+            "email": "uno@csn.uchile.cl",
+        },
+    )
+    assert respuesta.status_code == 302
+    primero = User.query.filter_by(username="correo-uno").one()
+    assert primero.email == "uno@csn.uchile.cl"
+
+    respuesta = client.post(
+        "/admin/usuarios/crear",
+        data={
+            **base,
+            "username": "correo-dos",
+            "email": "uno@csn.uchile.cl",
+        },
+        follow_redirects=True,
+    )
+    assert respuesta.status_code == 200
+    assert "ya está asociado" in respuesta.get_data(as_text=True)
+    assert User.query.filter_by(username="correo-dos").first() is None
 
 
 def test_admin_exige_codigo_a_analista(client, usuarios):

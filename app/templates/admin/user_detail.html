@@ -56,6 +56,18 @@
               <div class="invalid-feedback d-block">{{ error }}</div>
             {% endfor %}
           </div>
+          <div class="mb-3">
+            {{ rol_form.email.label(class="form-label") }}
+            {{ rol_form.email(class="form-control", autocomplete="email",
+                              type="email",
+                              placeholder="analista@csn.uchile.cl") }}
+            <div class="form-text">
+              Se usa para notificar las solicitudes de revisión.
+            </div>
+            {% for error in rol_form.email.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
           <div class="form-check form-switch mb-3">
             {{ rol_form.active(class="form-check-input") }}
             {{ rol_form.active.label(class="form-check-label") }}

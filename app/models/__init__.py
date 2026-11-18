@@ -40,6 +40,7 @@ class User(UserMixin, db.Model):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(32), default="analista")
     analyst_code: Mapped[str | None] = mapped_column(String(80))
@@ -486,6 +487,16 @@ class ReviewRequest(db.Model):
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closing_note: Mapped[str | None] = mapped_column(Text)
+    email_to: Mapped[str | None] = mapped_column(String(255))
+    email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_error: Mapped[str | None] = mapped_column(Text)
+    evidence_path: Mapped[str | None] = mapped_column(String(255))
+    evidence_name: Mapped[str | None] = mapped_column(String(255))
+    evidence_size: Mapped[int | None] = mapped_column(Integer)
+    evidence_sha256: Mapped[str | None] = mapped_column(String(64))
+    evidence_uploaded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
     )
@@ -531,6 +542,8 @@ class ReviewRequestEvent(db.Model):
     analyst: Mapped[str] = mapped_column(String(80), default="")
     priority: Mapped[str] = mapped_column(String(20), default="")
     motive: Mapped[str] = mapped_column(String(20), default="")
+    parameters_changed: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_url: Mapped[str | None] = mapped_column(String(1000))
 
     request = relationship("ReviewRequest", back_populates="events")
 

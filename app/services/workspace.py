@@ -111,6 +111,32 @@ def guardar_archivo(file_storage, destino: Path) -> tuple[int, str]:
     return tamano, digest.hexdigest()
 
 
+def guardar_archivo_limitado(
+    file_storage, destino: Path, max_bytes: int
+) -> tuple[int, str]:
+    """Como ``guardar_archivo`` pero corta si supera ``max_bytes``."""
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256()
+    tamano = 0
+    try:
+        with destino.open("wb") as salida:
+            while True:
+                bloque = file_storage.stream.read(1024 * 1024)
+                if not bloque:
+                    break
+                tamano += len(bloque)
+                if tamano > max_bytes:
+                    raise ValueError(
+                        "El archivo supera el tamaño máximo permitido."
+                    )
+                salida.write(bloque)
+                digest.update(bloque)
+    except Exception:
+        destino.unlink(missing_ok=True)
+        raise
+    return tamano, digest.hexdigest()
+
+
 def enlazar_insumos(workspace: Path) -> None:
     """Crea symlinks a los insumos del core incorporado."""
     core_data = Path(current_app.config["RCS_CORE_DATA"])

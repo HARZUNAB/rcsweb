@@ -187,6 +187,10 @@ class UsuarioForm(FlaskForm):
         "Alias de analista",
         validators=[Optional(), Length(max=255)],
     )
+    email = StringField(
+        "Correo electrónico",
+        validators=[Optional(), Length(max=255)],
+    )
     password = PasswordField(
         "Contraseña",
         validators=[DataRequired(), Length(min=8, max=128)],
@@ -217,6 +221,10 @@ class RolUsuarioForm(FlaskForm):
     )
     analyst_aliases = StringField(
         "Alias de analista",
+        validators=[Optional(), Length(max=255)],
+    )
+    email = StringField(
+        "Correo electrónico",
         validators=[Optional(), Length(max=255)],
     )
     active = BooleanField("Activo")

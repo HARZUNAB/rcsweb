@@ -132,6 +132,7 @@ def crear_usuario_web():
                 active=form.active.data,
                 analyst_code=form.analyst_code.data or "",
                 analyst_aliases=form.analyst_aliases.data or "",
+                email=form.email.data or "",
             )
         except UsuarioError as exc:
             flash(str(exc), "danger")
@@ -143,6 +144,7 @@ def crear_usuario_web():
                     "roles": list(roles_de_usuario(usuario)),
                     "activo": usuario.active,
                     "codigo_analista": usuario.analyst_code,
+                    "correo": usuario.email,
                 },
             )
             flash(f"Usuario '{usuario.username}' creado.", "success")
@@ -189,6 +191,7 @@ def actualizar_usuario_web(user_id: int):
             form.active.data,
             analyst_code=form.analyst_code.data or "",
             analyst_aliases=form.analyst_aliases.data or "",
+            email=form.email.data or "",
         )
     except UsuarioError as exc:
         flash(str(exc), "danger")
@@ -201,6 +204,7 @@ def actualizar_usuario_web(user_id: int):
             "roles": list(roles_de_usuario(objetivo)),
             "activo": objetivo.active,
             "codigo_analista": objetivo.analyst_code,
+            "correo": objetivo.email,
         },
     )
     flash(f"Usuario '{objetivo.username}' actualizado.", "success")

@@ -16,6 +16,34 @@ class UsuarioError(ValueError):
     """Error de validación o de regla de negocio."""
 
 
+_RE_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _normalizar_email(email: str | None) -> str | None:
+    valor = (email or "").strip().lower()
+    if not valor:
+        return None
+    if len(valor) > 255 or not _RE_EMAIL.match(valor):
+        raise UsuarioError("El correo electrónico no es válido.")
+    return valor
+
+
+def _validar_email_unico(usuario_id: int | None, email: str | None) -> None:
+    if not email:
+        return
+    otro = db.session.execute(
+        db.select(User).where(
+            func.lower(User.email) == email,
+            User.id != (usuario_id or -1),
+        )
+    ).scalar_one_or_none()
+    if otro is not None:
+        raise UsuarioError(
+            f"El correo '{email}' ya está asociado al usuario "
+            f"'{otro.username}'."
+        )
+
+
 def _validar(password: str) -> None:
     if len(password) < 8:
         raise UsuarioError("La contraseña debe tener al menos 8 caracteres.")
@@ -98,6 +126,7 @@ def crear_usuario(
     active: bool = True,
     analyst_code: str = "",
     analyst_aliases: str = "",
+    email: str = "",
 ) -> User:
     """Crea un usuario validando nombre, roles, contraseña y código."""
     nombre = (username or "").strip()
@@ -105,6 +134,8 @@ def crear_usuario(
         raise UsuarioError("El usuario debe tener al menos 3 caracteres.")
     roles_norm = _normalizar_roles(roles)
     _validar(password)
+    correo = _normalizar_email(email)
+    _validar_email_unico(None, correo)
     _validar_codigo(None, analyst_code, analyst_aliases, roles_norm)
     existente = db.session.execute(
         db.select(User).filter_by(username=nombre)
@@ -114,6 +145,7 @@ def crear_usuario(
 
     usuario = User(
         username=nombre,
+        email=correo,
         role=roles_norm[0],
         active=active,
         analyst_code=(analyst_code or "").strip() or None,
@@ -132,6 +164,7 @@ def actualizar_usuario(
     active: bool,
     analyst_code: str | None = None,
     analyst_aliases: str | None = None,
+    email: str | None = None,
 ) -> User:
     """Cambia roles, estado y código sin dejar sin administradores activos."""
     roles_norm = _normalizar_roles(roles)
@@ -141,6 +174,8 @@ def actualizar_usuario(
         if analyst_aliases is None
         else analyst_aliases
     )
+    correo = usuario.email if email is None else _normalizar_email(email)
+    _validar_email_unico(usuario.id, correo)
     roles_previos = set(roles_de_usuario(usuario))
     era_admin_activo = "admin" in roles_previos and usuario.active
     sera_admin_activo = "admin" in roles_norm and active
@@ -155,6 +190,7 @@ def actualizar_usuario(
     _validar_codigo(usuario.id, codigo or "", alias or "", roles_norm)
     _aplicar_roles(usuario, roles_norm)
     usuario.active = active
+    usuario.email = correo
     usuario.analyst_code = (codigo or "").strip() or None
     usuario.analyst_aliases = (alias or "").strip() or None
     db.session.commit()

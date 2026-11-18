@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import zipfile
 
@@ -596,6 +597,7 @@ def test_revisiones_visibilidad_y_ciclo(app, client, login):
     assert solicitud.status == "cerrada"
     assert solicitud.closed_at is not None
     assert "confirmó el pick" in solicitud.closing_note
+    assert solicitud.evidence_path is None
 
     client.post("/logout")
     client.post(
@@ -607,12 +609,204 @@ def test_revisiones_visibilidad_y_ciclo(app, client, login):
     assert client.get(f"/revisiones/{solicitud.id}").status_code == 403
 
 
+def _solicitud_en_proceso(app, eventos: int = 2):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    analista = User(
+        username="mdur",
+        role="analista",
+        analyst_code="mdur",
+        email="mdur@csn.uchile.cl",
+    )
+    analista.set_password("secret")
+    otro = User(username="otro", role="analista", analyst_code="otro")
+    otro.set_password("secret")
+    db.session.add_all([analista, otro])
+    db.session.flush()
+    solicitud = ReviewRequest(
+        job_id=job.id,
+        source_id="seiscomp",
+        created_by_id=admin.id,
+        assigned_to_id=analista.id,
+        status="en_proceso",
+        notified_at=utcnow(),
+        accepted_at=utcnow(),
+        report_format="pdf",
+    )
+    db.session.add(solicitud)
+    db.session.flush()
+    creados = []
+    for indice in range(eventos):
+        evento = ReviewRequestEvent(
+            request_id=solicitud.id,
+            source_id="seiscomp",
+            event_id=f"seiscomp:00000{indice}",
+            source_event_id=f"csn_{indice}",
+            fila_catalogo=indice,
+            event_time="2026-10-28 15:23:36",
+            magnitude=3.0,
+        )
+        db.session.add(evento)
+        creados.append(evento)
+    db.session.commit()
+    return solicitud, creados, analista, otro
+
+
+def test_cierre_con_evidencia_y_url_por_evento(app, client):
+    solicitud, eventos, analista, otro = _solicitud_en_proceso(app)
+    client.post("/logout")
+    client.post("/login", data={"username": "mdur", "password": "secret"})
+
+    detalle = client.get(f"/revisiones/{solicitud.id}").get_data(as_text=True)
+    assert "Evidencia (opcional)" in detalle
+    assert f"cambio_{eventos[0].id}" in detalle
+    assert f"url_{eventos[0].id}" in detalle
+    assert "Formatos y tamaño permitido" in detalle
+
+    respuesta = client.post(
+        f"/revisiones/{solicitud.id}/cerrar",
+        data={
+            "antecedentes": "Se revisó y se actualizó la magnitud.",
+            f"cambio_{eventos[0].id}": "on",
+            f"url_{eventos[0].id}": "https://example.org/evento/1",
+            "evidencia": (
+                io.BytesIO(b"%PDF-1.4 evidencia"),
+                "evidencia.pdf",
+            ),
+        },
+        content_type="multipart/form-data",
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    assert solicitud.status == "cerrada"
+    assert solicitud.evidence_name == "evidencia.pdf"
+    assert solicitud.evidence_path
+    assert solicitud.evidence_size > 0
+    assert solicitud.evidence_sha256
+    ruta = ruta_workspace(solicitud.job_id) / solicitud.evidence_path
+    assert ruta.is_file()
+
+    db.session.refresh(eventos[0])
+    db.session.refresh(eventos[1])
+    assert eventos[0].parameters_changed is True
+    assert eventos[0].updated_url == "https://example.org/evento/1"
+    assert eventos[1].parameters_changed is False
+    assert eventos[1].updated_url is None
+
+    detalle = client.get(f"/revisiones/{solicitud.id}").get_data(as_text=True)
+    assert "evidencia.pdf" in detalle
+    assert "https://example.org/evento/1" in detalle
+    assert "Parámetros actualizados" in detalle
+
+    descarga = client.get(f"/revisiones/{solicitud.id}/evidencia")
+    assert descarga.status_code == 200
+    assert descarga.data.startswith(b"%PDF")
+
+    client.post("/logout")
+    client.post("/login", data={"username": "otro", "password": "secret"})
+    assert client.get(f"/revisiones/{solicitud.id}/evidencia").status_code == 403
+
+
+def test_cierre_exige_url_valida_y_evidencia_opcional(app, client):
+    solicitud, eventos, analista, otro = _solicitud_en_proceso(app, eventos=1)
+    client.post("/logout")
+    client.post("/login", data={"username": "mdur", "password": "secret"})
+    evento = eventos[0]
+    url = f"/revisiones/{solicitud.id}/cerrar"
+
+    respuesta = client.post(
+        url,
+        data={
+            "antecedentes": "Texto",
+            f"cambio_{evento.id}": "on",
+            f"url_{evento.id}": "",
+        },
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    assert solicitud.status == "en_proceso"
+
+    respuesta = client.post(
+        url,
+        data={
+            "antecedentes": "Texto",
+            f"cambio_{evento.id}": "on",
+            f"url_{evento.id}": "ftp://example.org/evento",
+        },
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    assert solicitud.status == "en_proceso"
+
+    respuesta = client.post(
+        url,
+        data={
+            "antecedentes": "Texto",
+            f"cambio_{evento.id}": "on",
+            f"url_{evento.id}": "https://example.org/evento",
+            "evidencia": (io.BytesIO(b"MZ"), "malware.exe"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    assert solicitud.status == "en_proceso"
+    assert solicitud.evidence_path is None
+
+    respuesta = client.post(
+        url,
+        data={
+            "antecedentes": "Texto",
+            f"cambio_{evento.id}": "on",
+            f"url_{evento.id}": "https://example.org/evento",
+        },
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    assert solicitud.status == "cerrada"
+    assert solicitud.evidence_path is None
+    db.session.refresh(evento)
+    assert evento.parameters_changed is True
+    assert evento.updated_url == "https://example.org/evento"
+
+
+def test_cierre_rechaza_evidencia_demasiado_grande(app, client, monkeypatch):
+    solicitud, eventos, analista, otro = _solicitud_en_proceso(app, eventos=1)
+    app.config["RCS_EVIDENCIA_MAX_MB"] = 1
+    client.post("/logout")
+    client.post("/login", data={"username": "mdur", "password": "secret"})
+    evento = eventos[0]
+
+    respuesta = client.post(
+        f"/revisiones/{solicitud.id}/cerrar",
+        data={
+            "antecedentes": "Texto",
+            f"cambio_{evento.id}": "on",
+            f"url_{evento.id}": "https://example.org/evento",
+            "evidencia": (
+                io.BytesIO(b"x" * (2 * 1024 * 1024)),
+                "grande.pdf",
+            ),
+        },
+        content_type="multipart/form-data",
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    assert solicitud.status == "en_proceso"
+    assert solicitud.evidence_path is None
+
+
 def test_ejecutar_informe_crea_solicitud_con_pdf(
     app, client, login, monkeypatch
 ):
     admin = User.query.filter_by(username="tester").first()
     job = _preparar(app, admin)
-    analista = User(username="mdur", role="analista", analyst_code="mdur")
+    analista = User(
+        username="mdur",
+        role="analista",
+        analyst_code="mdur",
+        email="mdur@csn.uchile.cl",
+    )
     analista.set_password("secret")
     db.session.add(analista)
     db.session.commit()
@@ -620,7 +814,9 @@ def test_ejecutar_informe_crea_solicitud_con_pdf(
 
     estados = {}
     monkeypatch.setattr(
-        review_reports, "guardar_estado", lambda key, datos: estados.__setitem__(key, dict(datos))
+        review_reports,
+        "guardar_estado",
+        lambda key, datos: estados.__setitem__(key, dict(datos)),
     )
     monkeypatch.setattr(
         review_reports, "leer_estado", lambda key: estados.get(key)
@@ -652,6 +848,14 @@ def test_ejecutar_informe_crea_solicitud_con_pdf(
     ruta = crear_workspace(job.id) / solicitud.report_path
     assert ruta.is_file()
     assert ruta.read_bytes().startswith(b"%PDF")
+    assert solicitud.email_sent_at is not None
+    assert solicitud.email_to == "mdur@csn.uchile.cl"
+    correo = (
+        crear_workspace(job.id)
+        / "revisiones"
+        / f"correo_{solicitud.id}.eml"
+    )
+    assert correo.is_file()
 
     detalle = client.get(f"/revisiones/{solicitud.id}")
     assert detalle.status_code == 200
@@ -659,6 +863,8 @@ def test_ejecutar_informe_crea_solicitud_con_pdf(
     assert "Solicitud #" in html
     assert f'href="/revisiones/{solicitud.id}/pdf"' in html
     assert "download" in html
+    assert "Correo de notificación" in html
+    assert "mdur@csn.uchile.cl" in html
 
 
 def test_analista_ve_solo_sus_eventos_y_no_puede_pedir_revision(app, client):

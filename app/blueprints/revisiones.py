@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
+from uuid import uuid4
 
 from flask import (
     Blueprint,
     abort,
+    current_app,
     flash,
     redirect,
     render_template,
@@ -16,6 +19,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 from sqlalchemy.orm import joinedload, selectinload
+from werkzeug.utils import secure_filename
 
 from ..extensions import db
 from ..models import ESTADOS_REVISION, ReviewRequest, User, utcnow
@@ -28,9 +32,24 @@ from ..security import (
 from ..services import formatting
 from ..services.analysts import usuarios_analistas_activos
 from ..services.audit import registrar
-from ..services.workspace import ruta_workspace
+from ..services.workspace import guardar_archivo_limitado, ruta_workspace
 
 revisiones_bp = Blueprint("revisiones", __name__, url_prefix="/revisiones")
+
+EVIDENCIA_EXTENSIONES = {
+    "pdf",
+    "png",
+    "jpg",
+    "jpeg",
+    "webp",
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "txt",
+    "csv",
+    "zip",
+}
 
 ESTADOS_ETIQUETA = {
     "notificada": "Notificada",
@@ -71,6 +90,45 @@ def _analistas() -> list[User]:
 
 def _volver(solicitud: ReviewRequest) -> str:
     return url_for("revisiones.detalle", request_id=solicitud.id)
+
+
+def _url_actualizada_valida(url: str) -> bool:
+    if not url or len(url) > 1000:
+        return False
+    partes = urlparse(url)
+    return partes.scheme in {"http", "https"} and bool(partes.netloc)
+
+
+def _guardar_evidencia(solicitud: ReviewRequest, archivo) -> dict | None:
+    nombre_original = (getattr(archivo, "filename", "") or "").strip()
+    if not nombre_original:
+        return None
+    nombre = secure_filename(nombre_original) or "evidencia"
+    extension = Path(nombre).suffix.lower().lstrip(".")
+    if extension not in EVIDENCIA_EXTENSIONES:
+        raise ValueError(
+            "Formato de evidencia no permitido. Use PDF, imágenes, "
+            "DOC/DOCX, XLS/XLSX, TXT, CSV o ZIP."
+        )
+    max_mb = int(current_app.config.get("RCS_EVIDENCIA_MAX_MB", 20) or 20)
+    max_bytes = max_mb * 1024 * 1024
+    workspace = ruta_workspace(solicitud.job_id)
+    carpeta = workspace / "revisiones" / "evidencia" / str(solicitud.id)
+    destino = carpeta / f"{uuid4().hex[:12]}_{nombre}"
+    try:
+        tamano, sha256 = guardar_archivo_limitado(
+            archivo, destino, max_bytes
+        )
+    except ValueError:
+        raise ValueError(
+            f"La evidencia supera el tamaño máximo de {max_mb} MB."
+        ) from None
+    return {
+        "path": str(destino.relative_to(workspace)),
+        "name": nombre_original,
+        "size": tamano,
+        "sha256": sha256,
+    }
 
 
 @revisiones_bp.get("")
@@ -197,6 +255,25 @@ def aceptar(request_id: int):
     return redirect(_volver(solicitud))
 
 
+@revisiones_bp.get("/<int:request_id>/evidencia")
+@login_required
+@permiso_requerido("revisiones.ver")
+def evidencia(request_id: int):
+    solicitud = _solicitud(request_id)
+    if not solicitud.evidence_path:
+        abort(404)
+    workspace = ruta_workspace(solicitud.job_id).resolve()
+    ruta = (workspace / solicitud.evidence_path).resolve()
+    if not ruta.is_file() or not ruta.is_relative_to(workspace):
+        abort(404)
+    return send_file(
+        ruta,
+        as_attachment=True,
+        download_name=solicitud.evidence_name or Path(ruta).name,
+        max_age=0,
+    )
+
+
 @revisiones_bp.post("/<int:request_id>/cerrar")
 @login_required
 @permiso_requerido("revisiones.responder")
@@ -211,10 +288,61 @@ def cerrar(request_id: int):
     if not antecedentes:
         flash("Escriba los antecedentes de lo realizado.", "danger")
         return redirect(_volver(solicitud))
+
+    cambios: dict[int, tuple[bool, str | None]] = {}
+    for evento in solicitud.events:
+        marcado = request.form.get(f"cambio_{evento.id}") in {
+            "1",
+            "on",
+            "true",
+            "si",
+            "sí",
+        }
+        url = request.form.get(f"url_{evento.id}", "").strip()
+        if marcado and not _url_actualizada_valida(url):
+            flash(
+                "Indique una URL actualizada válida para el evento "
+                f"{evento.event_id}.",
+                "danger",
+            )
+            return redirect(_volver(solicitud))
+        cambios[evento.id] = (marcado, url if marcado else None)
+
+    evidencia = None
+    archivo = request.files.get("evidencia")
+    if archivo is not None and (archivo.filename or "").strip():
+        try:
+            evidencia = _guardar_evidencia(solicitud, archivo)
+        except ValueError as exc:
+            flash(str(exc), "danger")
+            return redirect(_volver(solicitud))
+
     solicitud.status = "cerrada"
     solicitud.closed_at = utcnow()
     solicitud.closing_note = antecedentes
-    db.session.commit()
+    if evidencia:
+        solicitud.evidence_path = evidencia["path"]
+        solicitud.evidence_name = evidencia["name"]
+        solicitud.evidence_size = evidencia["size"]
+        solicitud.evidence_sha256 = evidencia["sha256"]
+        solicitud.evidence_uploaded_at = utcnow()
+    for evento in solicitud.events:
+        cambio, url = cambios[evento.id]
+        evento.parameters_changed = cambio
+        evento.updated_url = url
+
+    try:
+        db.session.commit()
+    except Exception:  # noqa: BLE001 - se conserva la solicitud abierta
+        db.session.rollback()
+        if evidencia:
+            ruta = (
+                ruta_workspace(solicitud.job_id) / evidencia["path"]
+            ).resolve()
+            ruta.unlink(missing_ok=True)
+        flash("No se pudo cerrar la solicitud.", "danger")
+        return redirect(_volver(solicitud))
+
     registrar(
         "revision.cerrar",
         f"review:{solicitud.id}",
@@ -222,6 +350,23 @@ def cerrar(request_id: int):
             "job": solicitud.job_id,
             "analista": solicitud.assigned_to_id,
             "antecedentes": antecedentes,
+            "evidencia": (
+                {
+                    "nombre": evidencia["name"],
+                    "tamano": evidencia["size"],
+                    "sha256": evidencia["sha256"],
+                }
+                if evidencia
+                else None
+            ),
+            "cambios": [
+                {
+                    "evento": evento.event_id,
+                    "cambio_parametros": evento.parameters_changed,
+                    "url_actualizada": evento.updated_url,
+                }
+                for evento in solicitud.events
+            ],
         },
     )
     flash("Solicitud cerrada con los antecedentes registrados.", "success")

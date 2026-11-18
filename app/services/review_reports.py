@@ -14,7 +14,7 @@ from ..domain.catalogs import canonical
 from ..extensions import db
 from ..models import Job, User
 from ..security import tiene_rol
-from . import indicios, plots, review
+from . import indicios, notifications, plots, review
 from .audit import registrar
 from .detail import leer_filas
 from .results import cargar_indice
@@ -348,6 +348,26 @@ def ejecutar(report_id: str) -> dict:
                 "eventos": len(eventos_solicitud),
                 "formato": extension,
                 "asignado": assigned_to_id,
+            },
+            user_id=estado.get("user_id"),
+        )
+        enviado = False
+        try:
+            enviado = notifications.enviar_solicitud(
+                solicitud, base_url=base_url
+            )
+        except Exception:  # noqa: BLE001 - el correo no rompe la solicitud
+            log.exception(
+                "Error inesperado al notificar la solicitud %s",
+                solicitud.id,
+            )
+        registrar(
+            "revision.email",
+            f"review:{solicitud.id}",
+            {
+                "ok": enviado,
+                "destinatario": solicitud.email_to or "",
+                "error": solicitud.email_error or "",
             },
             user_id=estado.get("user_id"),
         )

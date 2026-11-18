@@ -840,8 +840,28 @@ El menú **Revisiones** lista las solicitudes. Administradores y supervisores ve
 todas; los analistas ven solo las asignadas. El analista asignado pulsa
 **Aceptar solicitud** y el estado pasa a **En proceso**. Al terminar, escribe
 los antecedentes de lo realizado y pulsa **Cerrar solicitud**; el texto es
-obligatorio. El creador no acepta ni cierra. En esta versión la notificación es
-interna de la app; el correo queda para una etapa posterior.
+obligatorio.
+
+Al crear la solicitud se envía un correo al analista asignado, si tiene un
+correo configurado en **Usuarios**. El correo indica que debe entrar a la
+plataforma para informarse de la solicitud y aceptarla. El detalle muestra si
+el correo se envió, a qué dirección y, si falló, el motivo.
+
+En el cierre, por cada evento de la solicitud:
+
+- **¿Cambió?**: marque la casilla solo si el evento cambió sus parámetros
+  (magnitud, posición, profundidad, etc.).
+- **URL actualizada**: si marcó **¿Cambió?**, la URL es obligatoria y debe
+  comenzar con `http://` o `https://`. El formulario muestra una fila por cada
+  evento de la solicitud, hasta el máximo configurado.
+- **Evidencia**: archivo opcional. Formatos permitidos: PDF, PNG, JPG/JPEG,
+  WEBP, DOC/DOCX, XLS/XLSX, TXT, CSV y ZIP. Tamaño máximo: 20 MB. La ayuda
+  desplegable del formulario repite estos límites.
+- **Antecedentes**: texto obligatorio con lo revisado y corregido.
+
+La evidencia se guarda en el workspace del trabajo y se puede descargar desde
+el detalle de la solicitud cerrada. Si no se adjuntó, el detalle indica **Sin
+evidencia adjunta**.
 
 La selección se conserva por trabajo, fuente y analista al entrar al detalle de
 un evento y volver al listado. La app es de revisión posterior: no alerta antes
@@ -960,6 +980,10 @@ El **administrador** además dispone de la pantalla **Usuarios**.
 - Cambiar el rol.
 - Activar o desactivar cuentas.
 - Restablecer contraseñas.
+- Configurar el **correo electrónico** del usuario. Ese correo se usa para
+  notificar las solicitudes de revisión asignadas. Si un analista no tiene
+  correo, la solicitud se crea igual, pero el detalle muestra que no se pudo
+  enviar la notificación.
 
 El sistema no permite dejar sin administradores activos. Si una cuenta se
 desactiva, su sesión se cierra en la siguiente petición.

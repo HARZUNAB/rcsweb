@@ -192,6 +192,7 @@ lógicas del catálogo canónico.
 |---|---|:---:|---|---|
 | `id` | Integer | No | PK | Identificador |
 | `username` | String(80) | No | UNIQUE | Nombre de acceso |
+| `email` | String(255) | Sí | UNIQUE, IDX | Correo para notificar solicitudes de revisión |
 | `password_hash` | String(255) | No | — | Hash de la contraseña |
 | `role` | String(32) | No | — | Rol principal/legado; la autorización usa `user_roles` |
 | `analyst_code` | String(80) | Sí | — | Código corto de analista |
@@ -372,6 +373,14 @@ informe generado.
 | `accepted_at` | DateTime(tz) | Sí | — | Fecha de aceptación |
 | `closed_at` | DateTime(tz) | Sí | — | Fecha de cierre |
 | `closing_note` | Text | Sí | — | Antecedentes escritos al cerrar |
+| `email_to` | String(255) | Sí | — | Destinatario usado para la notificación |
+| `email_sent_at` | DateTime(tz) | Sí | — | Fecha de envío del correo |
+| `email_error` | Text | Sí | — | Último error de envío |
+| `evidence_path` | String(255) | Sí | — | Ruta de la evidencia relativa al workspace |
+| `evidence_name` | String(255) | Sí | — | Nombre original de la evidencia |
+| `evidence_size` | Integer | Sí | — | Tamaño en bytes |
+| `evidence_sha256` | String(64) | Sí | — | SHA-256 del archivo |
+| `evidence_uploaded_at` | DateTime(tz) | Sí | — | Fecha de carga de la evidencia |
 | `created_at` | DateTime(tz) | No | — | Fecha de creación |
 
 ##### `review_request_events`
@@ -396,6 +405,8 @@ informe.
 | `analyst` | String(80) | No | — | Analista de la fuente |
 | `priority` | String(20) | No | — | Prioridad calculada |
 | `motive` | String(20) | No | — | Motivo del evento |
+| `parameters_changed` | Boolean | No | — | El evento cambió sus parámetros |
+| `updated_url` | String(1000) | Sí | — | URL actualizada del evento |
 
 Restricción: `UNIQUE (request_id, source_id, event_id)`.
 
@@ -1279,6 +1290,45 @@ Permisos: `revisiones.ver` para consultar, `revisiones.crear` para solicitar y
 `revisiones.responder` para aceptar y cerrar. El analista asignado es el único
 que puede responder; administradores y supervisores ven todas las solicitudes y
 los analistas solo las asignadas.
+
+#### Notificación por correo
+
+`app/services/notifications.py` envía el aviso al analista asignado cuando la
+tarea del informe crea la solicitud. Usa `smtplib` de la biblioteca estándar,
+sin dependencias nuevas.
+
+- Si `MAIL_SUPPRESS_SEND=1`, guarda el correo en
+  `workspace/<job>/revisiones/correo_<id>.eml` en vez de enviarlo.
+- Si `MAIL_SERVER` está vacío, deja el motivo en `review_requests.email_error`
+  y no falla la creación de la solicitud.
+- Si el SMTP falla, guarda `email_error` y registra `revision.email` en la
+  auditoría; la solicitud sigue visible.
+- No se reenvía si `email_sent_at` ya está definido.
+- El enlace usa el `base_url` de la tarea o, si falta, `RCS_PUBLIC_URL`.
+- El correo no adjunta el informe: invita a entrar a la plataforma.
+
+Variables: `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USE_SSL`, `MAIL_USE_TLS`,
+`MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_DEFAULT_SENDER`, `MAIL_FROM_NAME`,
+`MAIL_SIGNATURE` (líneas separadas por `|`), `MAIL_TIMEOUT` y
+`MAIL_SUPPRESS_SEND`.
+
+#### Evidencia y URL por evento
+
+El cierre exige `closing_note`; la evidencia es opcional.
+
+- Se guarda en
+  `workspace/<job>/revisiones/evidencia/<request_id>/<uuid>_<nombre>`.
+- Se valida la extensión: PDF, PNG, JPG/JPEG, WEBP, DOC/DOCX, XLS/XLSX, TXT,
+  CSV o ZIP.
+- El tamaño máximo es `RCS_EVIDENCIA_MAX_MB` (20 MB por defecto). El guardado
+  corta el archivo en streaming y borra el parcial si se excede.
+- Se conserva el tamaño y el SHA-256 en `review_requests`.
+- La descarga usa `GET /revisiones/<id>/evidencia` con `revisiones.ver`.
+- Cada `review_request_events` guarda `parameters_changed` y `updated_url`.
+- Si el evento se marca como cambiado, la URL es obligatoria, debe ser
+  `http://` o `https://` y admite hasta 1000 caracteres.
+- El formulario recorre los eventos de la solicitud, por lo que pide
+  exactamente una URL por evento, hasta el máximo de `RCS_INFORME_MAX_EVENTOS`.
 
 Si una fuente no trae residual y otra fuente local lo aporta, el adaptador lo
 completa para el trabajo y deja la procedencia en `raw.residual_fuente` y

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/ayuda.html" import panel as ayuda_panel with context %}
 {% block title %}Solicitud de revisión #{{ solicitud.id }} · RCS Web{% endblock %}
 
 {% block content %}
@@ -24,6 +25,10 @@
   </a>
   {% endif %}
 </div>
+
+{{ ayuda_panel("¿Qué debo hacer al cerrar?", [
+  "correo_analista", "evidencia_cierre", "url_actualizada_evento"
+]) }}
 
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body">
@@ -67,6 +72,19 @@
         {{ solicitud.closed_at.strftime('%Y-%m-%d %H:%M') }}
         {% else %}—{% endif %}
       </dd>
+      <dt class="col-sm-3 fw-normal text-secondary">
+        Correo de notificación
+      </dt>
+      <dd class="col-sm-9">
+        {% if solicitud.email_sent_at %}
+        Enviado a <strong>{{ solicitud.email_to }}</strong>
+        el {{ solicitud.email_sent_at.strftime('%Y-%m-%d %H:%M') }}
+        {% elif solicitud.email_error %}
+        <span class="text-warning">{{ solicitud.email_error }}</span>
+        {% else %}
+        <span class="text-secondary">Pendiente.</span>
+        {% endif %}
+      </dd>
       {% if solicitud.note %}
       <dt class="col-sm-3 fw-normal text-secondary">Nota del creador</dt>
       <dd class="col-sm-9">{{ solicitud.note }}</dd>
@@ -104,7 +122,19 @@
         <tbody>
           {% for evento in solicitud.events %}
           <tr>
-            <td>{{ evento.event_id }}</td>
+            <td>
+              {{ evento.event_id }}
+              {% if evento.parameters_changed %}
+              <div class="small">
+                <span class="text-warning">Parámetros actualizados</span>
+                {% if evento.updated_url %}
+                ·
+                <a href="{{ evento.updated_url }}" target="_blank"
+                   rel="noopener noreferrer">URL</a>
+                {% endif %}
+              </div>
+              {% endif %}
+            </td>
             <td>{{ evento.source_event_id or '—' }}</td>
             <td class="text-nowrap">{{ evento.event_time or '—' }}</td>
             <td class="text-end">
@@ -147,6 +177,22 @@
       Antecedentes del cierre
     </h2>
     <div>{{ solicitud.closing_note }}</div>
+    <hr>
+    <h3 class="h6 text-uppercase text-secondary mb-2">Evidencia adjunta</h3>
+    {% if solicitud.evidence_name %}
+    <div class="small">
+      <a href="{{ url_for('revisiones.evidencia', request_id=solicitud.id) }}">
+        {{ solicitud.evidence_name }}
+      </a>
+      {% if solicitud.evidence_size is not none %}
+      <span class="text-secondary">
+        ({{ solicitud.evidence_size|filesizeformat }})
+      </span>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="small text-secondary">Sin evidencia adjunta.</div>
+    {% endif %}
   </div>
 </div>
 {% endif %}
@@ -174,16 +220,75 @@
 <div class="card border-0 shadow-sm">
   <div class="card-body">
     <h2 class="h6 text-uppercase text-secondary mb-2">Cerrar solicitud</h2>
-    <form method="post"
+    <form method="post" enctype="multipart/form-data"
           action="{{ url_for('revisiones.cerrar', request_id=solicitud.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      {% if solicitud.events %}
+      <div class="table-responsive mb-2">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Evento</th>
+              <th>¿Cambió?</th>
+              <th>URL actualizada</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for evento in solicitud.events %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ evento.event_id }}</div>
+                <div class="small text-secondary">
+                  {{ evento.event_time or '—' }}
+                  {% if evento.magnitude is not none %}
+                  · M {{ formato.numero(evento.magnitude, 1) }}
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <input class="form-check-input" type="checkbox"
+                       name="cambio_{{ evento.id }}"
+                       id="cambio_{{ evento.id }}"
+                       data-cambio-evento>
+              </td>
+              <td>
+                <input class="form-control form-control-sm" type="url"
+                       name="url_{{ evento.id }}"
+                       id="url_{{ evento.id }}"
+                       maxlength="1000" placeholder="https://..."
+                       disabled>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="small text-secondary">
+        Marque <strong>¿Cambió?</strong> solo en los eventos cuyos parámetros
+        se actualizaron. En ese caso, la URL es obligatoria.
+      </p>
+      {% endif %}
+
       <label class="form-label small text-secondary" for="antecedentes">
         Antecedentes de lo realizado
       </label>
       <textarea class="form-control" id="antecedentes" name="antecedentes"
                 rows="4" required
                 placeholder="Qué se revisó, qué se corrigió y con qué criterio"></textarea>
-      <button class="btn btn-warning mt-2" type="submit">
+
+      <label class="form-label small text-secondary mt-3" for="evidencia">
+        Evidencia (opcional)
+      </label>
+      <input class="form-control" type="file" id="evidencia" name="evidencia"
+             accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip">
+      <details class="small text-secondary mt-1">
+        <summary>Formatos y tamaño permitido</summary>
+        PDF, PNG, JPG/JPEG, WEBP, DOC/DOCX, XLS/XLSX, TXT, CSV y ZIP.
+        Tamaño máximo: {{ config.RCS_EVIDENCIA_MAX_MB }} MB.
+      </details>
+
+      <button class="btn btn-warning mt-3" type="submit">
         Cerrar solicitud
       </button>
     </form>
@@ -191,3 +296,9 @@
 </div>
 {% endif %}
 {% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/revision_cierre.js') }}"></script>
+{% endblock %}
+
