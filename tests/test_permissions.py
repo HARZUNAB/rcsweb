@@ -369,6 +369,8 @@ def test_admin_exige_al_menos_un_rol(client, usuarios):
 
 def test_admin_crea_usuario_y_cambia_rol(client, usuarios):
     _login(client, "tester")
+    html_usuarios = client.get("/admin/usuarios").get_data(as_text=True)
+    assert "Correo del analista" in html_usuarios
     respuesta = client.post(
         "/admin/usuarios/crear",
         data={

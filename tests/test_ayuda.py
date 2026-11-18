@@ -14,6 +14,9 @@ def test_glosario_tiene_los_terminos_clave():
         "patron_puntual",
         "patron_sin_fase",
         "peso",
+        "fase_fuerte",
+        "residual_temporal",
+        "parametros_actualizados",
     }
     for clave in claves:
         dato = glossary.definicion(clave)
@@ -47,6 +50,23 @@ def test_pagina_ayuda_lista_el_glosario(client, login):
     assert "Indicio débil" in html
     assert "Residual extremo" in html
     assert "Cruce Eventquery" in html
+    assert "Fase fuerte" in html
+    assert "Residual temporal" in html
+    assert "Parámetros actualizados" in html
+
+
+def test_estados_de_estacion_estan_en_cobertura():
+    grupos = {grupo["clave"]: grupo for grupo in glossary.grupos()}
+    cobertura = {termino["clave"] for termino in grupos["cobertura"]["terminos"]}
+    usuarios = {termino["clave"] for termino in grupos["usuarios"]["terminos"]}
+    estados = {
+        "estacion_observada",
+        "estacion_sin_consultar",
+        "estacion_sin_datos",
+        "estacion_disponible_no_usada",
+    }
+    assert estados <= cobertura
+    assert not estados & usuarios
 
 
 def test_pagina_ayuda_vuelve_al_origen(client, login):

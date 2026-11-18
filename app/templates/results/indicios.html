@@ -29,14 +29,16 @@
 
 {{ ayuda_panel("¿Qué significan estos términos?", [
   "cruce_eventquery", "con_cruce", "sin_cruce", "sin_evaluar",
-  "solucion_sospechosa", "solucion_normal",
+  "solucion_sospechosa", "solucion_normal", "solucion_no_evaluable",
   "prioridad_alta", "prioridad_media", "prioridad_baja",
-  "motivo_prioridad",
+  "prioridad_informativa", "prioridad_sin_evaluar", "motivo_prioridad",
   "patron", "patron_puntual", "patron_sistematico", "patron_varias_senales",
-  "patron_sin_fase",
-  "cobertura", "cobertura_debil", "indicio_debil", "residual_extremo",
+  "patron_fuera_orden", "patron_pick_antes_origen", "patron_sin_fase",
+  "cobertura", "cobertura_fuerte", "cobertura_debil", "indicio_debil",
+  "fase_fuerte", "residual", "residual_extremo",
   "senales_fase", "estaciones_disponibles", "estaciones_usadas",
-  "miniaturas_perfil_planta"
+  "azimutal_gap", "revision_notificada", "revision_en_proceso",
+  "revision_cerrada", "miniaturas_perfil_planta"
 ]) }}
 
 {% if info_fuente.residual_temporal or resumen.total.residual_temporal %}
@@ -326,7 +328,8 @@
               <span class="badge text-bg-secondary">indicio débil</span>
               {% endif %}
               {% if fila.extremo == 'Sí' %}
-              <span class="badge text-bg-danger">extremo</span>
+              <span class="badge text-bg-danger"
+                    title="Residual extremo: supera 60 s o 10 veces la mediana del evento.">extremo</span>
               {% endif %}
             </td>
             <td class="text-nowrap" data-sort-value="{% if fila.contexto == 'fuerte' %}1{% else %}0{% endif %}">

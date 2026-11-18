@@ -228,8 +228,9 @@ TERMINOS = {
     "residual_extremo": {
         "titulo": "Residual extremo",
         "texto": (
-            "El residual supera el umbral de extremo o se aparta mucho de la "
-            "mediana de las fases usadas."
+            "El residual absoluto supera 60 s o 10 veces la mediana de los "
+            "residuales de las fases usadas. En el listado se marca como "
+            "«extremo»."
         ),
     },
     "indicio_debil": {
@@ -452,6 +453,28 @@ TERMINOS = {
             "cambio."
         ),
     },
+    "fase_fuerte": {
+        "titulo": "Fase fuerte",
+        "texto": (
+            "Anomalía de fase que cuenta como evidencia fuerte: residual "
+            "absoluto > 5 s en una fase de peso 0–2, fase fuera de orden por "
+            "distancia o pick antes del origen."
+        ),
+    },
+    "residual_temporal": {
+        "titulo": "Residual temporal",
+        "texto": (
+            "Residual completado temporalmente desde otra fuente local. No "
+            "proviene de la base de la fuente analizada."
+        ),
+    },
+    "parametros_actualizados": {
+        "titulo": "Parámetros actualizados",
+        "texto": (
+            "El evento cambió magnitud, posición, profundidad u otro parámetro "
+            "durante la revisión. En el cierre se marca «¿Cambió?»."
+        ),
+    },
 }
 
 
@@ -503,6 +526,7 @@ def _grupo_de(clave: str) -> str:
         "solucion_no_evaluable",
         "senales_fase",
         "evidencia_principal",
+        "fase_fuerte",
     }:
         return "fases"
     if clave in {
@@ -513,11 +537,16 @@ def _grupo_de(clave: str) -> str:
         "estaciones_usadas",
         "azimutal_gap",
         "filtros_estaciones_mapa",
+        "estacion_observada",
+        "estacion_sin_consultar",
+        "estacion_sin_datos",
+        "estacion_disponible_no_usada",
     }:
         return "cobertura"
     if clave in {
         "residual",
         "residual_extremo",
+        "residual_temporal",
         "indicio_debil",
         "peso",
         "residuo_slab",
@@ -541,6 +570,7 @@ def _grupo_de(clave: str) -> str:
         "url_actualizada_evento",
         "evento_despublicado",
         "observacion_evento",
+        "parametros_actualizados",
     } or clave.startswith("revision"):
         return "revisiones"
     return "usuarios"

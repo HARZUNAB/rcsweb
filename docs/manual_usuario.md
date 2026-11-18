@@ -722,6 +722,11 @@ más) y la mediana absoluta es de 2 s o más, pero ningún residual individual
 supera 5 s, el patrón se marca **sistemático (no concluyente)**. Se muestra,
 pero no sube la prioridad: puede deberse al modelo, la profundidad o el origen.
 
+Un residual es **extremo** si su valor absoluto supera **60 s** o **10 veces la
+mediana** del evento. En el listado se marca con el badge **extremo** y, al
+pasar el mouse, se explica el umbral; la definición completa está en el
+glosario.
+
 El **peso** se muestra en la escala 0–4 que usan los analistas: 0 = mayor
 influencia, 4 = sin influencia. Solo las fases con peso 0–3 entran al análisis;
 las de peso 4 no aportaron a la solución y no generan indicios. El valor

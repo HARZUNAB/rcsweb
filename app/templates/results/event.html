@@ -334,9 +334,14 @@
 
     {{ ayuda_panel("¿Qué significan estos términos?", [
       "cruce_eventquery", "solucion_sospechosa", "solucion_normal",
-      "patron", "cobertura", "cobertura_debil", "indicio_debil",
-      "residual_extremo", "peso", "residuo_slab", "distancia_slab",
-      "evidencia_principal", "patron_sin_fase", "filtros_estaciones_mapa"
+      "solucion_no_evaluable", "patron", "patron_sistematico",
+      "patron_fuera_orden", "patron_pick_antes_origen",
+      "cobertura", "cobertura_fuerte", "cobertura_debil", "indicio_debil",
+      "fase_fuerte", "residual_extremo", "peso", "residuo_slab",
+      "distancia_slab", "evidencia_principal", "patron_sin_fase",
+      "estaciones_usadas", "azimutal_gap", "filtros_estaciones_mapa",
+      "estacion_observada", "estacion_sin_consultar", "estacion_sin_datos",
+      "estacion_disponible_no_usada"
     ]) }}
 
     <div class="small text-secondary mb-2">
@@ -353,7 +358,11 @@
         {% else %}normal{% endif %}
       </strong>
       {% if indicios_evento.fuerza == 'débil' %} · Indicio débil{% endif %}
-      {% if indicios_evento.extremo %} · Residual extremo{% endif %}
+      {% if indicios_evento.extremo %}
+      <span title="Residual extremo: supera 60 s o 10 veces la mediana del evento.">
+        · Residual extremo
+      </span>
+      {% endif %}
     </div>
 
     {% if indicios_evento.explicacion_sospechoso %}

@@ -1028,6 +1028,10 @@ def test_listado_y_detalle_reutilizan_la_clasificacion_sospechoso(
     assert "Sospechosa" in html
     assert "slab 39.4 km" in html
     assert "Localización" in html
+    assert "Residual extremo" in html
+    assert "Residual extremo: supera 60 s" in html
+    assert "Fase fuerte" in html
+    assert "Prioridad informativa" in html
 
     detalle = client.get(
         f"/jobs/{job.id}/resultados/catalogos/seiscomp/0"
@@ -1035,6 +1039,8 @@ def test_listado_y_detalle_reutilizan_la_clasificacion_sospechoso(
     html = detalle.get_data(as_text=True)
     assert "sospechosa" in html
     assert "residuo al slab 39.4 km" in html
+    assert "Estación observada" in html
+    assert "Fase fuerte" in html
     assert "Ver planta y perfil" not in html
     assert "Ver tiempos de llegada" not in html
     assert "Ver evidencia del indicio" in html
