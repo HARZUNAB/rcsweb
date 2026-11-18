@@ -675,6 +675,12 @@ el Wadati del evento local la tarjeta ofrece **Ver en tiempos de llegada**, que
 abre el gráfico de tiempos y destaca los picks P y S de esa estación. En el
 respaldo de Eventquery esa acción no está disponible.
 
+El desplegable **¿Qué mide y cómo leerlo?** resume la interpretación:
+Vp/Vs ≤ 1 es imposible y apunta a S mal identificada; R² bajo o una recta
+fuera de la banda indican fases inconsistentes; un residuo positivo significa
+S tardía o P temprana, y uno negativo lo contrario. La tabla se ordena por
+`|residuo|`, así que su primera fila es la estación más desviada.
+
 En el detalle de un evento del catálogo **Eventquery**, que no tiene fases, el
 panel **Wadati del respaldo local** busca las soluciones locales que cruzaron
 con ese publicado y calcula Wadati sobre ellas. No se calcula sobre Eventquery.

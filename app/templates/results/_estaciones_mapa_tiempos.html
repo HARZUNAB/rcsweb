@@ -89,10 +89,38 @@
           <div class="table-responsive mt-2 d-none" data-wadati-tabla></div>
         </div>
         <details class="small text-secondary mt-2">
-          <summary>¿Qué mide?</summary>
-          Relación Vp/Vs y corrección de la hora de origen a partir de los
-          tiempos P y S. Un ajuste consistente requiere al menos 4 pares P/S,
-          R² ≥ 0,90, Vp/Vs entre 1,5 y 2,0 y dispersión ≤ 0,5 s.
+          <summary>¿Qué mide y cómo leerlo?</summary>
+          <p class="mb-2">
+            Relación Vp/Vs y corrección de la hora de origen a partir de los
+            tiempos P y S. El eje X es <strong>Tp</strong> desde el origen del
+            catálogo y el eje Y es <strong>Ts − Tp</strong>. De la recta salen
+            <strong>Vp/Vs = 1 + pendiente</strong>,
+            <strong>T0 = −intercepto / pendiente</strong>, R² y dispersión.
+          </p>
+          <ul class="mb-2 ps-3">
+            <li>R² alto y Vp/Vs entre 1,5 y 2,0: tiempos P/S coherentes.</li>
+            <li>
+              Vp/Vs ≤ 1 es físicamente imposible: revise las fases S.
+            </li>
+            <li>
+              Recta fuera de la banda verde o R² bajo: sospeche fases mal
+              identificadas.
+            </li>
+            <li>
+              Residuo positivo: S tardía o P temprana. Residuo negativo: S
+              temprana o P tardía.
+            </li>
+            <li>
+              La tabla se ordena por |residuo|: la primera fila es la estación
+              más desviada.
+            </li>
+          </ul>
+          <p class="mb-0">
+            Un ajuste consistente requiere al menos 4 pares P/S, R² ≥ 0,90,
+            Vp/Vs entre 1,5 y 2,0 y dispersión ≤ 0,5 s. Es una prueba de
+            consistencia interna, no una localización: no valida la posición
+            absoluta.
+          </p>
         </details>
       </div>
     </div>

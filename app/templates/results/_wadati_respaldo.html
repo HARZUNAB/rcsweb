@@ -41,10 +41,25 @@
       </a>
     </div>
     <details class="small text-secondary mt-2">
-      <summary>¿Qué mide?</summary>
-      Relación Vp/Vs y corrección de la hora de origen a partir de los tiempos
-      P y S de la solución local. No evalúa las fases de Eventquery, porque no
-      las tiene.
+      <summary>¿Qué mide y cómo leerlo?</summary>
+      <p class="mb-2">
+        Relación Vp/Vs y corrección de la hora de origen de la solución local
+        que aportó las fases. No evalúa fases de Eventquery, porque no las
+        tiene. El eje X es <strong>Tp</strong> y el eje Y es
+        <strong>Ts − Tp</strong>.
+      </p>
+      <ul class="mb-2 ps-3">
+        <li>R² alto y Vp/Vs entre 1,5 y 2,0: tiempos P/S coherentes.</li>
+        <li>Vp/Vs ≤ 1 es físicamente imposible: revise las fases S.</li>
+        <li>Residuo positivo: S tardía o P temprana; negativo: S temprana o
+          P tardía.</li>
+        <li>La tabla se ordena por |residuo|: la primera fila es la estación
+          más desviada.</li>
+      </ul>
+      <p class="mb-0">
+        Un evento con fases cruzadas se reconoce por R² bajo, Vp/Vs fuera de
+        rango y residuos grandes en pocas estaciones.
+      </p>
     </details>
   </div>
 </div>
