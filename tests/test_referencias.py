@@ -50,7 +50,7 @@ def _workspace(tmp_path):
                         sep=" "
                     ),
                     "residual": 0.0,
-                    "weight": 0.0,
+                    "weight": 1.0,
                     "is_used_in_solution": True,
                     "station_latitude": -28.0 - indice * 0.1,
                     "station_longitude": -71.8,

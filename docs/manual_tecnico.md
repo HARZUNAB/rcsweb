@@ -1642,11 +1642,13 @@ consultar disponibilidad.
 2. Toma el primer P y el primer S con tiempo finito, prefiriendo los usados en
    la solución.
 3. Excluye pares sin P o S, con `Ts <= Tp` o con peso sin influencia (peso 4).
-4. Pondera por influencia del pick (`1 - peso canónico`) y ajusta
-   `Ts - Tp = a + b·Tp` por mínimos cuadrados.
-5. Calcula `Vp/Vs = 1 + b`, `T0 = -a/b`, `R²` y dispersión.
+4. Pondera por el peso canónico (1.0 = máxima influencia; excluye 0.0) y
+   ajusta `Ts - Tp = a + b·Tp` por mínimos cuadrados.
+5. Calcula `Vp/Vs = 1 + b`, `R²` y dispersión. Calcula `T0 = -a/b` solo si
+   `Vp/Vs > 1`.
 6. Clasifica como insuficiente (<3 pares), preliminar (3), consistente (≥4,
-   R² ≥ 0,90, Vp/Vs 1,5–2,0, dispersión ≤ 0,5 s) o dudoso.
+   R² ≥ 0,90, Vp/Vs 1,5–2,0, dispersión ≤ 0,5 s) o dudoso. Si `Vp/Vs ≤ 1`, el
+   ajuste no es válido: `T0` queda vacío y la calidad es dudosa.
 
 El resultado se calcula en `station_review._datos_mapa_tiempos()` y viaja en
 `revision_estaciones.wadati`. La plantilla `_controles_estaciones.html` muestra

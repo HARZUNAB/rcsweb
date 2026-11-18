@@ -645,8 +645,9 @@ Calidad:
 | 4 o más y falla algún criterio | Dudoso |
 
 Un `T0` fuera de ±2 s se muestra como advertencia para revisar la hora de
-origen. El Wadati es complementario: **no cambia la prioridad** ni se imprime en
-el informe.
+origen. Si el ajuste da **Vp/Vs ≤ 1**, se marca **Dudoso**, no se muestra `T0`
+y se pide revisar los picks P/S. El Wadati es complementario: **no cambia la
+prioridad** ni se imprime en el informe.
 
 En el detalle de un evento del catálogo **Eventquery**, que no tiene fases, el
 panel **Wadati del respaldo local** busca las soluciones locales que cruzaron

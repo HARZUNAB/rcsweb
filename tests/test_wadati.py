@@ -5,7 +5,7 @@ from __future__ import annotations
 from app.services import wadati
 
 
-def _arribos(pares, *, peso=0.0, usada="Sí") -> list[dict]:
+def _arribos(pares, *, peso=1.0, usada="Sí") -> list[dict]:
     datos = []
     for indice, (tp, ts) in enumerate(pares, start=1):
         estacion = f"E{indice}"
@@ -63,6 +63,17 @@ def test_wadati_advierte_t0_grande():
     assert "T0 fuera de ±2 s" in resultado["mensaje"]
 
 
+def test_wadati_vp_vs_invalido_sin_t0():
+    pares = [(5.0, 8.0), (10.0, 12.5), (15.0, 17.0), (20.0, 21.5)]
+    resultado = wadati.analizar(_arribos(pares))
+
+    assert resultado["n_pares"] == 4
+    assert resultado["vp_vs"] < 1.0
+    assert resultado["t0"] is None
+    assert resultado["calidad"] == "dudoso"
+    assert "Ajuste no válido" in resultado["mensaje"]
+
+
 def test_wadati_tres_pares_es_preliminar():
     pares = [(5.0, 8.75), (10.0, 17.5), (15.0, 26.25)]
     resultado = wadati.analizar(_arribos(pares))
@@ -112,7 +123,7 @@ def test_wadati_excluye_peso_sin_influencia():
     )
     for registro in datos:
         if registro["estacion"] == "E4":
-            registro["peso"] = 1.0
+            registro["peso"] = 0.0
     resultado = wadati.analizar(datos)
 
     assert resultado["n_pares"] == 3

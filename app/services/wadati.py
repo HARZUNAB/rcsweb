@@ -33,10 +33,11 @@ def _fase(registro: dict) -> str:
 
 
 def _influyente(peso) -> float:
+    """Peso canónico 0–1: 1.0 es máxima influencia y 0.0 se excluye."""
     valor = _numero(peso)
     if valor is None:
         return 1.0
-    return max(0.0, min(1.0, 1.0 - valor))
+    return max(0.0, min(1.0, valor))
 
 
 def _usada(registro: dict) -> bool:
@@ -153,16 +154,21 @@ def analizar(arribos: list[dict] | None) -> dict:
         r2 = max(0.0, min(1.0, 1.0 - suma_residuos / suma_total))
     dispersion = float(math.sqrt(suma_residuos / n_pares))
     vp_vs = 1.0 + pendiente if math.isfinite(pendiente) else None
+    ajuste_valido = (
+        vp_vs is not None
+        and math.isfinite(vp_vs)
+        and vp_vs > 1.0
+    )
     t0 = (
         -intercepto / pendiente
-        if math.isfinite(pendiente) and pendiente != 0
+        if ajuste_valido and pendiente != 0
         else None
     )
 
     if n_pares < MIN_PARES_CONSISTENTE:
-        calidad = "preliminar"
+        calidad = "preliminar" if ajuste_valido else "dudoso"
     elif (
-        vp_vs is not None
+        ajuste_valido
         and UMBRAL_VP_VS_MIN <= vp_vs <= UMBRAL_VP_VS_MAX
         and r2 >= UMBRAL_R2
         and dispersion <= UMBRAL_DISPERSION
@@ -177,12 +183,17 @@ def analizar(arribos: list[dict] | None) -> dict:
     )
     if vp_vs is not None:
         mensaje += f" · Vp/Vs {vp_vs:.2f}"
-    if t0 is not None and abs(t0) > UMBRAL_T0:
-        mensaje += " · T0 fuera de ±2 s: revise la hora de origen."
-    if calidad == "preliminar":
-        mensaje += " · Ajuste preliminar: solo 3 pares."
-    elif calidad == "dudoso":
-        mensaje += " · Ajuste dudoso: revise picks, fases y pesos."
+    if not ajuste_valido:
+        mensaje += (
+            " · Ajuste no válido: Vp/Vs ≤ 1. Revise los picks P/S."
+        )
+    else:
+        if t0 is not None and abs(t0) > UMBRAL_T0:
+            mensaje += " · T0 fuera de ±2 s: revise la hora de origen."
+        if calidad == "preliminar":
+            mensaje += " · Ajuste preliminar: solo 3 pares."
+        elif calidad == "dudoso":
+            mensaje += " · Ajuste dudoso: revise picks, fases y pesos."
 
     return {
         "disponible": True,
