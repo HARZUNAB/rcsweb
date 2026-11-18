@@ -475,6 +475,46 @@ TERMINOS = {
             "durante la revisión. En el cierre se marca «¿Cambió?»."
         ),
     },
+    "wadati": {
+        "titulo": "Wadati",
+        "texto": (
+            "Método que estima Vp/Vs y la corrección de la hora de origen a "
+            "partir de los tiempos P y S de varias estaciones. Requiere al "
+            "menos 3 pares P/S; con 4 o más el ajuste es más concluyente."
+        ),
+    },
+    "vp_vs": {
+        "titulo": "Vp/Vs",
+        "texto": (
+            "Relación entre la velocidad de las ondas P y S estimada por el "
+            "ajuste Wadati. Un valor típico está entre 1,6 y 1,9; fuera de "
+            "1,5–2,0 conviene revisar los picks."
+        ),
+    },
+    "r2_wadati": {
+        "titulo": "R² del ajuste",
+        "texto": (
+            "Coeficiente de determinación del ajuste Wadati. Cerca de 1 "
+            "indica que los pares P/S siguen una recta; por debajo de 0,90 "
+            "el ajuste es dudoso."
+        ),
+    },
+    "t0_wadati": {
+        "titulo": "T0 del ajuste",
+        "texto": (
+            "Corrección de la hora de origen respecto de la hora del catálogo. "
+            "Un valor distinto de cero puede indicar un problema de origen, "
+            "modelo o localización; se muestra como advertencia."
+        ),
+    },
+    "wadati_calidad": {
+        "titulo": "Calidad Wadati",
+        "texto": (
+            "Consistente: 4 o más pares, R² ≥ 0,90, Vp/Vs entre 1,5 y 2,0 y "
+            "dispersión ≤ 0,5 s. Preliminar: solo 3 pares. Dudoso: falla "
+            "algún criterio. Insuficiente: menos de 3 pares P/S."
+        ),
+    },
 }
 
 
@@ -527,6 +567,11 @@ def _grupo_de(clave: str) -> str:
         "senales_fase",
         "evidencia_principal",
         "fase_fuerte",
+        "wadati",
+        "vp_vs",
+        "r2_wadati",
+        "t0_wadati",
+        "wadati_calidad",
     }:
         return "fases"
     if clave in {

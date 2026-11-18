@@ -2319,6 +2319,137 @@
     instancia.show();
   }
 
+  function datosWadati() {
+    var nodo = document.getElementById("wadati-datos");
+    if (!nodo) {
+      return null;
+    }
+    try {
+      return JSON.parse(nodo.textContent || "{}");
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function dibujarWadati() {
+    var datos = datosWadati();
+    var grafico = document.getElementById("grafico-wadati");
+    var resumen = document.getElementById("wadati-resumen");
+    if (!grafico || !resumen) {
+      return;
+    }
+    if (
+      !datos ||
+      !datos.disponible ||
+      !datos.puntos ||
+      datos.puntos.length < 3
+    ) {
+      var mensaje =
+        (datos && datos.mensaje) ||
+        "Insuficiente: se necesitan al menos 3 estaciones con P y S.";
+      grafico.innerHTML =
+        '<div class="text-secondary small p-3">' + mensaje + "</div>";
+      resumen.textContent = mensaje;
+      return;
+    }
+    if (!window.Plotly) {
+      grafico.innerHTML =
+        '<div class="text-secondary small p-3">No se pudo cargar el gráfico.</div>';
+      return;
+    }
+    var puntos = datos.puntos;
+    var traza = {
+      x: puntos.map(function (punto) {
+        return Number(punto.tp);
+      }),
+      y: puntos.map(function (punto) {
+        return Number(punto.ts_tp);
+      }),
+      mode: "markers+text",
+      type: "scatter",
+      name: "Estaciones",
+      text: puntos.map(function (punto) {
+        return (punto.red ? punto.red + " " : "") + punto.estacion;
+      }),
+      textposition: "top center",
+      marker: { size: 8, color: "#0d6efd" },
+      hovertemplate:
+        "%{text}<br>Tp %{x:.2f} s<br>Ts−Tp %{y:.2f} s<extra></extra>",
+    };
+    var trazas = [traza];
+    if (
+      Number.isFinite(Number(datos.pendiente)) &&
+      Number.isFinite(Number(datos.intercepto))
+    ) {
+      var xs = puntos.map(function (punto) {
+        return Number(punto.tp);
+      });
+      var minimo = Math.min.apply(null, xs);
+      var maximo = Math.max.apply(null, xs);
+      var lineaX = [minimo, maximo];
+      var lineaY = lineaX.map(function (x) {
+        return Number(datos.intercepto) + Number(datos.pendiente) * x;
+      });
+      trazas.push({
+        x: lineaX,
+        y: lineaY,
+        mode: "lines",
+        type: "scatter",
+        name: "Ajuste",
+        line: { color: "#dc3545", width: 2 },
+        hoverinfo: "skip",
+      });
+    }
+    window.Plotly.newPlot(
+      grafico,
+      trazas,
+      {
+        margin: { l: 60, r: 20, t: 20, b: 50 },
+        xaxis: { title: "Tp (s)", zeroline: false },
+        yaxis: { title: "Ts − Tp (s)", zeroline: false },
+        showlegend: false,
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff",
+      },
+      { responsive: true, displaylogo: false }
+    ).then(function () {
+      window.Plotly.Plots.resize(grafico);
+    });
+    var partes = [];
+    if (Number.isFinite(Number(datos.vp_vs))) {
+      partes.push("Vp/Vs " + Number(datos.vp_vs).toFixed(2));
+    }
+    if (Number.isFinite(Number(datos.t0))) {
+      partes.push("T0 " + Number(datos.t0).toFixed(2) + " s");
+    }
+    if (Number.isFinite(Number(datos.r2))) {
+      partes.push("R² " + Number(datos.r2).toFixed(2));
+    }
+    partes.push("N " + datos.n_pares);
+    if (datos.calidad) {
+      var calidad = String(datos.calidad);
+      partes.push(calidad.charAt(0).toUpperCase() + calidad.slice(1));
+    }
+    resumen.textContent =
+      partes.join(" · ") + (datos.mensaje ? " · " + datos.mensaje : "");
+  }
+
+  function abrirWadati() {
+    var modal = document.getElementById("modal-wadati");
+    if (!modal || !window.bootstrap || !window.bootstrap.Modal) {
+      return;
+    }
+    var instancia = window.bootstrap.Modal.getOrCreateInstance(modal);
+    if (modal.classList.contains("show")) {
+      dibujarWadati();
+      return;
+    }
+    modal.addEventListener("shown.bs.modal", dibujarWadati, {
+      once: true,
+    });
+    instancia.show();
+  }
+
   function iniciarMapaTiempos() {
     if (mapaTiemposIniciado) {
       return;
@@ -2336,6 +2467,13 @@
       botonTiempos.addEventListener("click", function (evento) {
         evento.preventDefault();
         abrirTiemposLlegada();
+      });
+    }
+    var botonWadati = document.getElementById("btn-wadati");
+    if (botonWadati) {
+      botonWadati.addEventListener("click", function (evento) {
+        evento.preventDefault();
+        abrirWadati();
       });
     }
     var botonPropagacion = document.getElementById("btn-propagacion");

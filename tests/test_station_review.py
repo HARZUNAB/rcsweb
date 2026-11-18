@@ -487,7 +487,10 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert "pick-manual-usada" in html
     assert 'id="btn-estaciones-mapa"' in html
     assert 'id="btn-tiempos-llegada"' in html
+    assert 'id="btn-wadati"' in html
     assert 'id="modal-tiempos"' in html
+    assert 'id="modal-wadati"' in html
+    assert 'id="wadati-datos"' in html
     assert 'id="estaciones-mapa-datos"' in html
     assert html.index('id="controles-estaciones-mapa"') < html.index(
         'id="mapa-detalle"'

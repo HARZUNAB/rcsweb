@@ -39,6 +39,34 @@
   </div>
 </div>
 {% endif %}
+{% if revision_estaciones and revision_estaciones.tiene_tiempos %}
+<div class="modal fade" id="modal-wadati" tabindex="-1"
+     aria-labelledby="modal-wadati-titulo" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-6" id="modal-wadati-titulo">
+          Análisis Wadati
+        </h2>
+        <button type="button" class="btn-close"
+                data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-secondary mb-2" id="wadati-resumen"></div>
+        <div id="grafico-wadati" style="height: 420px;"></div>
+        <details class="small text-secondary mt-2">
+          <summary>¿Qué mide?</summary>
+          Relación Vp/Vs y corrección de la hora de origen a partir de los
+          tiempos P y S. Un ajuste consistente requiere al menos 4 pares P/S,
+          R² ≥ 0,90, Vp/Vs entre 1,5 y 2,0 y dispersión ≤ 0,5 s.
+        </details>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="application/json"
+        id="wadati-datos">{{ revision_estaciones.wadati|tojson }}</script>
+{% endif %}
 {% if revision_estaciones and not revision_estaciones.tiene_sin_arribos %}
 {% if revision_estaciones.tiene_coordenadas %}
 <script type="application/json"

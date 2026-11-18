@@ -17,6 +17,7 @@ def test_glosario_tiene_los_terminos_clave():
         "fase_fuerte",
         "residual_temporal",
         "parametros_actualizados",
+        "wadati",
     }
     for clave in claves:
         dato = glossary.definicion(clave)
@@ -53,6 +54,8 @@ def test_pagina_ayuda_lista_el_glosario(client, login):
     assert "Fase fuerte" in html
     assert "Residual temporal" in html
     assert "Parámetros actualizados" in html
+    assert "Wadati" in html
+    assert "Vp/Vs" in html
 
 
 def test_estados_de_estacion_estan_en_cobertura():

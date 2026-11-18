@@ -1634,6 +1634,28 @@ incluye a nivel de página cuando la fuente no tiene extensión de inventario; s
 la tiene, queda dentro del panel de sin arribos para que se actualice al
 consultar disponibilidad.
 
+##### Wadati
+
+`app/services/wadati.py` implementa el ajuste Wadati por evento:
+
+1. Agrupa los arribos por `(red, estación)`.
+2. Toma el primer P y el primer S con tiempo finito, prefiriendo los usados en
+   la solución.
+3. Excluye pares sin P o S, con `Ts <= Tp` o con peso sin influencia (peso 4).
+4. Pondera por influencia del pick (`1 - peso canónico`) y ajusta
+   `Ts - Tp = a + b·Tp` por mínimos cuadrados.
+5. Calcula `Vp/Vs = 1 + b`, `T0 = -a/b`, `R²` y dispersión.
+6. Clasifica como insuficiente (<3 pares), preliminar (3), consistente (≥4,
+   R² ≥ 0,90, Vp/Vs 1,5–2,0, dispersión ≤ 0,5 s) o dudoso.
+
+El resultado se calcula en `station_review._datos_mapa_tiempos()` y viaja en
+`revision_estaciones.wadati`. La plantilla `_controles_estaciones.html` muestra
+el botón **Wadati**; `_estaciones_mapa_tiempos.html` incluye el modal y el JSON
+`#wadati-datos`. El JavaScript solo dibuja el gráfico y el resumen.
+
+El análisis es complementario: no modifica la prioridad, el listado, el PDF ni
+el DOCX.
+
 ##### Propagación en el cliente
 
 `static/js/estaciones.js` implementa el controlador de propagación:

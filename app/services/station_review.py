@@ -14,7 +14,7 @@ from pathlib import Path
 
 from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
-from . import amplification, availability, formatting
+from . import amplification, availability, formatting, wadati
 
 MOTIVO_SIN_REVISION = "Este trabajo no incluye la revisión de estaciones."
 MOTIVO_EVENTO = "El evento no está en la revisión de estaciones de este trabajo."
@@ -314,6 +314,7 @@ def _fila_arribo(arribo: dict) -> dict:
         "est_vigencia": est_vigencia,
         "software": software,
         "_usada": arribo.get("is_used_in_solution"),
+        "_peso": _numero(arribo.get("weight")),
         "_azimut": _numero(arribo.get("azimuth")),
         "_llegada": _instante(arribo.get("pick_time")),
         "_clase": clase,
@@ -649,6 +650,7 @@ def _vacio(
         "tiene_tiempos": False,
         "estaciones_mapa": [],
         "tiempos_llegada": {},
+        "wadati": wadati.analizar([]),
     }
 
 
@@ -717,6 +719,7 @@ def _datos_mapa_tiempos(
                 "lon": lon,
                 "distancia_km": distancia,
                 "segundos": segundos,
+                "peso": fila.get("_peso"),
                 "est_lista": fila.get("est_lista", ""),
                 "est_vigencia": fila.get("est_vigencia", ""),
                 "software": fila.get("software", ""),
@@ -940,6 +943,7 @@ def _datos_mapa_tiempos(
         "tiene_tiempos": tiene_tiempos,
         "estaciones_mapa": estaciones_mapa,
         "tiempos_llegada": tiempos_llegada,
+        "wadati": wadati.analizar(arribos_tiempo),
     }
 
 
@@ -1138,6 +1142,7 @@ def revisar_evento(
         "tiene_tiempos": datos_mapa["tiene_tiempos"],
         "estaciones_mapa": datos_mapa["estaciones_mapa"],
         "tiempos_llegada": datos_mapa["tiempos_llegada"],
+        "wadati": datos_mapa["wadati"],
         **filtros,
     }
 

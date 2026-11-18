@@ -614,6 +614,40 @@ Funciona aunque el evento no tenga estaciones sin arribos. Los campos **Vp** y
 curvas son una **estimación** con velocidad constante, no un modelo de tierra
 real.
 
+#### Wadati
+
+El botón **Wadati** abre un análisis de los tiempos P y S del evento. Requiere
+al menos **3 estaciones con P y S**; si no hay suficientes, muestra
+**Insuficiente**.
+
+La gráfica usa:
+
+```text
+x = Tp
+y = Ts − Tp
+```
+
+y ajusta una recta. De ahí obtiene:
+
+- **Vp/Vs**: relación entre velocidades P y S.
+- **T0**: corrección de la hora de origen respecto de la hora del catálogo.
+- **R²**: qué tan bien siguen los pares P/S una recta.
+- **N**: cantidad de pares P/S usados.
+- **Dispersión**: error típico del ajuste, en segundos.
+
+Calidad:
+
+| Condición | Calidad |
+|---|---|
+| Menos de 3 pares | Insuficiente |
+| Exactamente 3 pares | Preliminar |
+| 4 o más, R² ≥ 0,90, Vp/Vs 1,5–2,0 y dispersión ≤ 0,5 s | Consistente |
+| 4 o más y falla algún criterio | Dudoso |
+
+Un `T0` fuera de ±2 s se muestra como advertencia para revisar la hora de
+origen. El Wadati es complementario: **no cambia la prioridad** ni se imprime en
+el informe.
+
 ### Colores de “Sin arribos”
 
 | Condición | Significado |

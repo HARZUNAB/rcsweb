@@ -65,6 +65,12 @@
     Tiempos de llegada
   </button>
   {% endif %}
+  {% if rev.tiene_tiempos %}
+  <button type="button" class="btn btn-sm btn-outline-secondary"
+          id="btn-wadati">
+    Wadati
+  </button>
+  {% endif %}
 </div>
 {% if rev.tiene_coordenadas %}
 <div class="d-none flex-wrap align-items-center gap-2 mb-2 small text-secondary"
