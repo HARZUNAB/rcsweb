@@ -1297,10 +1297,14 @@ listado de selección.
 La generación usa Celery (`tasks.generar_informe_revision`) y deja el progreso
 en Redis bajo `rcs:revision:<report_id>` durante 24 horas. El PDF se construye
 con ReportLab y el respaldo DOCX con python-docx, en A4 horizontal. El informe
-se guarda en `workspace/<job>/revisiones/<report_id>.<pdf|docx>`. El máximo de
-eventos por solicitud se configura con `RCS_INFORME_MAX_EVENTOS` (50 por
-defecto). Los conflictos se validan dos veces: al encolar y dentro de la tarea,
-antes de insertar la solicitud.
+se guarda en `workspace/<job>/revisiones/<report_id>.<pdf|docx>`. Es compacto:
+por evento incluye identificación, fecha, coordenadas, profundidad, magnitud,
+analista, cruce Eventquery, solución, prioridad, motivo de prioridad y mapa.
+No imprime el residuo al slab, el perfil, la cobertura, las estaciones usadas,
+el máximo residual, la tabla de evidencia ni el enlace; esos datos quedan en la
+app. El máximo de eventos por solicitud se configura con
+`RCS_INFORME_MAX_EVENTOS` (50 por defecto). Los conflictos se validan dos veces:
+al encolar y dentro de la tarea, antes de insertar la solicitud.
 
 Permisos: `revisiones.ver` para consultar, `revisiones.crear` para solicitar y
 `revisiones.responder` para aceptar y cerrar. El analista asignado es el único

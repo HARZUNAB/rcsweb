@@ -48,10 +48,32 @@ def _identificador(evento: dict) -> str:
     )
 
 
+def _solucion(valor) -> str:
+    texto = "" if valor is None else str(valor).strip()
+    if texto == "Sí":
+        return "Sospechosa"
+    if texto == "No":
+        return "Normal"
+    if texto in {"", "Desconocido"}:
+        return "Sin evaluar"
+    return texto
+
+
+def _motivo_prioridad(fila: dict) -> str:
+    texto = _texto(fila.get("motivo_prioridad"), "")
+    if texto:
+        return texto
+    motivo = _texto(fila.get("motivo"), "")
+    return {
+        "sospechosa": "Localización",
+        "fase": "Fases",
+        "ambas": "Localización + fases",
+    }.get(motivo, "")
+
+
 def _resumen(evento: dict) -> list[tuple[str, str]]:
     fila = evento.get("fila") or {}
     canonico = evento.get("canonico") or {}
-    clasificacion = evento.get("clasificacion") or {}
     latitud = _primero(canonico.get("latitude"), fila.get("latitud"))
     longitud = _primero(canonico.get("longitude"), fila.get("longitud"))
     profundidad = _primero(canonico.get("depth_km"), fila.get("profundidad_km"))
@@ -61,7 +83,7 @@ def _resumen(evento: dict) -> list[tuple[str, str]]:
         or ((canonico.get("raw") or {}).get("Tipo_mag."))
         or (fila.get("magnitud_tipo") or "")
     )
-    return [
+    resumen = [
         ("Evento", _texto(fila.get("evento"))),
         ("ID de fuente", _texto(fila.get("id_evento_fuente"))),
         ("Fecha y hora", _texto(fila.get("fecha_hora"))),
@@ -77,26 +99,13 @@ def _resumen(evento: dict) -> list[tuple[str, str]]:
             _texto(fila.get("analista") or canonico.get("analyst")),
         ),
         ("Cruce Eventquery", _cruce(fila.get("cruce_eventquery"))),
-        (
-            "Solución",
-            (
-                f"{_texto(fila.get('sospechoso'))} · "
-                f"residuo {_numero(clasificacion.get('residuo_km'), 1)} km"
-                if fila.get("sospechoso")
-                else _texto(fila.get("sospechoso"))
-            ),
-        ),
-        ("Perfil", _texto(clasificacion.get("perfil"))),
+        ("Solución", _solucion(fila.get("sospechoso"))),
         ("Prioridad", _texto(fila.get("prioridad"))),
-        ("Motivo", _texto(fila.get("motivo"))),
-        ("Cobertura", _texto(fila.get("contexto"))),
-        ("Estaciones usadas", _texto(fila.get("n_usadas"))),
-        (
-            "Máximo residual",
-            f"{_numero(fila.get('max_residual_usado'), 2)} s",
-        ),
-        ("Enlace", _texto(evento.get("url"))),
     ]
+    motivo = _motivo_prioridad(fila)
+    if motivo:
+        resumen.append(("Motivo de prioridad", motivo))
+    return resumen
 
 
 def _encabezado(datos: dict) -> list[tuple[str, str]]:
@@ -109,59 +118,6 @@ def _encabezado(datos: dict) -> list[tuple[str, str]]:
         ("Eventos", str(len(datos.get("eventos") or []))),
         ("Nota", _texto(datos.get("nota"))),
     ]
-
-
-def _evidencia(evento: dict) -> list[list[str]]:
-    filas = evento.get("evidencia") or []
-    if not filas:
-        return []
-    agrupadas: dict[tuple, dict] = {}
-    for fila in filas:
-        clave = (
-            _texto(fila.get("red"), ""),
-            _texto(fila.get("estacion"), ""),
-            _texto(fila.get("fase"), ""),
-            _texto(fila.get("hora_pick"), ""),
-        )
-        actual = agrupadas.get(clave)
-        if actual is None:
-            actual = dict(fila)
-            actual["_tipos"] = []
-            agrupadas[clave] = actual
-        tipo = _texto(fila.get("tipo_indicio"), "")
-        if tipo and tipo not in actual["_tipos"]:
-            actual["_tipos"].append(tipo)
-    datos = [
-        [
-            "Estación",
-            "Fase",
-            "Pick",
-            "t (s)",
-            "Residual",
-            "Peso",
-            "Distancia",
-            "Tipo",
-        ]
-    ]
-    for fila in agrupadas.values():
-        estacion = " ".join(
-            parte
-            for parte in (fila.get("red"), fila.get("estacion"))
-            if parte
-        )
-        datos.append(
-            [
-                estacion,
-                _texto(fila.get("fase")),
-                _texto(fila.get("hora_pick")),
-                _texto(fila.get("t_seg")),
-                _texto(fila.get("residual")),
-                _texto(fila.get("peso")),
-                _texto(fila.get("distancia_km")),
-                ", ".join(fila.get("_tipos") or []),
-            ]
-        )
-    return datos
 
 
 def generar_docx(datos: dict, ruta: Path) -> None:
@@ -217,25 +173,6 @@ def generar_docx(datos: dict, ruta: Path) -> None:
         if mapa:
             documento.add_paragraph("")
             documento.add_picture(BytesIO(mapa), width=Cm(24))
-
-        evidencia = _evidencia(evento)
-        documento.add_paragraph("")
-        documento.add_heading("Evidencia de fases", level=2)
-        if evidencia:
-            tabla_evidencia = documento.add_table(
-                rows=1, cols=len(evidencia[0])
-            )
-            tabla_evidencia.style = "Table Grid"
-            for celda, titulo in zip(
-                tabla_evidencia.rows[0].cells, evidencia[0]
-            ):
-                celda.text = titulo
-            for fila in evidencia[1:]:
-                celdas = tabla_evidencia.add_row().cells
-                for celda, valor in zip(celdas, fila):
-                    celda.text = valor
-        else:
-            documento.add_paragraph("Sin inconsistencia de fases.")
 
     documento.save(str(ruta))
 
@@ -366,54 +303,6 @@ def generar_pdf(datos: dict, ruta: Path) -> None:
                     BytesIO(mapa),
                     width=ancho * escala,
                     height=alto * escala,
-                )
-            )
-        historia.append(Spacer(1, 0.3 * cm))
-        historia.append(
-            Paragraph("Evidencia de fases", estilos["Heading2"])
-        )
-        evidencia = _evidencia(evento)
-        if evidencia:
-            filas = [
-                [
-                    Paragraph(escape(str(valor)), estilos["RevisionCell"])
-                    for valor in fila
-                ]
-                for fila in evidencia
-            ]
-            tabla = Table(
-                filas,
-                colWidths=[
-                    3.6 * cm,
-                    1.2 * cm,
-                    4.2 * cm,
-                    1.5 * cm,
-                    2.0 * cm,
-                    1.2 * cm,
-                    2.0 * cm,
-                    6.3 * cm,
-                ],
-                repeatRows=1,
-            )
-            tabla.setStyle(
-                TableStyle(
-                    [
-                        ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
-                        (
-                            "BACKGROUND",
-                            (0, 0),
-                            (-1, 0),
-                            colors.whitesmoke,
-                        ),
-                    ]
-                )
-            )
-            historia.append(tabla)
-        else:
-            historia.append(
-                Paragraph(
-                    "Sin inconsistencia de fases.",
-                    estilos["RevisionSmall"],
                 )
             )
 

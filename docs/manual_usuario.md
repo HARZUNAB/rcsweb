@@ -838,8 +838,10 @@ Administradores y supervisores ven todos. La revisión se solicita desde
    por solicitud se configura con `RCS_INFORME_MAX_EVENTOS` (50 por defecto).
 3. Escriba una nota opcional y elija el formato. La app genera un informe A4
    horizontal con un bloque por evento: identificadores, fecha y hora,
-   coordenadas, profundidad, magnitud y tipo, analista, prioridad y motivo, mapa
-   de planta y perfil, evidencia de fases y enlace al detalle.
+   coordenadas, profundidad, magnitud y tipo, analista, cruce Eventquery,
+   solución (sospechosa o normal), prioridad, motivo de prioridad y mapa de
+   planta y perfil. La evidencia de fases y el enlace al detalle quedan
+   disponibles solo en la app.
 4. Mientras se construye, el modal muestra el progreso. El PDF es el formato
    principal; si falla, se genera un DOCX de respaldo.
 
