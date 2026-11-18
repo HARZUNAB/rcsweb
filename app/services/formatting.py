@@ -69,7 +69,8 @@ DESCRIPCIONES_PATRON = {
     ),
     "sistemático": (
         "Muchas estaciones con residuales del mismo signo; posible modelo, "
-        "profundidad u origen."
+        "profundidad u origen. Si no hay residuales individuales > 5 s, es "
+        "no concluyente y no sube la prioridad."
     ),
     "mixto": (
         "Se combinan varias señales de fases: residuales altos, fases fuera "

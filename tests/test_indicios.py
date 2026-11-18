@@ -109,13 +109,13 @@ def test_detecta_caso_puntual_extremo_y_lo_marca_prioritario():
 
 def test_prioridad_combina_publicacion_solucion_y_fuerza():
     assert indicios.prioridad_evento(True, "fuerte", True) == "Alta"
-    assert indicios.prioridad_evento(True, "débil", True) == "Media"
-    assert indicios.prioridad_evento(True, "", True) == "Media"
-    assert indicios.prioridad_evento(True, "fuerte", False) == "Baja"
+    assert indicios.prioridad_evento(True, "débil", True) == "Alta"
+    assert indicios.prioridad_evento(True, "", True) == "Alta"
+    assert indicios.prioridad_evento(True, "fuerte", False) == "Media"
     assert indicios.prioridad_evento(True, "débil", False) == "Informativa"
     assert indicios.prioridad_evento(False, "fuerte", True) == "Baja"
     assert indicios.prioridad_evento(False, "débil", True) == "Informativa"
-    assert indicios.prioridad_evento(True, "fuerte", None) == "Baja"
+    assert indicios.prioridad_evento(True, "fuerte", None) == "Media"
     assert indicios.prioridad_evento(None, "fuerte", True) == "Sin evaluar"
 
 
@@ -170,6 +170,50 @@ def test_patron_sistematico_con_contexto_fuerte():
     assert resultado["contexto"] == "fuerte"
     assert resultado["extremo"] is False
     assert resultado["revision_prioritaria"] is True
+
+
+def test_patron_sistematico_moderado_es_no_concluyente():
+    evento = _evento(
+        event_id="seiscomp:000004",
+        event_time="2020-01-01 00:00:00",
+        latitude=0.0,
+        longitude=0.0,
+        source_event_id="ev-4",
+    )
+    arribos = [
+        _arribo("A", 0.5, 0.0, "2020-01-01 00:00:10", 2.5),
+        _arribo("B", 0.4, 0.4, "2020-01-01 00:00:12", 2.8),
+        _arribo("C", 0.0, 0.5, "2020-01-01 00:00:14", 3.0),
+        _arribo("D", -0.5, 0.0, "2020-01-01 00:00:16", 3.2),
+        _arribo("E", -0.4, -0.4, "2020-01-01 00:00:18", 3.1),
+        _arribo("F", 0.0, -0.5, "2020-01-01 00:00:20", 2.9),
+    ]
+    resultado = indicios.evaluar_evento(
+        evento,
+        arribos,
+        source_id="seiscomp",
+        con_cruce=True,
+        sospechoso=True,
+        perfil_disponible=True,
+    )
+
+    assert resultado["n_outliers"] == 0
+    assert resultado["fuerza"] == ""
+    assert resultado["patron"] == "sistemático"
+    assert "no concluyente" in resultado["resumen"]
+    assert resultado["prioridad"] == "Alta"
+
+    normal = indicios.evaluar_evento(
+        evento,
+        arribos,
+        source_id="seiscomp",
+        con_cruce=True,
+        sospechoso=False,
+        perfil_disponible=True,
+    )
+    assert normal["patron"] == "sistemático"
+    assert normal["fuerza"] == ""
+    assert normal["prioridad"] == "Informativa"
 
 
 def test_detecta_pick_antes_del_origen():
@@ -458,7 +502,7 @@ def test_genera_reportes_y_resumen(tmp_path):
     assert resumen["total"]["con_anomalia"] == 1
     assert resumen["total"]["con_anomalia_fuerte"] == 1
     assert resumen["total"]["con_anomalia_debil"] == 0
-    assert resumen["total"]["revision_prioritaria"] == 0
+    assert resumen["total"]["revision_prioritaria"] == 1
     assert resumen["fuentes"]["seiscomp"]["soluciones_con_cruce"] == 1
     assert resumen["total"]["soluciones_con_cruce"] == 1
     assert resumen["total"]["eventos_referencia"] == 0
@@ -467,11 +511,12 @@ def test_genera_reportes_y_resumen(tmp_path):
     assert len(filas) == 1
     assert filas[0]["id_evento_fuente"] == "csn_sc62026vdkls"
     assert filas[0]["cruce_eventquery"] == "con_cruce"
-    # El reporte no conoce la clasificación de solución: queda conservador.
-    assert filas[0]["revision_prioritaria"] == "No"
+    # El reporte no conoce la solución: con fase fuerte queda en calidad de
+    # catálogo (Media), no en la prioridad de localización.
+    assert filas[0]["revision_prioritaria"] == "Sí"
     assert filas[0]["fuerza"] == "fuerte"
-    assert filas[0]["prioridad"] == "Baja"
-    assert filas[0]["prioridad_orden"] == "3"
+    assert filas[0]["prioridad"] == "Media"
+    assert filas[0]["prioridad_orden"] == "4"
     assert filas[0]["patron"] == "puntual"
     assert filas[0]["contexto"] == "débil"
     assert filas[0]["max_residual_usado"] == "244.20"

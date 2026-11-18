@@ -1095,16 +1095,28 @@ La **prioridad** combina cruce Eventquery, solución y fuerza:
 
 | Prioridad | Combinación |
 |---|---|
-| Alta | con cruce + solución sospechosa + fase fuerte |
-| Media | con cruce + solución sospechosa (fase débil o sin fase) |
-| Baja | con cruce + solución normal + fase fuerte; o sin cruce + sospechoso + fase fuerte |
+| Alta | con cruce + solución sospechosa (cualquier fase) |
+| Media | con cruce + solución normal + fase fuerte |
+| Baja | sin cruce + sospechoso + fase fuerte |
 | Informativa | resto de las combinaciones |
 | Sin evaluar | no se pudo determinar el cruce con Eventquery |
 
-`revision_prioritaria` es verdadero para **Alta** y **Media**, es decir, para
-toda solución con cruce Eventquery y solución sospechosa. `sospechoso` deja de
-ser un criterio de orden y pasa a decidir la prioridad. El orden por defecto del
-listado sigue siendo prioridad, solución, mayor residual y fecha.
+`revision_prioritaria` es verdadero para **Alta** y **Media**. **Alta** es duda
+de localización: un evento publicado y sospechoso es Alta aunque sus fases sean
+consistentes. **Media** es calidad de catálogo: evento publicado, solución
+normal y fase fuerte. `sospechoso` decide la prioridad de localización; la fase
+distingue la calidad de catálogo. El orden por defecto del listado sigue siendo
+prioridad, solución, mayor residual y fecha.
+
+El **patrón** resume la evidencia: `puntual`, `sistemático`, `fuera_de_orden`,
+`fuera_de_orden_debil`, `mixto`, `pick_antes_origen` o `sin_patron`. Un residual
+es **extremo** si supera 60 s o 10 veces la mediana del evento.
+
+Un patrón `sistemático` se detecta también sin outliers: al menos 5 fases
+influyentes con residual, 70 % o más con el mismo signo y mediana absoluta de
+2 s o más. En ese caso `fuerza` queda vacía (no concluyente) y el patrón no
+sube la prioridad; puede deberse a modelo, profundidad u origen. Si hay algún
+residual individual > 5 s, se mantiene la fuerza fuerte.
 
 El listado principal y la tabla de evidencia se pueden ordenar en el navegador
 haciendo clic en cualquier encabezado, sin recargar la página. El segundo clic
@@ -1213,10 +1225,12 @@ resultados/indicios/resumen.json
 ```
 
 El CSV conserva las filas de fase. Como el generador no conoce la clasificación
-de solución, sus campos `revision_prioritaria` y `prioridad` son conservadores;
-el listado y el detalle recalculan la prioridad con la solución. La columna
-`cruce_eventquery` contiene `con_cruce`, `sin_cruce` o `sin_evaluar`. El esquema
-actual de estos reportes es 6; al cambiarlo, `asegurar_indicios` los regenera.
+de solución, sus campos `revision_prioritaria` y `prioridad` son conservadores:
+un evento con cruce y fase fuerte queda en **Media** (calidad de catálogo), no
+en Alta. El listado y el detalle recalculan la prioridad con la solución. La
+columna `cruce_eventquery` contiene `con_cruce`, `sin_cruce` o `sin_evaluar`. El
+esquema actual de estos reportes es 6; al cambiarlo, `asegurar_indicios` los
+regenera.
 
 El listado agrega, además, las soluciones con cruce Eventquery y solución
 sospechosa que no tienen anomalía de fases. Esas filas se construyen desde la

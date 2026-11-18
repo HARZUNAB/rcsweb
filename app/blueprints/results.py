@@ -607,6 +607,18 @@ def _filas_revision(workspace, fuente, usuario) -> list[dict]:
         fila["revision_prioritaria"] = (
             "Sí" if prioridad in ("Alta", "Media") else "No"
         )
+        if prioridad == "Alta":
+            fila["motivo_prioridad"] = (
+                "Localización + fases"
+                if fila.get("fuerza") == "fuerte"
+                else "Localización"
+            )
+        elif prioridad == "Media":
+            fila["motivo_prioridad"] = "Fases"
+        elif prioridad == "Baja":
+            fila["motivo_prioridad"] = "No publicado"
+        else:
+            fila["motivo_prioridad"] = ""
         fila["_sospechoso_orden"] = {
             "Sí": 2,
             "No": 1,

@@ -133,7 +133,9 @@ TERMINOS = {
         "titulo": "Sistemático",
         "texto": (
             "Muchas estaciones con residuales del mismo signo. Puede indicar "
-            "un problema de modelo, profundidad u origen."
+            "un problema de modelo, profundidad u origen. Si no hay "
+            "residuales individuales > 5 s, se considera no concluyente y no "
+            "sube la prioridad."
         ),
     },
     "patron_varias_senales": {
@@ -262,27 +264,36 @@ TERMINOS = {
     "prioridad_alta": {
         "titulo": "Prioridad alta",
         "texto": (
-            "Con cruce Eventquery, solución sospechosa y fase fuerte."
+            "Evento publicado y con solución sospechosa. La duda de "
+            "localización manda: la fase no baja la prioridad."
         ),
     },
     "prioridad_media": {
         "titulo": "Prioridad media",
         "texto": (
-            "Con cruce Eventquery y solución sospechosa, con fase débil o sin "
-            "fase."
+            "Evento publicado, con solución normal y fase fuerte. Es una "
+            "señal de calidad de catálogo, no de localización."
         ),
     },
     "prioridad_baja": {
         "titulo": "Prioridad baja",
         "texto": (
-            "Con cruce y solución normal con fase fuerte; o sin cruce, "
-            "sospechosa y con fase fuerte."
+            "Evento no publicado, con solución sospechosa y fase fuerte. Se "
+            "revisa por el flujo de No publicados."
         ),
     },
     "prioridad_informativa": {
         "titulo": "Prioridad informativa",
         "texto": (
             "Combinaciones restantes. No entra a la revisión prioritaria."
+        ),
+    },
+    "motivo_prioridad": {
+        "titulo": "Motivo de la prioridad",
+        "texto": (
+            "Localización: evento publicado y sospechoso. Fases: evento "
+            "publicado con fase fuerte y solución normal. No publicado: "
+            "evento sin cruce con solución sospechosa y fase fuerte."
         ),
     },
     "prioridad_sin_evaluar": {
@@ -513,7 +524,7 @@ def _grupo_de(clave: str) -> str:
         "distancia_slab",
     }:
         return "residuales"
-    if clave.startswith("prioridad"):
+    if clave.startswith("prioridad") or clave == "motivo_prioridad":
         return "prioridad"
     if clave in {
         "no_publicados",

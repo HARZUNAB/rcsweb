@@ -1027,6 +1027,7 @@ def test_listado_y_detalle_reutilizan_la_clasificacion_sospechoso(
     html = listado.get_data(as_text=True)
     assert "Sospechosa" in html
     assert "slab 39.4 km" in html
+    assert "Localización" in html
 
     detalle = client.get(
         f"/jobs/{job.id}/resultados/catalogos/seiscomp/0"

@@ -36,6 +36,9 @@ SEPARACION_MINIMA_KM = 20.0
 MIN_ESTACIONES_FASE = 3
 UMBRAL_RESIDUAL_EXTREMO = 60.0
 FACTOR_RESIDUAL_EXTREMO = 10.0
+UMBRAL_SISTEMATICO_ESTACIONES = 5
+UMBRAL_SISTEMATICO_PROPORCION = 0.7
+UMBRAL_SISTEMATICO_MEDIANA = 2.0
 UMBRAL_CONTEXTO_ESTACIONES = 5
 UMBRAL_CONTEXTO_SIN_INVENTARIO = 8
 UMBRAL_CONTEXTO_AZGAP = 180.0
@@ -52,11 +55,12 @@ ORDEN_PRIORIDAD = {
 
 
 def prioridad_evento(con_cruce, fuerza, sospechoso) -> str:
-    """Prioridad de revisión según cruce con Eventquery, fases y solución.
+    """Prioridad de revisión según cruce Eventquery, solución y fases.
 
-    La revisión prioritaria exige una solución local con cruce Eventquery y
-    solución sospechosa. La inconsistencia de fases agrega evidencia y sube la
-    prioridad, pero no basta por sí sola para entrar a la revisión prioritaria.
+    La duda de localización manda: un evento publicado y con solución
+    sospechosa es Alta aunque las fases sean consistentes. La fase fuerte solo
+    distingue la calidad de catálogo de un evento publicado con solución
+    normal (Media) y el caso no publicado con solución sospechosa (Baja).
     """
     if con_cruce is None:
         return "Sin evaluar"
@@ -64,8 +68,8 @@ def prioridad_evento(con_cruce, fuerza, sospechoso) -> str:
     fuerte = fuerza == "fuerte"
     if con_cruce:
         if confirmado:
-            return "Alta" if fuerte else "Media"
-        return "Baja" if fuerte else "Informativa"
+            return "Alta"
+        return "Media" if fuerte else "Informativa"
     if confirmado and fuerte:
         return "Baja"
     return "Informativa"
@@ -620,6 +624,33 @@ def evaluar_evento(
         abs(_numero(arribo.get("residual")) or 0.0) for arribo in influyentes
     ]
     mediana = _mediana(residuales)
+    residuales_signados = [
+        valor
+        for valor in (
+            _numero(arribo.get("residual")) for arribo in influyentes
+        )
+        if valor is not None
+    ]
+    residuales_influyentes = [abs(valor) for valor in residuales_signados]
+    mediana_influyente = _mediana(residuales_influyentes)
+    positivos_influyentes = sum(
+        1 for valor in residuales_signados if valor > 0
+    )
+    negativos_influyentes = sum(
+        1 for valor in residuales_signados if valor < 0
+    )
+    total_influyentes = max(
+        1, positivos_influyentes + negativos_influyentes
+    )
+    proporcion_signo = (
+        max(positivos_influyentes, negativos_influyentes) / total_influyentes
+    )
+    sistematico_moderado = (
+        len(residuales_signados) >= UMBRAL_SISTEMATICO_ESTACIONES
+        and proporcion_signo >= UMBRAL_SISTEMATICO_PROPORCION
+        and mediana_influyente is not None
+        and mediana_influyente >= UMBRAL_SISTEMATICO_MEDIANA
+    )
     extremo = any(
         abs(_numero(arribo.get("residual")) or 0.0) > UMBRAL_RESIDUAL_EXTREMO
         or (
@@ -653,21 +684,23 @@ def evaluar_evento(
     if anomalia_fuerte:
         patron = _patron(fuertes, outliers, fuera_de_orden, antes, extremo)
         base_patron = fuertes
-        outliers_patron = outliers
     elif fuera_de_orden_debiles:
         patron = "fuera_de_orden_debil"
         base_patron = influyentes
-        outliers_patron = outliers_debiles
     elif outliers_debiles:
         patron = _patron(
             influyentes, outliers_debiles, fuera_de_orden, antes, extremo
         )
         base_patron = influyentes
-        outliers_patron = outliers_debiles
     else:
         patron = _patron(fuertes, outliers, fuera_de_orden, antes, extremo)
         base_patron = fuertes
-        outliers_patron = outliers
+
+    sistematico_no_concluyente = False
+    if not anomalia and sistematico_moderado:
+        patron = "sistemático"
+        base_patron = influyentes
+        sistematico_no_concluyente = True
 
     tipos: list[str] = []
     if todos_outliers:
@@ -780,6 +813,14 @@ def evaluar_evento(
             for arribo in base_patron
             if (_numero(arribo.get("residual")) or 0.0) < 0
         )
+        detalle_sistematico = (
+            f"{positivos} residuales positivos y {negativos} negativos;"
+            " posible modelo, profundidad u origen"
+        )
+        if sistematico_no_concluyente:
+            detalle_sistematico += (
+                "; patrón no concluyente para la prioridad"
+            )
         evidencia.append(
             {
                 "fuente": source_id,
@@ -793,18 +834,19 @@ def evaluar_evento(
                 "peso": "",
                 "distancia_km": "",
                 "tipo_indicio": "patron_sistematico",
-                "detalle": (
-                    f"{positivos} residuales positivos y {negativos} negativos;"
-                    " posible modelo, profundidad u origen"
-                ),
+                "detalle": detalle_sistematico,
             }
         )
 
     resumen = formatting.patron_texto(patron)
     if patron == "sistemático":
+        etiqueta = formatting.patron_texto(patron)
+        if sistematico_no_concluyente:
+            etiqueta = f"{etiqueta} (no concluyente)"
         resumen = (
-            f"{formatting.patron_texto(patron)} | {len(outliers_patron)} estaciones |"
-            f" residual mediano {formatting.numero(mediana, 2, signo=True)} s"
+            f"{etiqueta} | {len(base_patron)} estaciones |"
+            f" residual mediano"
+            f" {formatting.numero(mediana_influyente or mediana, 2, signo=True)} s"
         )
     elif evidencia:
         principal = evidencia[0]
@@ -815,9 +857,9 @@ def evaluar_evento(
             )
         elif principal["tipo_indicio"] == "patron_sistematico":
             resumen = (
-                f"{formatting.patron_texto(patron)} | {len(outliers_patron)} estaciones"
+                f"{formatting.patron_texto(patron)} | {len(base_patron)} estaciones"
                 f" | residual mediano"
-                f" {formatting.numero(mediana, 2, signo=True)} s"
+                f" {formatting.numero(mediana_influyente or mediana, 2, signo=True)} s"
             )
         else:
             resumen = (

@@ -656,9 +656,9 @@ Después del procesamiento, la app reúne dos señales:
 La revisión es posterior a la publicación. La tarjeta **Revisión de eventos** de
 la página del trabajo abre el listado. Hay tres alcances:
 
-- **Revisión prioritaria:** soluciones con cruce Eventquery y solución
-  sospechosa, tengan o no fases inconsistentes. Es la vista más crítica y la que
-  se abre por defecto.
+- **Revisión prioritaria:** eventos publicados con solución sospechosa
+  (prioridad Alta) o con solución normal y fase fuerte (prioridad Media). La
+  duda de localización manda; la fase distingue la calidad de catálogo.
 - **Con cruce Eventquery:** soluciones locales que cruzan con Eventquery, con
   solución sospechosa o con fases inconsistentes.
 - **Todos:** agrega las soluciones sin cruce Eventquery que tienen fases
@@ -717,6 +717,11 @@ con peso 0–2 genera una anomalía fuerte; en una fase con peso 3 genera una
 anomalía débil. Una anomalía débil se muestra igual, con la etiqueta **indicio
 débil**, para que el usuario decida si solicita la revisión.
 
+Si al menos 5 estaciones influyentes tienen residuales del mismo signo (70 % o
+más) y la mediana absoluta es de 2 s o más, pero ningún residual individual
+supera 5 s, el patrón se marca **sistemático (no concluyente)**. Se muestra,
+pero no sube la prioridad: puede deberse al modelo, la profundidad o el origen.
+
 El **peso** se muestra en la escala 0–4 que usan los analistas: 0 = mayor
 influencia, 4 = sin influencia. Solo las fases con peso 0–3 entran al análisis;
 las de peso 4 no aportaron a la solución y no generan indicios. El valor
@@ -732,17 +737,25 @@ fases:
 
 | Prioridad | Combinación |
 |---|---|
-| Alta | con cruce + solución sospechosa + fase fuerte |
-| Media | con cruce + solución sospechosa (fase débil o sin fase) |
-| Baja | con cruce + solución normal + fase fuerte; o sin cruce + sospechoso + fase fuerte |
+| Alta | publicado (con cruce) + solución sospechosa, con cualquier fase |
+| Media | publicado + solución normal + fase fuerte |
+| Baja | sin cruce + solución sospechosa + fase fuerte |
 | Informativa | resto de las combinaciones |
 | Sin evaluar | no se pudo determinar el cruce con Eventquery |
 
-La **Revisión prioritaria** incluye Alta y Media: exige una solución con cruce
-Eventquery y solución sospechosa. Una fase fuerte con solución normal queda en
-**Baja** y no entra a la vista prioritaria: se revisa como calidad de catálogo.
-La columna **Solución** es la que decide la prioridad; ya no es solo un criterio
-de orden.
+La **Revisión prioritaria** incluye Alta y Media. **Alta** es duda de
+localización: un evento publicado y sospechoso es Alta aunque sus fases sean
+consistentes. **Media** es calidad de catálogo: evento publicado, solución
+normal y fase fuerte. Un evento publicado con solución normal y fase débil o sin
+fase queda en **Informativa**. La columna **Solución** decide la prioridad de
+localización; la fase distingue la calidad de catálogo.
+
+Junto a la prioridad se muestra el **motivo**:
+
+- **Localización:** Alta por solución sospechosa.
+- **Localización + fases:** Alta por solución sospechosa y fase fuerte.
+- **Fases:** Media por fase fuerte con solución normal.
+- **No publicado:** Baja por no cruzar con Eventquery.
 
 El listado principal y la tabla de evidencia se ordenan haciendo clic en
 cualquier encabezado. El segundo clic invierte el orden. No se recarga la

@@ -31,6 +31,7 @@
   "cruce_eventquery", "con_cruce", "sin_cruce", "sin_evaluar",
   "solucion_sospechosa", "solucion_normal",
   "prioridad_alta", "prioridad_media", "prioridad_baja",
+  "motivo_prioridad",
   "patron", "patron_puntual", "patron_sistematico", "patron_varias_senales",
   "patron_sin_fase",
   "cobertura", "cobertura_debil", "indicio_debil", "residual_extremo",
@@ -310,6 +311,9 @@
               <span class="badge text-bg-secondary">Baja</span>
               {% else %}
               <span class="badge text-bg-light text-dark">{{ fila.prioridad }}</span>
+              {% endif %}
+              {% if fila.motivo_prioridad %}
+              <div class="small text-secondary">{{ fila.motivo_prioridad }}</div>
               {% endif %}
             </td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.n_disponibles or '' }}">{{ fila.n_disponibles if fila.n_disponibles not in (none, '') else '—' }}</td>
