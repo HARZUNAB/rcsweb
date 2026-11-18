@@ -759,6 +759,19 @@ def test_cierre_exige_url_valida_y_evidencia_opcional(app, client):
             "antecedentes": "Texto",
             f"cambio_{evento.id}": "on",
             f"url_{evento.id}": "https://example.org/evento",
+            f"observacion_{evento.id}": "x" * 1001,
+        },
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    assert solicitud.status == "en_proceso"
+
+    respuesta = client.post(
+        url,
+        data={
+            "antecedentes": "Texto",
+            f"cambio_{evento.id}": "on",
+            f"url_{evento.id}": "https://example.org/evento",
         },
     )
     assert respuesta.status_code == 302
@@ -768,6 +781,57 @@ def test_cierre_exige_url_valida_y_evidencia_opcional(app, client):
     db.session.refresh(evento)
     assert evento.parameters_changed is True
     assert evento.updated_url == "https://example.org/evento"
+
+
+def test_cierre_permite_evento_despublicado_sin_url(app, client):
+    solicitud, eventos, analista, otro = _solicitud_en_proceso(app, eventos=1)
+    client.post("/logout")
+    client.post("/login", data={"username": "mdur", "password": "secret"})
+    evento = eventos[0]
+
+    respuesta = client.post(
+        f"/revisiones/{solicitud.id}/cerrar",
+        data={
+            "antecedentes": "El evento se despublicó al corregir la magnitud.",
+            f"cambio_{evento.id}": "on",
+            f"despublicado_{evento.id}": "on",
+            f"observacion_{evento.id}": "Se retiró de Eventquery.",
+        },
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    db.session.refresh(evento)
+    assert solicitud.status == "cerrada"
+    assert evento.parameters_changed is True
+    assert evento.unpublished is True
+    assert evento.updated_url is None
+    assert evento.observation == "Se retiró de Eventquery."
+
+    detalle = client.get(f"/revisiones/{solicitud.id}").get_data(as_text=True)
+    assert "Despublicado" in detalle
+    assert "Se retiró de Eventquery." in detalle
+
+
+def test_cierre_permite_despublicado_sin_cambio(app, client):
+    solicitud, eventos, analista, otro = _solicitud_en_proceso(app, eventos=1)
+    client.post("/logout")
+    client.post("/login", data={"username": "mdur", "password": "secret"})
+    evento = eventos[0]
+
+    respuesta = client.post(
+        f"/revisiones/{solicitud.id}/cerrar",
+        data={
+            "antecedentes": "El evento se retiró de Eventquery.",
+            f"despublicado_{evento.id}": "on",
+        },
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    db.session.refresh(evento)
+    assert solicitud.status == "cerrada"
+    assert evento.parameters_changed is False
+    assert evento.unpublished is True
+    assert evento.updated_url is None
 
 
 def test_cierre_rechaza_evidencia_demasiado_grande(app, client, monkeypatch):

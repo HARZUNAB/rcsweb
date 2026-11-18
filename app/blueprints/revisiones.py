@@ -289,7 +289,7 @@ def cerrar(request_id: int):
         flash("Escriba los antecedentes de lo realizado.", "danger")
         return redirect(_volver(solicitud))
 
-    cambios: dict[int, tuple[bool, str | None]] = {}
+    cambios: dict[int, dict] = {}
     for evento in solicitud.events:
         marcado = request.form.get(f"cambio_{evento.id}") in {
             "1",
@@ -298,15 +298,48 @@ def cerrar(request_id: int):
             "si",
             "sí",
         }
+        despublicado = request.form.get(
+            f"despublicado_{evento.id}"
+        ) in {
+            "1",
+            "on",
+            "true",
+            "si",
+            "sí",
+        }
         url = request.form.get(f"url_{evento.id}", "").strip()
-        if marcado and not _url_actualizada_valida(url):
+        observacion = request.form.get(
+            f"observacion_{evento.id}", ""
+        ).strip()
+        if len(observacion) > 1000:
+            flash(
+                "La observación del evento "
+                f"{evento.event_id} no puede superar 1000 caracteres.",
+                "danger",
+            )
+            return redirect(_volver(solicitud))
+        if not marcado:
+            url = ""
+        if marcado and not despublicado and not _url_actualizada_valida(url):
             flash(
                 "Indique una URL actualizada válida para el evento "
                 f"{evento.event_id}.",
                 "danger",
             )
             return redirect(_volver(solicitud))
-        cambios[evento.id] = (marcado, url if marcado else None)
+        if url and not _url_actualizada_valida(url):
+            flash(
+                "La URL del evento "
+                f"{evento.event_id} no es válida.",
+                "danger",
+            )
+            return redirect(_volver(solicitud))
+        cambios[evento.id] = {
+            "parameters_changed": marcado,
+            "unpublished": despublicado,
+            "updated_url": url or None,
+            "observation": observacion or None,
+        }
 
     evidencia = None
     archivo = request.files.get("evidencia")
@@ -327,9 +360,11 @@ def cerrar(request_id: int):
         solicitud.evidence_sha256 = evidencia["sha256"]
         solicitud.evidence_uploaded_at = utcnow()
     for evento in solicitud.events:
-        cambio, url = cambios[evento.id]
-        evento.parameters_changed = cambio
-        evento.updated_url = url
+        cambio = cambios[evento.id]
+        evento.parameters_changed = cambio["parameters_changed"]
+        evento.unpublished = cambio["unpublished"]
+        evento.updated_url = cambio["updated_url"]
+        evento.observation = cambio["observation"]
 
     try:
         db.session.commit()
@@ -363,7 +398,9 @@ def cerrar(request_id: int):
                 {
                     "evento": evento.event_id,
                     "cambio_parametros": evento.parameters_changed,
+                    "despublicado": evento.unpublished,
                     "url_actualizada": evento.updated_url,
+                    "observacion": evento.observation,
                 }
                 for evento in solicitud.events
             ],

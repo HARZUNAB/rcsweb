@@ -851,13 +851,21 @@ En el cierre, por cada evento de la solicitud:
 
 - **¿Cambió?**: marque la casilla solo si el evento cambió sus parámetros
   (magnitud, posición, profundidad, etc.).
-- **URL actualizada**: si marcó **¿Cambió?**, la URL es obligatoria y debe
-  comenzar con `http://` o `https://`. El formulario muestra una fila por cada
-  evento de la solicitud, hasta el máximo configurado.
+- **¿Se despublicó?**: marque la casilla si el evento dejó de estar publicado.
+  Puede ocurrir después de un cambio de parámetros o de forma independiente.
+- **URL actualizada**: solo se exige si marcó **¿Cambió?** y **no** marcó
+  **¿Se despublicó?**. Debe comenzar con `http://` o `https://`. Si el evento
+  se despublicó, no se pide URL.
+- **Observación del evento**: opcional, hasta 1000 caracteres. Sirve para
+  explicar la despublicación o el cambio.
 - **Evidencia**: archivo opcional. Formatos permitidos: PDF, PNG, JPG/JPEG,
   WEBP, DOC/DOCX, XLS/XLSX, TXT, CSV y ZIP. Tamaño máximo: 20 MB. La ayuda
   desplegable del formulario repite estos límites.
 - **Antecedentes**: texto obligatorio con lo revisado y corregido.
+
+El formulario muestra una fila por cada evento de la solicitud, hasta el máximo
+configurado. Las URLs y observaciones quedan asociadas al evento, no a la
+solicitud completa.
 
 La evidencia se guarda en el workspace del trabajo y se puede descargar desde
 el detalle de la solicitud cerrada. Si no se adjuntó, el detalle indica **Sin

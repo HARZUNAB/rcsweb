@@ -422,7 +422,23 @@ TERMINOS = {
         "texto": (
             "Enlace que se registra por evento cuando sus parámetros cambiaron "
             "durante la revisión. Es obligatorio si se marca que el evento "
-            "cambió."
+            "cambió y sigue publicado."
+        ),
+    },
+    "evento_despublicado": {
+        "titulo": "Evento despublicado",
+        "texto": (
+            "Evento que estaba publicado y dejó de estarlo después de cambiar "
+            "sus parámetros. En ese caso no se exige URL actualizada; se "
+            "registra la observación del analista."
+        ),
+    },
+    "observacion_evento": {
+        "titulo": "Observación por evento",
+        "texto": (
+            "Nota opcional que el analista agrega a cada evento al cerrar la "
+            "solicitud, por ejemplo para explicar una despublicación o un "
+            "cambio."
         ),
     },
 }
@@ -512,6 +528,8 @@ def _grupo_de(clave: str) -> str:
         "correo_analista",
         "evidencia_cierre",
         "url_actualizada_evento",
+        "evento_despublicado",
+        "observacion_evento",
     } or clave.startswith("revision"):
         return "revisiones"
     return "usuarios"

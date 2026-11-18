@@ -27,7 +27,8 @@
 </div>
 
 {{ ayuda_panel("¿Qué debo hacer al cerrar?", [
-  "correo_analista", "evidencia_cierre", "url_actualizada_evento"
+  "correo_analista", "evidencia_cierre", "url_actualizada_evento",
+  "evento_despublicado", "observacion_evento"
 ]) }}
 
 <div class="card border-0 shadow-sm mb-3">
@@ -124,13 +125,21 @@
           <tr>
             <td>
               {{ evento.event_id }}
-              {% if evento.parameters_changed %}
+              {% if evento.parameters_changed or evento.unpublished or evento.observation %}
               <div class="small">
+                {% if evento.parameters_changed %}
                 <span class="text-warning">Parámetros actualizados</span>
+                {% endif %}
+                {% if evento.unpublished %}
+                <span class="badge text-bg-danger ms-1">Despublicado</span>
+                {% endif %}
                 {% if evento.updated_url %}
                 ·
                 <a href="{{ evento.updated_url }}" target="_blank"
                    rel="noopener noreferrer">URL</a>
+                {% endif %}
+                {% if evento.observation %}
+                <div class="text-secondary">{{ evento.observation }}</div>
                 {% endif %}
               </div>
               {% endif %}
@@ -231,7 +240,9 @@
             <tr>
               <th>Evento</th>
               <th>¿Cambió?</th>
+              <th>¿Se despublicó?</th>
               <th>URL actualizada</th>
+              <th>Observación</th>
             </tr>
           </thead>
           <tbody>
@@ -253,11 +264,23 @@
                        data-cambio-evento>
               </td>
               <td>
+                <input class="form-check-input" type="checkbox"
+                       name="despublicado_{{ evento.id }}"
+                       id="despublicado_{{ evento.id }}"
+                       data-despublicado-evento>
+              </td>
+              <td>
                 <input class="form-control form-control-sm" type="url"
                        name="url_{{ evento.id }}"
                        id="url_{{ evento.id }}"
                        maxlength="1000" placeholder="https://..."
                        disabled>
+              </td>
+              <td>
+                <input class="form-control form-control-sm" type="text"
+                       name="observacion_{{ evento.id }}"
+                       id="observacion_{{ evento.id }}"
+                       maxlength="1000" placeholder="Opcional">
               </td>
             </tr>
             {% endfor %}
@@ -265,8 +288,10 @@
         </table>
       </div>
       <p class="small text-secondary">
-        Marque <strong>¿Cambió?</strong> solo en los eventos cuyos parámetros
-        se actualizaron. En ese caso, la URL es obligatoria.
+        Marque <strong>¿Cambió?</strong> si el evento actualizó sus parámetros.
+        Si además dejó de estar publicado, marque
+        <strong>¿Se despublicó?</strong>; en ese caso no se exige URL.
+        La observación por evento es opcional.
       </p>
       {% endif %}
 

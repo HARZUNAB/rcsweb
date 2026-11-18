@@ -543,7 +543,9 @@ class ReviewRequestEvent(db.Model):
     priority: Mapped[str] = mapped_column(String(20), default="")
     motive: Mapped[str] = mapped_column(String(20), default="")
     parameters_changed: Mapped[bool] = mapped_column(Boolean, default=False)
+    unpublished: Mapped[bool] = mapped_column(Boolean, default=False)
     updated_url: Mapped[str | None] = mapped_column(String(1000))
+    observation: Mapped[str | None] = mapped_column(Text)
 
     request = relationship("ReviewRequest", back_populates="events")
 

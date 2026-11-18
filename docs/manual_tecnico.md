@@ -406,7 +406,9 @@ informe.
 | `priority` | String(20) | No | — | Prioridad calculada |
 | `motive` | String(20) | No | — | Motivo del evento |
 | `parameters_changed` | Boolean | No | — | El evento cambió sus parámetros |
+| `unpublished` | Boolean | No | — | El evento se despublicó |
 | `updated_url` | String(1000) | Sí | — | URL actualizada del evento |
+| `observation` | Text | Sí | — | Observación del analista para el evento |
 
 Restricción: `UNIQUE (request_id, source_id, event_id)`.
 
@@ -1324,11 +1326,16 @@ El cierre exige `closing_note`; la evidencia es opcional.
   corta el archivo en streaming y borra el parcial si se excede.
 - Se conserva el tamaño y el SHA-256 en `review_requests`.
 - La descarga usa `GET /revisiones/<id>/evidencia` con `revisiones.ver`.
-- Cada `review_request_events` guarda `parameters_changed` y `updated_url`.
-- Si el evento se marca como cambiado, la URL es obligatoria, debe ser
-  `http://` o `https://` y admite hasta 1000 caracteres.
+- Cada `review_request_events` guarda `parameters_changed`, `unpublished`,
+  `updated_url` y `observation`.
+- Si el evento se marca como cambiado **y no** despublicado, la URL es
+  obligatoria, debe ser `http://` o `https://` y admite hasta 1000 caracteres.
+- Si el evento se marca como despublicado, la URL no se exige. Puede quedar
+  vacía aunque también haya cambiado sus parámetros.
+- La observación por evento es opcional y admite hasta 1000 caracteres.
 - El formulario recorre los eventos de la solicitud, por lo que pide
-  exactamente una URL por evento, hasta el máximo de `RCS_INFORME_MAX_EVENTOS`.
+  exactamente una fila por evento, hasta el máximo de
+  `RCS_INFORME_MAX_EVENTOS`.
 
 Si una fuente no trae residual y otra fuente local lo aporta, el adaptador lo
 completa para el trabajo y deja la procedencia en `raw.residual_fuente` y
