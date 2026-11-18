@@ -334,6 +334,7 @@ def test_catalogo_eventquery_muestra_wadati_del_respaldo(client, login):
     assert 'id="wadati-respaldo-datos"' in detalle
     assert 'data-wadati-toggle="residuos"' in detalle
     assert 'data-wadati-toggle="tabla"' in detalle
+    assert "data-wadati-residuos" in detalle
     assert "seiscomp:000584" in detalle
     assert "Ver solución local" in detalle
 

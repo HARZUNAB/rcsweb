@@ -654,7 +654,7 @@ con los botones de la barra superior:
 
 | Opción | Qué muestra |
 |---|---|
-| **Residuos** | Una línea punteada desde cada estación hasta la recta ajustada |
+| **Residuos** | Segmentos naranjos desde cada estación hasta la recta, marca del punto ajustado y un panel inferior con el residuo de cada estación |
 | **Tabla** | Tabla por estación con `Tp`, `Ts − Tp`, residuo, peso y si se usó |
 | **Banda Vp/Vs** | Rectas guía para los valores aceptados 1,5 y 2,0 |
 | **Etiquetas** | Nombres de estación sobre los puntos; viene activado |
@@ -663,6 +663,11 @@ Todas las opciones parten apagadas, salvo **Etiquetas**. La elección se guarda
 en el navegador, así que se mantiene entre sesiones; **Restablecer** vuelve al
 estado inicial. Ninguna opción altera el ajuste ni la calidad: son ayudas de
 lectura.
+
+El panel de **Residuos** escala su eje a la magnitud de los residuos, así que
+sirve incluso cuando el ajuste es bueno y las desviaciones son de décimas de
+segundo. En un evento sano los puntos quedan cerca de la línea cero; con fases
+mal identificadas se dispersan.
 
 Al hacer clic en un punto aparece una tarjeta con `Tp`, `Ts − Tp`, residuo,
 peso y uso de esa estación. La tabla, si está abierta, resalta la misma fila. En

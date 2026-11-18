@@ -1662,14 +1662,17 @@ el cálculo de `Vp/Vs`. Lo usan la traza de residuos y la tabla por estación.
 La barra de opciones del modal (`data-wadati-toggle`) se genera en la plantilla
 y la maneja `estaciones.js`:
 
-- `residuos`: muestra la traza punteada punto → recta.
+- `residuos`: muestra la traza naranja punto → recta, las marcas del punto
+  ajustado y un panel inferior propio (`[data-wadati-residuos]`) con eje
+  autoescalado a los residuos, graficado con `Plotly.react`.
 - `tabla`: muestra la tabla por estación ordenada por `|residuo|` descendente.
 - `banda`: muestra las rectas guía `Vp/Vs` 1,5 y 2,0 ancladas al intercepto.
 - `etiquetas`: alterna `markers+text` y `markers` en la traza de estaciones.
 
-Los toggles usan `Plotly.restyle`, conservan el zoom (`uirevision`) y guardan
-la elección en `localStorage` bajo `rcsweb:wadati:vista`. Si el navegador no
-permite almacenamiento, se usa el estado base. El clic en un punto (`plotly_click`,
+Los toggles buscan las trazas por nombre (`indiceTraza`), usan
+`Plotly.restyle`, conservan el zoom (`uirevision`) y guardan la elección en
+`localStorage` bajo `rcsweb:wadati:vista`. Si el navegador no permite
+almacenamiento, se usa el estado base. El clic en un punto (`plotly_click`,
 `curveNumber === 0`) muestra la tarjeta de detalle y resalta la fila de la
 tabla. En el evento local la tarjeta ofrece **Ver en tiempos de llegada**, que
 redibuja `#grafico-tiempos` y agrega una traza de anillo con los picks P y S de

@@ -2610,6 +2610,76 @@
     }
   }
 
+  function indiceTraza(grafico, nombre) {
+    var trazas = (grafico && grafico.data) || [];
+    for (var indice = 0; indice < trazas.length; indice += 1) {
+      if (trazas[indice].name === nombre) {
+        return indice;
+      }
+    }
+    return -1;
+  }
+
+  function dibujarResiduosWadati(panel, estado) {
+    if (!panel) {
+      return;
+    }
+    var contenedor = panel.querySelector("[data-wadati-residuos]");
+    if (!contenedor) {
+      return;
+    }
+    var puntos = panel._wadatiResiduos || [];
+    if (!estado.residuos || !puntos.length) {
+      contenedor.classList.add("d-none");
+      return;
+    }
+    if (!window.Plotly) {
+      return;
+    }
+    contenedor.classList.remove("d-none");
+    var traza = {
+      x: puntos.map(function (punto) {
+        return Number(punto.tp);
+      }),
+      y: puntos.map(function (punto) {
+        return Number(punto.residuo);
+      }),
+      mode: "markers",
+      type: "scatter",
+      name: "Residuos",
+      text: puntos.map(function (punto) {
+        return (punto.red ? punto.red + " " : "") + punto.estacion;
+      }),
+      marker: {
+        size: 9,
+        color: "#fd7e14",
+        line: { color: "#b35c00", width: 1 },
+      },
+      hovertemplate: "%{text}<br>residuo %{y:+.2f} s<extra></extra>",
+    };
+    window.Plotly.react(
+      contenedor,
+      [traza],
+      {
+        margin: { l: 60, r: 20, t: 10, b: 40 },
+        xaxis: { title: "Tp (s)" },
+        yaxis: {
+          title: "Residuo (s)",
+          zeroline: true,
+          zerolinecolor: "#adb5bd",
+          zerolinewidth: 1,
+        },
+        showlegend: false,
+        hovermode: "closest",
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff",
+      },
+      { responsive: true, displaylogo: false }
+    ).then(function () {
+      window.Plotly.Plots.resize(contenedor);
+    });
+  }
+
   function aplicarOpcionesWadati(grafico, panel, estado) {
     if (!panel) {
       return;
@@ -2627,19 +2697,24 @@
     if (tabla) {
       tabla.classList.toggle("d-none", !estado.tabla);
     }
+    dibujarResiduosWadati(panel, estado);
     if (!grafico || !grafico.data || !grafico.data.length || !window.Plotly) {
       return;
     }
-    if (grafico.data.length > 2) {
-      window.Plotly.restyle(grafico, { visible: estado.residuos }, [2]);
-    }
-    if (grafico.data.length > 3) {
-      window.Plotly.restyle(grafico, { visible: estado.banda }, [3]);
+    ["Residuos", "Residuos ajustados"].forEach(function (nombre) {
+      var indice = indiceTraza(grafico, nombre);
+      if (indice >= 0) {
+        window.Plotly.restyle(grafico, { visible: estado.residuos }, [indice]);
+      }
+    });
+    var indiceBanda = indiceTraza(grafico, "Vp/Vs 1.5–2.0");
+    if (indiceBanda >= 0) {
+      window.Plotly.restyle(grafico, { visible: estado.banda }, [indiceBanda]);
     }
     window.Plotly.restyle(
       grafico,
       { mode: estado.etiquetas ? "markers+text" : "markers" },
-      [0]
+      [indiceTraza(grafico, "Estaciones")]
     );
   }
 
@@ -2702,11 +2777,18 @@
       if (barra) {
         barra.classList.add("d-none");
       }
+      if (panel) {
+        panel._wadatiResiduos = [];
+      }
       limpiarDetalleWadati(panel);
       if (panel) {
         var tablaVacia = panel.querySelector("[data-wadati-tabla]");
         if (tablaVacia) {
           tablaVacia.classList.add("d-none");
+        }
+        var residuosVacios = panel.querySelector("[data-wadati-residuos]");
+        if (residuosVacios) {
+          residuosVacios.classList.add("d-none");
         }
       }
       return;
@@ -2720,6 +2802,11 @@
       return;
     }
     var puntos = datos.puntos;
+    if (panel) {
+      panel._wadatiResiduos = puntos.filter(function (punto) {
+        return Number.isFinite(Number(punto.residuo));
+      });
+    }
     var traza = {
       x: puntos.map(function (punto) {
         return Number(punto.tp);
@@ -2783,10 +2870,37 @@
       mode: "lines",
       type: "scatter",
       name: "Residuos",
-      line: { color: "#adb5bd", width: 1, dash: "dot" },
+      line: { color: "#fd7e14", width: 1.5 },
       hoverinfo: "skip",
       showlegend: false,
       visible: estado.residuos && xResiduos.length > 0,
+    });
+
+    var xAjustados = [];
+    var yAjustados = [];
+    puntos.forEach(function (punto) {
+      var residuo = Number(punto.residuo);
+      if (!Number.isFinite(residuo)) {
+        return;
+      }
+      xAjustados.push(Number(punto.tp));
+      yAjustados.push(Number(punto.ts_tp) - residuo);
+    });
+    trazas.push({
+      x: xAjustados,
+      y: yAjustados,
+      mode: "markers",
+      type: "scatter",
+      name: "Residuos ajustados",
+      marker: {
+        size: 6,
+        symbol: "circle-open",
+        color: "#fd7e14",
+        line: { color: "#fd7e14", width: 1.5 },
+      },
+      hoverinfo: "skip",
+      showlegend: false,
+      visible: estado.residuos && xAjustados.length > 0,
     });
 
     var xBanda = [];
