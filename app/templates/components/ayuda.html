@@ -11,7 +11,8 @@
       {% endif %}
       {% endfor %}
     </dl>
-    <a class="small text-decoration-none" href="{{ url_for('ayuda.index') }}">
+    <a class="small text-decoration-none"
+       href="{{ url_for('ayuda.index', volver=request.full_path.rstrip('?')) }}">
       Ver glosario completo
     </a>
   </div>

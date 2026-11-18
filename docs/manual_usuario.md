@@ -1012,6 +1012,10 @@ enlaza al glosario completo. Está disponible en Revisión de eventos, detalle d
 evento, No publicados, No actualizados, Repetidos, Paneles, Revisiones,
 Usuarios y resumen del trabajo.
 
+El glosario completo muestra un botón **Volver** que regresa a la pantalla
+desde la que se abrió, conservando sus filtros. Si se abrió directamente o
+desde un enlace sin origen, el botón dice **Volver a trabajos**.
+
 ## Preguntas frecuentes
 
 **No veo un trabajo que otro usuario creó.**

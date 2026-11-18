@@ -2309,6 +2309,9 @@ workspace/         # archivos por trabajo (no versionado)
 - `app/templates/components/ayuda.html` define el macro `panel`, que genera un
   `<details>` cerrado por defecto y enlaza al glosario completo.
 - `app/blueprints/ayuda.py` sirve `/ayuda` para usuarios autenticados.
+- El enlace al glosario incluye `volver` con la ruta actual. La ruta se valida:
+  debe ser interna, no puede apuntar a `/ayuda` ni usar esquema, host, `//` o
+  barras invertidas; si no es válida, el botón vuelve a `dashboard.index`.
 - El contexto de Jinja expone `definicion_glosario` para que el macro reutilice
   las mismas definiciones en todas las pantallas.
 - Los paneles se incluyen en Revisión de eventos, detalle del evento, tablas de

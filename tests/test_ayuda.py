@@ -47,3 +47,45 @@ def test_pagina_ayuda_lista_el_glosario(client, login):
     assert "Indicio débil" in html
     assert "Residual extremo" in html
     assert "Cruce Eventquery" in html
+
+
+def test_pagina_ayuda_vuelve_al_origen(client, login):
+    login()
+    respuesta = client.get(
+        "/ayuda", query_string={"volver": "/admin/usuarios"}
+    )
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    assert 'href="/admin/usuarios"' in html
+    assert "Volver" in html
+    assert "Volver a trabajos" not in html
+
+
+def test_pagina_ayuda_rechaza_origen_inseguro(client, login):
+    login()
+    for valor in (
+        "https://evil.example/x",
+        "//evil.example/x",
+        "/\\evil.example/x",
+        "/ayuda?x=1",
+    ):
+        respuesta = client.get("/ayuda", query_string={"volver": valor})
+        assert respuesta.status_code == 200
+        html = respuesta.get_data(as_text=True)
+        assert "evil.example" not in html
+        assert "Volver a trabajos" in html
+
+
+def test_panel_de_ayuda_conserva_la_pagina(client, login):
+    login()
+    respuesta = client.get("/admin/usuarios")
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    assert 'href="/ayuda?volver=' in html
+    assert "/ayuda?volver=/admin/usuarios" in html
+
+
+def test_barra_de_ayuda_no_se_enlaza_a_si_misma(client, login):
+    login()
+    html = client.get("/ayuda").get_data(as_text=True)
+    assert 'href="/ayuda?volver=' not in html

@@ -2,6 +2,8 @@
 {% block title %}Ayuda · RCS Web{% endblock %}
 
 {% block content %}
+{% set destino_volver = volver or url_for('dashboard.index') %}
+{% set texto_volver = 'Volver' if volver else 'Volver a trabajos' %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
   <div>
     <div class="text-secondary small text-uppercase mb-1">Ayuda</div>
@@ -11,8 +13,8 @@
       solicitudes de revisión.
     </p>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('dashboard.index') }}">
-    Volver a trabajos
+  <a class="btn btn-outline-secondary" href="{{ destino_volver }}">
+    {{ texto_volver }}
   </a>
 </div>
 
@@ -31,4 +33,9 @@
   </div>
 </div>
 {% endfor %}
+<div class="d-flex justify-content-end mt-3">
+  <a class="btn btn-outline-secondary" href="{{ destino_volver }}">
+    {{ texto_volver }}
+  </a>
+</div>
 {% endblock %}
