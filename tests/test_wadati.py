@@ -117,6 +117,16 @@ def test_wadati_outlier_es_dudoso():
     assert resultado["calidad"] == "dudoso"
 
 
+def test_wadati_expone_residuo_por_punto():
+    pares = [(5.0, 8.75), (10.0, 17.5), (15.0, 26.25), (20.0, 40.0)]
+    resultado = wadati.analizar(_arribos(pares))
+
+    residuos = [punto["residuo"] for punto in resultado["puntos"]]
+    assert len(residuos) == 4
+    assert all(isinstance(valor, float) for valor in residuos)
+    assert abs(residuos[0]) < abs(residuos[-1])
+
+
 def test_wadati_excluye_peso_sin_influencia():
     datos = _arribos(
         [(5.0, 8.75), (10.0, 17.5), (15.0, 26.25), (20.0, 35.0)]

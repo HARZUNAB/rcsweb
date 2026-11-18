@@ -146,6 +146,8 @@ def analizar(arribos: list[dict] | None) -> dict:
     intercepto = float(coeficientes[1])
     ajuste = pendiente * x + intercepto
     residuos = y - ajuste
+    for punto, residuo in zip(puntos, residuos):
+        punto["residuo"] = float(residuo)
     suma_residuos = float(np.sum(residuos**2))
     suma_total = float(np.sum((y - float(np.mean(y))) ** 2))
     if suma_total <= 0:

@@ -491,6 +491,11 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert 'id="modal-tiempos"' in html
     assert 'id="modal-wadati"' in html
     assert 'id="wadati-datos"' in html
+    assert 'data-wadati-toggle="residuos"' in html
+    assert 'data-wadati-toggle="tabla"' in html
+    assert 'data-wadati-toggle="banda"' in html
+    assert 'data-wadati-tabla' in html
+    assert "height: 520px" in html
     assert 'id="estaciones-mapa-datos"' in html
     assert html.index('id="controles-estaciones-mapa"') < html.index(
         'id="mapa-detalle"'

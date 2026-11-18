@@ -42,7 +42,7 @@
 {% if revision_estaciones and revision_estaciones.tiene_tiempos %}
 <div class="modal fade" id="modal-wadati" tabindex="-1"
      aria-labelledby="modal-wadati-titulo" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h2 class="modal-title fs-6" id="modal-wadati-titulo">
@@ -53,7 +53,39 @@
       </div>
       <div class="modal-body">
         <div class="small text-secondary mb-2" id="wadati-resumen"></div>
-        <div id="grafico-wadati" style="height: 420px;"></div>
+        <div data-wadati-panel>
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2"
+               data-wadati-barra>
+            <div class="btn-group btn-group-sm" role="group"
+                 aria-label="Opciones del gráfico Wadati">
+              <button type="button" class="btn btn-outline-secondary"
+                      data-wadati-toggle="residuos" aria-pressed="false">
+                Residuos
+              </button>
+              <button type="button" class="btn btn-outline-secondary"
+                      data-wadati-toggle="tabla" aria-pressed="false">
+                Tabla
+              </button>
+              <button type="button" class="btn btn-outline-secondary"
+                      data-wadati-toggle="banda" aria-pressed="false">
+                Banda Vp/Vs
+              </button>
+              <button type="button" class="btn btn-outline-secondary active"
+                      data-wadati-toggle="etiquetas" aria-pressed="true">
+                Etiquetas
+              </button>
+            </div>
+            <button type="button"
+                    class="btn btn-sm btn-link text-secondary ms-auto p-0"
+                    data-wadati-restablecer>
+              Restablecer
+            </button>
+          </div>
+          <div class="alert alert-light border small py-2 mb-2 d-none"
+               data-wadati-detalle aria-live="polite"></div>
+          <div id="grafico-wadati" style="height: 520px;"></div>
+          <div class="table-responsive mt-2 d-none" data-wadati-tabla></div>
+        </div>
         <details class="small text-secondary mt-2">
           <summary>¿Qué mide?</summary>
           Relación Vp/Vs y corrección de la hora de origen a partir de los

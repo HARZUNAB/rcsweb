@@ -2089,12 +2089,12 @@
     var datos = datosTiemposLlegada();
     var contenedorGrafico = document.getElementById("grafico-tiempos");
     if (!contenedorGrafico) {
-      return;
+      return null;
     }
     if (!window.Plotly) {
       contenedorGrafico.innerHTML =
         '<div class="text-secondary small p-3">No se pudo cargar el gráfico.</div>';
-      return;
+      return null;
     }
     var vp = parseFloat(
       ((document.getElementById("tiempos-vp") || {}).value || "6").replace(
@@ -2250,7 +2250,7 @@
       hoverinfo: "skip",
       showlegend: false,
     });
-    window.Plotly.newPlot(
+    return window.Plotly.newPlot(
       contenedorGrafico,
       trazas,
       {
@@ -2300,7 +2300,59 @@
     );
   }
 
-  function abrirTiemposLlegada() {
+  function resaltarEstacionTiempos(red, estacion) {
+    var grafico = document.getElementById("grafico-tiempos");
+    if (!grafico || !window.Plotly) {
+      return;
+    }
+    var datos = datosTiemposLlegada();
+    var clave = (red || "") + "|" + (estacion || "");
+    var picks = (datos.arribos || []).filter(function (arribo) {
+      return (arribo.red || "") + "|" + (arribo.estacion || "") === clave;
+    });
+    if (!picks.length) {
+      return;
+    }
+    var existentes = [];
+    (grafico.data || []).forEach(function (traza, indice) {
+      if (traza.name === "Estación seleccionada") {
+        existentes.push(indice);
+      }
+    });
+    var previo = existentes.length
+      ? window.Plotly.deleteTraces(grafico, existentes)
+      : Promise.resolve();
+    previo.then(function () {
+      window.Plotly.addTraces(grafico, {
+        type: "scatter",
+        mode: "markers",
+        name: "Estación seleccionada",
+        x: picks.map(function (arribo) {
+          return Number(arribo.distancia_km);
+        }),
+        y: picks.map(function (arribo) {
+          return Number(arribo.segundos);
+        }),
+        text: picks.map(function (arribo) {
+          return (
+            (arribo.red || "") +
+            " " +
+            (arribo.estacion || "") +
+            " · " +
+            (arribo.fase || "")
+          );
+        }),
+        marker: {
+          size: 18,
+          color: "rgba(0,0,0,0)",
+          line: { color: "#d6336c", width: 2.5 },
+        },
+        hovertemplate: "%{text}<br>%{x:.1f} km · %{y:.1f} s<extra></extra>",
+      });
+    });
+  }
+
+  function abrirTiemposLlegada(despues) {
     var modal = document.getElementById("modal-tiempos");
     if (!modal) {
       return;
@@ -2309,11 +2361,24 @@
       return;
     }
     var instancia = window.bootstrap.Modal.getOrCreateInstance(modal);
+    var dibujar = function () {
+      var promesa = dibujarTiemposLlegada();
+      if (typeof despues !== "function") {
+        return;
+      }
+      if (promesa && typeof promesa.then === "function") {
+        promesa.then(function () {
+          despues();
+        });
+      } else {
+        despues();
+      }
+    };
     if (modal.classList.contains("show")) {
-      dibujarTiemposLlegada();
+      dibujar();
       return;
     }
-    modal.addEventListener("shown.bs.modal", dibujarTiemposLlegada, {
+    modal.addEventListener("shown.bs.modal", dibujar, {
       once: true,
     });
     instancia.show();
@@ -2331,10 +2396,297 @@
     }
   }
 
+  var CLAVE_WADATI = "rcsweb:wadati:vista";
+  var ESTADO_WADATI_BASE = {
+    residuos: false,
+    tabla: false,
+    banda: false,
+    etiquetas: true,
+  };
+
+  function copiaEstadoWadati(base) {
+    var copia = {};
+    Object.keys(base).forEach(function (clave) {
+      copia[clave] = base[clave];
+    });
+    return copia;
+  }
+
+  function estadoWadati() {
+    var estado = copiaEstadoWadati(ESTADO_WADATI_BASE);
+    try {
+      var guardado = JSON.parse(
+        window.localStorage.getItem(CLAVE_WADATI) || "{}"
+      );
+      if (guardado && typeof guardado === "object") {
+        Object.keys(estado).forEach(function (clave) {
+          if (typeof guardado[clave] === "boolean") {
+            estado[clave] = guardado[clave];
+          }
+        });
+      }
+    } catch (error) {
+      return copiaEstadoWadati(ESTADO_WADATI_BASE);
+    }
+    return estado;
+  }
+
+  function guardarEstadoWadati(estado) {
+    try {
+      window.localStorage.setItem(CLAVE_WADATI, JSON.stringify(estado));
+    } catch (error) {
+      // Sin almacenamiento: la elección no persiste.
+    }
+  }
+
+  function claveEstacion(punto) {
+    return (punto.red || "") + "|" + (punto.estacion || "");
+  }
+
+  function textoNumero(valor, decimales) {
+    var numero = Number(valor);
+    if (!Number.isFinite(numero)) {
+      return "—";
+    }
+    return numero.toFixed(decimales);
+  }
+
+  function textoResiduo(valor) {
+    var numero = Number(valor);
+    if (!Number.isFinite(numero)) {
+      return "—";
+    }
+    var signo = numero < 0 ? "−" : "+";
+    return signo + Math.abs(numero).toFixed(2);
+  }
+
+  function tablaWadati(datos) {
+    var tabla = document.createElement("table");
+    tabla.className = "table table-sm align-middle mb-0";
+    var leyenda = document.createElement("caption");
+    leyenda.className = "visually-hidden";
+    leyenda.textContent = "Puntos del análisis Wadati por estación";
+    tabla.appendChild(leyenda);
+    var cabecera = document.createElement("thead");
+    cabecera.className = "table-light";
+    var filaCabecera = document.createElement("tr");
+    [
+      "Estación",
+      "Tp (s)",
+      "Ts − Tp (s)",
+      "Residuo (s)",
+      "Peso",
+      "¿Usada?",
+    ].forEach(function (titulo) {
+      var celda = document.createElement("th");
+      celda.setAttribute("scope", "col");
+      celda.textContent = titulo;
+      filaCabecera.appendChild(celda);
+    });
+    cabecera.appendChild(filaCabecera);
+    tabla.appendChild(cabecera);
+
+    var cuerpo = document.createElement("tbody");
+    var puntos = (datos.puntos || []).slice();
+    puntos.sort(function (a, b) {
+      var residuoA = Math.abs(Number(a.residuo));
+      var residuoB = Math.abs(Number(b.residuo));
+      if (!Number.isFinite(residuoA)) {
+        residuoA = -1;
+      }
+      if (!Number.isFinite(residuoB)) {
+        residuoB = -1;
+      }
+      return residuoB - residuoA;
+    });
+    puntos.forEach(function (punto) {
+      var fila = document.createElement("tr");
+      fila.dataset.clave = claveEstacion(punto);
+      [
+        ((punto.red ? punto.red + " " : "") + (punto.estacion || "")).trim(),
+        textoNumero(punto.tp, 2),
+        textoNumero(punto.ts_tp, 2),
+        textoResiduo(punto.residuo),
+        textoNumero(punto.peso, 2),
+        punto.usada ? "Sí" : "No",
+      ].forEach(function (texto) {
+        var celda = document.createElement("td");
+        celda.textContent = texto;
+        fila.appendChild(celda);
+      });
+      cuerpo.appendChild(fila);
+    });
+    tabla.appendChild(cuerpo);
+    return tabla;
+  }
+
+  function limpiarDetalleWadati(panel) {
+    if (!panel) {
+      return;
+    }
+    var detalle = panel.querySelector("[data-wadati-detalle]");
+    if (detalle) {
+      while (detalle.firstChild) {
+        detalle.removeChild(detalle.firstChild);
+      }
+      detalle.classList.add("d-none");
+    }
+    var filas = panel.querySelectorAll("[data-wadati-tabla] tbody tr");
+    Array.prototype.forEach.call(filas, function (fila) {
+      fila.classList.remove("table-warning");
+    });
+  }
+
+  function marcarFilaWadati(panel, punto) {
+    if (!panel) {
+      return;
+    }
+    var clave = claveEstacion(punto);
+    var filas = panel.querySelectorAll("[data-wadati-tabla] tbody tr");
+    Array.prototype.forEach.call(filas, function (fila) {
+      fila.classList.toggle("table-warning", fila.dataset.clave === clave);
+    });
+  }
+
+  function detalleWadati(punto, panel) {
+    if (!panel) {
+      return;
+    }
+    var detalle = panel.querySelector("[data-wadati-detalle]");
+    if (!detalle) {
+      return;
+    }
+    while (detalle.firstChild) {
+      detalle.removeChild(detalle.firstChild);
+    }
+    var titulo = document.createElement("div");
+    titulo.className = "fw-semibold";
+    titulo.textContent = (
+      (punto.red ? punto.red + " " : "") + (punto.estacion || "")
+    ).trim();
+    var datos = document.createElement("div");
+    datos.textContent =
+      "Tp " +
+      textoNumero(punto.tp, 2) +
+      " s · Ts − Tp " +
+      textoNumero(punto.ts_tp, 2) +
+      " s · residuo " +
+      textoResiduo(punto.residuo) +
+      " s · peso " +
+      textoNumero(punto.peso, 2) +
+      " · " +
+      (punto.usada ? "usada en la solución" : "no usada en la solución");
+    detalle.appendChild(titulo);
+    detalle.appendChild(datos);
+    if (document.getElementById("grafico-tiempos")) {
+      var boton = document.createElement("button");
+      boton.type = "button";
+      boton.className = "btn btn-sm btn-outline-primary mt-2";
+      boton.textContent = "Ver en tiempos de llegada";
+      boton.addEventListener("click", function (evento) {
+        evento.preventDefault();
+        abrirTiemposLlegada(function () {
+          resaltarEstacionTiempos(punto.red, punto.estacion);
+        });
+      });
+      detalle.appendChild(boton);
+    }
+    detalle.classList.remove("d-none");
+  }
+
+  function construirTablaPanel(panel, datos) {
+    if (!panel) {
+      return;
+    }
+    var contenedor = panel.querySelector("[data-wadati-tabla]");
+    if (!contenedor) {
+      return;
+    }
+    while (contenedor.firstChild) {
+      contenedor.removeChild(contenedor.firstChild);
+    }
+    if (datos.puntos && datos.puntos.length) {
+      contenedor.appendChild(tablaWadati(datos));
+    }
+  }
+
+  function aplicarOpcionesWadati(grafico, panel, estado) {
+    if (!panel) {
+      return;
+    }
+    Object.keys(ESTADO_WADATI_BASE).forEach(function (clave) {
+      var boton = panel.querySelector(
+        '[data-wadati-toggle="' + clave + '"]'
+      );
+      if (boton) {
+        boton.setAttribute("aria-pressed", String(estado[clave]));
+        boton.classList.toggle("active", estado[clave]);
+      }
+    });
+    var tabla = panel.querySelector("[data-wadati-tabla]");
+    if (tabla) {
+      tabla.classList.toggle("d-none", !estado.tabla);
+    }
+    if (!grafico || !grafico.data || !grafico.data.length || !window.Plotly) {
+      return;
+    }
+    if (grafico.data.length > 2) {
+      window.Plotly.restyle(grafico, { visible: estado.residuos }, [2]);
+    }
+    if (grafico.data.length > 3) {
+      window.Plotly.restyle(grafico, { visible: estado.banda }, [3]);
+    }
+    window.Plotly.restyle(
+      grafico,
+      { mode: estado.etiquetas ? "markers+text" : "markers" },
+      [0]
+    );
+  }
+
+  function iniciarPanelesWadati() {
+    var paneles = document.querySelectorAll("[data-wadati-panel]");
+    Array.prototype.forEach.call(paneles, function (panel) {
+      var toggles = panel.querySelectorAll("[data-wadati-toggle]");
+      Array.prototype.forEach.call(toggles, function (boton) {
+        boton.addEventListener("click", function (evento) {
+          evento.preventDefault();
+          var clave = boton.getAttribute("data-wadati-toggle");
+          var estado = estadoWadati();
+          if (Object.prototype.hasOwnProperty.call(estado, clave)) {
+            estado[clave] = !estado[clave];
+            guardarEstadoWadati(estado);
+          }
+          aplicarOpcionesWadati(
+            panel.querySelector('[id^="grafico-wadati"]'),
+            panel,
+            estado
+          );
+        });
+      });
+      var restablecer = panel.querySelector("[data-wadati-restablecer]");
+      if (restablecer) {
+        restablecer.addEventListener("click", function (evento) {
+          evento.preventDefault();
+          var estado = copiaEstadoWadati(ESTADO_WADATI_BASE);
+          guardarEstadoWadati(estado);
+          aplicarOpcionesWadati(
+            panel.querySelector('[id^="grafico-wadati"]'),
+            panel,
+            estado
+          );
+        });
+      }
+    });
+  }
+
   function renderWadati(datos, grafico, resumen) {
     if (!grafico || !resumen) {
       return;
     }
+    var panel = grafico.closest ? grafico.closest("[data-wadati-panel]") : null;
+    var barra = panel ? panel.querySelector("[data-wadati-barra]") : null;
+    var estado = estadoWadati();
+    limpiarDetalleWadati(panel);
     if (
       !datos ||
       !datos.disponible ||
@@ -2347,7 +2699,20 @@
       grafico.innerHTML =
         '<div class="text-secondary small p-3">' + mensaje + "</div>";
       resumen.textContent = mensaje;
+      if (barra) {
+        barra.classList.add("d-none");
+      }
+      limpiarDetalleWadati(panel);
+      if (panel) {
+        var tablaVacia = panel.querySelector("[data-wadati-tabla]");
+        if (tablaVacia) {
+          tablaVacia.classList.add("d-none");
+        }
+      }
       return;
+    }
+    if (barra) {
+      barra.classList.remove("d-none");
     }
     if (!window.Plotly) {
       grafico.innerHTML =
@@ -2362,7 +2727,7 @@
       y: puntos.map(function (punto) {
         return Number(punto.ts_tp);
       }),
-      mode: "markers+text",
+      mode: estado.etiquetas ? "markers+text" : "markers",
       type: "scatter",
       name: "Estaciones",
       text: puntos.map(function (punto) {
@@ -2397,6 +2762,68 @@
         hoverinfo: "skip",
       });
     }
+
+    var xResiduos = [];
+    var yResiduos = [];
+    puntos.forEach(function (punto) {
+      var residuo = Number(punto.residuo);
+      if (!Number.isFinite(residuo)) {
+        return;
+      }
+      xResiduos.push(Number(punto.tp), Number(punto.tp), null);
+      yResiduos.push(
+        Number(punto.ts_tp),
+        Number(punto.ts_tp) - residuo,
+        null
+      );
+    });
+    trazas.push({
+      x: xResiduos,
+      y: yResiduos,
+      mode: "lines",
+      type: "scatter",
+      name: "Residuos",
+      line: { color: "#adb5bd", width: 1, dash: "dot" },
+      hoverinfo: "skip",
+      showlegend: false,
+      visible: estado.residuos && xResiduos.length > 0,
+    });
+
+    var xBanda = [];
+    var yBanda = [];
+    if (
+      Number.isFinite(Number(datos.pendiente)) &&
+      Number.isFinite(Number(datos.intercepto))
+    ) {
+      var xsBanda = puntos.map(function (punto) {
+        return Number(punto.tp);
+      });
+      var desde = Math.min.apply(null, xsBanda);
+      var hasta = Math.max.apply(null, xsBanda);
+      [1.5, 2.0].forEach(function (relacion) {
+        xBanda.push(desde, hasta, null);
+        yBanda.push(
+          Number(datos.intercepto) + (relacion - 1) * desde,
+          Number(datos.intercepto) + (relacion - 1) * hasta,
+          null
+        );
+      });
+    }
+    trazas.push({
+      x: xBanda,
+      y: yBanda,
+      mode: "lines",
+      type: "scatter",
+      name: "Vp/Vs 1.5–2.0",
+      line: { color: "#2f9e44", width: 1.2, dash: "dash" },
+      hoverinfo: "skip",
+      showlegend: false,
+      visible: estado.banda && xBanda.length > 0,
+    });
+
+    grafico._wadatiPuntos = puntos;
+    grafico._wadatiPanel = panel;
+
     window.Plotly.newPlot(
       grafico,
       trazas,
@@ -2405,13 +2832,33 @@
         xaxis: { title: "Tp (s)", zeroline: false },
         yaxis: { title: "Ts − Tp (s)", zeroline: false },
         showlegend: false,
+        hovermode: "closest",
+        uirevision: "wadati",
         paper_bgcolor: "#ffffff",
         plot_bgcolor: "#ffffff",
       },
       { responsive: true, displaylogo: false }
     ).then(function () {
       window.Plotly.Plots.resize(grafico);
+      if (!grafico._wadatiClick) {
+        grafico._wadatiClick = true;
+        grafico.on("plotly_click", function (evento) {
+          var seleccion = (evento.points || [])[0];
+          if (!seleccion || seleccion.curveNumber !== 0) {
+            return;
+          }
+          var activos = grafico._wadatiPuntos || [];
+          var punto = activos[seleccion.pointNumber];
+          if (!punto) {
+            return;
+          }
+          detalleWadati(punto, grafico._wadatiPanel);
+          marcarFilaWadati(grafico._wadatiPanel, punto);
+        });
+      }
+      aplicarOpcionesWadati(grafico, panel, estado);
     });
+    construirTablaPanel(panel, datos);
     var partes = [];
     if (Number.isFinite(Number(datos.vp_vs))) {
       partes.push("Vp/Vs " + Number(datos.vp_vs).toFixed(2));
@@ -2430,7 +2877,6 @@
     resumen.textContent =
       partes.join(" · ") + (datos.mensaje ? " · " + datos.mensaje : "");
   }
-
   function dibujarWadati() {
     renderWadati(
       datosWadati(),
@@ -2580,6 +3026,7 @@
         abrirWadatiRespaldo();
       });
     }
+    iniciarPanelesWadati();
     var botonPropagacion = document.getElementById("btn-propagacion");
     if (botonPropagacion) {
       botonPropagacion.addEventListener("click", function (evento) {

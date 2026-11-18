@@ -1653,7 +1653,27 @@ consultar disponibilidad.
 El resultado se calcula en `station_review._datos_mapa_tiempos()` y viaja en
 `revision_estaciones.wadati`. La plantilla `_controles_estaciones.html` muestra
 el botón **Wadati**; `_estaciones_mapa_tiempos.html` incluye el modal y el JSON
-`#wadati-datos`. El JavaScript solo dibuja el gráfico y el resumen.
+`#wadati-datos`.
+
+`wadati.analizar()` agrega `residuo` a cada punto del ajuste (`observado −
+ajustado`, en segundos). Es solo informativo: no interviene en la calidad ni en
+el cálculo de `Vp/Vs`. Lo usan la traza de residuos y la tabla por estación.
+
+La barra de opciones del modal (`data-wadati-toggle`) se genera en la plantilla
+y la maneja `estaciones.js`:
+
+- `residuos`: muestra la traza punteada punto → recta.
+- `tabla`: muestra la tabla por estación ordenada por `|residuo|` descendente.
+- `banda`: muestra las rectas guía `Vp/Vs` 1,5 y 2,0 ancladas al intercepto.
+- `etiquetas`: alterna `markers+text` y `markers` en la traza de estaciones.
+
+Los toggles usan `Plotly.restyle`, conservan el zoom (`uirevision`) y guardan
+la elección en `localStorage` bajo `rcsweb:wadati:vista`. Si el navegador no
+permite almacenamiento, se usa el estado base. El clic en un punto (`plotly_click`,
+`curveNumber === 0`) muestra la tarjeta de detalle y resalta la fila de la
+tabla. En el evento local la tarjeta ofrece **Ver en tiempos de llegada**, que
+redibuja `#grafico-tiempos` y agrega una traza de anillo con los picks P y S de
+la estación elegida; en el respaldo de Eventquery ese botón no se muestra.
 
 El análisis es complementario: no modifica la prioridad, el listado, el PDF ni
 el DOCX.

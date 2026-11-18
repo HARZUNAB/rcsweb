@@ -649,6 +649,27 @@ origen. Si el ajuste da **Vp/Vs ≤ 1**, se marca **Dudoso**, no se muestra `T0`
 y se pide revisar los picks P/S. El Wadati es complementario: **no cambia la
 prioridad** ni se imprime en el informe.
 
+El gráfico parte con la vista simple y cada usuario decide qué detalle agregar
+con los botones de la barra superior:
+
+| Opción | Qué muestra |
+|---|---|
+| **Residuos** | Una línea punteada desde cada estación hasta la recta ajustada |
+| **Tabla** | Tabla por estación con `Tp`, `Ts − Tp`, residuo, peso y si se usó |
+| **Banda Vp/Vs** | Rectas guía para los valores aceptados 1,5 y 2,0 |
+| **Etiquetas** | Nombres de estación sobre los puntos; viene activado |
+
+Todas las opciones parten apagadas, salvo **Etiquetas**. La elección se guarda
+en el navegador, así que se mantiene entre sesiones; **Restablecer** vuelve al
+estado inicial. Ninguna opción altera el ajuste ni la calidad: son ayudas de
+lectura.
+
+Al hacer clic en un punto aparece una tarjeta con `Tp`, `Ts − Tp`, residuo,
+peso y uso de esa estación. La tabla, si está abierta, resalta la misma fila. En
+el Wadati del evento local la tarjeta ofrece **Ver en tiempos de llegada**, que
+abre el gráfico de tiempos y destaca los picks P y S de esa estación. En el
+respaldo de Eventquery esa acción no está disponible.
+
 En el detalle de un evento del catálogo **Eventquery**, que no tiene fases, el
 panel **Wadati del respaldo local** busca las soluciones locales que cruzaron
 con ese publicado y calcula Wadati sobre ellas. No se calcula sobre Eventquery.

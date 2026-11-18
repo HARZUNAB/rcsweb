@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from app.domain.catalogs import canonical
 from app.extensions import db
@@ -252,6 +252,90 @@ def test_catalogo_eventquery_muestra_analista_probable(client, login):
     assert "SeisComp: cris; Seisan: beto" in detalle
     assert "Wadati del respaldo local" in detalle
     assert "Sin contraparte local con fases" in detalle
+
+
+def test_catalogo_eventquery_muestra_wadati_del_respaldo(client, login):
+    job = _job_con_tabla(login)
+    workspace = ruta_workspace(job.id)
+    datos_dir = workspace / "datos"
+    datos_dir.mkdir(parents=True, exist_ok=True)
+    (datos_dir / "new_2_eventquery.csv").write_text(
+        ",Fecha_Hora,Latitud,Longitud,Prof.,Mag.,Tipo_mag.,Referencia,Percep.\n"
+        "0,2026-11-06 07:23:35,-28.359,-71.875,46.5,3.6,MLv,Coquimbo,N\n",
+        encoding="utf-8",
+    )
+    base = datetime(2026, 11, 6, 7, 23, 35)
+    evento = {
+        "source_id": "seiscomp",
+        "event_id": "seiscomp:000584",
+        "event_time": "2026-11-06 07:23:35",
+        "latitude": -28.359,
+        "longitude": -71.875,
+        "depth_km": 46.5,
+        "magnitude": 3.6,
+        "magnitude_type": "MLv",
+        "analyst": "maca",
+        "raw_index": 0,
+        "raw": {},
+    }
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seiscomp"), [evento]
+    )
+    arribos = []
+    for indice, (tp, ts) in enumerate(
+        [(5.0, 8.75), (10.0, 17.5), (15.0, 26.25), (20.0, 35.0)],
+        start=1,
+    ):
+        estacion = f"E{indice}"
+        for fase, segundos in (("P", tp), ("S", ts)):
+            arribos.append(
+                {
+                    "source_id": "seiscomp",
+                    "event_id": "seiscomp:000584",
+                    "network": "C1",
+                    "station": estacion,
+                    "phase": fase,
+                    "pick_time": (base + timedelta(seconds=segundos)).isoformat(
+                        sep=" "
+                    ),
+                    "residual": 0.0,
+                    "weight": 1.0,
+                    "is_used_in_solution": True,
+                    "station_latitude": -28.0 - indice * 0.1,
+                    "station_longitude": -71.8,
+                    "azimuth": indice * 45.0,
+                    "distance_km": 10.0 * indice,
+                    "raw": {},
+                }
+            )
+    canonical.escribir_registros(
+        canonical.ruta_arribos(workspace, "seiscomp"), arribos
+    )
+    (datos_dir / "atribucion_seiscomp.csv").write_text(
+        "n_fila_eventquery,fecha_eventquery,lat_eventquery,lon_eventquery,"
+        "fecha_local,lat_local,lon_local,analista,dt_seg,dist_km,fuente\n"
+        "0,2026-11-06 07:23:35,-28.359,-71.875,"
+        "2026-11-06 07:23:35,-28.359,-71.875,maca,0.0,0.1,seiscomp\n",
+        encoding="utf-8",
+    )
+    ruta_indice = workspace / "resultados" / "indice.json"
+    indice = json.loads(ruta_indice.read_text(encoding="utf-8"))
+    indice["catalogos"]["eventquery"] = {
+        "archivo": "datos/new_2_eventquery.csv",
+        "filas": 1,
+    }
+    ruta_indice.write_text(json.dumps(indice), encoding="utf-8")
+
+    detalle = client.get(
+        f"/jobs/{job.id}/resultados/catalogos/eventquery/0"
+    ).get_data(as_text=True)
+
+    assert "Wadati del respaldo local" in detalle
+    assert 'id="wadati-respaldo-datos"' in detalle
+    assert 'data-wadati-toggle="residuos"' in detalle
+    assert 'data-wadati-toggle="tabla"' in detalle
+    assert "seiscomp:000584" in detalle
+    assert "Ver solución local" in detalle
 
 
 def test_detalle_muestra_mapa_interactivo(client, login):
