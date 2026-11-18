@@ -42,6 +42,7 @@ from ..services import (
     formatting,
     indicios,
     panels,
+    referencias,
     review,
     review_reports,
 )
@@ -1927,6 +1928,13 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
             if event_id
             else ""
         )
+    respaldo_local = []
+    if tabla == "catalogos" and opcion == "eventquery":
+        respaldo_local = referencias.soluciones_locales(
+            ruta_workspace(job.id),
+            fila,
+            contexto["fila"].get("Analista probable", ""),
+        )
     parametro = PARAMETROS[tabla]
     volver = request.args.get("volver", "")
     if not volver.startswith("/") or volver.startswith("//"):
@@ -2147,6 +2155,7 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         mapa_modo=mapa_modo,
         titulo_columna=titulo_columna,
         revision_estaciones=revision_estaciones,
+        respaldo_local=respaldo_local,
         indicios_evento=indicios_evento,
         revision_solicitud=revision_solicitud,
         revision_visible=revision_visible,

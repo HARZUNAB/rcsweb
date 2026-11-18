@@ -1656,6 +1656,26 @@ el botón **Wadati**; `_estaciones_mapa_tiempos.html` incluye el modal y el JSON
 El análisis es complementario: no modifica la prioridad, el listado, el PDF ni
 el DOCX.
 
+##### Wadati del respaldo local en Eventquery
+
+`app/services/referencias.py` resuelve una fila de Eventquery a sus soluciones
+locales:
+
+1. Lee `datos/atribucion_<fuente>.csv` y filtra por `n_fila_eventquery`.
+2. Descarta fuentes derivadas.
+3. Busca el evento local en `canonical.leer_canonico()` por `event_time` y
+   posición; si no hay coincidencia exacta, acepta hasta 3 s y 0,02°.
+4. Calcula Wadati con `station_review.revisar_evento()` sobre el evento local.
+5. Ordena por fuente probable (`analista probable` del Eventquery), distancia y
+   diferencia de tiempo.
+
+El detalle de Eventquery incluye `results/_wadati_respaldo.html`, con selector
+si hay varias soluciones, resumen, enlace al evento local y un modal propio.
+`static/js/estaciones.js` dibuja el Wadati de la solución seleccionada.
+
+Si no hay atribución o la fuente no está en el trabajo, el panel muestra
+**Sin contraparte local con fases**. No se inventa un Wadati para Eventquery.
+
 ##### Propagación en el cliente
 
 `static/js/estaciones.js` implementa el controlador de propagación:

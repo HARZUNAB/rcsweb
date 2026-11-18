@@ -250,6 +250,8 @@ def test_catalogo_eventquery_muestra_analista_probable(client, login):
     ).get_data(as_text=True)
     assert "Analista probable" in detalle
     assert "SeisComp: cris; Seisan: beto" in detalle
+    assert "Wadati del respaldo local" in detalle
+    assert "Sin contraparte local con fases" in detalle
 
 
 def test_detalle_muestra_mapa_interactivo(client, login):

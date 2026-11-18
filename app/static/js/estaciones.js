@@ -2331,10 +2331,7 @@
     }
   }
 
-  function dibujarWadati() {
-    var datos = datosWadati();
-    var grafico = document.getElementById("grafico-wadati");
-    var resumen = document.getElementById("wadati-resumen");
+  function renderWadati(datos, grafico, resumen) {
     if (!grafico || !resumen) {
       return;
     }
@@ -2434,6 +2431,99 @@
       partes.join(" · ") + (datos.mensaje ? " · " + datos.mensaje : "");
   }
 
+  function dibujarWadati() {
+    renderWadati(
+      datosWadati(),
+      document.getElementById("grafico-wadati"),
+      document.getElementById("wadati-resumen")
+    );
+  }
+
+  function datosWadatiRespaldo() {
+    var nodo = document.getElementById("wadati-respaldo-datos");
+    if (!nodo) {
+      return [];
+    }
+    try {
+      var datos = JSON.parse(nodo.textContent || "[]");
+      return Array.isArray(datos) ? datos : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function candidatoWadatiRespaldo() {
+    var datos = datosWadatiRespaldo();
+    if (!datos.length) {
+      return null;
+    }
+    var selector = document.getElementById("wadati-respaldo-selector");
+    var indice = selector ? parseInt(selector.value, 10) : 0;
+    if (
+      !Number.isFinite(indice) ||
+      indice < 0 ||
+      indice >= datos.length
+    ) {
+      indice = 0;
+    }
+    return { item: datos[indice], indice: indice };
+  }
+
+  function actualizarWadatiRespaldo() {
+    var seleccion = candidatoWadatiRespaldo();
+    if (!seleccion) {
+      return;
+    }
+    var item = seleccion.item;
+    var wadati = item.wadati || {};
+    var resumen = document.getElementById("wadati-respaldo-resumen");
+    if (resumen) {
+      resumen.textContent =
+        wadati.mensaje || "Sin pares P/S suficientes.";
+    }
+    var enlace = document.getElementById("wadati-respaldo-link");
+    var selector = document.getElementById("wadati-respaldo-selector");
+    if (enlace && selector) {
+      var opcion = selector.options[selector.selectedIndex];
+      var url = opcion ? opcion.dataset.url || "" : "";
+      enlace.href = url || "#";
+      enlace.classList.toggle("d-none", !url);
+    }
+    var modal = document.getElementById("modal-wadati-respaldo");
+    if (modal && modal.classList.contains("show")) {
+      renderWadati(
+        wadati,
+        document.getElementById("grafico-wadati-respaldo"),
+        document.getElementById("wadati-respaldo-modal-resumen")
+      );
+    }
+  }
+
+  function abrirWadatiRespaldo() {
+    var modal = document.getElementById("modal-wadati-respaldo");
+    if (!modal || !window.bootstrap || !window.bootstrap.Modal) {
+      return;
+    }
+    var instancia = window.bootstrap.Modal.getOrCreateInstance(modal);
+    var dibujar = function () {
+      var seleccion = candidatoWadatiRespaldo();
+      if (!seleccion) {
+        return;
+      }
+      renderWadati(
+        seleccion.item.wadati || {},
+        document.getElementById("grafico-wadati-respaldo"),
+        document.getElementById("wadati-respaldo-modal-resumen")
+      );
+    };
+    if (modal.classList.contains("show")) {
+      dibujar();
+      return;
+    }
+    modal.addEventListener("shown.bs.modal", dibujar, { once: true });
+    instancia.show();
+  }
+
   function abrirWadati() {
     var modal = document.getElementById("modal-wadati");
     if (!modal || !window.bootstrap || !window.bootstrap.Modal) {
@@ -2474,6 +2564,20 @@
       botonWadati.addEventListener("click", function (evento) {
         evento.preventDefault();
         abrirWadati();
+      });
+    }
+    var selectorRespaldo = document.getElementById(
+      "wadati-respaldo-selector"
+    );
+    if (selectorRespaldo) {
+      selectorRespaldo.addEventListener("change", actualizarWadatiRespaldo);
+      actualizarWadatiRespaldo();
+    }
+    var botonRespaldo = document.getElementById("btn-wadati-respaldo");
+    if (botonRespaldo) {
+      botonRespaldo.addEventListener("click", function (evento) {
+        evento.preventDefault();
+        abrirWadatiRespaldo();
       });
     }
     var botonPropagacion = document.getElementById("btn-propagacion");

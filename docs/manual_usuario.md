@@ -648,6 +648,14 @@ Un `T0` fuera de ±2 s se muestra como advertencia para revisar la hora de
 origen. El Wadati es complementario: **no cambia la prioridad** ni se imprime en
 el informe.
 
+En el detalle de un evento del catálogo **Eventquery**, que no tiene fases, el
+panel **Wadati del respaldo local** busca las soluciones locales que cruzaron
+con ese publicado y calcula Wadati sobre ellas. No se calcula sobre Eventquery.
+Si hay varias soluciones, se elige en un selector y se marca la **fuente
+probable** según el analista probable del publicado. Si no hay contraparte
+local, muestra **Sin contraparte local con fases**. El botón **Ver solución
+local** abre el evento de la fuente que aportó las fases.
+
 ### Colores de “Sin arribos”
 
 | Condición | Significado |

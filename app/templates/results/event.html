@@ -499,7 +499,11 @@
 </div>
 {% endif %}
 
-{% if revision_estaciones %}
+{% if tabla == 'catalogos' and opcion == 'eventquery' %}
+{% include "results/_wadati_respaldo.html" %}
+{% endif %}
+
+{% if revision_estaciones and not (tabla == 'catalogos' and opcion == 'eventquery') %}
 <div class="card border-0 shadow-sm mb-3" id="estaciones">
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
@@ -735,7 +739,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/tabla_orden.js') }}"></script>
-{% if revision_estaciones %}
+{% if revision_estaciones or respaldo_local %}
 <script src="{{ url_for('static', filename='js/estaciones.js') }}"></script>
 {% endif %}
 {% if mapa_modo == 'online' and puntos_mapa %}
