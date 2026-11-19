@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 from app.extensions import db
@@ -361,6 +362,90 @@ def test_reanalizar_rechaza_trabajo_en_curso(client, login, sin_celery):
     assert "en curso" in respuesta.get_data(as_text=True)
     assert db.session.get(Job, job.id).status == "running"
     assert sin_celery == []
+
+
+def test_detalle_muestra_coincidencias_extra(client, login):
+    login()
+    job = Job(
+        id=nuevo_uuid(),
+        period_start=datetime(2026, 11, 1, tzinfo=UTC),
+        period_end=datetime(2026, 11, 30, tzinfo=UTC),
+        status="done",
+    )
+    db.session.add(job)
+    db.session.commit()
+    workspace = crear_workspace(job.id)
+    carpeta = workspace / "resultados" / "indicios"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    (carpeta / "resumen.json").write_text(
+        json.dumps(
+            {
+                "esquema": 7,
+                "fuentes": {"seiscomp": {"eventos": 2}},
+                "total": {
+                    "eventos_referencia": 2,
+                    "referencias_con_cruce": 2,
+                    "referencias_sin_cruce": 0,
+                    "soluciones_con_cruce": 3,
+                    "coincidencias_extra": 1,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    datos = workspace / "datos"
+    datos.mkdir(parents=True, exist_ok=True)
+    (datos / "atribucion_seiscomp.csv").write_text(
+        "n_fila_eventquery,fecha_eventquery,fecha_local,lat_local,"
+        "lon_local,analista,dt_seg,dist_km,fuente\n"
+        "10,2026-11-01 00:00:00,2026-11-01 00:00:01,-30.0,-71.0,"
+        "ana,1.0,0.4,seiscomp\n"
+        "10,2026-11-01 00:00:00,2026-11-01 00:00:02,-30.0,-71.0,"
+        "ana,2.0,0.5,seiscomp\n",
+        encoding="utf-8",
+    )
+
+    html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
+
+    assert "Ver extras" in html
+    assert "Coincidencias extra" in html
+    assert "1 extra" in html
+    assert "2026-11-01 00:00:00 · fila 10" in html
+
+
+def test_detalle_sin_coincidencias_extra_no_muestra_boton(client, login):
+    login()
+    job = Job(
+        id=nuevo_uuid(),
+        period_start=datetime(2026, 11, 1, tzinfo=UTC),
+        period_end=datetime(2026, 11, 30, tzinfo=UTC),
+        status="done",
+    )
+    db.session.add(job)
+    db.session.commit()
+    workspace = crear_workspace(job.id)
+    carpeta = workspace / "resultados" / "indicios"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    (carpeta / "resumen.json").write_text(
+        json.dumps(
+            {
+                "esquema": 7,
+                "fuentes": {},
+                "total": {
+                    "eventos_referencia": 1,
+                    "referencias_con_cruce": 1,
+                    "referencias_sin_cruce": 0,
+                    "soluciones_con_cruce": 1,
+                    "coincidencias_extra": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
+
+    assert "Ver extras" not in html
 
 
 def test_detalle_muestra_reanalizar_solo_si_corresponde(client, login):

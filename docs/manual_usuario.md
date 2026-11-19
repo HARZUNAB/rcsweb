@@ -763,6 +763,9 @@ El resumen distingue estos conteos:
   fuentes locales que cruzaron con Eventquery. Puede ser mayor que el conteo de
   referencia si dos soluciones locales representan el mismo evento de referencia.
 - **Coincidencias extra:** soluciones adicionales para una misma referencia.
+  Un botón **Ver extras** despliega esas referencias con sus soluciones
+  locales, la fuente, el analista, el `Δt` y la distancia. Cada solución local
+  enlaza a su evento cuando se puede resolver.
 - **Cobertura del cruce:** cuántas referencias tienen al menos un cruce local y
   cuántas no lo tienen.
 

@@ -1213,6 +1213,15 @@ def generar_indicios(
         json.dumps(resumen, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    datos_extra = coincidencias_extra(workspace)
+    if datos_extra["huella"]:
+        try:
+            ruta_coincidencias_extra(workspace).write_text(
+                json.dumps(datos_extra, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except OSError:
+            pass
     return resumen
 
 
@@ -1272,6 +1281,206 @@ def resumen_visible(
             if _cruza_eventquery(evento, indice) is True:
                 visible["soluciones_con_cruce"] += 1
     return visible
+
+
+COINCIDENCIAS_EXTRA = "coincidencias_extra.json"
+
+
+def ruta_coincidencias_extra(workspace: Path) -> Path:
+    return ruta_indicios(workspace) / COINCIDENCIAS_EXTRA
+
+
+def _huella_atribuciones(workspace: Path) -> dict[str, str]:
+    """Tamaño y mtime de las atribuciones, para invalidar el artefacto."""
+    huella: dict[str, str] = {}
+    carpetas = Path(workspace) / "datos"
+    for ruta in sorted(carpetas.glob("atribucion_*.csv")):
+        try:
+            estado = ruta.stat()
+        except OSError:
+            continue
+        huella[ruta.name] = f"{estado.st_size}-{int(estado.st_mtime)}"
+    return huella
+
+
+def _buscar_evento_local(
+    eventos: list[dict], fecha: str, lat, lon
+) -> dict | None:
+    clave = _clave_tiempo(fecha)
+    if not clave:
+        return None
+    candidatos = [
+        evento
+        for evento in eventos
+        if _clave_tiempo(evento.get("event_time")) == clave
+    ]
+    if not candidatos:
+        return None
+
+    def distancia(evento: dict) -> float:
+        otra_lat = _numero(evento.get("latitude"))
+        otra_lon = _numero(evento.get("longitude"))
+        if None in (otra_lat, otra_lon, lat, lon):
+            return 0.0
+        return abs(otra_lat - lat) + abs(otra_lon - lon)
+
+    return min(candidatos, key=distancia)
+
+
+def _grupos_extra(workspace: Path) -> list[dict]:
+    """Referencias Eventquery con más de una solución local."""
+    por_referencia: dict[str, dict] = {}
+    carpetas = Path(workspace) / "datos"
+    for ruta in sorted(carpetas.glob("atribucion_*.csv")):
+        source_id = ruta.stem.removeprefix("atribucion_")
+        if _fuente_derivada(source_id):
+            continue
+        try:
+            with ruta.open(encoding="utf-8-sig", newline="") as archivo:
+                for fila in csv.DictReader(archivo):
+                    referencia = _texto(fila.get("n_fila_eventquery"))
+                    if not referencia:
+                        continue
+                    fuente = _texto(fila.get("fuente")) or source_id
+                    fecha_local = _texto(fila.get("fecha_local"))
+                    lat = _numero(fila.get("lat_local"))
+                    lon = _numero(fila.get("lon_local"))
+                    grupo = por_referencia.setdefault(
+                        referencia,
+                        {
+                            "fila": referencia,
+                            "fecha_referencia": _texto(
+                                fila.get("fecha_eventquery")
+                            ),
+                            "candidatos": {},
+                        },
+                    )
+                    clave = (
+                        fuente,
+                        _clave_tiempo(fecha_local),
+                        lat,
+                        lon,
+                    )
+                    grupo["candidatos"][clave] = {
+                        "fuente": fuente,
+                        "fecha_local": fecha_local,
+                        "lat": lat,
+                        "lon": lon,
+                        "analista": _texto(fila.get("analista")),
+                        "dt_seg": _numero(fila.get("dt_seg")),
+                        "dist_km": _numero(fila.get("dist_km")),
+                    }
+        except OSError:
+            continue
+
+    con_varias = [
+        grupo
+        for grupo in por_referencia.values()
+        if len(grupo["candidatos"]) > 1
+    ]
+    if not con_varias:
+        return []
+
+    canonicos: dict[str, list[dict]] = {}
+    for grupo in con_varias:
+        for candidato in grupo["candidatos"].values():
+            fuente = candidato["fuente"]
+            if fuente not in canonicos:
+                canonicos[fuente] = canonical.leer_canonico(workspace, fuente)
+            candidato["evento"] = _buscar_evento_local(
+                canonicos[fuente],
+                candidato["fecha_local"],
+                candidato["lat"],
+                candidato["lon"],
+            )
+
+    salida = []
+    for grupo in con_varias:
+        soluciones = {}
+        for candidato in grupo["candidatos"].values():
+            evento = candidato.get("evento") or {}
+            event_id = _texto(evento.get("event_id"))
+            clave = (
+                candidato["fuente"],
+                event_id
+                or (
+                    candidato["fecha_local"],
+                    candidato["lat"],
+                    candidato["lon"],
+                ),
+            )
+            soluciones[clave] = {
+                "fuente": candidato["fuente"],
+                "etiqueta": fuentes_manifest.etiqueta(candidato["fuente"]),
+                "evento_local": event_id,
+                "fila_local": evento.get("raw_index"),
+                "fecha_local": candidato["fecha_local"],
+                "analista": candidato["analista"],
+                "dt_seg": candidato["dt_seg"],
+                "dist_km": candidato["dist_km"],
+            }
+        lista = sorted(
+            soluciones.values(),
+            key=lambda item: (
+                item["dist_km"] is None,
+                item["dist_km"] if item["dist_km"] is not None else 1e9,
+                item["fuente"],
+                item["evento_local"],
+            ),
+        )
+        if len(lista) < 2:
+            continue
+        salida.append(
+            {
+                "fila": grupo["fila"],
+                "fecha_referencia": grupo["fecha_referencia"],
+                "soluciones": lista,
+                "extra": len(lista) - 1,
+            }
+        )
+    salida.sort(
+        key=lambda grupo: (
+            grupo["fecha_referencia"],
+            grupo["fila"],
+        )
+    )
+    return salida
+
+
+def coincidencias_extra(workspace: Path) -> dict:
+    """Calcula el detalle de coincidencias extra y su huella."""
+    grupos = _grupos_extra(workspace)
+    return {
+        "generado": datetime.now(UTC).isoformat(),
+        "huella": _huella_atribuciones(workspace),
+        "grupos": grupos,
+        "total": sum(grupo["extra"] for grupo in grupos),
+    }
+
+
+def leer_coincidencias_extra(workspace: Path) -> dict:
+    """Lee el artefacto o lo calcula una vez si falta o cambió."""
+    ruta = ruta_coincidencias_extra(workspace)
+    huella = _huella_atribuciones(workspace)
+    if ruta.is_file():
+        try:
+            datos = json.loads(ruta.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            datos = None
+        if isinstance(datos, dict) and datos.get("huella") == huella:
+            return datos
+    datos = coincidencias_extra(workspace)
+    if not datos["huella"]:
+        return datos
+    try:
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        ruta.write_text(
+            json.dumps(datos, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+    return datos
 
 
 def leer_indicios(workspace: Path, source_id: str) -> list[dict]:

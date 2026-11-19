@@ -1248,6 +1248,33 @@ para mostrar `n_disponibles`, `n_usadas`, `max_residual_usado` y `contexto`
 (cobertura). Conservan el motivo **Solución sospechosa** y el patrón **Sin
 inconsistencia de fases**.
 
+##### Coincidencias extra
+
+`indicios.coincidencias_extra()` agrupa `datos/atribucion_<fuente>.csv` por
+`n_fila_eventquery`, deduplica las filas y conserva las referencias con más de
+una solución local. Cada solución se resuelve a su evento canónico por hora y
+posición (`_buscar_evento_local`) para obtener `event_id` y `raw_index`.
+
+El resultado se guarda en `resultados/indicios/coincidencias_extra.json` con:
+
+```text
+generado, huella, total, grupos[]
+grupos[]: fila, fecha_referencia, extra, soluciones[]
+soluciones[]: fuente, etiqueta, evento_local, fila_local,
+              fecha_local, analista, dt_seg, dist_km
+```
+
+La huella es `tamaño-mtime` de cada `atribucion_*.csv`. Si no coincide,
+`leer_coincidencias_extra()` recalcula y reescribe el artefacto. Se genera al
+final de `generar_indicios` y también de forma perezosa la primera vez que se
+abre el detalle de un trabajo anterior. Leerlo cuesta ~0.1 ms; recalcular,
+~30–40 ms.
+
+`jobs._contexto_detalle` lo carga solo para usuarios con `trabajos.todos` y usa
+`total` para el conteo de la tarjeta, de modo que el número y la tabla siempre
+coinciden. La plantilla `jobs/_page.html` muestra **Ver extras** y un `collapse`
+con la tabla; no hay ruta ni JavaScript adicional.
+
 La columna **Analista** muestra el nombre de la fuente. Si no coincide con un
 usuario activo, se agrega ` · sin usuario` en texto pequeño y el evento queda
 visible pero no asignable. El filtro de analista incluye los nombres de la fuente

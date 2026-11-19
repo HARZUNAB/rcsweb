@@ -713,3 +713,151 @@ def test_campos_de_indicios_incluyen_wadati():
     assert "wadati_r2" in indicios.CAMPOS_EVENTO
     assert "wadati_dispersion" in indicios.CAMPOS_EVENTO
     assert "wadati_calidad" in indicios.CAMPOS_EVENTO
+
+
+def _atribucion_extra(workspace, nombre, filas):
+    ruta = workspace / "datos" / nombre
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    campos = [
+        "n_fila_eventquery",
+        "fecha_eventquery",
+        "lat_eventquery",
+        "lon_eventquery",
+        "fecha_local",
+        "lat_local",
+        "lon_local",
+        "analista",
+        "dt_seg",
+        "dist_km",
+        "fuente",
+    ]
+    with ruta.open("w", encoding="utf-8", newline="") as archivo:
+        escritor = csv.DictWriter(archivo, fieldnames=campos)
+        escritor.writeheader()
+        escritor.writerows(filas)
+
+
+def test_coincidencias_extra_agrupa_por_referencia(tmp_path):
+    workspace = tmp_path / "ws"
+    _atribucion_extra(
+        workspace,
+        "atribucion_seiscomp.csv",
+        [
+            {
+                "n_fila_eventquery": "10",
+                "fecha_eventquery": "2026-11-01 00:00:00",
+                "fecha_local": "2026-11-01 00:00:01",
+                "lat_local": "-30.0",
+                "lon_local": "-71.0",
+                "analista": "ana",
+                "dt_seg": "1.0",
+                "dist_km": "0.4",
+                "fuente": "seiscomp",
+            },
+            {
+                "n_fila_eventquery": "11",
+                "fecha_eventquery": "2026-11-02 00:00:00",
+                "fecha_local": "2026-11-02 00:00:00",
+                "lat_local": "-31.0",
+                "lon_local": "-72.0",
+                "analista": "ana",
+                "dt_seg": "0.0",
+                "dist_km": "0.2",
+                "fuente": "seiscomp",
+            },
+            # Fila repetida: no debe sumar una solución.
+            {
+                "n_fila_eventquery": "10",
+                "fecha_eventquery": "2026-11-01 00:00:00",
+                "fecha_local": "2026-11-01 00:00:01",
+                "lat_local": "-30.0",
+                "lon_local": "-71.0",
+                "analista": "ana",
+                "dt_seg": "1.0",
+                "dist_km": "0.4",
+                "fuente": "seiscomp",
+            },
+        ],
+    )
+    _atribucion_extra(
+        workspace,
+        "atribucion_seisan.csv",
+        [
+            {
+                "n_fila_eventquery": "10",
+                "fecha_eventquery": "2026-11-01 00:00:00",
+                "fecha_local": "2026-11-01 00:00:00",
+                "lat_local": "-30.1",
+                "lon_local": "-71.1",
+                "analista": "beto",
+                "dt_seg": "0.0",
+                "dist_km": "0.8",
+                "fuente": "seisan",
+            }
+        ],
+    )
+
+    datos = indicios.coincidencias_extra(workspace)
+
+    assert datos["total"] == 1
+    assert len(datos["grupos"]) == 1
+    grupo = datos["grupos"][0]
+    assert grupo["fila"] == "10"
+    assert grupo["extra"] == 1
+    assert len(grupo["soluciones"]) == 2
+    assert {solucion["fuente"] for solucion in grupo["soluciones"]} == {
+        "seiscomp",
+        "seisan",
+    }
+
+
+def test_coincidencias_extra_reutiliza_artefacto(tmp_path):
+    workspace = tmp_path / "ws"
+    _atribucion_extra(
+        workspace,
+        "atribucion_seiscomp.csv",
+        [
+            {
+                "n_fila_eventquery": "10",
+                "fecha_eventquery": "2026-11-01 00:00:00",
+                "fecha_local": "2026-11-01 00:00:01",
+                "lat_local": "-30.0",
+                "lon_local": "-71.0",
+                "fuente": "seiscomp",
+            },
+            {
+                "n_fila_eventquery": "10",
+                "fecha_eventquery": "2026-11-01 00:00:00",
+                "fecha_local": "2026-11-01 00:00:02",
+                "lat_local": "-30.0",
+                "lon_local": "-71.0",
+                "fuente": "seiscomp",
+            },
+        ],
+    )
+
+    primero = indicios.leer_coincidencias_extra(workspace)
+    ruta = indicios.ruta_coincidencias_extra(workspace)
+    assert ruta.is_file()
+    assert primero["total"] == 1
+
+    segundo = indicios.leer_coincidencias_extra(workspace)
+    assert segundo["generado"] == primero["generado"]
+
+    # Cambia la atribución: el artefacto debe recalcularse.
+    _atribucion_extra(
+        workspace,
+        "atribucion_seiscomp.csv",
+        [
+            {
+                "n_fila_eventquery": "10",
+                "fecha_eventquery": "2026-11-01 00:00:00",
+                "fecha_local": "2026-11-01 00:00:01",
+                "lat_local": "-30.0",
+                "lon_local": "-71.0",
+                "fuente": "seiscomp",
+            }
+        ],
+    )
+    tercero = indicios.leer_coincidencias_extra(workspace)
+    assert tercero["total"] == 0
