@@ -61,6 +61,7 @@ plotear._mostrar_figura = lambda bloquear: None
 # para poder diferenciarlas.
 _extent_original = plotear._extent_planta_por_eventos
 _contexto: tuple[float, float] | None = None
+_contexto_margen: tuple[float, float] = (2.0, 1.5)
 
 
 def _extent_con_contexto(
@@ -74,7 +75,13 @@ def _extent_con_contexto(
         margen_adicional = margen
     extent = _extent_original(eventos, perfil, territorio, margen_adicional)
     if _contexto is not None and extent is not None and extender_extent is not None:
-        extent = extender_extent(extent, _contexto, aspecto_maximo=2.0)
+        extent = extender_extent(
+            extent,
+            _contexto,
+            margen_lon=_contexto_margen[0],
+            margen_lat=_contexto_margen[1],
+            aspecto_maximo=2.0,
+        )
     return extent
 
 
@@ -238,10 +245,19 @@ def main() -> int:
         print("uso: plot_cli.py <salida.png>", file=sys.stderr)
         return 2
     datos = json.load(sys.stdin)
-    global _contexto
+    global _contexto, _contexto_margen
     contexto = datos.get("contexto")
     if contexto:
         _contexto = (float(contexto[0]), float(contexto[1]))
+    margen_contexto = datos.get("contexto_margen")
+    if margen_contexto:
+        try:
+            _contexto_margen = (
+                float(margen_contexto[0]),
+                float(margen_contexto[1]),
+            )
+        except (TypeError, ValueError, IndexError):
+            _contexto_margen = (2.0, 1.5)
     modo = datos.get("modo")
     fuente = datos.get("fuente", "")
     etiqueta_fuente = datos.get("etiqueta_fuente") or fuente

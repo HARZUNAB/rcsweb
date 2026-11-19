@@ -950,6 +950,10 @@ def test_sin_cruce_incluye_candidato_compatible(tmp_path):
     assert evento["candidato"]["magnitud"] == 2.6
     assert evento["diferencias"]["profundidad"] == 0.0
     assert evento["diferencias"]["magnitud"] == 0.0
+    assert evento["criterio"]["estricto"] is False
+    assert evento["criterio"]["amplio"] is True
+    assert "Δt 4.0 s > 3 s" in evento["criterio"]["texto"]
+    assert "informe de cobertura" in evento["criterio"]["texto"]
     assert evento["motivo"] == ""
 
 
@@ -1175,3 +1179,78 @@ def test_sin_cruce_tipo_de_magnitud_distinto_es_nota(tmp_path):
 
     assert evento["candidato"]["clasificacion"] == "compatible"
     assert "tipo de magnitud distinto" in evento["candidato"]["nota_magnitud"]
+
+
+def test_criterio_estricto_con_dos_segundos(tmp_path):
+    workspace = tmp_path / "ws"
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "eventquery"),
+        [
+            _evento_canonico(
+                "eventquery",
+                "eventquery:000005",
+                "2026-11-03 11:51:23",
+                -22.59,
+                -68.8,
+                5,
+            )
+        ],
+    )
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seiscomp"),
+        [
+            _evento_canonico(
+                "seiscomp",
+                "seiscomp:000007",
+                "2026-11-03 11:51:21",
+                -22.59,
+                -68.81,
+                7,
+            )
+        ],
+    )
+    _atribucion_extra(workspace, "atribucion_seiscomp.csv", [])
+
+    evento = indicios.detalle_cruce(workspace)["sin_cruce"]["eventos"][0]
+
+    assert evento["criterio"]["estricto"] is True
+    assert evento["criterio"]["amplio"] is True
+    assert evento["criterio"]["texto"] == ""
+
+
+def test_criterio_fuera_del_amplio(tmp_path):
+    workspace = tmp_path / "ws"
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "eventquery"),
+        [
+            _evento_canonico(
+                "eventquery",
+                "eventquery:000005",
+                "2026-11-03 11:51:23",
+                -22.59,
+                -68.8,
+                5,
+            )
+        ],
+    )
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seiscomp"),
+        [
+            _evento_canonico(
+                "seiscomp",
+                "seiscomp:000007",
+                "2026-11-03 11:52:00",
+                -22.59,
+                -68.81,
+                7,
+            )
+        ],
+    )
+    _atribucion_extra(workspace, "atribucion_seiscomp.csv", [])
+
+    evento = indicios.detalle_cruce(workspace)["sin_cruce"]["eventos"][0]
+
+    assert evento["criterio"]["estricto"] is False
+    assert evento["criterio"]["amplio"] is False
+    assert "Fuera del criterio amplio" in evento["criterio"]["texto"]
+    assert "Δt 37.0 s > 6 s" in evento["criterio"]["texto"]

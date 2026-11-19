@@ -1875,6 +1875,10 @@ def _resumen_mapa_cruce(job_id: str, evento: dict, candidato: dict) -> dict:
         else "Cercano"
     )
     motivo = candidato.get("motivo_clasificacion") or ""
+    subtitulo = [" · ".join(partes)]
+    criterio = (evento.get("criterio") or {}).get("texto")
+    if criterio:
+        subtitulo.append(criterio)
     return {
         "titulo": (
             "Comparación · "
@@ -1882,7 +1886,7 @@ def _resumen_mapa_cruce(job_id: str, evento: dict, candidato: dict) -> dict:
             " vs "
             f"{candidato.get('evento_local') or candidato.get('fecha_local')}"
         ),
-        "subtitulo": [" · ".join(partes)],
+        "subtitulo": subtitulo,
         "filas": [
             (
                 f"Eventquery: {evento.get('fecha') or '—'} · "

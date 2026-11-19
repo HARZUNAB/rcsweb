@@ -778,8 +778,12 @@ El resumen distingue estos conteos:
   diferencias. Los enlaces **Abrir en Eventquery** y **Abrir evento local**
   abren cada evento en una pestaña nueva. **Ver mapa comparativo** dibuja
   planta y perfil con los dos eventos en la misma imagen, para ver la cercanía
-  epicentral y la diferencia de profundidad. Si no hay candidato en la ventana,
-  se indica que no existe contraparte local comparable.
+  epicentral y la diferencia de profundidad. La planta usa una vista regional
+  de unos 200 × 150 km —con costa y localidades— para ubicar los eventos, no un
+  zoom de pocos kilómetros. Si el par quedó fuera del cruce estricto pero dentro
+  del amplio, la comparación lo explica y recuerda que ese cruce aparece en el
+  informe de cobertura. Si no hay candidato en la ventana, se indica que no
+  existe contraparte local comparable.
 - **Cobertura del cruce:** cuántas referencias tienen al menos un cruce local y
   cuántas no lo tienen.
 

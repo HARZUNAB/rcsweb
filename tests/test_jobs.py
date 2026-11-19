@@ -463,6 +463,8 @@ def test_detalle_muestra_coincidencias_extra(
     assert "40.5" in html
     assert "1.0 km" in html
     assert "tark" in html
+    assert "Fuera del cruce estricto" in html
+    assert "informe de cobertura" in html
     assert "Ver mapa comparativo" in html
     assert f"/jobs/{job.id}/indicios/sin-cruce/5/mapa.png" in html
 

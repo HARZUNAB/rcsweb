@@ -422,6 +422,11 @@
                         {% endif %}
                       </div>
                     </div>
+                    {% if evento.criterio and evento.criterio.texto %}
+                    <div class="small text-secondary mb-2">
+                      {{ evento.criterio.texto }}
+                    </div>
+                    {% endif %}
                     <div class="table-responsive">
                       <table class="table table-sm mb-2">
                         <thead class="table-light">

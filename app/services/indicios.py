@@ -1284,12 +1284,16 @@ def resumen_visible(
 
 
 CRUCE_EVENTQUERY = "cruce_eventquery.json"
-VERSION_CRUCE = 3
+VERSION_CRUCE = 4
 VENTANA_CANDIDATO_SEG = 120.0
 VENTANA_CANDIDATO_KM = 50.0
 VENTANA_COMPATIBLE_SEG = 6.0
 VENTANA_COMPATIBLE_PROF_KM = 20.0
 VENTANA_COMPATIBLE_MAG = 0.5
+CRUCE_ESTRICTO_SEG = 3.0
+CRUCE_ESTRICTO_GRADOS = 1.0
+CRUCE_AMPLIO_SEG = 6.0
+CRUCE_AMPLIO_GRADOS = 2.0
 MOTIVO_SIN_CANDIDATO = (
     "Sin evento local dentro de 120 s y 50 km. "
     "El evento de referencia no tiene contraparte local comparable."
@@ -1593,6 +1597,50 @@ def _candidato_local(referencia: dict, locales: list[dict]) -> dict | None:
     }
 
 
+def _criterio_cruce(dt: float, dlat, dlon) -> dict:
+    """Explica si el par cae en el cruce estricto, amplio o en ninguno."""
+    dlat = abs(dlat) if dlat is not None else None
+    dlon = abs(dlon) if dlon is not None else None
+    espacial_estricto = (
+        dlat is not None
+        and dlon is not None
+        and dlat <= CRUCE_ESTRICTO_GRADOS
+        and dlon <= CRUCE_ESTRICTO_GRADOS
+    )
+    espacial_amplio = (
+        dlat is not None
+        and dlon is not None
+        and dlat <= CRUCE_AMPLIO_GRADOS
+        and dlon <= CRUCE_AMPLIO_GRADOS
+    )
+    estricto = dt <= CRUCE_ESTRICTO_SEG and espacial_estricto
+    amplio = dt <= CRUCE_AMPLIO_SEG and espacial_amplio
+    if estricto:
+        texto = ""
+    elif amplio:
+        fallos = []
+        if dt > CRUCE_ESTRICTO_SEG:
+            fallos.append(f"Δt {dt:.1f} s > {CRUCE_ESTRICTO_SEG:g} s")
+        if not espacial_estricto:
+            fallos.append(f"distancia > {CRUCE_ESTRICTO_GRADOS:g}°")
+        detalle = " y ".join(fallos) or "parámetros fuera del estricto"
+        texto = (
+            f"Fuera del cruce estricto ({detalle}). "
+            "Dentro del criterio amplio "
+            f"(≤ {CRUCE_AMPLIO_SEG:g} s y ≤ {CRUCE_AMPLIO_GRADOS:g}°), "
+            "visible en el informe de cobertura."
+        )
+    else:
+        fallos = []
+        if dt > CRUCE_AMPLIO_SEG:
+            fallos.append(f"Δt {dt:.1f} s > {CRUCE_AMPLIO_SEG:g} s")
+        if not espacial_amplio:
+            fallos.append(f"distancia > {CRUCE_AMPLIO_GRADOS:g}°")
+        detalle = " y ".join(fallos) or "Δt y distancia fuera de rango"
+        texto = f"Fuera del criterio amplio ({detalle})."
+    return {"estricto": estricto, "amplio": amplio, "texto": texto}
+
+
 def _eventos_sin_cruce(workspace: Path) -> list[dict]:
     """Eventos de referencia sin ninguna solución local atribuida."""
     referencia = fuentes_manifest.referencia()
@@ -1613,6 +1661,7 @@ def _eventos_sin_cruce(workspace: Path) -> list[dict]:
         candidato = _candidato_local(evento, locales)
         raw = evento.get("raw") or {}
         diferencias = {}
+        criterio = None
         if candidato is not None:
             for clave, propio, otro in (
                 ("lat", evento.get("latitude"), candidato.get("lat")),
@@ -1634,6 +1683,12 @@ def _eventos_sin_cruce(workspace: Path) -> list[dict]:
                     diferencias[clave] = round(float(otro) - float(propio), 3)
                 except (TypeError, ValueError):
                     continue
+        if candidato is not None:
+            criterio = _criterio_cruce(
+                float(candidato["dt_seg"]),
+                diferencias.get("lat"),
+                diferencias.get("lon"),
+            )
         salida.append(
             {
                 "fila": evento.get("raw_index"),
@@ -1647,6 +1702,7 @@ def _eventos_sin_cruce(workspace: Path) -> list[dict]:
                 "region": _texto(raw.get("Referencia")),
                 "percibido": _texto(raw.get("Percep.")),
                 "candidato": candidato,
+                "criterio": criterio,
                 "diferencias": diferencias,
                 "motivo": "" if candidato else MOTIVO_SIN_CANDIDATO,
             }

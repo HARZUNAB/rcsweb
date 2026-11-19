@@ -708,6 +708,8 @@ def test_mapa_comparacion_cruce_usa_dos_roles(tmp_path, monkeypatch):
         capturado["eventos"] = eventos
         capturado["fuente"] = fuente
         capturado["modo"] = kwargs.get("modo")
+        capturado["contexto"] = kwargs.get("contexto")
+        capturado["contexto_margen"] = kwargs.get("contexto_margen")
         return b"png"
 
     monkeypatch.setattr(plots, "generar_mapa_grupo", falso)
@@ -743,3 +745,8 @@ def test_mapa_comparacion_cruce_usa_dos_roles(tmp_path, monkeypatch):
     assert capturado["eventos"][1]["prof"] == 82.9
     assert capturado["fuente"] == "seiscomp"
     assert capturado["modo"] == "auto"
+    assert capturado["contexto"] == pytest.approx((-22.61, -68.745))
+    assert (
+        capturado["contexto_margen"]
+        == plots.MARGEN_CONTEXTO_COMPARACION
+    )

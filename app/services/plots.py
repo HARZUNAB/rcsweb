@@ -901,6 +901,18 @@ def _datos_fuente(fuente: str) -> tuple[str, str]:
     return fuente, (fuente or "Resultados").capitalize()
 
 
+MARGEN_CONTEXTO_COMPARACION = (1.0, 0.75)
+
+
+def _contexto_comparacion(referencia: dict, candidato: dict):
+    try:
+        lat = (float(referencia["lat"]) + float(candidato["lat"])) / 2
+        lon = (float(referencia["lon"]) + float(candidato["lon"])) / 2
+    except (KeyError, TypeError, ValueError):
+        return None
+    return (lat, lon)
+
+
 def mapa_comparacion_cruce(
     workspace: Path,
     referencia: dict,
@@ -942,6 +954,8 @@ def mapa_comparacion_cruce(
         resumen,
         cache_key,
         modo="auto",
+        contexto=_contexto_comparacion(referencia, candidato),
+        contexto_margen=MARGEN_CONTEXTO_COMPARACION,
     )
 
 
@@ -957,6 +971,7 @@ def _renderizar_core(
     sospechosos: bool = True,
     leyenda_items: list[dict] | None = None,
     contexto: tuple[float, float] | None = None,
+    contexto_margen: tuple[float, float] | None = None,
 ) -> bytes:
     """Ejecuta el renderizador del core y compone el encabezado."""
     if destino.is_file():
@@ -1001,6 +1016,7 @@ def _renderizar_core(
                         "sospechosos": sospechosos,
                         "leyenda_items": leyenda_items,
                         "contexto": contexto,
+                        "contexto_margen": contexto_margen,
                     },
                     ensure_ascii=False,
                 ),
@@ -1066,6 +1082,7 @@ def generar_mapa_grupo(
     sospechosos: bool = True,
     leyenda_items: list[dict] | None = None,
     contexto: tuple[float, float] | None = None,
+    contexto_margen: tuple[float, float] | None = None,
 ) -> bytes:
     """Mapa de un grupo de Paneles, sin listado de eventos en el PNG.
 
@@ -1080,6 +1097,11 @@ def generar_mapa_grupo(
             + "|"
             + _datos_fuente(fuente)[1]
             + ("|contexto" if contexto else "")
+            + (
+                f"|ctxm:{contexto_margen[0]:.3f},{contexto_margen[1]:.3f}"
+                if contexto_margen
+                else ""
+            )
         ).encode("utf-8")
     ).hexdigest()[:20]
     destino = base / f"{huella}.png"
@@ -1095,4 +1117,5 @@ def generar_mapa_grupo(
         sospechosos=sospechosos,
         leyenda_items=leyenda_items,
         contexto=contexto,
+        contexto_margen=contexto_margen,
     )

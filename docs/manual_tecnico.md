@@ -1256,7 +1256,7 @@ un único artefacto:
 ```text
 resultados/indicios/cruce_eventquery.json
 {
-  "version": 3, "generado", "huella",
+  "version": 4, "generado", "huella",
   "extras":    { "total", "grupos": [] },
   "sin_cruce": { "total", "eventos": [] }
 }
@@ -1281,6 +1281,13 @@ local más cercano en las fuentes locales no derivadas con estas ventanas:
 | `VENTANA_COMPATIBLE_PROF_KM` | 20 km | diferencia de profundidad compatible |
 | `VENTANA_COMPATIBLE_MAG` | 0.5 | diferencia de magnitud compatible |
 
+El evento guarda además `criterio` con `estricto`, `amplio` y `texto`. Los
+umbrales espejo de `core/compara.py` son `MAX_SEG_ESTRICTO=3`,
+`MAX_LAT_LON_ESTRICTO=1.0`, `MAX_SEG_AMPLIO=6` y `MAX_LAT_LON_AMPLIO=2.0`. El
+texto explica si el par quedó fuera del cruce estricto pero dentro del amplio
+(visible en `informes/no_act_<fuente>_amplio.txt`), o fuera de ambos. Si el par
+cumple el estricto, el texto queda vacío.
+
 El candidato se elige por el menor puntaje `dt/120 + dist/50`. Se marca
 `compatible` solo si `dt <= 6 s`, `|Δprofundidad| <= 20 km` y
 `|Δmagnitud| <= 0.5`; si falta profundidad o magnitud, no se puede confirmar.
@@ -1300,7 +1307,7 @@ usa la convención candidato − referencia.
 La huella incluye el `tamaño-mtime` de cada `atribucion_*.csv`, del
 `catalogo/<referencia>/eventos.jsonl` **y** del catálogo local de cada fuente con
 atribución, porque el candidato depende de esos eventos. Si no coincide, o si
-`version` es distinta de `VERSION_CRUCE` (3), `leer_detalle_cruce()` recalcula y
+`version` es distinta de `VERSION_CRUCE` (4), `leer_detalle_cruce()` recalcula y
 reescribe el artefacto. Se genera al final de `generar_indicios` y
 también de forma perezosa la primera vez que se abre el detalle de un trabajo
 anterior. Leerlo cuesta ~0.1 ms; recalcular, ~40–55 ms.
@@ -1317,8 +1324,12 @@ Dentro de la comparación, **Ver mapa comparativo** carga
 (no vuelve a resolver catálogos) y llama a `plots.mapa_comparacion_cruce()`, que
 reutiliza `generar_mapa_grupo()` con dos eventos: `rol="publicado"` para la
 referencia y `rol="local"` para el candidato. `modo="auto"` dibuja planta y
-perfil, igual que No actualizados. La clave de caché incluye job, fila, evento
-local y fecha. La imagen se pide recién al pulsar el botón (`data-src` +
+perfil, igual que No actualizados. Para no quedar con un zoom de pocos
+kilómetros, pasa `contexto=(lat_media, lon_media)` y
+`contexto_margen=MARGEN_CONTEXTO_COMPARACION (1.0°, 0.75°)`; así la planta cubre
+unos 200 × 150 km con costa y localidades. `plot_cli.py` aplica ese margen en
+`_extent_con_contexto`. La clave de caché incluye job, fila, evento local, fecha
+y margen. La imagen se pide recién al pulsar el botón (`data-src` +
 `app.js`), para no generar mapas al abrir el trabajo. Si el renderizador falla,
 el motor devuelve el PNG de «Mapa no disponible».
 
