@@ -1256,7 +1256,7 @@ un único artefacto:
 ```text
 resultados/indicios/cruce_eventquery.json
 {
-  "version": 2, "generado", "huella",
+  "version": 3, "generado", "huella",
   "extras":    { "total", "grupos": [] },
   "sin_cruce": { "total", "eventos": [] }
 }
@@ -1277,10 +1277,18 @@ local más cercano en las fuentes locales no derivadas con estas ventanas:
 |---|---|---|
 | `VENTANA_CANDIDATO_SEG` | 120 s | ventana de revisión |
 | `VENTANA_CANDIDATO_KM` | 50 km | límite de distancia (~0.5°) |
-| `VENTANA_COMPATIBLE_SEG` | 6 s | diferencia compatible |
+| `VENTANA_COMPATIBLE_SEG` | 6 s | diferencia de tiempo compatible |
+| `VENTANA_COMPATIBLE_PROF_KM` | 20 km | diferencia de profundidad compatible |
+| `VENTANA_COMPATIBLE_MAG` | 0.5 | diferencia de magnitud compatible |
 
-El candidato se elige por el menor puntaje `dt/120 + dist/50`. Si `dt <= 6 s`
-se marca `compatible`; si cae dentro de la ventana pero supera 6 s, `cercano`.
+El candidato se elige por el menor puntaje `dt/120 + dist/50`. Se marca
+`compatible` solo si `dt <= 6 s`, `|Δprofundidad| <= 20 km` y
+`|Δmagnitud| <= 0.5`; si falta profundidad o magnitud, no se puede confirmar.
+En cualquier otro caso dentro de la ventana se marca `cercano` y
+`motivo_clasificacion` acumula las causas (`Δt`, `Δprofundidad`,
+`Δmagnitud`, `sin profundidad comparable`, `sin magnitud comparable`). Si los
+tipos de magnitud difieren, `nota_magnitud` lo indica sin bloquear la
+compatibilidad.
 Fuera de la ventana no se muestra candidato y se guarda `MOTIVO_SIN_CANDIDATO`
 («Sin evento local dentro de 120 s y 50 km»). El evento de referencia conserva
 `fila`, `evento`, `fecha`, coordenadas, profundidad, magnitud, tipo, región y
@@ -1292,7 +1300,7 @@ usa la convención candidato − referencia.
 La huella incluye el `tamaño-mtime` de cada `atribucion_*.csv`, del
 `catalogo/<referencia>/eventos.jsonl` **y** del catálogo local de cada fuente con
 atribución, porque el candidato depende de esos eventos. Si no coincide, o si
-`version` es distinta de `VERSION_CRUCE` (2), `leer_detalle_cruce()` recalcula y
+`version` es distinta de `VERSION_CRUCE` (3), `leer_detalle_cruce()` recalcula y
 reescribe el artefacto. Se genera al final de `generar_indicios` y
 también de forma perezosa la primera vez que se abre el detalle de un trabajo
 anterior. Leerlo cuesta ~0.1 ms; recalcular, ~40–55 ms.
@@ -1302,8 +1310,17 @@ anterior. Leerlo cuesta ~0.1 ms; recalcular, ~40–55 ms.
 los números y las tablas siempre coinciden. La plantilla `jobs/_page.html`
 muestra **Ver extras** y **Ver sin cruce** con un `collapse` cada uno. Dentro de
 **Ver sin cruce**, el botón **Comparar** expande una fila (`<tr class="collapse">`)
-con la tabla lado a lado; los enlaces a cada evento abren en pestaña nueva. No
-hay ruta ni JavaScript adicional.
+con la tabla lado a lado; los enlaces a cada evento abren en pestaña nueva.
+
+Dentro de la comparación, **Ver mapa comparativo** carga
+`/jobs/<job>/indicios/sin-cruce/<fila>/mapa.png`. El endpoint lee el artefacto
+(no vuelve a resolver catálogos) y llama a `plots.mapa_comparacion_cruce()`, que
+reutiliza `generar_mapa_grupo()` con dos eventos: `rol="publicado"` para la
+referencia y `rol="local"` para el candidato. `modo="auto"` dibuja planta y
+perfil, igual que No actualizados. La clave de caché incluye job, fila, evento
+local y fecha. La imagen se pide recién al pulsar el botón (`data-src` +
+`app.js`), para no generar mapas al abrir el trabajo. Si el renderizador falla,
+el motor devuelve el PNG de «Mapa no disponible».
 
 La columna **Analista** muestra el nombre de la fuente. Si no coincide con un
 usuario activo, se agrega ` · sin usuario` en texto pequeño y el evento queda

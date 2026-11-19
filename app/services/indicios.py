@@ -1284,10 +1284,12 @@ def resumen_visible(
 
 
 CRUCE_EVENTQUERY = "cruce_eventquery.json"
-VERSION_CRUCE = 2
+VERSION_CRUCE = 3
 VENTANA_CANDIDATO_SEG = 120.0
 VENTANA_CANDIDATO_KM = 50.0
 VENTANA_COMPATIBLE_SEG = 6.0
+VENTANA_COMPATIBLE_PROF_KM = 20.0
+VENTANA_COMPATIBLE_MAG = 0.5
 MOTIVO_SIN_CANDIDATO = (
     "Sin evento local dentro de 120 s y 50 km. "
     "El evento de referencia no tiene contraparte local comparable."
@@ -1550,6 +1552,26 @@ def _candidato_local(referencia: dict, locales: list[dict]) -> dict | None:
         return None
     _, dt, distancia, source_id, evento = mejor
     raw = evento.get("raw") or {}
+    motivos = []
+    if dt > VENTANA_COMPATIBLE_SEG:
+        motivos.append(f"Δt {dt:.1f} s")
+    prof_ref = _numero(referencia.get("depth_km"))
+    prof_local = _numero(evento.get("depth_km"))
+    if prof_ref is None or prof_local is None:
+        motivos.append("sin profundidad comparable")
+    elif abs(prof_local - prof_ref) > VENTANA_COMPATIBLE_PROF_KM:
+        motivos.append(f"Δprofundidad {abs(prof_local - prof_ref):.1f} km")
+    mag_ref = _numero(referencia.get("magnitude"))
+    mag_local = _numero(evento.get("magnitude"))
+    if mag_ref is None or mag_local is None:
+        motivos.append("sin magnitud comparable")
+    elif abs(mag_local - mag_ref) > VENTANA_COMPATIBLE_MAG:
+        motivos.append(f"Δmagnitud {abs(mag_local - mag_ref):.1f}")
+    tipo_ref = _texto(referencia.get("magnitude_type"))
+    tipo_local = _texto(evento.get("magnitude_type"))
+    nota_tipo = ""
+    if tipo_ref and tipo_local and tipo_ref != tipo_local:
+        nota_tipo = f"tipo de magnitud distinto ({tipo_ref} / {tipo_local})"
     return {
         "fuente": source_id,
         "etiqueta": fuentes_manifest.etiqueta(source_id),
@@ -1560,14 +1582,14 @@ def _candidato_local(referencia: dict, locales: list[dict]) -> dict | None:
         "lon": evento.get("longitude"),
         "profundidad": evento.get("depth_km"),
         "magnitud": evento.get("magnitude"),
-        "tipo_mag": _texto(evento.get("magnitude_type")),
+        "tipo_mag": tipo_local,
         "analista": _texto(evento.get("analyst")),
         "region": _texto(raw.get("Referencia")),
         "dt_seg": round(dt, 2),
         "dist_km": round(distancia, 2),
-        "clasificacion": (
-            "compatible" if dt <= VENTANA_COMPATIBLE_SEG else "cercano"
-        ),
+        "clasificacion": "compatible" if not motivos else "cercano",
+        "motivo_clasificacion": " · ".join(motivos),
+        "nota_magnitud": nota_tipo,
     }
 
 

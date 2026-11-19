@@ -381,7 +381,8 @@
                   <span class="text-nowrap">
                     {{ evento.candidato.evento_local or evento.candidato.fecha_local }}
                   </span>
-                  <span class="badge {% if evento.candidato.clasificacion == 'compatible' %}text-bg-warning text-dark{% else %}text-bg-light text-dark{% endif %}">
+                  <span class="badge {% if evento.candidato.clasificacion == 'compatible' %}text-bg-warning text-dark{% else %}text-bg-light text-dark{% endif %}"
+                        title="{{ evento.candidato.motivo_clasificacion or 'Compatible: Δt, distancia, profundidad y magnitud dentro de los márgenes.' }}">
                     {% if evento.candidato.clasificacion == 'compatible' %}Compatible{% else %}Cercano{% endif %}
                   </span>
                   <button class="btn btn-sm btn-link p-0 ms-1" type="button"
@@ -410,9 +411,16 @@
                       <div class="fw-semibold small">
                         Comparación · {{ evento.evento or ('fila ' ~ evento.fila) }}
                       </div>
-                      <span class="badge {% if evento.candidato.clasificacion == 'compatible' %}text-bg-warning text-dark{% else %}text-bg-light text-dark{% endif %}">
-                        {% if evento.candidato.clasificacion == 'compatible' %}Compatible{% else %}Cercano{% endif %}
-                      </span>
+                      <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span class="badge {% if evento.candidato.clasificacion == 'compatible' %}text-bg-warning text-dark{% else %}text-bg-light text-dark{% endif %}">
+                          {% if evento.candidato.clasificacion == 'compatible' %}Compatible{% else %}Cercano{% endif %}
+                        </span>
+                        {% if evento.candidato.motivo_clasificacion %}
+                        <span class="small text-secondary">
+                          {{ evento.candidato.motivo_clasificacion }}
+                        </span>
+                        {% endif %}
+                      </div>
                     </div>
                     <div class="table-responsive">
                       <table class="table table-sm mb-2">
@@ -507,6 +515,11 @@
                         </tbody>
                       </table>
                     </div>
+                    {% if evento.candidato.nota_magnitud %}
+                    <div class="small text-secondary mb-2">
+                      {{ evento.candidato.nota_magnitud }}
+                    </div>
+                    {% endif %}
                     <div class="d-flex flex-wrap gap-2">
                       <a class="btn btn-sm btn-outline-primary"
                          target="_blank" rel="noopener noreferrer"
@@ -520,6 +533,19 @@
                         Abrir evento local
                       </a>
                       {% endif %}
+                    </div>
+                    <div class="mt-2">
+                      <button class="btn btn-sm btn-outline-secondary"
+                              type="button" data-mapa-cruce
+                              aria-expanded="false"
+                              data-src="{{ url_for('results.mapa_sin_cruce', job_id=job.id, fila=evento.fila) }}">
+                        Ver mapa comparativo
+                      </button>
+                      <div class="mt-2 d-none" data-mapa-cruce-contenedor>
+                        <img class="img-fluid rounded border"
+                             alt="Planta y perfil del evento de referencia y su candidato local"
+                             data-mapa-cruce-img>
+                      </div>
                     </div>
                   </div>
                 </td>

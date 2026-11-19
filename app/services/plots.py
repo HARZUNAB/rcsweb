@@ -901,6 +901,50 @@ def _datos_fuente(fuente: str) -> tuple[str, str]:
     return fuente, (fuente or "Resultados").capitalize()
 
 
+def mapa_comparacion_cruce(
+    workspace: Path,
+    referencia: dict,
+    candidato: dict,
+    resumen: dict | None,
+    cache_key: str,
+) -> bytes:
+    """Planta y perfil con el evento de referencia y su candidato local."""
+    eventos = [
+        {
+            "rol": "publicado",
+            "percibido": referencia.get("percibido") or "",
+            "fecha hora": referencia.get("fecha") or "",
+            "latitud": referencia.get("lat"),
+            "longitud": referencia.get("lon"),
+            "prof": referencia.get("profundidad"),
+            "magnitud": referencia.get("magnitud"),
+            "tipo": referencia.get("tipo_mag") or "",
+            "analista": "",
+            "analista_etiqueta": "",
+        },
+        {
+            "rol": "local",
+            "percibido": "",
+            "fecha hora": candidato.get("fecha_local") or "",
+            "latitud": candidato.get("lat"),
+            "longitud": candidato.get("lon"),
+            "prof": candidato.get("profundidad"),
+            "magnitud": candidato.get("magnitud"),
+            "tipo": candidato.get("tipo_mag") or "",
+            "analista": candidato.get("analista") or "",
+            "analista_etiqueta": candidato.get("analista") or "",
+        },
+    ]
+    return generar_mapa_grupo(
+        workspace,
+        eventos,
+        candidato.get("fuente") or "",
+        resumen,
+        cache_key,
+        modo="auto",
+    )
+
+
 def _renderizar_core(
     workspace: Path,
     destino: Path,

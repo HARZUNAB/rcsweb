@@ -365,7 +365,9 @@ def test_reanalizar_rechaza_trabajo_en_curso(client, login, sin_celery):
     assert sin_celery == []
 
 
-def test_detalle_muestra_coincidencias_extra(client, login):
+def test_detalle_muestra_coincidencias_extra(
+    client, login, monkeypatch
+):
     login()
     job = Job(
         id=nuevo_uuid(),
@@ -461,6 +463,24 @@ def test_detalle_muestra_coincidencias_extra(client, login):
     assert "40.5" in html
     assert "1.0 km" in html
     assert "tark" in html
+    assert "Ver mapa comparativo" in html
+    assert f"/jobs/{job.id}/indicios/sin-cruce/5/mapa.png" in html
+
+    from app.blueprints import results as results_bp
+
+    monkeypatch.setattr(
+        results_bp,
+        "mapa_comparacion_cruce",
+        lambda *args, **kwargs: b"\x89PNG\r\n\x1a\n",
+    )
+    imagen = client.get(f"/jobs/{job.id}/indicios/sin-cruce/5/mapa.png")
+    assert imagen.status_code == 200
+    assert imagen.mimetype == "image/png"
+    assert imagen.data.startswith(b"\x89PNG")
+    assert (
+        client.get(f"/jobs/{job.id}/indicios/sin-cruce/99/mapa.png").status_code
+        == 404
+    )
 
 
 def test_detalle_sin_coincidencias_extra_no_muestra_boton(client, login):

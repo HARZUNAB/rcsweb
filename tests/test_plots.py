@@ -699,3 +699,47 @@ def test_resumen_mapa_repetido_una_fila_por_solucion(monkeypatch):
     assert resumen["filas"][0].startswith("Seleccionado ·")
     assert resumen["filas"][1].startswith("Solución ·")
     assert "Grupo: 2 soluciones" in resumen["nota"]
+
+
+def test_mapa_comparacion_cruce_usa_dos_roles(tmp_path, monkeypatch):
+    capturado = {}
+
+    def falso(workspace, eventos, fuente, resumen, cache_key, **kwargs):
+        capturado["eventos"] = eventos
+        capturado["fuente"] = fuente
+        capturado["modo"] = kwargs.get("modo")
+        return b"png"
+
+    monkeypatch.setattr(plots, "generar_mapa_grupo", falso)
+    referencia = {
+        "fecha": "2026-11-03 11:51:23",
+        "lat": -22.59,
+        "lon": -68.8,
+        "profundidad": 42.0,
+        "magnitud": 2.6,
+        "tipo_mag": "MLv",
+        "percibido": "N",
+    }
+    candidato = {
+        "fuente": "seiscomp",
+        "fecha_local": "2026-11-03 11:51:19",
+        "lat": -22.63,
+        "lon": -68.69,
+        "profundidad": 82.9,
+        "magnitud": 2.5,
+        "tipo_mag": "MLv",
+        "analista": "tark",
+    }
+
+    png = plots.mapa_comparacion_cruce(
+        tmp_path, referencia, candidato, {"titulo": "x"}, "clave"
+    )
+
+    assert png == b"png"
+    assert [evento["rol"] for evento in capturado["eventos"]] == [
+        "publicado",
+        "local",
+    ]
+    assert capturado["eventos"][1]["prof"] == 82.9
+    assert capturado["fuente"] == "seiscomp"
+    assert capturado["modo"] == "auto"

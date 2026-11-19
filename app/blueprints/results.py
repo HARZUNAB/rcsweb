@@ -74,6 +74,7 @@ from ..services.plots import (
     clasificar_eventos,
     generar_mapa,
     generar_miniatura,
+    mapa_comparacion_cruce,
     marcar_sospechosos,
     perfil_desde_eventos,
     resumen_mapa,
@@ -1840,6 +1841,99 @@ def miniatura(job_id: str, tabla: str, opcion: str, fila: int):
         abort(403)
     png = generar_miniatura(ruta_workspace(job.id), tabla, archivo, filas, fila)
     return send_file(BytesIO(png), mimetype="image/png", max_age=86400)
+
+
+def _texto_numero_cruce(valor, decimales=1, sufijo=""):
+    try:
+        return f"{float(valor):.{decimales}f}{sufijo}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _texto_coord_cruce(item: dict) -> str:
+    return (
+        f"{_texto_numero_cruce(item.get('lat'), 2)}, "
+        f"{_texto_numero_cruce(item.get('lon'), 2)}"
+    )
+
+
+def _resumen_mapa_cruce(job_id: str, evento: dict, candidato: dict) -> dict:
+    diferencias = evento.get("diferencias") or {}
+    partes = [
+        f"Δt {_texto_numero_cruce(candidato.get('dt_seg'), 1, ' s')}",
+        f"distancia {_texto_numero_cruce(candidato.get('dist_km'), 1, ' km')}",
+    ]
+    if diferencias.get("profundidad") is not None:
+        partes.append(
+            f"Δprof {diferencias['profundidad']:+.1f} km"
+        )
+    if diferencias.get("magnitud") is not None:
+        partes.append(f"Δmag {diferencias['magnitud']:+.1f}")
+    estado = (
+        "Compatible"
+        if candidato.get("clasificacion") == "compatible"
+        else "Cercano"
+    )
+    motivo = candidato.get("motivo_clasificacion") or ""
+    return {
+        "titulo": (
+            "Comparación · "
+            f"{evento.get('evento') or ('fila ' + str(evento.get('fila')))}"
+            " vs "
+            f"{candidato.get('evento_local') or candidato.get('fecha_local')}"
+        ),
+        "subtitulo": [" · ".join(partes)],
+        "filas": [
+            (
+                f"Eventquery: {evento.get('fecha') or '—'} · "
+                f"{_texto_coord_cruce(evento)} · "
+                f"{_texto_numero_cruce(evento.get('profundidad'), 1, ' km')} · "
+                f"{evento.get('tipo_mag') or ''} "
+                f"{_texto_numero_cruce(evento.get('magnitud'), 1)}"
+            ),
+            (
+                f"{candidato.get('etiqueta') or candidato.get('fuente')}: "
+                f"{candidato.get('fecha_local') or '—'} · "
+                f"{_texto_coord_cruce(candidato)} · "
+                f"{_texto_numero_cruce(candidato.get('profundidad'), 1, ' km')} · "
+                f"{candidato.get('tipo_mag') or ''} "
+                f"{_texto_numero_cruce(candidato.get('magnitud'), 1)}"
+            ),
+        ],
+        "nota": estado + (f" · {motivo}" if motivo else ""),
+        "pie": f"RCS Web · trabajo {job_id}",
+    }
+
+
+@results_bp.get(
+    "/jobs/<job_id>/indicios/sin-cruce/<int:fila>/mapa.png"
+)
+@login_required
+@permiso_requerido("resultados.ver")
+def mapa_sin_cruce(job_id: str, fila: int):
+    """Mapa de planta y perfil con la referencia y su candidato local."""
+    job = _job(job_id)
+    if not tiene_permiso(current_user, "trabajos.todos"):
+        abort(403)
+    workspace = ruta_workspace(job.id)
+    datos = indicios.leer_detalle_cruce(workspace)
+    eventos = (datos.get("sin_cruce") or {}).get("eventos") or []
+    evento = next((item for item in eventos if item.get("fila") == fila), None)
+    candidato = (evento or {}).get("candidato")
+    if not evento or not candidato:
+        abort(404)
+    resumen = _resumen_mapa_cruce(job.id, evento, candidato)
+    png = mapa_comparacion_cruce(
+        workspace,
+        evento,
+        candidato,
+        resumen,
+        (
+            f"cruce:{job.id}:{fila}:{candidato.get('evento_local')}:"
+            f"{candidato.get('fecha_local')}"
+        ),
+    )
+    return send_file(BytesIO(png), mimetype="image/png", max_age=0)
 
 
 @results_bp.get("/jobs/<job_id>/resultados/<tabla>/<opcion>/<int:fila>/mapa.png")

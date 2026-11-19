@@ -328,6 +328,31 @@
     mostrar();
   });
 
+  // Mapa comparativo de un evento sin cruce: se genera solo al pedirlo.
+  document.querySelectorAll("[data-mapa-cruce]").forEach(function (boton) {
+    boton.addEventListener("click", function () {
+      const contenedor = boton.parentElement.querySelector(
+        "[data-mapa-cruce-contenedor]"
+      );
+      const imagen = contenedor && contenedor.querySelector(
+        "[data-mapa-cruce-img]"
+      );
+      if (!imagen) {
+        return;
+      }
+      const src = boton.dataset.src;
+      if (src && imagen.getAttribute("src") !== src) {
+        imagen.src = src;
+      }
+      contenedor.classList.toggle("d-none");
+      const visible = !contenedor.classList.contains("d-none");
+      boton.textContent = visible
+        ? "Ocultar mapa comparativo"
+        : "Ver mapa comparativo";
+      boton.setAttribute("aria-expanded", String(visible));
+    });
+  });
+
   window.addEventListener("pageshow", ocultar);
   window.addEventListener("load", ocultar);
   window.addEventListener("popstate", ocultar);

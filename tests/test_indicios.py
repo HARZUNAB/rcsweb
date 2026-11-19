@@ -881,6 +881,9 @@ def _evento_canonico(
     lon,
     raw_index,
     *,
+    depth_km=42.0,
+    magnitude=2.6,
+    magnitude_type="MLv",
     raw=None,
 ):
     return {
@@ -890,9 +893,9 @@ def _evento_canonico(
         "event_time": event_time,
         "latitude": lat,
         "longitude": lon,
-        "depth_km": 42.0,
-        "magnitude": 2.6,
-        "magnitude_type": "MLv",
+        "depth_km": depth_km,
+        "magnitude": magnitude,
+        "magnitude_type": magnitude_type,
         "analyst": "ana",
         "raw_index": raw_index,
         "raw": raw or {},
@@ -932,7 +935,7 @@ def test_sin_cruce_incluye_candidato_compatible(tmp_path):
 
     datos = indicios.detalle_cruce(workspace)
 
-    assert datos["version"] == 2
+    assert datos["version"] == indicios.VERSION_CRUCE
     assert datos["sin_cruce"]["total"] == 1
     evento = datos["sin_cruce"]["eventos"][0]
     assert evento["fila"] == 5
@@ -1020,3 +1023,155 @@ def test_sin_cruce_no_lista_referencias_cruzadas(tmp_path):
     datos = indicios.detalle_cruce(workspace)
 
     assert datos["sin_cruce"]["total"] == 0
+
+
+def test_sin_cruce_marca_profundidad_incompatible(tmp_path):
+    workspace = tmp_path / "ws"
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "eventquery"),
+        [
+            _evento_canonico(
+                "eventquery",
+                "eventquery:000005",
+                "2026-11-03 11:51:23",
+                -22.59,
+                -68.8,
+                5,
+            )
+        ],
+    )
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seiscomp"),
+        [
+            _evento_canonico(
+                "seiscomp",
+                "seiscomp:000007",
+                "2026-11-03 11:51:19",
+                -22.59,
+                -68.81,
+                7,
+                depth_km=82.9,
+            )
+        ],
+    )
+    _atribucion_extra(workspace, "atribucion_seiscomp.csv", [])
+
+    evento = indicios.detalle_cruce(workspace)["sin_cruce"]["eventos"][0]
+
+    assert evento["candidato"]["clasificacion"] == "cercano"
+    assert "Δprofundidad 40.9 km" in evento["candidato"]["motivo_clasificacion"]
+
+
+def test_sin_cruce_marca_magnitud_incompatible(tmp_path):
+    workspace = tmp_path / "ws"
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "eventquery"),
+        [
+            _evento_canonico(
+                "eventquery",
+                "eventquery:000005",
+                "2026-11-03 11:51:23",
+                -22.59,
+                -68.8,
+                5,
+            )
+        ],
+    )
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seiscomp"),
+        [
+            _evento_canonico(
+                "seiscomp",
+                "seiscomp:000007",
+                "2026-11-03 11:51:19",
+                -22.59,
+                -68.81,
+                7,
+                magnitude=3.4,
+            )
+        ],
+    )
+    _atribucion_extra(workspace, "atribucion_seiscomp.csv", [])
+
+    evento = indicios.detalle_cruce(workspace)["sin_cruce"]["eventos"][0]
+
+    assert evento["candidato"]["clasificacion"] == "cercano"
+    assert "Δmagnitud 0.8" in evento["candidato"]["motivo_clasificacion"]
+
+
+def test_sin_cruce_sin_profundidad_no_es_compatible(tmp_path):
+    workspace = tmp_path / "ws"
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "eventquery"),
+        [
+            _evento_canonico(
+                "eventquery",
+                "eventquery:000005",
+                "2026-11-03 11:51:23",
+                -22.59,
+                -68.8,
+                5,
+            )
+        ],
+    )
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seiscomp"),
+        [
+            _evento_canonico(
+                "seiscomp",
+                "seiscomp:000007",
+                "2026-11-03 11:51:19",
+                -22.59,
+                -68.81,
+                7,
+                depth_km=None,
+            )
+        ],
+    )
+    _atribucion_extra(workspace, "atribucion_seiscomp.csv", [])
+
+    evento = indicios.detalle_cruce(workspace)["sin_cruce"]["eventos"][0]
+
+    assert evento["candidato"]["clasificacion"] == "cercano"
+    assert (
+        "sin profundidad comparable"
+        in evento["candidato"]["motivo_clasificacion"]
+    )
+
+
+def test_sin_cruce_tipo_de_magnitud_distinto_es_nota(tmp_path):
+    workspace = tmp_path / "ws"
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "eventquery"),
+        [
+            _evento_canonico(
+                "eventquery",
+                "eventquery:000005",
+                "2026-11-03 11:51:23",
+                -22.59,
+                -68.8,
+                5,
+                magnitude_type="MLv",
+            )
+        ],
+    )
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seiscomp"),
+        [
+            _evento_canonico(
+                "seiscomp",
+                "seiscomp:000007",
+                "2026-11-03 11:51:19",
+                -22.59,
+                -68.81,
+                7,
+                magnitude_type="ML",
+            )
+        ],
+    )
+    _atribucion_extra(workspace, "atribucion_seiscomp.csv", [])
+
+    evento = indicios.detalle_cruce(workspace)["sin_cruce"]["eventos"][0]
+
+    assert evento["candidato"]["clasificacion"] == "compatible"
+    assert "tipo de magnitud distinto" in evento["candidato"]["nota_magnitud"]
