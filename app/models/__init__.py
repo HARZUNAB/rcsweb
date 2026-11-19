@@ -546,6 +546,7 @@ class ReviewRequestEvent(db.Model):
     unpublished: Mapped[bool] = mapped_column(Boolean, default=False)
     updated_url: Mapped[str | None] = mapped_column(String(1000))
     observation: Mapped[str | None] = mapped_column(Text)
+    ondas: Mapped[dict | None] = mapped_column(JSON)
 
     request = relationship("ReviewRequest", back_populates="events")
 

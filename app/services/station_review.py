@@ -449,6 +449,18 @@ def _agrupar(filas: list[dict]) -> list[dict]:
     return salida
 
 
+def _fecha_consulta(valor: str) -> str:
+    """Fecha legible de la consulta de formas de onda."""
+    texto = str(valor or "").strip()
+    if not texto:
+        return ""
+    try:
+        instante = datetime.datetime.fromisoformat(texto.replace("Z", "+00:00"))
+    except ValueError:
+        return texto[:16].replace("T", " ")
+    return instante.strftime("%Y-%m-%d %H:%M")
+
+
 def _resumen(arribos: list[dict], sin_arribos: list[dict], radio) -> dict:
     estaciones = {(fila["red"], fila["estacion"]) for fila in arribos}
     usadas = sum(1 for fila in arribos if fila["_usada"] is True)
@@ -1067,10 +1079,18 @@ def revisar_evento(
             aviso = MOTIVO_SIN_ARCHIVO
 
     cache: dict = {}
+    consultado_en = ""
     if sin_arribos and event_id:
         cache = availability.leer_cache(workspace, source_id, event_id)
         if cache:
             availability.aplicar_cache(sin_arribos, cache)
+            consultado_en = max(
+                (
+                    str(registro.get("checked_at") or "")
+                    for registro in cache.values()
+                ),
+                default="",
+            )
     puede_consultar = puede_consultar_base and any(
         fila.get("_streams") for fila in sin_arribos
     )
@@ -1126,6 +1146,8 @@ def revisar_evento(
         "solo_disponibles": bool(solo_disponibles),
         "puede_consultar": puede_consultar,
         "disponibilidad_consultada": bool(cache),
+        "disponibilidad_consultado_en": consultado_en,
+        "disponibilidad_consultado_texto": _fecha_consulta(consultado_en),
         "aviso_sin_arribos": aviso,
         "ampliado": ampliado,
         "ampliado_clave": ampliado or "",

@@ -17,7 +17,7 @@ from app.models import (
     nuevo_uuid,
     utcnow,
 )
-from app.services import indicios, review_reports
+from app.services import availability, indicios, review_reports
 from app.services.workspace import crear_workspace, ruta_workspace
 
 
@@ -522,6 +522,18 @@ def test_ejecutar_informe_genera_docx(app, client, login, monkeypatch):
     monkeypatch.setattr(
         "tasks.reports.generar_informe_revision.delay", lambda report_id: None
     )
+    monkeypatch.setattr(
+        availability,
+        "resumen_eventos",
+        lambda workspace, fuente, event_ids: {
+            "seiscomp:000001": {
+                "consultadas": 34,
+                "disponibles": 28,
+                "sin_datos": 6,
+                "consultado_en": "2026-11-19T14:59:05+00:00",
+            }
+        },
+    )
 
     respuesta = client.post(
         f"/jobs/{job.id}/indicios/revision",
@@ -536,6 +548,12 @@ def test_ejecutar_informe_genera_docx(app, client, login, monkeypatch):
     solicitud = ReviewRequest.query.filter_by(job_id=job.id).one()
     assert solicitud.report_format == "docx"
     assert solicitud.report_path.endswith(".docx")
+    assert solicitud.events[0].ondas == {
+        "consultadas": 34,
+        "disponibles": 28,
+        "sin_datos": 6,
+        "consultado_en": "2026-11-19T14:59:05+00:00",
+    }
     ruta = crear_workspace(job.id) / solicitud.report_path
     assert zipfile.is_zipfile(ruta)
 

@@ -524,6 +524,7 @@ def test_detalle_muestra_revision_y_descarga(client, login, app):
     assert 'class="d-none mt-3" id="propagacion-listado-detalle"' in html
     assert 'id="consulta-ondas-indicador"' in html
     assert 'id="consulta-ondas-texto"' in html
+    assert "Formas de onda: sin consultar" in html
     assert 'id="leyenda-estados-estaciones"' in html
     assert 'id="resumen-estados-estaciones"' in html
     assert 'id="mapa-estaciones-opciones"' in html

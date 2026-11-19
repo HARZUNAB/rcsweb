@@ -458,3 +458,50 @@ def test_tarea_guarda_cache(app, monkeypatch):
         workspace, "seiscomp", "seiscomp:000000"
     )
     assert cache[("AI", "DSPA")]["source"] == "SDS"
+
+
+def test_resumen_eventos_cuenta_consultadas(tmp_path):
+    workspace = tmp_path / "ws"
+    filas = [
+        {
+            "red": "AI",
+            "estacion": "DSPA",
+            "_streams": ["AI.DSPA.02.BHZ"],
+            "_estado_disponibilidad": "CON_DATOS",
+            "_fuente_disponibilidad": "SDS",
+        },
+        {
+            "red": "AI",
+            "estacion": "LVC",
+            "_streams": ["AI.LVC.00.BHZ"],
+            "_estado_disponibilidad": "CON_DATOS",
+            "_fuente_disponibilidad": "RECORDSTREAM",
+        },
+        {
+            "red": "AI",
+            "estacion": "OTRA",
+            "_streams": ["AI.OTRA.00.BHZ"],
+            "_estado_disponibilidad": "SIN_DATOS",
+            "_fuente_disponibilidad": "",
+        },
+    ]
+
+    availability.guardar_cache(workspace, "seiscomp", "evento-a", filas)
+    resumen = availability.resumen_eventos(
+        workspace, "seiscomp", ["evento-a", "evento-x"]
+    )
+
+    assert resumen["evento-a"]["consultadas"] == 3
+    assert resumen["evento-a"]["disponibles"] == 2
+    assert resumen["evento-a"]["sin_datos"] == 1
+    assert resumen["evento-a"]["consultado_en"]
+    assert "evento-x" not in resumen
+
+
+def test_resumen_eventos_sin_cache(tmp_path):
+    assert (
+        availability.resumen_eventos(
+            tmp_path / "ws", "seiscomp", ["evento-a"]
+        )
+        == {}
+    )

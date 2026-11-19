@@ -120,3 +120,26 @@ def test_resumen_omite_wadati_insuficiente():
     datos = dict(review_report._resumen(evento))
 
     assert "Wadati" not in datos
+
+
+def test_resumen_incluye_formas_de_onda():
+    evento = _evento()
+    evento["fila"]["ondas"] = {
+        "consultadas": 34,
+        "disponibles": 28,
+        "sin_datos": 6,
+        "consultado_en": "2026-11-19T14:59:05+00:00",
+    }
+
+    datos = dict(review_report._resumen(evento))
+
+    assert datos["Formas de onda"] == (
+        "28 disponibles sin usar · 34 consultadas · 6 sin datos"
+        " · consulta 2026-11-19 14:59"
+    )
+
+
+def test_resumen_omite_formas_de_onda_sin_consulta():
+    datos = dict(review_report._resumen(_evento()))
+
+    assert "Formas de onda" not in datos

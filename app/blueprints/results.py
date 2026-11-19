@@ -935,6 +935,12 @@ def solicitar_revision(job_id: str):
             409,
         )
 
+    resumenes_ondas = availability.resumen_eventos(
+        workspace, fuente, [fila["evento"] for fila in seleccionadas]
+    )
+    for fila in seleccionadas:
+        fila["ondas"] = resumenes_ondas.get(fila["evento"], {})
+
     report_id = uuid4().hex
     estado = {
         "job_id": job.id,
@@ -971,6 +977,7 @@ def solicitar_revision(job_id: str):
                     "wadati_r2",
                     "wadati_dispersion",
                     "wadati_calidad",
+                    "ondas",
                 )
             }
             for fila in seleccionadas

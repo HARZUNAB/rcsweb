@@ -143,6 +143,15 @@
                 {% endif %}
               </div>
               {% endif %}
+              {% if evento.ondas and evento.ondas.consultadas %}
+              <div class="small text-secondary">
+                Formas de onda: {{ evento.ondas.disponibles }} disponibles sin usar
+                · {{ evento.ondas.consultadas }} consultadas
+                {% if evento.ondas.consultado_en %}
+                · consulta {{ evento.ondas.consultado_en[:16].replace('T', ' ') }}
+                {% endif %}
+              </div>
+              {% endif %}
             </td>
             <td>{{ evento.source_event_id or '—' }}</td>
             <td class="text-nowrap">{{ evento.event_time or '—' }}</td>

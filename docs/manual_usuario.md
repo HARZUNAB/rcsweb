@@ -316,6 +316,18 @@ Después de la consulta:
 - Las filas verificadas se resaltan en verde; las que solo tienen indicio por
   actividad, en ámbar.
 
+En el encabezado de **Revisión de estaciones** aparece un resumen siempre
+visible:
+
+```text
+Formas de onda: 28 disponibles sin usar · consulta 2026-11-19 14:59
+```
+
+El enlace **Ver estaciones sin arribos** abre la solapa correspondiente. Antes
+de consultar, el mismo lugar muestra **Formas de onda: sin consultar**. Es un
+dato descriptivo: cuenta las estaciones consultadas que estaban grabando y no se
+usaron, no el inventario completo.
+
 La solapa **Sin arribos** solo aparece si la fuente declara esa capacidad. Cada
 tabla se puede descargar como CSV y la descarga respeta el filtro activo.
 
@@ -933,10 +945,13 @@ Administradores y supervisores ven todos. La revisión se solicita desde
    horizontal con un bloque por evento: identificadores, fecha y hora,
    coordenadas, profundidad, magnitud y tipo, analista, cruce Eventquery,
    solución (sospechosa o normal), prioridad, motivo de prioridad, una línea
-   **Wadati** cuando hay al menos 3 pares P/S y el mapa de planta y perfil. La
-   línea Wadati es descriptiva (`N`, `Vp/Vs`, `R²`, dispersión y calidad) y no
-   cambia la prioridad. La evidencia de fases y el enlace al detalle quedan
-   disponibles solo en la app.
+   **Wadati** cuando hay al menos 3 pares P/S, una línea **Formas de onda**
+   cuando el evento tiene consulta de disponibilidad y el mapa de planta y
+   perfil. La línea Wadati es descriptiva (`N`, `Vp/Vs`, `R²`, dispersión y
+   calidad) y no cambia la prioridad. La línea de formas de onda resume las
+   estaciones consultadas que estaban grabando y no se usaron, y queda fijada
+   en la solicitud aunque después se vuelva a consultar. La evidencia de fases
+   y el enlace al detalle quedan disponibles solo en la app.
 4. Mientras se construye, el modal muestra el progreso. El PDF es el formato
    principal; si falla, se genera un DOCX de respaldo.
 

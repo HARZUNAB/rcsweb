@@ -512,6 +512,27 @@
         <div class="small text-secondary">
           Arribos de la solución y estaciones del inventario que quedaron sin arribos.
         </div>
+        {% if revision_estaciones.puede_consultar %}
+        <div class="small mt-2">
+          {% if revision_estaciones.disponibilidad_consultada %}
+          <span class="badge text-bg-light text-dark">
+            Formas de onda: {{ revision_estaciones.resumen.disponibles }}
+            disponibles sin usar
+            {% if revision_estaciones.disponibilidad_consultado_texto %}
+            · consulta {{ revision_estaciones.disponibilidad_consultado_texto }}
+            {% endif %}
+          </span>
+          {% else %}
+          <span class="badge text-bg-light text-dark">
+            Formas de onda: sin consultar
+          </span>
+          {% endif %}
+          <a class="ms-2" href="#panel-sin-arribos"
+             data-abrir-tab="tab-sin-arribos">
+            Ver estaciones sin arribos
+          </a>
+        </div>
+        {% endif %}
       </div>
     </div>
 

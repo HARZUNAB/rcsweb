@@ -154,6 +154,7 @@ def crear_solicitud(
                 analyst=evento.get("analista", ""),
                 priority=evento.get("prioridad", ""),
                 motive=evento.get("motivo", ""),
+                ondas=evento.get("ondas") or None,
             )
         )
     db.session.flush()

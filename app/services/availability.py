@@ -368,6 +368,65 @@ def leer_cache(workspace: Path, source_id: str, event_id: str) -> dict:
     return salida
 
 
+def resumen_eventos(
+    workspace: Path,
+    source_id: str,
+    event_ids,
+) -> dict[str, dict]:
+    """Resumen de la consulta de formas de onda por evento.
+
+    Cuenta solo las estaciones consultadas: ``CON_DATOS`` y ``SIN_DATOS``.
+    Los eventos sin ninguna consulta no aparecen en el resultado.
+    """
+    objetivo = {str(evento) for evento in event_ids if str(evento)}
+    if not objetivo:
+        return {}
+    ruta = ruta_cache(workspace, source_id)
+    if not ruta.is_file():
+        return {}
+    resumenes: dict[str, dict] = {}
+    try:
+        with ruta.open(encoding="utf-8") as archivo:
+            for linea in archivo:
+                if not linea.strip():
+                    continue
+                try:
+                    registro = json.loads(linea)
+                except ValueError:
+                    continue
+                event_id = str(registro.get("event_id") or "")
+                if event_id not in objetivo:
+                    continue
+                resumen = resumenes.setdefault(
+                    event_id,
+                    {
+                        "consultadas": 0,
+                        "disponibles": 0,
+                        "sin_datos": 0,
+                        "consultado_en": "",
+                    },
+                )
+                estado = str(registro.get("status") or "")
+                if estado == ESTADO_CON_DATOS:
+                    resumen["consultadas"] += 1
+                    resumen["disponibles"] += 1
+                elif estado == ESTADO_SIN_DATOS:
+                    resumen["consultadas"] += 1
+                    resumen["sin_datos"] += 1
+                else:
+                    continue
+                consultado = str(registro.get("checked_at") or "")
+                if consultado > resumen["consultado_en"]:
+                    resumen["consultado_en"] = consultado
+    except OSError:
+        return {}
+    return {
+        event_id: resumen
+        for event_id, resumen in resumenes.items()
+        if resumen["consultadas"] > 0
+    }
+
+
 def aplicar_cache(filas: list[dict], cache: dict) -> None:
     """Superpone la disponibilidad cacheada a las filas de sin arribos."""
     for fila in filas:

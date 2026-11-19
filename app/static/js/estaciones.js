@@ -3281,8 +3281,23 @@
     }
   }
 
+  function iniciarEnlacesTab() {
+    var enlaces = document.querySelectorAll("[data-abrir-tab]");
+    Array.prototype.forEach.call(enlaces, function (enlace) {
+      enlace.addEventListener("click", function (evento) {
+        var destino = document.getElementById(enlace.dataset.abrirTab);
+        if (!destino || !window.bootstrap || !window.bootstrap.Tab) {
+          return;
+        }
+        evento.preventDefault();
+        window.bootstrap.Tab.getOrCreateInstance(destino).show();
+      });
+    });
+  }
+
   window.addEventListener("DOMContentLoaded", function () {
     activarTabDesdeHash();
+    iniciarEnlacesTab();
     iniciarMapaTiempos();
     iniciarPanel();
   });

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -91,6 +92,42 @@ def _wadati(fila: dict) -> str:
     return " · ".join(partes)
 
 
+def _fecha_corta(valor) -> str:
+    texto = str(valor or "").strip()
+    if not texto:
+        return ""
+    try:
+        instante = datetime.fromisoformat(texto.replace("Z", "+00:00"))
+    except ValueError:
+        return texto[:16].replace("T", " ")
+    return instante.strftime("%Y-%m-%d %H:%M")
+
+
+def _ondas(fila: dict) -> str:
+    """Antecedente de la consulta de formas de onda del evento."""
+    datos = fila.get("ondas") or {}
+    if not isinstance(datos, dict):
+        return ""
+    try:
+        consultadas = int(datos.get("consultadas") or 0)
+        disponibles = int(datos.get("disponibles") or 0)
+        sin_datos = int(datos.get("sin_datos") or 0)
+    except (TypeError, ValueError):
+        return ""
+    if consultadas <= 0:
+        return ""
+    partes = [
+        f"{disponibles} disponibles sin usar",
+        f"{consultadas} consultadas",
+    ]
+    if sin_datos:
+        partes.append(f"{sin_datos} sin datos")
+    fecha = _fecha_corta(datos.get("consultado_en"))
+    if fecha:
+        partes.append(f"consulta {fecha}")
+    return " · ".join(partes)
+
+
 def _resumen(evento: dict) -> list[tuple[str, str]]:
     fila = evento.get("fila") or {}
     canonico = evento.get("canonico") or {}
@@ -128,6 +165,9 @@ def _resumen(evento: dict) -> list[tuple[str, str]]:
     wadati = _wadati(fila)
     if wadati:
         resumen.append(("Wadati", wadati))
+    ondas = _ondas(fila)
+    if ondas:
+        resumen.append(("Formas de onda", ondas))
     return resumen
 
 

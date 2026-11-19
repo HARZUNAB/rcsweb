@@ -1788,6 +1788,26 @@ llama a `ocultarIndicadorConsulta()`. Como ambos puntos de consulta pasan por
 La consulta no genera tiempos de arribo: si una fase no tiene pick, su llegada
 sigue siendo estimada. Solo cambia la certeza sobre la disponibilidad de ondas.
 
+##### Antecedente de formas de onda en la solicitud
+
+`availability.resumen_eventos(workspace, source_id, event_ids)` lee
+`catalogo/<fuente>/disponibilidad.jsonl` una sola vez y devuelve, por evento:
+`consultadas` (`CON_DATOS` + `SIN_DATOS`), `disponibles` (`CON_DATOS`),
+`sin_datos` y `consultado_en` (mayor `checked_at`). Los eventos sin consultas no
+aparecen.
+
+`revisar_evento()` expone `disponibilidad_consultado_en` y
+`disponibilidad_consultado_texto` a partir de la caché que ya lee. El encabezado
+de **Revisión de estaciones** muestra el resumen y un enlace con
+`data-bs-toggle="tab"` a `#panel-sin-arribos`.
+
+Al crear la solicitud, `solicitar_revision` agrega `fila["ondas"]` con ese
+resumen. El valor viaja en el estado del informe, se imprime en `_resumen` como
+**Formas de onda** y se guarda en `review_request_events.ondas` (JSON, migración
+`f2b6d9c4a1e7`). La columna es un snapshot: volver a consultar el evento no
+cambia lo que muestra una solicitud ya creada. La línea solo se imprime si
+`consultadas > 0`; la cifra corresponde a lo consultado, no al inventario total.
+
 La reproducción usa `requestAnimationFrame` con un avance de
 `maxT / 15` segundos de evento por segundo real, multiplicado por 1x, 2x o 5x.
 Los redibujos se limitan a ~20 por segundo. El control de tiempo también se

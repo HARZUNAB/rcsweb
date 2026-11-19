@@ -297,6 +297,7 @@ def ejecutar(report_id: str) -> dict:
                     "analista": fila.get("analista", ""),
                     "prioridad": fila.get("prioridad", ""),
                     "motivo": fila.get("motivo", ""),
+                    "ondas": fila.get("ondas") or None,
                 }
             )
 
