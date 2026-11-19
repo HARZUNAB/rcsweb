@@ -770,9 +770,12 @@ El resumen distingue estos conteos:
   atribuida. Un botón **Ver sin cruce** muestra sus datos y enlaza al evento en
   el catálogo Eventquery. Para explicar la ausencia, se muestra el candidato
   local más cercano solo si está dentro de **120 s y 50 km**; se marca
-  **Compatible** cuando además la diferencia es de hasta **6 s**. Si no hay
-  candidato en esa ventana, se indica que no existe contraparte local
-  comparable.
+  **Compatible** cuando además la diferencia es de hasta **6 s**. El botón
+  **Comparar** despliega bajo la misma fila una tabla con ambos eventos lado a
+  lado: fecha, coordenadas, profundidad, magnitud, región y analista, con sus
+  diferencias. Los enlaces **Abrir en Eventquery** y **Abrir evento local**
+  abren cada evento en una pestaña nueva. Si no hay candidato en la ventana, se
+  indica que no existe contraparte local comparable.
 - **Cobertura del cruce:** cuántas referencias tienen al menos un cruce local y
   cuántas no lo tienen.
 

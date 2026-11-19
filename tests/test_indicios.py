@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 
 from app.domain.catalogs import canonical
@@ -859,6 +860,15 @@ def test_coincidencias_extra_reutiliza_artefacto(tmp_path):
             }
         ],
     )
+    # Un artefacto con versión antigua también se recalcula.
+    datos_version = json.loads(ruta.read_text(encoding="utf-8"))
+    datos_version["version"] = 1
+    ruta.write_text(
+        json.dumps(datos_version, ensure_ascii=False), encoding="utf-8"
+    )
+    cuarto = indicios.leer_detalle_cruce(workspace)
+    assert cuarto["version"] == indicios.VERSION_CRUCE
+
     tercero = indicios.leer_detalle_cruce(workspace)
     assert tercero["extras"]["total"] == 0
 
@@ -922,6 +932,7 @@ def test_sin_cruce_incluye_candidato_compatible(tmp_path):
 
     datos = indicios.detalle_cruce(workspace)
 
+    assert datos["version"] == 2
     assert datos["sin_cruce"]["total"] == 1
     evento = datos["sin_cruce"]["eventos"][0]
     assert evento["fila"] == 5
@@ -930,6 +941,12 @@ def test_sin_cruce_incluye_candidato_compatible(tmp_path):
     assert evento["candidato"]["evento_local"] == "seiscomp:000007"
     assert evento["candidato"]["dt_seg"] == 4.0
     assert evento["candidato"]["clasificacion"] == "compatible"
+    assert evento["candidato"]["lat"] == -22.59
+    assert evento["candidato"]["lon"] == -68.81
+    assert evento["candidato"]["profundidad"] == 42.0
+    assert evento["candidato"]["magnitud"] == 2.6
+    assert evento["diferencias"]["profundidad"] == 0.0
+    assert evento["diferencias"]["magnitud"] == 0.0
     assert evento["motivo"] == ""
 
 

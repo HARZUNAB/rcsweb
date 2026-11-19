@@ -433,6 +433,35 @@ def test_detalle_muestra_coincidencias_extra(client, login):
     assert "2026-11-03 11:51:23" in html
     assert "Sin evento local dentro de 120 s y 50 km" in html
 
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seiscomp"),
+        [
+            {
+                "source_id": "seiscomp",
+                "event_id": "seiscomp:000007",
+                "event_time": "2026-11-03 11:51:19",
+                "latitude": -22.59,
+                "longitude": -68.81,
+                "depth_km": 40.5,
+                "magnitude": 2.7,
+                "magnitude_type": "MLv",
+                "analyst": "tark",
+                "raw_index": 7,
+                "raw": {"Referencia": "15 km al SE de Calama"},
+            }
+        ],
+    )
+
+    html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
+
+    assert "Comparar" in html
+    assert "Comparación · eventquery:000005" in html
+    assert "Abrir en Eventquery" in html
+    assert "Abrir evento local" in html
+    assert "40.5" in html
+    assert "1.0 km" in html
+    assert "tark" in html
+
 
 def test_detalle_sin_coincidencias_extra_no_muestra_boton(client, login):
     login()

@@ -1284,6 +1284,7 @@ def resumen_visible(
 
 
 CRUCE_EVENTQUERY = "cruce_eventquery.json"
+VERSION_CRUCE = 2
 VENTANA_CANDIDATO_SEG = 120.0
 VENTANA_CANDIDATO_KM = 50.0
 VENTANA_COMPATIBLE_SEG = 6.0
@@ -1308,16 +1309,22 @@ def _huella_atribuciones(workspace: Path) -> dict[str, str]:
             continue
         huella[ruta.name] = f"{estado.st_size}-{int(estado.st_mtime)}"
     referencia = fuentes_manifest.referencia()
-    ruta_referencia = canonical.ruta_canonica(workspace, referencia.id)
-    if ruta_referencia.is_file():
+    fuentes = {referencia.id}
+    for ruta in sorted(carpetas.glob("atribucion_*.csv")):
+        fuentes.add(ruta.stem.removeprefix("atribucion_"))
+    for source_id in sorted(fuentes):
+        if _fuente_derivada(source_id):
+            continue
+        ruta_catalogo = canonical.ruta_canonica(workspace, source_id)
+        if not ruta_catalogo.is_file():
+            continue
         try:
-            estado = ruta_referencia.stat()
+            estado = ruta_catalogo.stat()
         except OSError:
-            estado = None
-        if estado is not None:
-            huella[f"catalogo/{referencia.id}/eventos.jsonl"] = (
-                f"{estado.st_size}-{int(estado.st_mtime)}"
-            )
+            continue
+        huella[f"catalogo/{source_id}/eventos.jsonl"] = (
+            f"{estado.st_size}-{int(estado.st_mtime)}"
+        )
     return huella
 
 
@@ -1542,12 +1549,20 @@ def _candidato_local(referencia: dict, locales: list[dict]) -> dict | None:
     if mejor is None:
         return None
     _, dt, distancia, source_id, evento = mejor
+    raw = evento.get("raw") or {}
     return {
         "fuente": source_id,
         "etiqueta": fuentes_manifest.etiqueta(source_id),
         "evento_local": _texto(evento.get("event_id")),
         "fila_local": evento.get("raw_index"),
         "fecha_local": _texto(evento.get("event_time")),
+        "lat": evento.get("latitude"),
+        "lon": evento.get("longitude"),
+        "profundidad": evento.get("depth_km"),
+        "magnitud": evento.get("magnitude"),
+        "tipo_mag": _texto(evento.get("magnitude_type")),
+        "analista": _texto(evento.get("analyst")),
+        "region": _texto(raw.get("Referencia")),
         "dt_seg": round(dt, 2),
         "dist_km": round(distancia, 2),
         "clasificacion": (
@@ -1575,6 +1590,28 @@ def _eventos_sin_cruce(workspace: Path) -> list[dict]:
     for evento in faltantes:
         candidato = _candidato_local(evento, locales)
         raw = evento.get("raw") or {}
+        diferencias = {}
+        if candidato is not None:
+            for clave, propio, otro in (
+                ("lat", evento.get("latitude"), candidato.get("lat")),
+                ("lon", evento.get("longitude"), candidato.get("lon")),
+                (
+                    "profundidad",
+                    evento.get("depth_km"),
+                    candidato.get("profundidad"),
+                ),
+                (
+                    "magnitud",
+                    evento.get("magnitude"),
+                    candidato.get("magnitud"),
+                ),
+            ):
+                if propio is None or otro is None:
+                    continue
+                try:
+                    diferencias[clave] = round(float(otro) - float(propio), 3)
+                except (TypeError, ValueError):
+                    continue
         salida.append(
             {
                 "fila": evento.get("raw_index"),
@@ -1588,6 +1625,7 @@ def _eventos_sin_cruce(workspace: Path) -> list[dict]:
                 "region": _texto(raw.get("Referencia")),
                 "percibido": _texto(raw.get("Percep.")),
                 "candidato": candidato,
+                "diferencias": diferencias,
                 "motivo": "" if candidato else MOTIVO_SIN_CANDIDATO,
             }
         )
@@ -1600,6 +1638,7 @@ def detalle_cruce(workspace: Path) -> dict:
     extras = _grupos_extra(workspace)
     sin_cruce = _eventos_sin_cruce(workspace)
     return {
+        "version": VERSION_CRUCE,
         "generado": datetime.now(UTC).isoformat(),
         "huella": _huella_atribuciones(workspace),
         "extras": {
@@ -1622,7 +1661,11 @@ def leer_detalle_cruce(workspace: Path) -> dict:
             datos = json.loads(ruta.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             datos = None
-        if isinstance(datos, dict) and datos.get("huella") == huella:
+        if (
+            isinstance(datos, dict)
+            and datos.get("version") == VERSION_CRUCE
+            and datos.get("huella") == huella
+        ):
             return datos
     datos = detalle_cruce(workspace)
     if not datos["huella"]:
