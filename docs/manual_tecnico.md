@@ -1229,8 +1229,17 @@ de solución, sus campos `revision_prioritaria` y `prioridad` son conservadores:
 un evento con cruce y fase fuerte queda en **Media** (calidad de catálogo), no
 en Alta. El listado y el detalle recalculan la prioridad con la solución. La
 columna `cruce_eventquery` contiene `con_cruce`, `sin_cruce` o `sin_evaluar`. El
-esquema actual de estos reportes es 6; al cambiarlo, `asegurar_indicios` los
+esquema actual de estos reportes es 7; al cambiarlo, `asegurar_indicios` los
 regenera.
+
+El esquema 7 agrega el resultado de Wadati por evento, calculado en
+`evaluar_evento` con los arribos que ya están en memoria: `wadati_n`,
+`wadati_vp_vs`, `wadati_r2`, `wadati_dispersion` y `wadati_calidad`
+(`consistente`, `preliminar`, `dudoso`, `insuficiente`). Es un dato descriptivo:
+no interviene en `prioridad`, `revision_prioritaria`, el orden por defecto ni
+los informes. El listado muestra la calidad y `N`, y el detalle completo queda
+en el tooltip. La columna `wadati_orden` se calcula al leer el listado para
+permitir ordenar; no se guarda.
 
 El listado agrega, además, las soluciones con cruce Eventquery y solución
 sospechosa que no tienen anomalía de fases. Esas filas se construyen desde la

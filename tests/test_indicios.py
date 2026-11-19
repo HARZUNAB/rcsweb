@@ -660,3 +660,56 @@ def test_estado_cruce_sin_atribucion_es_desconocido(tmp_path):
         indicios.estado_cruce_eventquery(workspace, "seiscomp", _evento())
         is None
     )
+
+
+def test_wadati_aparece_como_dato_informativo():
+    picks = [
+        ("E1", -30.0, -71.0, "2026-10-28 15:23:41", "2026-10-28 15:23:44.75"),
+        ("E2", -30.2, -71.1, "2026-10-28 15:23:46", "2026-10-28 15:23:53.50"),
+        ("E3", -30.4, -71.2, "2026-10-28 15:23:51", "2026-10-28 15:24:02.25"),
+        ("E4", -30.6, -71.3, "2026-10-28 15:23:56", "2026-10-28 15:24:11.00"),
+    ]
+    arribos = []
+    for estacion, lat, lon, pick_p, pick_s in picks:
+        arribos.append(
+            _arribo(estacion, lat, lon, pick_p, 0.0, phase="P")
+        )
+        arribos.append(
+            _arribo(estacion, lat, lon, pick_s, 0.0, phase="S")
+        )
+
+    resultado = indicios.evaluar_evento(
+        _evento(),
+        arribos,
+        source_id="seiscomp",
+        con_cruce=True,
+        sospechoso=False,
+    )
+
+    assert resultado["wadati_n"] == 4
+    assert resultado["wadati_vp_vs"] == "1.75"
+    assert resultado["wadati_r2"] == "1.00"
+    assert resultado["wadati_dispersion"] == "0.00"
+    assert resultado["wadati_calidad"] == "consistente"
+
+
+def test_wadati_insuficiente_sin_pares_p_s():
+    resultado = indicios.evaluar_evento(
+        _evento(),
+        _caso_mg04(),
+        source_id="seiscomp",
+        con_cruce=True,
+        sospechoso=True,
+    )
+
+    assert resultado["wadati_n"] == 0
+    assert resultado["wadati_vp_vs"] == ""
+    assert resultado["wadati_calidad"] == "insuficiente"
+
+
+def test_campos_de_indicios_incluyen_wadati():
+    assert "wadati_n" in indicios.CAMPOS_EVENTO
+    assert "wadati_vp_vs" in indicios.CAMPOS_EVENTO
+    assert "wadati_r2" in indicios.CAMPOS_EVENTO
+    assert "wadati_dispersion" in indicios.CAMPOS_EVENTO
+    assert "wadati_calidad" in indicios.CAMPOS_EVENTO

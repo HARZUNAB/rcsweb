@@ -772,6 +772,19 @@ Cada evento combina dos lecturas:
 La vista ya no tiene una columna **Motivo** separada: esa información se deduce
 de **Solución** y **Señales de fase**.
 
+La columna **Fases P/S** muestra el resultado de Wadati por evento:
+
+```text
+Consistente | Preliminar | Dudoso | —
+N 5 · Vp/Vs 0.95
+```
+
+El detalle completo, con `R²`, dispersión y estación más desviada, aparece en
+el tooltip y en el modal **Wadati** del detalle del evento. Es un dato
+**informativo**: describe la coherencia interna de los tiempos P y S y no
+cambia la prioridad, la revisión prioritaria ni los informes. Cuando hay menos
+de 3 estaciones con P y S, muestra **—**.
+
 Cada evento muestra también el **patrón** de las fases y la **cobertura**:
 
 | Patrón | Lectura posible |

@@ -152,6 +152,8 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Revisión de eventos" in html
     assert "Señales de fase" in html
     assert "Cobertura" in html
+    assert "Fases P/S" in html
+    assert "no cambia la prioridad" in html
     assert "csn_sc62026vdkls" in html
     assert "Revisión prioritaria" in html
     assert "Prioridad" in html

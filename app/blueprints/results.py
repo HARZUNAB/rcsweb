@@ -385,6 +385,11 @@ def _fila_sospechosa(
         "revision_prioritaria": "No",
         "prioridad": "Informativa",
         "prioridad_orden": 2,
+        "wadati_n": evaluacion.get("wadati_n", ""),
+        "wadati_vp_vs": evaluacion.get("wadati_vp_vs", ""),
+        "wadati_r2": evaluacion.get("wadati_r2", ""),
+        "wadati_dispersion": evaluacion.get("wadati_dispersion", ""),
+        "wadati_calidad": evaluacion.get("wadati_calidad", ""),
     }
 
 
@@ -605,6 +610,12 @@ def _filas_revision(workspace, fuente, usuario) -> list[dict]:
         )
         fila["prioridad"] = prioridad
         fila["prioridad_orden"] = indicios.ORDEN_PRIORIDAD[prioridad]
+        fila["wadati_orden"] = {
+            "consistente": 1,
+            "preliminar": 2,
+            "dudoso": 3,
+            "insuficiente": 0,
+        }.get(str(fila.get("wadati_calidad") or "").lower(), 0)
         fila["revision_prioritaria"] = (
             "Sí" if prioridad in ("Alta", "Media") else "No"
         )

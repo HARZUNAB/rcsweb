@@ -24,7 +24,7 @@ from pathlib import Path
 
 from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
-from . import formatting
+from . import formatting, wadati
 
 UMBRAL_RESIDUAL = 5.0
 UMBRAL_PESO = 0.5
@@ -43,7 +43,7 @@ UMBRAL_CONTEXTO_ESTACIONES = 5
 UMBRAL_CONTEXTO_SIN_INVENTARIO = 8
 UMBRAL_CONTEXTO_AZGAP = 180.0
 MAX_PARES_DETALLE = 40
-ESQUEMA_INDICIOS = 6
+ESQUEMA_INDICIOS = 7
 
 ORDEN_PRIORIDAD = {
     "Alta": 5,
@@ -120,6 +120,11 @@ CAMPOS_EVENTO = (
     "residual_fuentes",
     "sospechoso",
     "explicacion_sospechoso",
+    "wadati_n",
+    "wadati_vp_vs",
+    "wadati_r2",
+    "wadati_dispersion",
+    "wadati_calidad",
 )
 
 CAMPOS_DETALLE = (
@@ -868,6 +873,25 @@ def evaluar_evento(
                 f" | peso {principal['peso']}"
             )
 
+    registro_wadati = []
+    for arribo in arribos:
+        red, estacion = _clave_estacion(arribo)
+        registro_wadati.append(
+            {
+                "red": red,
+                "estacion": estacion,
+                "fase": _texto(arribo.get("phase")),
+                "segundos": _t_seg(arribo, origen),
+                "peso": _numero(arribo.get("weight")),
+                "usada": (
+                    "Sí"
+                    if arribo.get("is_used_in_solution") is True
+                    else "No"
+                ),
+            }
+        )
+    resultado_wadati = wadati.analizar(registro_wadati)
+
     return {
         "fuente": source_id,
         "evento": _texto(evento.get("event_id")),
@@ -907,6 +931,17 @@ def evaluar_evento(
         "residual_fuentes": ", ".join(fuentes_residual),
         "sospechoso": sospechoso,
         "explicacion_sospechoso": explicacion_sospechoso,
+        "wadati_n": resultado_wadati["n_pares"],
+        "wadati_vp_vs": formatting.numero(
+            resultado_wadati["vp_vs"], 2, cero_cercano=False
+        ),
+        "wadati_r2": formatting.numero(
+            resultado_wadati["r2"], 2, cero_cercano=False
+        ),
+        "wadati_dispersion": formatting.numero(
+            resultado_wadati["dispersion"], 2, cero_cercano=False
+        ),
+        "wadati_calidad": resultado_wadati["calidad"],
         "evidencia": evidencia,
         "evidencia_principal": _evidencia_principal(evidencia),
     }

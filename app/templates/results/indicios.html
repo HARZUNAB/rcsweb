@@ -239,6 +239,10 @@
                 title="Cobertura suficiente: al menos 5 estaciones, azimutal gap ≤ 180° y perfil asignado. Cobertura débil: pocas estaciones, azimutal gap > 180° o sin perfil asignado.">
               Cobertura
             </th>
+            <th data-sort-key="wadati" data-sort-type="order"
+                title="Relación Vp/Vs y coherencia de los tiempos P/S. Es informativo: no cambia la prioridad ni la revisión prioritaria.">
+              Fases P/S
+            </th>
             {% if puede_crear_revision %}
             <th data-sort-key="analista" data-sort-type="text">Analista</th>
             {% endif %}
@@ -340,6 +344,20 @@
               </span>
               {% else %}
               —
+              {% endif %}
+            </td>
+            <td class="text-nowrap" data-sort-value="{{ fila.wadati_orden }}">
+              {% if fila.wadati_calidad and fila.wadati_calidad != 'insuficiente' %}
+              <span class="small"
+                    title="Wadati: N {{ fila.wadati_n }} · Vp/Vs {{ fila.wadati_vp_vs }} · R² {{ fila.wadati_r2 }} · dispersión {{ fila.wadati_dispersion }} s">
+                {{ fila.wadati_calidad|capitalize }}
+              </span>
+              <div class="small text-secondary">
+                N {{ fila.wadati_n }} · Vp/Vs {{ fila.wadati_vp_vs }}
+              </div>
+              {% else %}
+              <span class="text-secondary"
+                    title="Wadati insuficiente: se necesitan al menos 3 estaciones con P y S.">—</span>
               {% endif %}
             </td>
             {% if puede_crear_revision %}
