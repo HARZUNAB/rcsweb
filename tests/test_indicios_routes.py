@@ -159,6 +159,8 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Prioridad" in html
     assert "data-sortable" in html
     assert "tabla_orden.js" in html
+    assert "tabla-revision-fija" in html
+    assert "con-seleccion" in html
     assert "Mapa</a>" not in html
     assert "/resultados/catalogos/seiscomp/0" in html
     assert "#indicios-fases" in html

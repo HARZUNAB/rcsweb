@@ -204,12 +204,12 @@
       </label>
     </div>
     <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0 tabla-revision tabla-miniaturas"
+      <table class="table table-sm table-hover align-middle mb-0 tabla-revision tabla-miniaturas tabla-revision-fija{% if puede_crear_revision %} con-seleccion{% endif %}"
              data-miniaturas-tabla data-sortable>
         <thead class="table-light">
           <tr>
             {% if puede_crear_revision %}
-            <th class="text-center" style="width: 2.2rem;">
+            <th class="text-center">
               <input class="form-check-input" type="checkbox"
                      id="seleccionar-todos-revision"
                      aria-label="Seleccionar todos los eventos del analista"
