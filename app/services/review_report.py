@@ -71,6 +71,26 @@ def _motivo_prioridad(fila: dict) -> str:
     }.get(motivo, "")
 
 
+def _wadati(fila: dict) -> str:
+    """Línea descriptiva del análisis Wadati, sin recalcular nada."""
+    try:
+        pares = int(float(str(fila.get("wadati_n") or 0)))
+    except (TypeError, ValueError):
+        return ""
+    if pares < 3:
+        return ""
+    partes = [
+        f"N {pares}",
+        f"Vp/Vs {_numero(fila.get('wadati_vp_vs'), 2)}",
+        f"R² {_numero(fila.get('wadati_r2'), 2)}",
+        f"dispersión {_numero(fila.get('wadati_dispersion'), 2)} s",
+    ]
+    calidad = _texto(fila.get("wadati_calidad"), "")
+    if calidad:
+        partes.append(calidad.capitalize())
+    return " · ".join(partes)
+
+
 def _resumen(evento: dict) -> list[tuple[str, str]]:
     fila = evento.get("fila") or {}
     canonico = evento.get("canonico") or {}
@@ -105,6 +125,9 @@ def _resumen(evento: dict) -> list[tuple[str, str]]:
     motivo = _motivo_prioridad(fila)
     if motivo:
         resumen.append(("Motivo de prioridad", motivo))
+    wadati = _wadati(fila)
+    if wadati:
+        resumen.append(("Wadati", wadati))
     return resumen
 
 

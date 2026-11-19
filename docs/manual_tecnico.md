@@ -1308,7 +1308,11 @@ en Redis bajo `rcs:revision:<report_id>` durante 24 horas. El PDF se construye
 con ReportLab y el respaldo DOCX con python-docx, en A4 horizontal. El informe
 se guarda en `workspace/<job>/revisiones/<report_id>.<pdf|docx>`. Es compacto:
 por evento incluye identificación, fecha, coordenadas, profundidad, magnitud,
-analista, cruce Eventquery, solución, prioridad, motivo de prioridad y mapa.
+analista, cruce Eventquery, solución, prioridad, motivo de prioridad, una línea
+Wadati y mapa. La línea Wadati se arma con `wadati_n`, `wadati_vp_vs`,
+`wadati_r2`, `wadati_dispersion` y `wadati_calidad`, que ya vienen en
+`indicios_<fuente>.csv`; no se recalculan en la tarea. Solo se imprime con
+`N >= 3`. No se incluye el gráfico.
 No imprime el residuo al slab, el perfil, la cobertura, las estaciones usadas,
 el máximo residual, la tabla de evidencia ni el enlace; esos datos quedan en la
 app. El máximo de eventos por solicitud se configura con

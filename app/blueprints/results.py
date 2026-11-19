@@ -966,6 +966,11 @@ def solicitar_revision(job_id: str):
                     "cruce_eventquery",
                     "sospechoso_residuo_km",
                     "sospechoso_perp_km",
+                    "wadati_n",
+                    "wadati_vp_vs",
+                    "wadati_r2",
+                    "wadati_dispersion",
+                    "wadati_calidad",
                 )
             }
             for fila in seleccionadas

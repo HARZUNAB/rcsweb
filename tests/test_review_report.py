@@ -92,3 +92,31 @@ def test_docx_no_imprime_evidencia_ni_enlace(tmp_path):
     assert "Sin inconsistencia de fases." not in unido
     assert "residuo" not in unido
     assert "http://localhost" not in unido
+
+
+def test_resumen_incluye_linea_wadati():
+    evento = _evento()
+    evento["fila"].update(
+        {
+            "wadati_n": 5,
+            "wadati_vp_vs": "1.68",
+            "wadati_r2": "0.00",
+            "wadati_dispersion": "13.82",
+            "wadati_calidad": "dudoso",
+        }
+    )
+
+    datos = dict(review_report._resumen(evento))
+
+    assert datos["Wadati"] == (
+        "N 5 · Vp/Vs 1.68 · R² 0.00 · dispersión 13.82 s · Dudoso"
+    )
+
+
+def test_resumen_omite_wadati_insuficiente():
+    evento = _evento()
+    evento["fila"]["wadati_n"] = 2
+
+    datos = dict(review_report._resumen(evento))
+
+    assert "Wadati" not in datos
