@@ -77,7 +77,9 @@ TERMINOS = {
         "titulo": "Referencias sin cruce",
         "texto": (
             "Eventos de Eventquery que no tienen ninguna solución local "
-            "asociada en el trabajo."
+            "asociada en el trabajo. El botón Ver sin cruce muestra cuáles "
+            "son y el candidato local más cercano dentro de 120 s y 50 km, "
+            "si existe."
         ),
     },
     "fuente_derivada": {

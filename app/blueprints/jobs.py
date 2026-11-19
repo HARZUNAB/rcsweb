@@ -85,6 +85,7 @@ def _contexto_detalle(job: Job) -> dict:
     )
     resumen_indicios = indicios.leer_resumen(workspace)
     extras_cruce: list[dict] = []
+    eventos_sin_cruce: list[dict] = []
     if resumen_indicios and tiene_permiso(current_user, "resultados.ver"):
         resumen_indicios = dict(resumen_indicios)
         resumen_indicios["total"] = indicios.resumen_visible(
@@ -93,16 +94,23 @@ def _contexto_detalle(job: Job) -> dict:
             current_user,
         )
         if tiene_permiso(current_user, "trabajos.todos"):
-            datos_extra = indicios.leer_coincidencias_extra(workspace)
-            extras_cruce = datos_extra.get("grupos") or []
-            resumen_indicios["total"]["coincidencias_extra"] = (
-                datos_extra.get("total", 0)
+            datos_cruce = indicios.leer_detalle_cruce(workspace)
+            extras = datos_cruce.get("extras") or {}
+            sin_cruce = datos_cruce.get("sin_cruce") or {}
+            extras_cruce = extras.get("grupos") or []
+            eventos_sin_cruce = sin_cruce.get("eventos") or []
+            resumen_indicios["total"]["coincidencias_extra"] = extras.get(
+                "total", 0
+            )
+            resumen_indicios["total"]["referencias_sin_cruce"] = (
+                sin_cruce.get("total", 0)
             )
     return {
         "job": job,
         "indice": indice,
         "indicios": resumen_indicios,
         "extras_cruce": extras_cruce,
+        "sin_cruce": eventos_sin_cruce,
         "log": leer_log(workspace, max_lineas=250),
         "artefactos": job.artifacts,
         "activo": job.activo,

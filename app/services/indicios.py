@@ -1213,11 +1213,11 @@ def generar_indicios(
         json.dumps(resumen, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    datos_extra = coincidencias_extra(workspace)
-    if datos_extra["huella"]:
+    datos_cruce = detalle_cruce(workspace)
+    if datos_cruce["huella"]:
         try:
-            ruta_coincidencias_extra(workspace).write_text(
-                json.dumps(datos_extra, ensure_ascii=False, indent=2),
+            ruta_cruce_eventquery(workspace).write_text(
+                json.dumps(datos_cruce, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
         except OSError:
@@ -1283,15 +1283,22 @@ def resumen_visible(
     return visible
 
 
-COINCIDENCIAS_EXTRA = "coincidencias_extra.json"
+CRUCE_EVENTQUERY = "cruce_eventquery.json"
+VENTANA_CANDIDATO_SEG = 120.0
+VENTANA_CANDIDATO_KM = 50.0
+VENTANA_COMPATIBLE_SEG = 6.0
+MOTIVO_SIN_CANDIDATO = (
+    "Sin evento local dentro de 120 s y 50 km. "
+    "El evento de referencia no tiene contraparte local comparable."
+)
 
 
-def ruta_coincidencias_extra(workspace: Path) -> Path:
-    return ruta_indicios(workspace) / COINCIDENCIAS_EXTRA
+def ruta_cruce_eventquery(workspace: Path) -> Path:
+    return ruta_indicios(workspace) / CRUCE_EVENTQUERY
 
 
 def _huella_atribuciones(workspace: Path) -> dict[str, str]:
-    """Tamaño y mtime de las atribuciones, para invalidar el artefacto."""
+    """Tamaño y mtime de las atribuciones y del catálogo de referencia."""
     huella: dict[str, str] = {}
     carpetas = Path(workspace) / "datos"
     for ruta in sorted(carpetas.glob("atribucion_*.csv")):
@@ -1300,7 +1307,49 @@ def _huella_atribuciones(workspace: Path) -> dict[str, str]:
         except OSError:
             continue
         huella[ruta.name] = f"{estado.st_size}-{int(estado.st_mtime)}"
+    referencia = fuentes_manifest.referencia()
+    ruta_referencia = canonical.ruta_canonica(workspace, referencia.id)
+    if ruta_referencia.is_file():
+        try:
+            estado = ruta_referencia.stat()
+        except OSError:
+            estado = None
+        if estado is not None:
+            huella[f"catalogo/{referencia.id}/eventos.jsonl"] = (
+                f"{estado.st_size}-{int(estado.st_mtime)}"
+            )
     return huella
+
+
+def _instante_evento(valor) -> datetime | None:
+    texto = " ".join(str(valor or "").replace("T", " ").replace("Z", "").split())
+    if not texto:
+        return None
+    try:
+        return datetime.fromisoformat(texto)
+    except ValueError:
+        return None
+
+
+def distancia_km(lat1, lon1, lat2, lon2) -> float | None:
+    valores = [
+        _numero(lat1),
+        _numero(lon1),
+        _numero(lat2),
+        _numero(lon2),
+    ]
+    if any(valor is None for valor in valores):
+        return None
+    la1, lo1, la2, lo2 = valores
+    phi1 = math.radians(la1)
+    phi2 = math.radians(la2)
+    dphi = math.radians(la2 - la1)
+    dlambda = math.radians(lo2 - lo1)
+    h = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
+    return 2 * 6371.0088 * math.asin(min(1.0, math.sqrt(h)))
 
 
 def _buscar_evento_local(
@@ -1447,20 +1496,126 @@ def _grupos_extra(workspace: Path) -> list[dict]:
     return salida
 
 
-def coincidencias_extra(workspace: Path) -> dict:
-    """Calcula el detalle de coincidencias extra y su huella."""
-    grupos = _grupos_extra(workspace)
+def _eventos_locales(workspace: Path) -> list[dict]:
+    """Eventos canónicos de todas las fuentes locales no derivadas."""
+    eventos = []
+    for ruta in sorted((Path(workspace) / "datos").glob("atribucion_*.csv")):
+        source_id = ruta.stem.removeprefix("atribucion_")
+        if _fuente_derivada(source_id):
+            continue
+        for evento in canonical.leer_canonico(workspace, source_id):
+            eventos.append((source_id, evento))
+    return eventos
+
+
+def _candidato_local(referencia: dict, locales: list[dict]) -> dict | None:
+    instante = _instante_evento(referencia.get("event_time"))
+    lat = _numero(referencia.get("latitude"))
+    lon = _numero(referencia.get("longitude"))
+    if instante is None:
+        return None
+    mejor = None
+    for source_id, evento in locales:
+        otro = _instante_evento(evento.get("event_time"))
+        if otro is None:
+            continue
+        dt = abs((otro - instante).total_seconds())
+        if dt > VENTANA_CANDIDATO_SEG:
+            continue
+        distancia = distancia_km(
+            lat,
+            lon,
+            evento.get("latitude"),
+            evento.get("longitude"),
+        )
+        if distancia is None or distancia > VENTANA_CANDIDATO_KM:
+            continue
+        puntaje = dt / VENTANA_CANDIDATO_SEG + distancia / VENTANA_CANDIDATO_KM
+        if mejor is None or puntaje < mejor[0]:
+            mejor = (
+                puntaje,
+                dt,
+                distancia,
+                source_id,
+                evento,
+            )
+    if mejor is None:
+        return None
+    _, dt, distancia, source_id, evento = mejor
     return {
-        "generado": datetime.now(UTC).isoformat(),
-        "huella": _huella_atribuciones(workspace),
-        "grupos": grupos,
-        "total": sum(grupo["extra"] for grupo in grupos),
+        "fuente": source_id,
+        "etiqueta": fuentes_manifest.etiqueta(source_id),
+        "evento_local": _texto(evento.get("event_id")),
+        "fila_local": evento.get("raw_index"),
+        "fecha_local": _texto(evento.get("event_time")),
+        "dt_seg": round(dt, 2),
+        "dist_km": round(distancia, 2),
+        "clasificacion": (
+            "compatible" if dt <= VENTANA_COMPATIBLE_SEG else "cercano"
+        ),
     }
 
 
-def leer_coincidencias_extra(workspace: Path) -> dict:
+def _eventos_sin_cruce(workspace: Path) -> list[dict]:
+    """Eventos de referencia sin ninguna solución local atribuida."""
+    referencia = fuentes_manifest.referencia()
+    eventos = canonical.leer_canonico(workspace, referencia.id)
+    if not eventos:
+        return []
+    cruzadas = _referencias_cruzadas(workspace)
+    faltantes = [
+        evento
+        for evento in eventos
+        if _texto(evento.get("raw_index")) not in cruzadas
+    ]
+    if not faltantes:
+        return []
+    locales = _eventos_locales(workspace)
+    salida = []
+    for evento in faltantes:
+        candidato = _candidato_local(evento, locales)
+        raw = evento.get("raw") or {}
+        salida.append(
+            {
+                "fila": evento.get("raw_index"),
+                "evento": _texto(evento.get("event_id")),
+                "fecha": _texto(evento.get("event_time")),
+                "lat": evento.get("latitude"),
+                "lon": evento.get("longitude"),
+                "profundidad": evento.get("depth_km"),
+                "magnitud": evento.get("magnitude"),
+                "tipo_mag": _texto(evento.get("magnitude_type")),
+                "region": _texto(raw.get("Referencia")),
+                "percibido": _texto(raw.get("Percep.")),
+                "candidato": candidato,
+                "motivo": "" if candidato else MOTIVO_SIN_CANDIDATO,
+            }
+        )
+    salida.sort(key=lambda item: (item["fecha"], item["fila"]))
+    return salida
+
+
+def detalle_cruce(workspace: Path) -> dict:
+    """Detalle de coincidencias extra y eventos de referencia sin cruce."""
+    extras = _grupos_extra(workspace)
+    sin_cruce = _eventos_sin_cruce(workspace)
+    return {
+        "generado": datetime.now(UTC).isoformat(),
+        "huella": _huella_atribuciones(workspace),
+        "extras": {
+            "total": sum(grupo["extra"] for grupo in extras),
+            "grupos": extras,
+        },
+        "sin_cruce": {
+            "total": len(sin_cruce),
+            "eventos": sin_cruce,
+        },
+    }
+
+
+def leer_detalle_cruce(workspace: Path) -> dict:
     """Lee el artefacto o lo calcula una vez si falta o cambió."""
-    ruta = ruta_coincidencias_extra(workspace)
+    ruta = ruta_cruce_eventquery(workspace)
     huella = _huella_atribuciones(workspace)
     if ruta.is_file():
         try:
@@ -1469,7 +1624,7 @@ def leer_coincidencias_extra(workspace: Path) -> dict:
             datos = None
         if isinstance(datos, dict) and datos.get("huella") == huella:
             return datos
-    datos = coincidencias_extra(workspace)
+    datos = detalle_cruce(workspace)
     if not datos["huella"]:
         return datos
     try:
@@ -1477,6 +1632,9 @@ def leer_coincidencias_extra(workspace: Path) -> dict:
         ruta.write_text(
             json.dumps(datos, ensure_ascii=False, indent=2),
             encoding="utf-8",
+        )
+        (ruta_indicios(workspace) / "coincidencias_extra.json").unlink(
+            missing_ok=True
         )
     except OSError:
         pass

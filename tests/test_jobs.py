@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
+from app.domain.catalogs import canonical
 from app.extensions import db
 from app.models import Job, JobArtifact, JobFile, JobSource, JobStep, nuevo_uuid
 from app.services.workspace import crear_workspace
@@ -404,6 +405,23 @@ def test_detalle_muestra_coincidencias_extra(client, login):
         "ana,2.0,0.5,seiscomp\n",
         encoding="utf-8",
     )
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "eventquery"),
+        [
+            {
+                "source_id": "eventquery",
+                "event_id": "eventquery:000005",
+                "event_time": "2026-11-03 11:51:23",
+                "latitude": -22.59,
+                "longitude": -68.8,
+                "depth_km": 42.0,
+                "magnitude": 2.6,
+                "magnitude_type": "MLv",
+                "raw_index": 5,
+                "raw": {"Referencia": "18 km al SE de Calama"},
+            }
+        ],
+    )
 
     html = client.get(f"/jobs/{job.id}").get_data(as_text=True)
 
@@ -411,6 +429,9 @@ def test_detalle_muestra_coincidencias_extra(client, login):
     assert "Coincidencias extra" in html
     assert "1 extra" in html
     assert "2026-11-01 00:00:00 · fila 10" in html
+    assert "Ver sin cruce" in html
+    assert "2026-11-03 11:51:23" in html
+    assert "Sin evento local dentro de 120 s y 50 km" in html
 
 
 def test_detalle_sin_coincidencias_extra_no_muestra_boton(client, login):

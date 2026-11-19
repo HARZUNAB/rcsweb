@@ -1248,32 +1248,55 @@ para mostrar `n_disponibles`, `n_usadas`, `max_residual_usado` y `contexto`
 (cobertura). Conservan el motivo **Solución sospechosa** y el patrón **Sin
 inconsistencia de fases**.
 
-##### Coincidencias extra
+##### Cruce Eventquery: extras y sin cruce
 
-`indicios.coincidencias_extra()` agrupa `datos/atribucion_<fuente>.csv` por
+`indicios.detalle_cruce()` reúne los dos antecedentes del cruce y los guarda en
+un único artefacto:
+
+```text
+resultados/indicios/cruce_eventquery.json
+{
+  "generado", "huella",
+  "extras":    { "total", "grupos": [] },
+  "sin_cruce": { "total", "eventos": [] }
+}
+```
+
+**Coincidencias extra.** Agrupa `datos/atribucion_<fuente>.csv` por
 `n_fila_eventquery`, deduplica las filas y conserva las referencias con más de
 una solución local. Cada solución se resuelve a su evento canónico por hora y
 posición (`_buscar_evento_local`) para obtener `event_id` y `raw_index`.
+`extras.total` es la suma de `len(soluciones) - 1` por grupo.
 
-El resultado se guarda en `resultados/indicios/coincidencias_extra.json` con:
+**Eventos sin cruce.** `_eventos_sin_cruce()` toma el catálogo de la fuente de
+referencia (`fuentes_manifest.referencia()`) y conserva los eventos cuyo
+`raw_index` no aparece en ninguna atribución. Para cada uno busca el candidato
+local más cercano en las fuentes locales no derivadas con estas ventanas:
 
-```text
-generado, huella, total, grupos[]
-grupos[]: fila, fecha_referencia, extra, soluciones[]
-soluciones[]: fuente, etiqueta, evento_local, fila_local,
-              fecha_local, analista, dt_seg, dist_km
-```
+| Constante | Valor | Uso |
+|---|---|---|
+| `VENTANA_CANDIDATO_SEG` | 120 s | ventana de revisión |
+| `VENTANA_CANDIDATO_KM` | 50 km | límite de distancia (~0.5°) |
+| `VENTANA_COMPATIBLE_SEG` | 6 s | diferencia compatible |
 
-La huella es `tamaño-mtime` de cada `atribucion_*.csv`. Si no coincide,
-`leer_coincidencias_extra()` recalcula y reescribe el artefacto. Se genera al
-final de `generar_indicios` y también de forma perezosa la primera vez que se
-abre el detalle de un trabajo anterior. Leerlo cuesta ~0.1 ms; recalcular,
-~30–40 ms.
+El candidato se elige por el menor puntaje `dt/120 + dist/50`. Si `dt <= 6 s`
+se marca `compatible`; si cae dentro de la ventana pero supera 6 s, `cercano`.
+Fuera de la ventana no se muestra candidato y se guarda `MOTIVO_SIN_CANDIDATO`
+(«Sin evento local dentro de 120 s y 50 km»). El evento de referencia conserva
+`fila`, `evento`, `fecha`, coordenadas, profundidad, magnitud, tipo, región y
+percibido.
+
+La huella incluye el `tamaño-mtime` de cada `atribucion_*.csv` **y** del
+`catalogo/<referencia>/eventos.jsonl`. Si no coincide, `leer_detalle_cruce()`
+recalcula y reescribe el artefacto. Se genera al final de `generar_indicios` y
+también de forma perezosa la primera vez que se abre el detalle de un trabajo
+anterior. Leerlo cuesta ~0.1 ms; recalcular, ~40–55 ms.
 
 `jobs._contexto_detalle` lo carga solo para usuarios con `trabajos.todos` y usa
-`total` para el conteo de la tarjeta, de modo que el número y la tabla siempre
-coinciden. La plantilla `jobs/_page.html` muestra **Ver extras** y un `collapse`
-con la tabla; no hay ruta ni JavaScript adicional.
+`extras.total` y `sin_cruce.total` para los conteos de la tarjeta, de modo que
+los números y las tablas siempre coinciden. La plantilla `jobs/_page.html`
+muestra **Ver extras** y **Ver sin cruce** con un `collapse` cada uno; no hay
+ruta ni JavaScript adicional.
 
 La columna **Analista** muestra el nombre de la fuente. Si no coincide con un
 usuario activo, se agrega ` · sin usuario` en texto pequeño y el evento queda

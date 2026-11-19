@@ -209,6 +209,15 @@
             <div class="small text-secondary">
               {{ indicios.total.get('referencias_con_cruce', 0) }} con cruce local ·
               {{ indicios.total.get('referencias_sin_cruce', 0) }} sin cruce
+              {% if sin_cruce %}
+              <button class="btn btn-sm btn-link p-0 align-baseline"
+                      type="button" data-bs-toggle="collapse"
+                      data-bs-target="#sin-cruce-detalle"
+                      aria-expanded="false"
+                      aria-controls="sin-cruce-detalle">
+                Ver sin cruce
+              </button>
+              {% endif %}
             </div>
           </div>
           <div>
@@ -299,6 +308,99 @@
                   </td>
                 </tr>
                 {% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if sin_cruce %}
+  <div class="collapse" id="sin-cruce-detalle">
+    <div class="card border-0 shadow-sm mt-3">
+      <div class="card-body">
+        <h2 class="h6 text-uppercase text-secondary mb-2">
+          Eventos de referencia sin cruce
+        </h2>
+        <p class="small text-secondary mb-3">
+          Eventos de Eventquery sin ninguna solución local atribuida. El
+          candidato local más cercano se muestra solo si está dentro de 120 s y
+          50 km; <strong>Compatible</strong> indica además una diferencia de
+          hasta 6 s. Si no hay candidato, el evento no tiene contraparte local
+          comparable.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Fecha y hora</th>
+                <th>Fila</th>
+                <th>Coordenadas</th>
+                <th class="text-end">Prof. (km)</th>
+                <th class="text-end">Mag.</th>
+                <th>Región</th>
+                <th>Percibido</th>
+                <th>Candidato local</th>
+                <th class="text-end">Δt (s)</th>
+                <th class="text-end">Dist. (km)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for evento in sin_cruce %}
+              <tr>
+                <td class="text-nowrap">{{ evento.fecha or '—' }}</td>
+                <td>
+                  {% if evento.fila is not none %}
+                  <a href="{{ url_for('results.detalle', job_id=job.id, tabla='catalogos', opcion='eventquery', fila=evento.fila, volver=url_for('jobs.detalle', job_id=job.id), volver_etiqueta='Volver al trabajo') }}">
+                    {{ evento.fila }}
+                  </a>
+                  {% else %}
+                  —
+                  {% endif %}
+                </td>
+                <td class="text-nowrap">
+                  {{ "%.2f"|format(evento.lat) if evento.lat is not none else '—' }},
+                  {{ "%.2f"|format(evento.lon) if evento.lon is not none else '—' }}
+                </td>
+                <td class="text-end">
+                  {{ "%.1f"|format(evento.profundidad) if evento.profundidad is not none else '—' }}
+                </td>
+                <td class="text-end text-nowrap">
+                  {% if evento.magnitud is not none %}
+                  {{ evento.tipo_mag }} {{ "%.1f"|format(evento.magnitud) }}
+                  {% else %}
+                  —
+                  {% endif %}
+                </td>
+                <td>{{ evento.region or '—' }}</td>
+                <td>{{ evento.percibido or '—' }}</td>
+                <td>
+                  {% if evento.candidato %}
+                  <span class="text-nowrap">
+                    {% if evento.candidato.fila_local is not none %}
+                    <a href="{{ url_for('results.detalle', job_id=job.id, tabla='catalogos', opcion=evento.candidato.fuente, fila=evento.candidato.fila_local, volver=url_for('jobs.detalle', job_id=job.id), volver_etiqueta='Volver al trabajo') }}">
+                      {{ evento.candidato.evento_local or evento.candidato.fecha_local }}
+                    </a>
+                    {% else %}
+                    {{ evento.candidato.fecha_local }}
+                    {% endif %}
+                  </span>
+                  <span class="badge {% if evento.candidato.clasificacion == 'compatible' %}text-bg-warning text-dark{% else %}text-bg-light text-dark{% endif %}">
+                    {% if evento.candidato.clasificacion == 'compatible' %}Compatible{% else %}Cercano{% endif %}
+                  </span>
+                  {% else %}
+                  <span class="text-secondary">{{ evento.motivo }}</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {{ "%.1f"|format(evento.candidato.dt_seg) if evento.candidato and evento.candidato.dt_seg is not none else '—' }}
+                </td>
+                <td class="text-end">
+                  {{ "%.1f"|format(evento.candidato.dist_km) if evento.candidato and evento.candidato.dist_km is not none else '—' }}
+                </td>
+              </tr>
               {% endfor %}
             </tbody>
           </table>

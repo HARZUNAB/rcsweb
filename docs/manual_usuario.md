@@ -766,6 +766,13 @@ El resumen distingue estos conteos:
   Un botón **Ver extras** despliega esas referencias con sus soluciones
   locales, la fuente, el analista, el `Δt` y la distancia. Cada solución local
   enlaza a su evento cuando se puede resolver.
+- **Eventos sin cruce:** eventos de Eventquery sin ninguna solución local
+  atribuida. Un botón **Ver sin cruce** muestra sus datos y enlaza al evento en
+  el catálogo Eventquery. Para explicar la ausencia, se muestra el candidato
+  local más cercano solo si está dentro de **120 s y 50 km**; se marca
+  **Compatible** cuando además la diferencia es de hasta **6 s**. Si no hay
+  candidato en esa ventana, se indica que no existe contraparte local
+  comparable.
 - **Cobertura del cruce:** cuántas referencias tienen al menos un cruce local y
   cuántas no lo tienen.
 

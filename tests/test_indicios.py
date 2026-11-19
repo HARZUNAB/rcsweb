@@ -797,11 +797,11 @@ def test_coincidencias_extra_agrupa_por_referencia(tmp_path):
         ],
     )
 
-    datos = indicios.coincidencias_extra(workspace)
+    datos = indicios.detalle_cruce(workspace)
 
-    assert datos["total"] == 1
-    assert len(datos["grupos"]) == 1
-    grupo = datos["grupos"][0]
+    assert datos["extras"]["total"] == 1
+    assert len(datos["extras"]["grupos"]) == 1
+    grupo = datos["extras"]["grupos"][0]
     assert grupo["fila"] == "10"
     assert grupo["extra"] == 1
     assert len(grupo["soluciones"]) == 2
@@ -836,12 +836,12 @@ def test_coincidencias_extra_reutiliza_artefacto(tmp_path):
         ],
     )
 
-    primero = indicios.leer_coincidencias_extra(workspace)
-    ruta = indicios.ruta_coincidencias_extra(workspace)
+    primero = indicios.leer_detalle_cruce(workspace)
+    ruta = indicios.ruta_cruce_eventquery(workspace)
     assert ruta.is_file()
-    assert primero["total"] == 1
+    assert primero["extras"]["total"] == 1
 
-    segundo = indicios.leer_coincidencias_extra(workspace)
+    segundo = indicios.leer_detalle_cruce(workspace)
     assert segundo["generado"] == primero["generado"]
 
     # Cambia la atribución: el artefacto debe recalcularse.
@@ -859,5 +859,147 @@ def test_coincidencias_extra_reutiliza_artefacto(tmp_path):
             }
         ],
     )
-    tercero = indicios.leer_coincidencias_extra(workspace)
-    assert tercero["total"] == 0
+    tercero = indicios.leer_detalle_cruce(workspace)
+    assert tercero["extras"]["total"] == 0
+
+
+def _evento_canonico(
+    source_id,
+    event_id,
+    event_time,
+    lat,
+    lon,
+    raw_index,
+    *,
+    raw=None,
+):
+    return {
+        "source_id": source_id,
+        "event_id": event_id,
+        "source_event_id": "",
+        "event_time": event_time,
+        "latitude": lat,
+        "longitude": lon,
+        "depth_km": 42.0,
+        "magnitude": 2.6,
+        "magnitude_type": "MLv",
+        "analyst": "ana",
+        "raw_index": raw_index,
+        "raw": raw or {},
+    }
+
+
+def test_sin_cruce_incluye_candidato_compatible(tmp_path):
+    workspace = tmp_path / "ws"
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "eventquery"),
+        [
+            _evento_canonico(
+                "eventquery",
+                "eventquery:000005",
+                "2026-11-03 11:51:23",
+                -22.59,
+                -68.8,
+                5,
+                raw={"Referencia": "18 km al SE de Calama", "Percep.": "N"},
+            )
+        ],
+    )
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seiscomp"),
+        [
+            _evento_canonico(
+                "seiscomp",
+                "seiscomp:000007",
+                "2026-11-03 11:51:19",
+                -22.59,
+                -68.81,
+                7,
+            )
+        ],
+    )
+    _atribucion_extra(workspace, "atribucion_seiscomp.csv", [])
+
+    datos = indicios.detalle_cruce(workspace)
+
+    assert datos["sin_cruce"]["total"] == 1
+    evento = datos["sin_cruce"]["eventos"][0]
+    assert evento["fila"] == 5
+    assert evento["evento"] == "eventquery:000005"
+    assert evento["region"] == "18 km al SE de Calama"
+    assert evento["candidato"]["evento_local"] == "seiscomp:000007"
+    assert evento["candidato"]["dt_seg"] == 4.0
+    assert evento["candidato"]["clasificacion"] == "compatible"
+    assert evento["motivo"] == ""
+
+
+def test_sin_cruce_omite_candidato_fuera_de_ventana(tmp_path):
+    workspace = tmp_path / "ws"
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "eventquery"),
+        [
+            _evento_canonico(
+                "eventquery",
+                "eventquery:000005",
+                "2026-11-03 11:51:23",
+                -22.59,
+                -68.8,
+                5,
+            )
+        ],
+    )
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seiscomp"),
+        [
+            _evento_canonico(
+                "seiscomp",
+                "seiscomp:000007",
+                "2026-11-03 11:52:23",
+                -21.87,
+                -68.8,
+                7,
+            )
+        ],
+    )
+    _atribucion_extra(workspace, "atribucion_seiscomp.csv", [])
+
+    datos = indicios.detalle_cruce(workspace)
+
+    evento = datos["sin_cruce"]["eventos"][0]
+    assert evento["candidato"] is None
+    assert "120 s y 50 km" in evento["motivo"]
+
+
+def test_sin_cruce_no_lista_referencias_cruzadas(tmp_path):
+    workspace = tmp_path / "ws"
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "eventquery"),
+        [
+            _evento_canonico(
+                "eventquery",
+                "eventquery:000005",
+                "2026-11-03 11:51:23",
+                -22.59,
+                -68.8,
+                5,
+            )
+        ],
+    )
+    _atribucion_extra(
+        workspace,
+        "atribucion_seiscomp.csv",
+        [
+            {
+                "n_fila_eventquery": "5",
+                "fecha_eventquery": "2026-11-03 11:51:23",
+                "fecha_local": "2026-11-03 11:51:23",
+                "lat_local": "-22.59",
+                "lon_local": "-68.8",
+                "fuente": "seiscomp",
+            }
+        ],
+    )
+
+    datos = indicios.detalle_cruce(workspace)
+
+    assert datos["sin_cruce"]["total"] == 0
