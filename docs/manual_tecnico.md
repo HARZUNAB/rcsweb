@@ -2399,6 +2399,12 @@ la vista y emite `rcs:seleccionar-punto` al hacer clic en una fila. Ignora
 enlaces, botones, formularios y filas con `data-href` para no interferir con la
 navegación existente.
 
+En el índice de Paneles, `paneles.js` emite los mismos eventos
+`rcs:punto-seleccionado`/`rcs:punto-deseleccionado` desde `seleccionarEvento`,
+`seleccionarGrupo` y `limpiarEvento`, y la tabla `#panel-eventos` lleva
+`data-lista-mapa` con filas `data-clave=evento.id`. Así `lista_mapa.js` resalta
+la fila del evento seleccionado en el mapa o perfil del índice.
+
 Paneles agrega `clave=evento.id` en `_puntos_grupo()` y
 `data-clave`/`data-lista-mapa` en `panels/grupo.html`. El enlace **Ver** de
 `_eventos_vista()` pasa `volver_etiqueta="Volver al listado"` y usa como

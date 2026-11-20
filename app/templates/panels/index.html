@@ -427,7 +427,8 @@
       </div>
     </div>
     <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0">
+      <table class="table table-sm table-hover align-middle mb-0"
+             data-lista-mapa>
         <thead class="table-light">
           <tr>
             <th class="text-center col-seleccion">
@@ -466,4 +467,5 @@
 <script src="{{ url_for('static', filename='vendor/plotly/plotly.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/vineta.js') }}"></script>
 <script src="{{ url_for('static', filename='js/paneles.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lista_mapa.js') }}"></script>
 {% endblock %}

@@ -1082,6 +1082,11 @@ Al abrir **Ver**, el detalle ofrece **Volver al listado**, que regresa al grupo
 de Paneles con sus filtros y deja seleccionado el mismo evento, además de
 **Volver al trabajo**.
 
+En el **índice de Paneles**, al seleccionar un evento en el mapa liviano o en el
+perfil, también se resalta su fila en el listado de eventos y se desplaza a la
+vista. Funciona en ambos sentidos: al hacer clic en una fila, el mapa y el panel
+muestran ese evento.
+
 ### Cruce y prioridad en el listado
 
 El listado del grupo agrega una columna **Cruce / prioridad** con los

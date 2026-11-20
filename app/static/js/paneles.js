@@ -182,6 +182,7 @@
   function seleccionarGrupo(tipo, id) {
     estado.grupo = { tipo: tipo, id: id };
     estado.evento = null;
+    document.dispatchEvent(new CustomEvent("rcs:punto-deseleccionado"));
     seleccionados.clear();
     document.querySelectorAll(".fila-panel").forEach(function (fila) {
       const activo = fila.dataset.grupo === tipo && fila.dataset.id === id;
@@ -223,10 +224,16 @@
     mostrarVineta(evento, ancla);
     resaltarEventoMapa();
     resaltarEventoPerfil();
+    document.dispatchEvent(
+      new CustomEvent("rcs:punto-seleccionado", {
+        detail: { clave: evento.id },
+      })
+    );
   }
 
   function limpiarEvento() {
     estado.evento = null;
+    document.dispatchEvent(new CustomEvent("rcs:punto-deseleccionado"));
     cerrarVineta();
     dibujarMapa();
     renderPerfil();
@@ -425,6 +432,8 @@
         return (
           '<tr class="fila-evento" data-id="' +
           esc(evento.id) +
+          '" data-clave="' +
+          esc(evento.id) +
           '" tabindex="0">' +
           '<td class="text-center">' +
           '<input class="form-check-input seleccion-evento-panel" type="checkbox" value="' +
@@ -462,6 +471,13 @@
       aviso.classList.add("d-none");
     }
     actualizarSeleccion();
+    if (estado.evento) {
+      document.dispatchEvent(
+        new CustomEvent("rcs:punto-seleccionado", {
+          detail: { clave: estado.evento.id },
+        })
+      );
+    }
   }
 
   function actualizarSeleccion() {

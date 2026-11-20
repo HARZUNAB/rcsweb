@@ -663,6 +663,8 @@ def test_indice_paneles_agrega_columna_ver(client, login, monkeypatch):
     assert f"/jobs/{job.id}/paneles/observaciones/territorio/Otros" in html
     assert "tipo=no_publicado" in html
     assert "fuente=seisan" in html
+    assert "lista_mapa.js" in html
+    assert "data-lista-mapa" in html
 
 
 def test_indice_paneles_preselecciona_grupo(client, login, monkeypatch):
