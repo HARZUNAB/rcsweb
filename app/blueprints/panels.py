@@ -198,6 +198,7 @@ def _eventos_vista(
     eventos: list[dict],
     volver: str,
     antecedentes=None,
+    volver_etiqueta: str = "Volver al listado",
 ) -> list[dict]:
     por_fecha, por_referencia, canonicos = antecedentes or ({}, {}, {})
     vista = []
@@ -234,6 +235,7 @@ def _eventos_vista(
                 opcion=origen.get("opcion"),
                 fila=fila,
                 volver=volver,
+                volver_etiqueta=volver_etiqueta,
             )
         vista.append(
             {

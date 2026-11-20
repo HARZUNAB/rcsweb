@@ -2400,7 +2400,9 @@ enlaces, botones, formularios y filas con `data-href` para no interferir con la
 navegación existente.
 
 Paneles agrega `clave=evento.id` en `_puntos_grupo()` y
-`data-clave`/`data-lista-mapa` en `panels/grupo.html`. En Repetidos,
+`data-clave`/`data-lista-mapa` en `panels/grupo.html`. El enlace **Ver** de
+`_eventos_vista()` pasa `volver_etiqueta="Volver al listado"` para que el
+detalle regrese al grupo con sus filtros. En Repetidos,
 `detail.puntos_mapa()` agrega `clave_lista=fila` y la tabla del grupo usa
 `data-clave=_fila`. No hay lógica específica por página.
 

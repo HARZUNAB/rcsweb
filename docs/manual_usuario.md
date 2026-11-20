@@ -1078,6 +1078,9 @@ Así no hay que memorizar parámetros: el evento queda seleccionado en el listad
 y **Solicitar revisión** está en esa misma fila. El botón de la fila no dispara
 la selección del mapa.
 
+Al abrir **Ver**, el detalle ofrece **Volver al listado**, que regresa al grupo
+de Paneles con sus filtros, además de **Volver al trabajo**.
+
 ### Cruce y prioridad en el listado
 
 El listado del grupo agrega una columna **Cruce / prioridad** con los
