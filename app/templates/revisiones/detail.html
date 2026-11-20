@@ -14,6 +14,8 @@
       <span class="badge {{ badge_estado }}">{{ etiqueta_estado }}</span>
       {% if solicitud.kind == 'publicacion' %}
       <span class="badge text-bg-dark">Publicación</span>
+      {% elif solicitud.kind == 'mixta' %}
+      <span class="badge text-bg-secondary">Mixta</span>
       {% endif %}
       <span class="text-secondary small">
         Notificada {{ solicitud.notified_at.strftime('%Y-%m-%d %H:%M') }}
@@ -51,6 +53,8 @@
       <dd class="col-sm-9">
         {% if solicitud.kind == 'publicacion' %}
         Revisión de publicación
+        {% elif solicitud.kind == 'mixta' %}
+        Revisión mixta
         {% else %}
         Revisión de solución local
         {% endif %}

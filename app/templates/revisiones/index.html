@@ -97,6 +97,8 @@
               {% endif %}
               {% if solicitud.kind == 'publicacion' %}
               <span class="badge text-bg-dark ms-1">Publicación</span>
+              {% elif solicitud.kind == 'mixta' %}
+              <span class="badge text-bg-secondary ms-1">Mixta</span>
               {% endif %}
             </td>
             <td class="text-end">{{ solicitud.events|length }}</td>

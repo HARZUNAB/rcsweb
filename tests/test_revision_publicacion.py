@@ -122,6 +122,7 @@ def test_publicacion_muestra_formulario_y_encola(app, client, login, monkeypatch
     assert "Revisión de publicación" in html
     assert "seiscomp:000280" in html
     assert "Solicitar revisión" in html
+    assert "Agregar a la bandeja" in html
 
     estados = {}
     monkeypatch.setattr(
@@ -193,6 +194,7 @@ def test_revision_local_muestra_formulario_y_encola(
     assert "Revisión de solución local" in html
     assert "seiscomp:000280" in html
     assert "tana2" in html
+    assert "Agregar a la bandeja" in html
 
     estados = {}
     monkeypatch.setattr(
@@ -220,3 +222,90 @@ def test_revision_local_muestra_formulario_y_encola(
     assert estado["assigned_to_id"] == analista.id
     assert estado["filas"][0]["evento"] == "seiscomp:000280"
     assert estado["filas"][0]["kind"] == "solucion"
+
+
+class _FakeRedis:
+    def __init__(self):
+        self.datos = {}
+
+    def get(self, clave):
+        return self.datos.get(clave)
+
+    def set(self, clave, valor, ex=None):
+        self.datos[clave] = valor
+
+    def delete(self, clave):
+        self.datos.pop(clave, None)
+
+
+def test_bandeja_agrupa_por_responsable_y_envia(
+    app, client, login, monkeypatch
+):
+    from app.services import review_drafts
+
+    job = _job()
+    admin = User.query.filter_by(username="tester").one()
+    primero = User(username="uno", role="analista", analyst_code="uno")
+    primero.set_password("secret")
+    segundo = User(username="dos", role="analista", analyst_code="dos")
+    segundo.set_password("secret")
+    db.session.add_all([primero, segundo])
+    db.session.commit()
+    fake = _FakeRedis()
+    monkeypatch.setattr(review_drafts, "_redis", lambda: fake)
+    with app.app_context():
+        for evento, asignado, kind in (
+            ("seiscomp:000001", primero.id, "solucion"),
+            ("eventquery:000001", primero.id, "publicacion"),
+            ("seiscomp:000002", segundo.id, "solucion"),
+        ):
+            review_drafts.agregar(
+                job.id,
+                admin.id,
+                {
+                    "fila": {
+                        "fuente": (
+                            "eventquery"
+                            if kind == "publicacion"
+                            else "seiscomp"
+                        ),
+                        "evento": evento,
+                        "fecha_hora": "2026-11-03 11:51:23",
+                        "analista": "ana",
+                    },
+                    "assigned_to_id": asignado,
+                    "kind": kind,
+                },
+            )
+    login()
+
+    pagina = client.get(f"/jobs/{job.id}/paneles/bandeja")
+    assert pagina.status_code == 200
+    html = pagina.get_data(as_text=True)
+    assert "Bandeja de revisión" in html
+    assert "uno" in html and "dos" in html
+    assert "3 eventos" in html
+
+    estados = {}
+    monkeypatch.setattr(
+        review_reports,
+        "guardar_estado",
+        lambda clave, datos: estados.__setitem__(clave, dict(datos)),
+    )
+    monkeypatch.setattr(
+        "tasks.reports.generar_informe_revision.delay",
+        lambda report_id: None,
+    )
+    respuesta = client.post(
+        f"/jobs/{job.id}/paneles/bandeja/enviar",
+        data={"formato": "pdf", "nota": "Revisar"},
+    )
+    assert respuesta.status_code == 302
+    assert len(estados) == 2
+    por_asignado = {estado["assigned_to_id"]: estado for estado in estados.values()}
+    assert len(por_asignado[primero.id]["filas"]) == 2
+    assert por_asignado[primero.id]["kind"] == "mixta"
+    assert len(por_asignado[segundo.id]["filas"]) == 1
+    assert por_asignado[segundo.id]["kind"] == "solucion"
+    with app.app_context():
+        assert review_drafts.listar(job.id, admin.id) == []

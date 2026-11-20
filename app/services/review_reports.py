@@ -174,7 +174,7 @@ def ejecutar(report_id: str) -> dict:
         assigned = db.session.get(User, assigned_to_id)
         if job is None or assigned is None:
             raise RuntimeError("Trabajo o responsable no encontrado.")
-        if kind == "publicacion":
+        if kind in ("publicacion", "mixta"):
             permitido = tiene_rol(assigned, "analista") or tiene_rol(
                 assigned, "supervisor"
             )

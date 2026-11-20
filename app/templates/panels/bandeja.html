@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Bandeja de revisión · Paneles{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
+  <div>
+    <div class="text-secondary small text-uppercase mb-1">Paneles</div>
+    <h1 class="h4 mb-1">Bandeja de revisión</h1>
+    <div class="text-secondary small">
+      Eventos acumulados para enviar en una sola solicitud por responsable.
+    </div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ volver }}">
+      Volver a Paneles
+    </a>
+  </div>
+</div>
+
+{% if not items %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <div class="alert alert-light border mb-0" role="status">
+      La bandeja está vacía. Use <strong>Agregar a la bandeja</strong> desde un
+      evento en Paneles.
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div>
+        <h2 class="h6 text-uppercase text-secondary mb-0">Eventos</h2>
+        <div class="small text-secondary">
+          {{ items|length }} evento{{ '' if items|length == 1 else 's' }}
+          en {{ grupos|length }} responsable{{ '' if grupos|length == 1 else 's' }}
+        </div>
+      </div>
+      <form method="post"
+            action="{{ url_for('panels.bandeja_vaciar', job_id=job.id) }}">
+        <button class="btn btn-sm btn-outline-secondary" type="submit">
+          Vaciar bandeja
+        </button>
+      </form>
+    </div>
+    {% for asignado_id, grupo in grupos.items() %}
+    {% set usuario = usuarios.get(asignado_id) %}
+    <div class="border rounded p-2 mb-3">
+      <div class="small fw-semibold mb-2">
+        {{ usuario.username if usuario else 'Sin responsable' }}
+        {% if usuario and usuario.analyst_code %}
+        ({{ usuario.analyst_code }})
+        {% endif %}
+        · {{ grupo|length }} evento{{ '' if grupo|length == 1 else 's' }}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Tipo</th>
+              <th>Fuente</th>
+              <th>Evento</th>
+              <th>Fecha y hora</th>
+              <th>Analista</th>
+              <th class="text-end"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in grupo %}
+            {% set fila = item.fila or {} %}
+            <tr>
+              <td>
+                {% if item.kind == 'publicacion' %}
+                <span class="badge text-bg-dark">Publicación</span>
+                {% elif item.kind == 'mixta' %}
+                <span class="badge text-bg-secondary">Mixta</span>
+                {% else %}
+                <span class="badge text-bg-light text-dark">Solución local</span>
+                {% endif %}
+              </td>
+              <td>{{ fila.get('fuente') or '—' }}</td>
+              <td class="text-nowrap">{{ fila.get('evento') or '—' }}</td>
+              <td class="text-nowrap">{{ fila.get('fecha_hora') or '—' }}</td>
+              <td>{{ fila.get('analista') or '—' }}</td>
+              <td class="text-end">
+                <form method="post"
+                      action="{{ url_for('panels.bandeja_quitar', job_id=job.id) }}">
+                  <input type="hidden" name="fuente"
+                         value="{{ fila.get('fuente') or '' }}">
+                  <input type="hidden" name="evento"
+                         value="{{ fila.get('evento') or '' }}">
+                  <button class="btn btn-sm btn-outline-secondary" type="submit">
+                    Quitar
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+
+    <form method="post"
+          action="{{ url_for('panels.bandeja_enviar', job_id=job.id) }}"
+          class="border-top pt-3">
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-lg-3">
+          <label class="form-label small" for="bandeja-formato">Formato</label>
+          <select class="form-select" id="bandeja-formato" name="formato">
+            <option value="pdf" selected>PDF</option>
+            <option value="docx">DOCX</option>
+          </select>
+        </div>
+        <div class="col-12 col-lg-7">
+          <label class="form-label small" for="bandeja-nota">
+            Nota (opcional)
+          </label>
+          <input class="form-control" id="bandeja-nota" name="nota" type="text"
+                 placeholder="Se incluye en todas las solicitudes enviadas.">
+        </div>
+        <div class="col-12 col-lg-2">
+          <button class="btn btn-primary w-100" type="submit">
+            Enviar bandeja
+          </button>
+        </div>
+      </div>
+      <div class="text-secondary small mt-2">
+        Se creará una solicitud y un PDF por responsable. Los eventos de un
+        mismo responsable van juntos.
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

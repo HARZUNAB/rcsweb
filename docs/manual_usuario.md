@@ -1100,6 +1100,23 @@ y formas de onda. La solicitud se asigna al analista del evento; si no tiene
 usuario activo, no se puede crear hasta asignarlo. El PDF incluye esos mismos
 antecedentes.
 
+### Bandeja de revisión
+
+En los formularios de revisión puede elegir **Agregar a la bandeja** en vez de
+enviar de inmediato. La bandeja:
+
+- acumula eventos de Paneles;
+- los agrupa por responsable;
+- al pulsar **Enviar bandeja**, crea **una solicitud y un PDF por responsable**,
+  con todos sus eventos;
+- permite quitar eventos o vaciarla;
+- dura 12 horas y luego se descarta sola.
+
+El enlace **Bandeja (N)** está en el encabezado de cada grupo de Paneles. Los
+eventos que ya están en una solicitud activa se excluyen al enviar y se avisa.
+Si hay eventos locales y de publicación del mismo responsable, van en la misma
+solicitud y el PDF los distingue.
+
 ## Catálogos
 
 Desde el detalle del trabajo puede abrir los catálogos procesados. Los nombres

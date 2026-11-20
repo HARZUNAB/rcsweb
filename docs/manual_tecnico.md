@@ -2414,7 +2414,7 @@ general de Paneles mantiene el mapa liviano de `app/static/js/paneles.js`.
   **Comparación**, **Criterio de cruce** y **Acción solicitada**.
 - `review_reports` acepta analista o supervisor para `kind="publicacion"`.
 - El modelo agrega `review_requests.kind` (migración
-  `b3d7e9f1c2a4`), con `solucion` por defecto. El listado y el detalle muestran
+  `b3d7e9f1c2a4`), con `solucion` por defecto y `mixta` para la bandeja. El listado y el detalle muestran
   la etiqueta **Publicación**.
 
 `panels.revision_local` atiende
@@ -2430,6 +2430,36 @@ de `indicios_<fuente>.csv` y del artefacto de cruce, cargados una vez por
 página mediante `_antecedentes_panel()`. También resuelve el evento canónico
 (`evento_id`) por `raw_index` o por hora/posición para enlazar la solicitud
 local.
+
+##### Bandeja temporal de revisión
+
+`app/services/review_drafts.py` guarda en Redis
+`rcs:revision:bandeja:<job_id>:<user_id>` con TTL de 12 horas. Cada ítem es un
+snapshot:
+
+```text
+fila (dict del informe), assigned_to_id, kind, agregado_en
+```
+
+Los formularios `panels.revision_publicacion` y `panels.revision_local` aceptan
+`accion=bandeja` y agregan el ítem sin encolar el informe.
+
+Rutas de la bandeja:
+
+```text
+GET  /jobs/<job>/paneles/bandeja
+POST /jobs/<job>/paneles/bandeja/quitar
+POST /jobs/<job>/paneles/bandeja/vaciar
+POST /jobs/<job>/paneles/bandeja/enviar
+```
+
+El envío agrupa por `assigned_to_id`, valida que el responsable esté activo y
+tenga rol, revisa conflictos por evento, aplica `RCS_INFORME_MAX_EVENTOS` y
+encola un estado por grupo. Si un grupo mezcla `solucion` y `publicacion`, el
+`kind` de la solicitud es `mixta`; `review_reports` permite analista o
+supervisor para `publicacion` y `mixta`. El PDF incluye todos los eventos del
+grupo, cada uno con sus antecedentes. Los eventos con conflicto o los grupos
+excedidos permanecen en la bandeja con un aviso.
 
 En la vista general, el detalle del evento seleccionado se dibuja en
 `#panel-evento-detalle`, debajo de los mini mapas. La vista de detalle mantiene
