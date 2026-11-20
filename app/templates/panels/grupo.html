@@ -146,6 +146,11 @@
                  href="{{ url_for('panels.revision_publicacion', job_id=job.id, fila=evento.fila_catalogo, dataset=dataset, grupo=grupo_panel, ident=ident) }}">
                 Solicitar revisión
               </a>
+              {% elif puede_solicitar and not evento.es_referencia and evento.evento_id %}
+              <a class="btn btn-sm btn-outline-secondary"
+                 href="{{ url_for('panels.revision_local', job_id=job.id, fuente=evento.fuente, evento=evento.evento_id, dataset=dataset, grupo=grupo_panel, ident=ident) }}">
+                Solicitar revisión
+              </a>
               {% endif %}
             </td>
           </tr>

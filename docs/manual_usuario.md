@@ -1094,6 +1094,12 @@ solicitada**: revisar la publicación y, si corresponde, actualizarla con la
 solución local. La solicitud aparece en **Revisiones** con la etiqueta
 **Publicación**.
 
+Los eventos locales del grupo también muestran **Solicitar revisión**. El
+formulario resume prioridad, cruce Eventquery, fuerza y patrón de fases, Wadati
+y formas de onda. La solicitud se asigna al analista del evento; si no tiene
+usuario activo, no se puede crear hasta asignarlo. El PDF incluye esos mismos
+antecedentes.
+
 ## Catálogos
 
 Desde el detalle del trabajo puede abrir los catálogos procesados. Los nombres

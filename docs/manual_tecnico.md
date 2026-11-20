@@ -2417,9 +2417,19 @@ general de Paneles mantiene el mapa liviano de `app/static/js/paneles.js`.
   `b3d7e9f1c2a4`), con `solucion` por defecto. El listado y el detalle muestran
   la etiqueta **Publicación**.
 
+`panels.revision_local` atiende
+`/jobs/<job>/paneles/revision-local?fuente=<fuente>&evento=<event_id>`
+(GET/POST). Resuelve el evento canónico, su fila de indicios si existe, el
+resumen de formas de onda y el caso sin cruce; arma una fila
+`kind="solucion"` y la encola igual que `solicitar_revision`. La asignación es
+el analista del evento (`_usuario_por_codigo` sobre `analyst_code`); si no hay
+usuario activo, el formulario queda bloqueado.
+
 La tabla del grupo en Paneles agrega la columna **Cruce / prioridad** con datos
 de `indicios_<fuente>.csv` y del artefacto de cruce, cargados una vez por
-página mediante `_antecedentes_panel()`.
+página mediante `_antecedentes_panel()`. También resuelve el evento canónico
+(`evento_id`) por `raw_index` o por hora/posición para enlazar la solicitud
+local.
 
 En la vista general, el detalle del evento seleccionado se dibuja en
 `#panel-evento-detalle`, debajo de los mini mapas. La vista de detalle mantiene

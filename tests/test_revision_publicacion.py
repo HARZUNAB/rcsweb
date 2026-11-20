@@ -151,3 +151,72 @@ def test_publicacion_muestra_formulario_y_encola(app, client, login, monkeypatch
     assert fila["evento"] == "eventquery:000127"
     assert fila["kind"] == "publicacion"
     assert fila["cruce"]["candidato"]["evento_local"] == "seiscomp:000280"
+
+
+def _evento_local() -> dict:
+    return {
+        "source_id": "seiscomp",
+        "event_id": "seiscomp:000280",
+        "source_event_id": "csn_prueba",
+        "event_time": "2026-11-03 11:51:19",
+        "latitude": -22.63,
+        "longitude": -68.687,
+        "depth_km": 82.9,
+        "magnitude": 2.5,
+        "magnitude_type": "MLv",
+        "analyst": "tana",
+        "raw_index": 280,
+        "raw": {},
+    }
+
+
+def test_revision_local_muestra_formulario_y_encola(
+    app, client, login, monkeypatch
+):
+    job = _job()
+    workspace = crear_workspace(job.id)
+    canonical.escribir_registros(
+        canonical.ruta_canonica(workspace, "seiscomp"), [_evento_local()]
+    )
+    analista = User(username="tana2", role="analista", analyst_code="tana")
+    analista.set_password("secret")
+    db.session.add(analista)
+    db.session.commit()
+    login()
+
+    respuesta = client.get(
+        f"/jobs/{job.id}/paneles/revision-local",
+        query_string={"fuente": "seiscomp", "evento": "seiscomp:000280"},
+    )
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    assert "Revisión de solución local" in html
+    assert "seiscomp:000280" in html
+    assert "tana2" in html
+
+    estados = {}
+    monkeypatch.setattr(
+        review_reports,
+        "guardar_estado",
+        lambda clave, datos: estados.__setitem__(clave, dict(datos)),
+    )
+    monkeypatch.setattr(
+        "tasks.reports.generar_informe_revision.delay",
+        lambda report_id: None,
+    )
+
+    respuesta = client.post(
+        f"/jobs/{job.id}/paneles/revision-local",
+        data={
+            "fuente": "seiscomp",
+            "evento": "seiscomp:000280",
+            "formato": "pdf",
+            "nota": "Revisar",
+        },
+    )
+    assert respuesta.status_code == 302
+    estado = next(iter(estados.values()))
+    assert estado["kind"] == "solucion"
+    assert estado["assigned_to_id"] == analista.id
+    assert estado["filas"][0]["evento"] == "seiscomp:000280"
+    assert estado["filas"][0]["kind"] == "solucion"

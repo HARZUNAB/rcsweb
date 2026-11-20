@@ -28,7 +28,15 @@ from ..security import (
     tiene_permiso,
     tiene_rol,
 )
-from ..services import colores, indicios, panels, plots, review, review_reports
+from ..services import (
+    availability,
+    colores,
+    indicios,
+    panels,
+    plots,
+    review,
+    review_reports,
+)
 from ..services.audit import registrar
 from ..services.borders import texto_frontera_coords
 from ..services.history import datos as historico_datos
@@ -151,7 +159,36 @@ def _antecedentes_panel(workspace, eventos: list[dict]):
         datos = {}
     for grupo in (datos.get("sin_cruce") or {}).get("eventos") or []:
         por_referencia[str(grupo.get("fila"))] = grupo
-    return por_fecha, por_referencia
+    canonicos = {
+        fuente: canonical.leer_canonico(workspace, fuente)
+        for fuente in fuentes
+    }
+    return por_fecha, por_referencia, canonicos
+
+
+def _buscar_canonico(eventos, fecha, lat, lon):
+    clave = _clave_fecha(fecha)
+    if not clave:
+        return None
+    candidatos = [
+        evento
+        for evento in eventos
+        if _clave_fecha(evento.get("event_time")) == clave
+    ]
+    if not candidatos:
+        return None
+
+    def distancia(evento):
+        try:
+            otra_lat = float(evento.get("latitude"))
+            otra_lon = float(evento.get("longitude"))
+        except (TypeError, ValueError):
+            return 0.0
+        if lat is None or lon is None:
+            return 0.0
+        return abs(otra_lat - lat) + abs(otra_lon - lon)
+
+    return min(candidatos, key=distancia)
 
 
 def _eventos_vista(
@@ -160,7 +197,7 @@ def _eventos_vista(
     volver: str,
     antecedentes=None,
 ) -> list[dict]:
-    por_fecha, por_referencia = antecedentes or ({}, {})
+    por_fecha, por_referencia, canonicos = antecedentes or ({}, {}, {})
     vista = []
     for evento in eventos:
         origen = evento.get("origen") or {}
@@ -168,12 +205,24 @@ def _eventos_vista(
         fila = origen.get("fila")
         indicio = None
         sin_cruce = None
+        canonico = None
         if evento.get("es_referencia"):
             sin_cruce = por_referencia.get(str(fila))
         else:
             indicio = por_fecha.get(
                 (evento.get("fuente"), _clave_fecha(evento.get("fecha")))
             )
+            eventos_fuente = canonicos.get(evento.get("fuente")) or []
+            if tabla == "catalogos" and isinstance(fila, int):
+                if 0 <= fila < len(eventos_fuente):
+                    canonico = eventos_fuente[fila]
+            else:
+                canonico = _buscar_canonico(
+                    eventos_fuente,
+                    evento.get("fecha"),
+                    evento.get("lat"),
+                    evento.get("lon"),
+                )
         url = None
         if tabla and fila is not None:
             url = url_for(
@@ -207,6 +256,8 @@ def _eventos_vista(
                 "territorio": evento["territorio"],
                 "url": url,
                 "fila_catalogo": fila,
+                "evento_id": (canonico or {}).get("event_id", ""),
+                "analista_canonico": (canonico or {}).get("analyst", ""),
                 "prioridad": (indicio or {}).get("prioridad", ""),
                 "cruce_eventquery": (indicio or {}).get(
                     "cruce_eventquery", ""
@@ -585,6 +636,177 @@ def revision_publicacion(job_id: str, fila: int):
     flash(
         "Solicitud de publicación encolada. Aparecerá en Revisiones al "
         "terminar la generación.",
+        "success",
+    )
+    return redirect(volver)
+
+
+@panels_bp.route(
+    "/jobs/<job_id>/paneles/revision-local",
+    methods=["GET", "POST"],
+)
+@login_required
+@permiso_requerido("paneles.ver")
+def revision_local(job_id: str):
+    """Solicitud de revisión de una solución local desde Paneles."""
+    job = _job_panel(job_id)
+    if not tiene_permiso(current_user, "revisiones.crear"):
+        abort(403)
+    fuente = str(request.values.get("fuente") or "").strip()
+    evento_id = str(request.values.get("evento") or "").strip()
+    definicion = fuentes_manifest.por_id(fuente)
+    if not fuente or not evento_id or definicion is None or definicion.derived:
+        abort(404)
+    workspace = ruta_workspace(job.id)
+    eventos = canonical.leer_canonico(workspace, fuente)
+    ref = next(
+        (evento for evento in eventos if evento.get("event_id") == evento_id),
+        None,
+    )
+    if ref is None:
+        abort(404)
+    indice = next(
+        (
+            fila
+            for fila in indicios.leer_indicios(workspace, fuente)
+            if fila.get("evento") == evento_id
+        ),
+        None,
+    )
+    ondas = availability.resumen_eventos(
+        workspace, fuente, [evento_id]
+    ).get(evento_id, {})
+    datos_cruce = indicios.leer_detalle_cruce(workspace)
+    grupo = next(
+        (
+            item
+            for item in (datos_cruce.get("sin_cruce") or {}).get("eventos") or []
+            if (item.get("candidato") or {}).get("evento_local") == evento_id
+            and (item.get("candidato") or {}).get("fuente") == fuente
+        ),
+        None,
+    )
+    analistas = review.usuarios_analistas()
+    codigo = (indice or {}).get("analista") or ref.get("analyst") or ""
+    sugerido = _usuario_por_codigo(codigo, analistas)
+    volver = _volver_panel(job, request.values)
+
+    def _render(estado_http: int = 200):
+        return (
+            render_template(
+                "panels/revision_local.html",
+                job=job,
+                fuente=fuente,
+                etiqueta_fuente=fuentes_manifest.etiqueta(fuente),
+                ref=ref,
+                indice=indice,
+                ondas=ondas,
+                grupo=grupo,
+                candidato=(grupo or {}).get("candidato"),
+                sugerido=sugerido,
+                volver=volver,
+                dataset=request.values.get("dataset", ""),
+                grupo_panel=request.values.get("grupo", ""),
+                ident=request.values.get("ident", ""),
+            ),
+            estado_http,
+        )
+
+    if request.method != "POST":
+        return _render()
+
+    if sugerido is None or not sugerido.active:
+        flash(
+            "El evento no tiene un analista con usuario activo.",
+            "danger",
+        )
+        return _render(400)
+
+    conflictos = review.conflictos(job.id, fuente, [evento_id])
+    if conflictos:
+        flash("El evento ya está en una solicitud activa.", "warning")
+        return redirect(volver)
+
+    formato = request.form.get("formato", "pdf").strip().lower()
+    if formato not in ("pdf", "docx"):
+        formato = "pdf"
+    nota = request.form.get("nota", "").strip()
+    if indice:
+        fila_informe = dict(indice)
+    else:
+        raw = ref.get("raw") or {}
+        fila_informe = {
+            "fuente": fuente,
+            "evento": evento_id,
+            "id_evento_fuente": ref.get("source_event_id", ""),
+            "fila_catalogo": ref.get("raw_index"),
+            "fecha_hora": ref.get("event_time", ""),
+            "latitud": ref.get("latitude"),
+            "longitud": ref.get("longitude"),
+            "profundidad_km": ref.get("depth_km"),
+            "magnitud": ref.get("magnitude"),
+            "magnitud_tipo": ref.get("magnitude_type", ""),
+            "analista": ref.get("analyst", ""),
+            "region": raw.get("Referencia", ""),
+            "cruce_eventquery": "sin_evaluar",
+            "sospechoso": "Desconocido",
+            "prioridad": "Informativa",
+            "motivo": "paneles",
+            "motivo_prioridad": "Paneles",
+            "fuerza": "",
+            "patron": "sin_fase",
+            "contexto": "",
+            "n_usadas": "",
+            "max_residual_usado": "",
+        }
+    fila_informe["kind"] = "solucion"
+    fila_informe["ondas"] = ondas or {}
+    if grupo:
+        fila_informe["cruce"] = {
+            "candidato": grupo.get("candidato"),
+            "diferencias": grupo.get("diferencias") or {},
+            "criterio": grupo.get("criterio") or {},
+        }
+    report_id = uuid4().hex
+    estado = {
+        "job_id": job.id,
+        "user_id": current_user.id,
+        "assigned_to_id": sugerido.id,
+        "fuente": fuente,
+        "formato": formato,
+        "nota": nota,
+        "kind": "solucion",
+        "notified_at": utcnow().isoformat(),
+        "base_url": request.host_url.rstrip("/"),
+        "filas": [fila_informe],
+        "estado": "en_cola",
+        "progreso": 0,
+        "paso": "Encolando…",
+    }
+    try:
+        review_reports.guardar_estado(report_id, estado)
+        from tasks.reports import generar_informe_revision
+
+        generar_informe_revision.delay(report_id)
+    except Exception as exc:  # noqa: BLE001 - Redis o Celery no disponibles
+        review_reports.borrar_estado(report_id)
+        flash(f"No se pudo encolar la solicitud: {exc}", "danger")
+        return _render(503)
+
+    registrar(
+        "revision.solicitar",
+        f"job:{job.id}",
+        {
+            "fuente": fuente,
+            "eventos": [evento_id],
+            "formato": formato,
+            "asignado": sugerido.id,
+            "kind": "solucion",
+        },
+    )
+    flash(
+        "Solicitud de revisión encolada. Aparecerá en Revisiones al terminar "
+        "la generación.",
         "success",
     )
     return redirect(volver)
