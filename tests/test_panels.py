@@ -719,6 +719,9 @@ def test_ruta_detalle_grupo_perfil(client, login, monkeypatch):
     assert 'id="detalle-evento-panel"' in html
     assert 'id="detalle-evento-contenido"' in html
     assert "data-url-regiones" in html
+    assert "lista_mapa.js" in html
+    assert "data-lista-mapa" in html
+    assert "data-clave=" in html
     assert "paneles.js" not in html
     assert 'id="grupo-descargar-csv"' in html
     assert "grupo=perfil" in html

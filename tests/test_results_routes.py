@@ -511,6 +511,16 @@ def test_repetidos_detalle_oculta_ver(client, login):
     assert "data-href=" in html
     assert ">Ver</a>" not in html
     assert "Pase el cursor por un evento" in html
+    assert "lista_mapa.js" in html
+    assert "data-lista-mapa" in html
+    assert "data-clave=" in html
+    datos_mapa = json.loads(
+        re.search(
+            r'id="mapa-datos">(.*?)</script>', html, re.S
+        ).group(1)
+    )
+    assert datos_mapa
+    assert all("clave_lista" in punto for punto in datos_mapa)
 
 
 def test_base_incluye_aviso_de_carga(client, login):

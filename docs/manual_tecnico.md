@@ -2386,6 +2386,24 @@ no actualizados se agregan las filas local y publicada y la diferencia; en los
 repetidos, una fila por solución. El resumen se arma en `app/services/plots.py`
 y la caché usa el sufijo `_resumen2` para no servir imágenes antiguas sin datos.
 
+##### Sincronización mapa ↔ listado
+
+`app/static/js/mapa_detalle.js` emite `rcs:punto-seleccionado` y
+`rcs:punto-deseleccionado` al seleccionar o limpiar un punto, y escucha
+`rcs:seleccionar-punto` para seleccionar desde el listado. La clave usada es
+`clave_lista` si existe (Repetidos) o `clave` (Paneles).
+
+`app/static/js/lista_mapa.js` se incluye en las páginas con
+`data-lista-mapa`; resalta la fila con `data-clave` coincidente, la desplaza a
+la vista y emite `rcs:seleccionar-punto` al hacer clic en una fila. Ignora
+enlaces, botones, formularios y filas con `data-href` para no interferir con la
+navegación existente.
+
+Paneles agrega `clave=evento.id` en `_puntos_grupo()` y
+`data-clave`/`data-lista-mapa` en `panels/grupo.html`. En Repetidos,
+`detail.puntos_mapa()` agrega `clave_lista=fila` y la tabla del grupo usa
+`data-clave=_fila`. No hay lógica específica por página.
+
 Los grupos de Paneles tienen dos rutas: el detalle interactivo en
 `/jobs/<job>/paneles/<dataset>/<perfil|territorio>/<id>` y el PNG en la misma
 ruta con `/mapa.png`. El PNG usa `generar_mapa_grupo` de

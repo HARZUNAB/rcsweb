@@ -264,7 +264,8 @@
       {% endif %}
     </p>
     <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0">
+      <table class="table table-sm table-hover align-middle mb-0"
+             data-lista-mapa>
         <thead class="table-light">
           <tr>
             <th>#</th>
@@ -280,6 +281,7 @@
         <tbody>
           {% for item in grupo %}
           <tr {% if mapa_disponible %}data-href="{{ url_for('results.detalle', job_id=job.id, tabla=tabla, opcion=opcion, fila=item.get('_fila'), volver=volver) }}" tabindex="0"{% endif %}
+              data-clave="{{ item.get('_fila') }}"
               class="{% if item.get('_fila') == indice_fila %}table-active{% endif %}{% if mapa_disponible %} fila-enlazada{% endif %}">
             <td>{{ item.get('_fila') + 1 }}</td>
             <td>{{ item.fila.get('fecha_hora', '') }}</td>
@@ -771,6 +773,7 @@
 <script src="{{ url_for('static', filename='js/vineta.js') }}"></script>
 <script src="{{ url_for('static', filename='js/regiones_mapa.js') }}"></script>
 <script src="{{ url_for('static', filename='js/mapa_detalle.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lista_mapa.js') }}"></script>
 {% elif revision_estaciones and revision_estaciones.tiene_tiempos %}
 <script src="{{ url_for('static', filename='vendor/plotly/plotly.min.js') }}"></script>
 {% endif %}

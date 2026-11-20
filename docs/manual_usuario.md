@@ -1064,6 +1064,20 @@ perfil, por territorio.
 
 ![Detalle de un grupo de Paneles](img/paneles_grupo.png)
 
+### Mapa y listado sincronizados
+
+En el detalle de un grupo, el mapa y el listado de eventos están enlazados:
+
+- al hacer clic en un punto del mapa (planta o perfil), la fila del evento se
+  resalta y se desplaza a la vista;
+- al hacer clic en una fila del listado, el mapa selecciona ese evento y
+  actualiza el panel **Evento seleccionado**;
+- en **Repetidos**, lo mismo aplica al grupo de duplicados.
+
+Así no hay que memorizar parámetros: el evento queda seleccionado en el listado
+y **Solicitar revisión** está en esa misma fila. El botón de la fila no dispara
+la selección del mapa.
+
 ### Cruce y prioridad en el listado
 
 El listado del grupo agrega una columna **Cruce / prioridad** con los

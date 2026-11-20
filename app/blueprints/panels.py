@@ -364,6 +364,7 @@ def _puntos_grupo(eventos: list[dict]) -> list[dict]:
                 "sospechoso": bool(evento.get("sospechoso")),
                 "estado": "",
                 "url": evento.get("url"),
+                "clave": str(evento.get("id") or ""),
             }
         )
     return puntos

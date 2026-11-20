@@ -447,8 +447,8 @@
   }
 
   function claveDe(punto) {
-    if (punto && punto.clave) {
-      return punto.clave;
+    if (punto && punto.clave !== undefined && punto.clave !== null) {
+      return String(punto.clave);
     }
     function numero(valor, decimales) {
       if (valor === null || valor === undefined || valor === "") {
@@ -463,6 +463,27 @@
       numero(punto && punto.lon, 5),
       numero(punto && punto.prof, 1),
     ].join("|");
+  }
+
+  function claveLista(punto) {
+    if (
+      punto &&
+      punto.clave_lista !== undefined &&
+      punto.clave_lista !== null
+    ) {
+      return String(punto.clave_lista);
+    }
+    return claveDe(punto);
+  }
+
+  function buscarPorClaveLista(clave) {
+    const objetivo = String(clave);
+    for (let i = 0; i < puntos.length; i += 1) {
+      if (claveLista(puntos[i]) === objetivo) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   function buscarIndice(lista, punto) {
@@ -649,7 +670,26 @@
     mostrarSeleccion(punto, ancla);
     resaltarPlanta(buscarIndice(puntos, punto));
     resaltarPerfil(buscarIndice(perfilEventos, punto));
+    document.dispatchEvent(
+      new CustomEvent("rcs:punto-seleccionado", {
+        detail: { clave: claveLista(punto), punto: punto },
+      })
+    );
   }
+
+  document.addEventListener("rcs:seleccionar-punto", function (evento) {
+    const detalle = evento.detail || {};
+    if (detalle.clave === undefined || detalle.clave === null) {
+      return;
+    }
+    let indice = buscarPorClaveLista(detalle.clave);
+    if (indice < 0) {
+      indice = buscarIndice(puntos, { clave: String(detalle.clave) });
+    }
+    if (indice >= 0) {
+      seleccionar(puntos[indice]);
+    }
+  });
 
   function limpiarSeleccion() {
     seleccionado = null;
@@ -657,6 +697,7 @@
     temporizadorPrevio = null;
     resaltarPlanta(-1);
     resaltarPerfil(-1);
+    document.dispatchEvent(new CustomEvent("rcs:punto-deseleccionado"));
     if (panelContenido) {
       panelContenido.innerHTML = TEXTO_SIN_SELECCION;
     }

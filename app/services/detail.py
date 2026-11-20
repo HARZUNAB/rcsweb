@@ -423,6 +423,8 @@ def puntos_mapa(
             },
         )
         punto = {**solucion, **estilo}
+        if tabla == "repetidos" and solucion.get("fila") is not None:
+            punto["clave_lista"] = str(solucion["fila"])
         punto["comparacion"] = comparacion
         punto["referencia"] = bool(comparacion and solucion is referencia)
         punto["dist_km"] = distancia_km(
