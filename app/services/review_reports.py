@@ -169,12 +169,21 @@ def ejecutar(report_id: str) -> dict:
             paso="Preparando los eventos…",
         )
 
+        kind = str(estado.get("kind") or "solucion")
         job = db.session.get(Job, job_id)
         assigned = db.session.get(User, assigned_to_id)
         if job is None or assigned is None:
-            raise RuntimeError("Trabajo o analista no encontrado.")
-        if not tiene_rol(assigned, "analista") or not assigned.active:
-            raise RuntimeError("El analista asignado no está activo.")
+            raise RuntimeError("Trabajo o responsable no encontrado.")
+        if kind == "publicacion":
+            permitido = tiene_rol(assigned, "analista") or tiene_rol(
+                assigned, "supervisor"
+            )
+        else:
+            permitido = tiene_rol(assigned, "analista")
+        if not permitido or not assigned.active:
+            raise RuntimeError(
+                "El responsable asignado no está activo o no tiene el rol."
+            )
 
         info = (cargar_indice(workspace).get("catalogos") or {}).get(fuente)
         if not info or not info.get("archivo"):
@@ -328,6 +337,7 @@ def ejecutar(report_id: str) -> dict:
             report_path=str(ruta.relative_to(workspace)),
             report_name=ruta.name,
             report_format=extension,
+            kind=kind,
         )
         db.session.commit()
         actualizar_estado(

@@ -106,9 +106,10 @@
             <th>Fuente</th>
             <th class="text-end">Mag.</th>
             <th class="text-end">Prof. (km)</th>
+            <th>Cruce / prioridad</th>
             <th>Revisión</th>
             <th class="text-end">Sospechoso</th>
-            <th class="text-end"></th>
+            <th class="text-end">Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -135,16 +136,22 @@
                 —
               {% endif %}
             </td>
-            <td class="text-end">
+            <td class="text-end text-nowrap">
               {% if evento.url %}
               <a class="btn btn-sm btn-outline-primary" target="_blank"
                  rel="noopener" href="{{ evento.url }}">Ver</a>
+              {% endif %}
+              {% if puede_solicitar and evento.es_referencia and evento.fila_catalogo is not none %}
+              <a class="btn btn-sm btn-outline-secondary"
+                 href="{{ url_for('panels.revision_publicacion', job_id=job.id, fila=evento.fila_catalogo, dataset=dataset, grupo=grupo_panel, ident=ident) }}">
+                Solicitar revisión
+              </a>
               {% endif %}
             </td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="8" class="text-center text-secondary py-3">
+            <td colspan="9" class="text-center text-secondary py-3">
               No hay eventos para este grupo con los filtros actuales.
             </td>
           </tr>

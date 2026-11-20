@@ -128,6 +128,55 @@ def _ondas(fila: dict) -> str:
     return " · ".join(partes)
 
 
+def _cruce_antecedente(fila: dict, kind: str):
+    """Filas del antecedente local y acción solicitada."""
+    cruce = fila.get("cruce") or {}
+    if not isinstance(cruce, dict):
+        return []
+    candidato = cruce.get("candidato") or {}
+    filas = []
+    if candidato:
+        filas.append(
+            (
+                "Solución local (antecedente)",
+                " · ".join(
+                    [
+                        _texto(candidato.get("evento_local")),
+                        _texto(candidato.get("fecha_local")),
+                        _texto(candidato.get("etiqueta")),
+                    ]
+                ),
+            )
+        )
+        diferencias = cruce.get("diferencias") or {}
+        partes = [
+            f"Δt {_numero(candidato.get('dt_seg'), 1)} s",
+            f"distancia {_numero(candidato.get('dist_km'), 1)} km",
+        ]
+        if diferencias.get("profundidad") is not None:
+            partes.append(f"Δprof {diferencias['profundidad']:+.1f} km")
+        if diferencias.get("magnitud") is not None:
+            partes.append(f"Δmag {diferencias['magnitud']:+.1f}")
+        filas.append(("Comparación", " · ".join(partes)))
+        criterio = (cruce.get("criterio") or {}).get("texto")
+        if criterio:
+            filas.append(("Criterio de cruce", criterio))
+    else:
+        filas.append(
+            ("Antecedente", "Sin contraparte local comparable.")
+        )
+    if kind == "publicacion":
+        if candidato:
+            accion = (
+                "Revisar la publicación y, si corresponde, actualizarla "
+                f"con la solución local {_texto(candidato.get('evento_local'))}."
+            )
+        else:
+            accion = "Revisar la publicación sin contraparte local."
+        filas.append(("Acción solicitada", accion))
+    return filas
+
+
 def _resumen(evento: dict) -> list[tuple[str, str]]:
     fila = evento.get("fila") or {}
     canonico = evento.get("canonico") or {}
@@ -139,6 +188,11 @@ def _resumen(evento: dict) -> list[tuple[str, str]]:
         canonico.get("magnitude_type")
         or ((canonico.get("raw") or {}).get("Tipo_mag."))
         or (fila.get("magnitud_tipo") or "")
+    )
+    etiqueta_analista = (
+        "Analista del candidato"
+        if fila.get("kind") == "publicacion"
+        else "Analista"
     )
     resumen = [
         ("Evento", _texto(fila.get("evento"))),
@@ -152,7 +206,7 @@ def _resumen(evento: dict) -> list[tuple[str, str]]:
         ("Magnitud", _numero(magnitud, 1)),
         ("Tipo de magnitud", _texto(magnitud_tipo)),
         (
-            "Analista",
+            etiqueta_analista,
             _texto(fila.get("analista") or canonico.get("analyst")),
         ),
         ("Cruce Eventquery", _cruce(fila.get("cruce_eventquery"))),
@@ -168,6 +222,10 @@ def _resumen(evento: dict) -> list[tuple[str, str]]:
     ondas = _ondas(fila)
     if ondas:
         resumen.append(("Formas de onda", ondas))
+    kind = _texto(fila.get("kind"), "")
+    if kind == "publicacion":
+        resumen.append(("Tipo de solicitud", "Publicación"))
+    resumen.extend(_cruce_antecedente(fila, kind))
     return resumen
 
 

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from io import BytesIO
+from uuid import uuid4
 
 from flask import (
     Blueprint,
     abort,
+    flash,
     jsonify,
+    redirect,
     render_template,
     request,
     send_file,
@@ -15,11 +18,18 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
+from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
-from ..models import Job
-from ..security import permiso_requerido, puede_ver_trabajo
-from ..services import colores, panels, plots
+from ..models import Job, User, utcnow
+from ..security import (
+    permiso_requerido,
+    puede_ver_trabajo,
+    tiene_permiso,
+    tiene_rol,
+)
+from ..services import colores, indicios, panels, plots, review, review_reports
+from ..services.audit import registrar
 from ..services.borders import texto_frontera_coords
 from ..services.history import datos as historico_datos
 from ..services.maps import modo_mapa
@@ -118,14 +128,52 @@ def _leer_panel(job: Job, dataset: str | None = None) -> dict:
     }
 
 
+def _clave_fecha(valor) -> str:
+    return " ".join(str(valor or "").split())
+
+
+def _antecedentes_panel(workspace, eventos: list[dict]):
+    """Prioridad, cruce y caso sin cruce por evento, para Paneles."""
+    fuentes = {
+        evento.get("fuente")
+        for evento in eventos
+        if evento.get("fuente") and not evento.get("es_referencia")
+    }
+    por_fecha: dict[tuple[str, str], dict] = {}
+    for fuente in fuentes:
+        for fila in indicios.leer_indicios(workspace, fuente):
+            clave = (fuente, _clave_fecha(fila.get("fecha_hora")))
+            por_fecha[clave] = fila
+    por_referencia: dict[str, dict] = {}
+    try:
+        datos = indicios.leer_detalle_cruce(workspace)
+    except Exception:
+        datos = {}
+    for grupo in (datos.get("sin_cruce") or {}).get("eventos") or []:
+        por_referencia[str(grupo.get("fila"))] = grupo
+    return por_fecha, por_referencia
+
+
 def _eventos_vista(
-    job: Job, eventos: list[dict], volver: str
+    job: Job,
+    eventos: list[dict],
+    volver: str,
+    antecedentes=None,
 ) -> list[dict]:
+    por_fecha, por_referencia = antecedentes or ({}, {})
     vista = []
     for evento in eventos:
         origen = evento.get("origen") or {}
         tabla = origen.get("tabla")
         fila = origen.get("fila")
+        indicio = None
+        sin_cruce = None
+        if evento.get("es_referencia"):
+            sin_cruce = por_referencia.get(str(fila))
+        else:
+            indicio = por_fecha.get(
+                (evento.get("fuente"), _clave_fecha(evento.get("fecha")))
+            )
         url = None
         if tabla and fila is not None:
             url = url_for(
@@ -158,6 +206,15 @@ def _eventos_vista(
                 "sospechoso": evento["sospechoso"],
                 "territorio": evento["territorio"],
                 "url": url,
+                "fila_catalogo": fila,
+                "prioridad": (indicio or {}).get("prioridad", ""),
+                "cruce_eventquery": (indicio or {}).get(
+                    "cruce_eventquery", ""
+                ),
+                "fuerza": (indicio or {}).get("fuerza", ""),
+                "wadati_calidad": (indicio or {}).get("wadati_calidad", ""),
+                "sin_cruce": bool(sin_cruce),
+                "candidato_local": (sin_cruce or {}).get("candidato"),
             }
         )
     return vista
@@ -315,6 +372,224 @@ def _leyenda_grupo(puntos: list[dict]) -> list[dict]:
     return items
 
 
+def _volver_panel(job: Job, valores) -> str:
+    dataset = str(valores.get("dataset") or "").strip()
+    grupo = str(valores.get("grupo") or "").strip()
+    ident = str(valores.get("ident") or "").strip()
+    if dataset and grupo in ("perfil", "territorio") and ident:
+        return url_for(
+            "panels.grupo",
+            job_id=job.id,
+            dataset=dataset,
+            grupo=grupo,
+            ident=ident,
+        )
+    return url_for("panels.index", job_id=job.id)
+
+
+def _usuario_por_codigo(codigo: str, analistas: list[User]) -> User | None:
+    texto = str(codigo or "").strip().lower()
+    if not texto:
+        return None
+    for usuario in analistas:
+        if str(usuario.analyst_code or "").strip().lower() == texto:
+            return usuario
+    return None
+
+
+def _supervisores_activos() -> list[User]:
+    usuarios = db.session.execute(db.select(User)).scalars()
+    return [
+        usuario
+        for usuario in usuarios
+        if usuario.active and tiene_rol(usuario, "supervisor")
+    ]
+
+
+def _contexto_publicacion(job: Job, fila: int):
+    workspace = ruta_workspace(job.id)
+    referencia = fuentes_manifest.referencia()
+    eventos = canonical.leer_canonico(workspace, referencia.id)
+    ref = next(
+        (evento for evento in eventos if evento.get("raw_index") == fila),
+        None,
+    )
+    if ref is None:
+        return None
+    datos = indicios.leer_detalle_cruce(workspace)
+    grupo = next(
+        (
+            item
+            for item in (datos.get("sin_cruce") or {}).get("eventos") or []
+            if item.get("fila") == fila
+        ),
+        None,
+    )
+    candidato = (grupo or {}).get("candidato")
+    analistas = review.usuarios_analistas()
+    sugerido = _usuario_por_codigo(
+        (candidato or {}).get("analista", ""), analistas
+    )
+    return {
+        "referencia": referencia,
+        "ref": ref,
+        "grupo": grupo,
+        "candidato": candidato,
+        "sugerido": sugerido,
+        "supervisores": _supervisores_activos(),
+    }
+
+
+@panels_bp.route(
+    "/jobs/<job_id>/paneles/publicacion/<int:fila>",
+    methods=["GET", "POST"],
+)
+@login_required
+@permiso_requerido("paneles.ver")
+def revision_publicacion(job_id: str, fila: int):
+    """Solicitud de revisión de un evento publicado en Eventquery."""
+    job = _job_panel(job_id)
+    if not tiene_permiso(current_user, "revisiones.crear"):
+        abort(403)
+    contexto = _contexto_publicacion(job, fila)
+    if contexto is None:
+        abort(404)
+    ref = contexto["ref"]
+    candidato = contexto["candidato"]
+    grupo = contexto["grupo"]
+    volver = _volver_panel(job, request.values)
+
+    def _render(estado_http: int = 200):
+        return (
+            render_template(
+                "panels/publicacion.html",
+                job=job,
+                fila=fila,
+                referencia=contexto["referencia"],
+                ref=ref,
+                grupo=grupo,
+                candidato=candidato,
+                sugerido=contexto["sugerido"],
+                supervisores=contexto["supervisores"],
+                volver=volver,
+                dataset=request.values.get("dataset", ""),
+                grupo_panel=request.values.get("grupo", ""),
+                ident=request.values.get("ident", ""),
+            ),
+            estado_http,
+        )
+
+    if request.method != "POST":
+        return _render()
+
+    asignado = None
+    valor = request.form.get("asignado", "").strip()
+    if valor:
+        try:
+            asignado = db.session.get(User, int(valor))
+        except (TypeError, ValueError):
+            asignado = None
+    if asignado is None:
+        asignado = contexto["sugerido"]
+    if asignado is None:
+        flash("Seleccione un responsable para la revisión.", "danger")
+        return _render(400)
+    if not asignado.active or not (
+        tiene_rol(asignado, "analista") or tiene_rol(asignado, "supervisor")
+    ):
+        flash("El responsable asignado no está activo o no tiene rol.", "danger")
+        return _render(400)
+
+    conflictos = review.conflictos(
+        job.id, contexto["referencia"].id, [ref["event_id"]]
+    )
+    if conflictos:
+        flash(
+            "El evento ya está en una solicitud activa.",
+            "warning",
+        )
+        return redirect(volver)
+
+    formato = request.form.get("formato", "pdf").strip().lower()
+    if formato not in ("pdf", "docx"):
+        formato = "pdf"
+    nota = request.form.get("nota", "").strip()
+    cruce = {
+        "candidato": candidato,
+        "diferencias": (grupo or {}).get("diferencias") or {},
+        "criterio": (grupo or {}).get("criterio") or {},
+    }
+    fila_informe = {
+        "fuente": contexto["referencia"].id,
+        "evento": ref["event_id"],
+        "id_evento_fuente": ref.get("source_event_id", ""),
+        "fila_catalogo": fila,
+        "fecha_hora": ref.get("event_time", ""),
+        "latitud": ref.get("latitude"),
+        "longitud": ref.get("longitude"),
+        "profundidad_km": ref.get("depth_km"),
+        "magnitud": ref.get("magnitude"),
+        "magnitud_tipo": ref.get("magnitude_type", ""),
+        "analista": (candidato or {}).get("analista", ""),
+        "cruce_eventquery": "sin_cruce" if candidato else "sin_evaluar",
+        "sospechoso": "Desconocido",
+        "prioridad": "Publicación",
+        "motivo": "publicacion",
+        "motivo_prioridad": "Publicación",
+        "fuerza": "",
+        "patron": "sin_fase",
+        "contexto": "",
+        "n_usadas": "",
+        "max_residual_usado": "",
+        "kind": "publicacion",
+        "cruce": cruce,
+        "ondas": {},
+    }
+    report_id = uuid4().hex
+    estado = {
+        "job_id": job.id,
+        "user_id": current_user.id,
+        "assigned_to_id": asignado.id,
+        "fuente": contexto["referencia"].id,
+        "formato": formato,
+        "nota": nota,
+        "kind": "publicacion",
+        "notified_at": utcnow().isoformat(),
+        "base_url": request.host_url.rstrip("/"),
+        "filas": [fila_informe],
+        "estado": "en_cola",
+        "progreso": 0,
+        "paso": "Encolando…",
+    }
+    try:
+        review_reports.guardar_estado(report_id, estado)
+        from tasks.reports import generar_informe_revision
+
+        generar_informe_revision.delay(report_id)
+    except Exception as exc:  # noqa: BLE001 - Redis o Celery no disponibles
+        review_reports.borrar_estado(report_id)
+        flash(f"No se pudo encolar la solicitud: {exc}", "danger")
+        return _render(503)
+
+    registrar(
+        "revision.solicitar",
+        f"job:{job.id}",
+        {
+            "fuente": contexto["referencia"].id,
+            "eventos": [ref["event_id"]],
+            "formato": formato,
+            "asignado": asignado.id,
+            "kind": "publicacion",
+        },
+    )
+    flash(
+        "Solicitud de publicación encolada. Aparecerá en Revisiones al "
+        "terminar la generación.",
+        "success",
+    )
+    return redirect(volver)
+
+
 @panels_bp.get("/jobs/<job_id>/paneles")
 @login_required
 @permiso_requerido("paneles.ver")
@@ -436,7 +711,12 @@ def index(job_id: str):
     fuente_titulo = _titulo_fuente(fuente)
 
     volver = _url_panel(job.id, dataset, tipo=tipo, fuente=fuente)
-    eventos_vista = _eventos_vista(job, datos["eventos"], volver)
+    eventos_vista = _eventos_vista(
+        job,
+        datos["eventos"],
+        volver,
+        _antecedentes_panel(ruta_workspace(job.id), datos["eventos"]),
+    )
     datos_vista = {clave: valor for clave, valor in datos.items() if clave != "eventos"}
     datos_vista["eventos"] = eventos_vista
 
@@ -538,7 +818,12 @@ def grupo(job_id: str, dataset: str, grupo: str, ident: str):
         grupo=grupo,
         ident=ident,
     )
-    eventos_vista = _eventos_vista(job, detalle["eventos"], volver)
+    eventos_vista = _eventos_vista(
+        job,
+        detalle["eventos"],
+        volver,
+        _antecedentes_panel(ruta_workspace(job.id), detalle["eventos"]),
+    )
     datos_vista = {
         "total": len(detalle["eventos"]),
         "con_perfil": sum(1 for e in detalle["eventos"] if e.get("perfil")),
@@ -597,6 +882,9 @@ def grupo(job_id: str, dataset: str, grupo: str, ident: str):
         ),
         download_name=f"panel_{grupo}_{ident}.png",
         volver=volver,
+        puede_solicitar=tiene_permiso(current_user, "revisiones.crear"),
+        grupo_panel=grupo,
+        ident=ident,
     )
 
 

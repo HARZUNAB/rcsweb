@@ -121,6 +121,7 @@ def crear_solicitud(
     report_path: str,
     report_name: str,
     report_format: str,
+    kind: str = "solucion",
 ) -> ReviewRequest:
     """Crea la solicitud y sus eventos; el llamador controla la transacción."""
     solicitud = ReviewRequest(
@@ -129,6 +130,7 @@ def crear_solicitud(
         created_by_id=created_by_id,
         assigned_to_id=assigned_to_id,
         status="notificada",
+        kind=kind,
         note=note or None,
         report_path=report_path,
         report_name=report_name,

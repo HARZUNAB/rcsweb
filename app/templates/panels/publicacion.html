@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Revisión de publicación · Paneles{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
+  <div>
+    <div class="text-secondary small text-uppercase mb-1">
+      Paneles · Revisión de publicación
+    </div>
+    <h1 class="h4 mb-1">
+      {{ ref.get('event_id') or ('fila ' ~ fila) }}
+    </h1>
+    <div class="text-secondary small">
+      {{ ref.get('event_time') }}
+      · {{ "%.2f"|format(ref.get('latitude')) if ref.get('latitude') is not none else '—' }},
+      {{ "%.2f"|format(ref.get('longitude')) if ref.get('longitude') is not none else '—' }}
+      · {{ referencia.nombre if referencia.nombre is defined else referencia.id }}
+    </div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ volver }}">Volver</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h6 text-uppercase text-secondary mb-3">
+          Evento publicado
+        </h2>
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-secondary fw-normal">Evento</dt>
+          <dd class="col-7">{{ ref.get('event_id') or '—' }}</dd>
+          <dt class="col-5 text-secondary fw-normal">Fecha y hora</dt>
+          <dd class="col-7">{{ ref.get('event_time') or '—' }}</dd>
+          <dt class="col-5 text-secondary fw-normal">Coordenadas</dt>
+          <dd class="col-7">
+            {{ "%.2f"|format(ref.get('latitude')) if ref.get('latitude') is not none else '—' }},
+            {{ "%.2f"|format(ref.get('longitude')) if ref.get('longitude') is not none else '—' }}
+          </dd>
+          <dt class="col-5 text-secondary fw-normal">Profundidad</dt>
+          <dd class="col-7">
+            {{ "%.1f"|format(ref.get('depth_km')) if ref.get('depth_km') is not none else '—' }} km
+          </dd>
+          <dt class="col-5 text-secondary fw-normal">Magnitud</dt>
+          <dd class="col-7">
+            {{ ref.get('magnitude_type') or '' }}
+            {{ "%.1f"|format(ref.get('magnitude')) if ref.get('magnitude') is not none else '—' }}
+          </dd>
+          <dt class="col-5 text-secondary fw-normal">Región</dt>
+          <dd class="col-7">{{ (ref.get('raw') or {}).get('Referencia') or '—' }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h6 text-uppercase text-secondary mb-3">
+          Antecedente local
+        </h2>
+        {% if candidato %}
+        <dl class="row mb-2 small">
+          <dt class="col-5 text-secondary fw-normal">Solución</dt>
+          <dd class="col-7">
+            {{ candidato.get('evento_local') or '—' }}
+            · {{ candidato.get('etiqueta') or candidato.get('fuente') }}
+          </dd>
+          <dt class="col-5 text-secondary fw-normal">Fecha y hora</dt>
+          <dd class="col-7">{{ candidato.get('fecha_local') or '—' }}</dd>
+          <dt class="col-5 text-secondary fw-normal">Analista</dt>
+          <dd class="col-7">{{ candidato.get('analista') or '—' }}</dd>
+          <dt class="col-5 text-secondary fw-normal">Comparación</dt>
+          <dd class="col-7">
+            Δt {{ "%.1f"|format(candidato.get('dt_seg')) if candidato.get('dt_seg') is not none else '—' }} s
+            · {{ "%.1f"|format(candidato.get('dist_km')) if candidato.get('dist_km') is not none else '—' }} km
+            {% if grupo and grupo.diferencias %}
+            {% if grupo.diferencias.get('profundidad') is not none %}
+            · Δprof {{ "%+.1f"|format(grupo.diferencias.get('profundidad')) }} km
+            {% endif %}
+            {% if grupo.diferencias.get('magnitud') is not none %}
+            · Δmag {{ "%+.1f"|format(grupo.diferencias.get('magnitud')) }}
+            {% endif %}
+            {% endif %}
+          </dd>
+        </dl>
+        {% if grupo and grupo.criterio and grupo.criterio.texto %}
+        <div class="alert alert-light border small mb-0" role="status">
+          {{ grupo.criterio.texto }}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="alert alert-light border small mb-0" role="status">
+          Sin contraparte local comparable. La revisión será sobre la
+          publicación.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<form method="post"
+      action="{{ url_for('panels.revision_publicacion', job_id=job.id, fila=fila) }}"
+      class="card border-0 shadow-sm">
+  <input type="hidden" name="dataset" value="{{ dataset }}">
+  <input type="hidden" name="grupo" value="{{ grupo_panel }}">
+  <input type="hidden" name="ident" value="{{ ident }}">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-3">
+      Datos de la solicitud
+    </h2>
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <label class="form-label small" for="revision-asignado">
+          Responsable
+        </label>
+        <select class="form-select" id="revision-asignado" name="asignado"
+                required>
+          {% if sugerido %}
+          <option value="{{ sugerido.id }}" selected>
+            {{ sugerido.username }}
+            {% if sugerido.analyst_code %}({{ sugerido.analyst_code }}){% endif %}
+            · sugerido
+          </option>
+          {% endif %}
+          {% for usuario in supervisores %}
+          {% if not sugerido or usuario.id != sugerido.id %}
+          <option value="{{ usuario.id }}">
+            {{ usuario.username }} · supervisor
+          </option>
+          {% endif %}
+          {% endfor %}
+        </select>
+        <div class="form-text">
+          Con candidato local se sugiere al analista. Sin candidato, la
+          revisión queda a cargo de un supervisor.
+        </div>
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label small" for="revision-formato">Formato</label>
+        <select class="form-select" id="revision-formato" name="formato">
+          <option value="pdf" selected>PDF</option>
+          <option value="docx">DOCX</option>
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label small" for="revision-nota">
+          Nota (opcional)
+        </label>
+        <textarea class="form-control" id="revision-nota" name="nota"
+                  rows="3"
+                  placeholder="Indique qué debe revisarse de la publicación."></textarea>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <button class="btn btn-primary" type="submit">
+        Solicitar revisión
+      </button>
+      <a class="btn btn-outline-secondary" href="{{ volver }}">Cancelar</a>
+    </div>
+    <div class="text-secondary small mt-2">
+      La solicitud se genera en segundo plano y aparecerá en Revisiones al
+      terminar el informe.
+    </div>
+  </div>
+</form>
+{% endblock %}

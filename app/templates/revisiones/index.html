@@ -95,6 +95,9 @@
               {% else %}
               {{ solicitud.job_id[:8] }}
               {% endif %}
+              {% if solicitud.kind == 'publicacion' %}
+              <span class="badge text-bg-dark ms-1">Publicación</span>
+              {% endif %}
             </td>
             <td class="text-end">{{ solicitud.events|length }}</td>
             <td>

@@ -1060,6 +1060,40 @@ perfil, por territorio.
 
 ![Detalle de un grupo de Paneles](img/paneles_grupo.png)
 
+### Cruce y prioridad en el listado
+
+El listado del grupo agrega una columna **Cruce / prioridad** con los
+antecedentes de revisión cuando existen:
+
+- prioridad del evento,
+- **Con cruce** o **Sin cruce** con Eventquery,
+- calidad de Wadati.
+
+Los eventos que no tienen indicios muestran solo sus datos.
+
+### Solicitar revisión de una publicación
+
+Los eventos del catálogo **Eventquery** —lo que está publicado en la web—
+muestran **Solicitar revisión**. Al abrirlo se ve:
+
+- el evento publicado: fecha, coordenadas, profundidad, magnitud y región;
+- la solución local más cercana, si existe, con `Δt`, distancia,
+  `Δprofundidad`, `Δmagnitud` y el criterio de cruce;
+- **Sin contraparte local comparable** cuando no hay candidato.
+
+La solicitud se asigna así:
+
+| Caso | Responsable |
+|---|---|
+| Hay candidato local con usuario activo | El analista del candidato |
+| No hay candidato | Un supervisor |
+| El analista del candidato no está activo | Un supervisor |
+
+El PDF incluye el evento publicado, el antecedente local y una **acción
+solicitada**: revisar la publicación y, si corresponde, actualizarla con la
+solución local. La solicitud aparece en **Revisiones** con la etiqueta
+**Publicación**.
+
 ## Catálogos
 
 Desde el detalle del trabajo puede abrir los catálogos procesados. Los nombres

@@ -143,3 +143,43 @@ def test_resumen_omite_formas_de_onda_sin_consulta():
     datos = dict(review_report._resumen(_evento()))
 
     assert "Formas de onda" not in datos
+
+
+def test_resumen_publicacion_con_candidato():
+    evento = _evento()
+    evento["fila"].update(
+        {
+            "kind": "publicacion",
+            "cruce": {
+                "candidato": {
+                    "evento_local": "seiscomp:000280",
+                    "fecha_local": "2026-11-03 11:51:19",
+                    "etiqueta": "SeisComp",
+                    "dt_seg": 4.0,
+                    "dist_km": 12.4,
+                },
+                "diferencias": {"profundidad": 40.9, "magnitud": -0.1},
+                "criterio": {
+                    "texto": "Fuera del cruce estricto (Δt 4.0 s > 3 s)."
+                },
+            },
+        }
+    )
+
+    datos = dict(review_report._resumen(evento))
+
+    assert datos["Tipo de solicitud"] == "Publicación"
+    assert "seiscomp:000280" in datos["Solución local (antecedente)"]
+    assert "Δprof +40.9 km" in datos["Comparación"]
+    assert datos["Criterio de cruce"].startswith("Fuera del cruce estricto")
+    assert "actualizarla" in datos["Acción solicitada"]
+
+
+def test_resumen_publicacion_sin_candidato():
+    evento = _evento()
+    evento["fila"].update({"kind": "publicacion", "cruce": {"candidato": None}})
+
+    datos = dict(review_report._resumen(evento))
+
+    assert datos["Antecedente"] == "Sin contraparte local comparable."
+    assert "sin contraparte" in datos["Acción solicitada"]

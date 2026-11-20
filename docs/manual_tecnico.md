@@ -2398,6 +2398,29 @@ El detalle de un grupo reutiliza el parcial `app/templates/_mapa_detalle.html` y
 `app/static/js/mapa_detalle.js`, igual que Resultados y Catálogos. La vista
 general de Paneles mantiene el mapa liviano de `app/static/js/paneles.js`.
 
+### Revisión de publicación desde Paneles
+
+`panels.revision_publicacion` atiende
+`/jobs/<job>/paneles/publicacion/<fila>` (GET/POST). Requiere `paneles.ver` y
+`revisiones.crear`.
+
+- `_contexto_publicacion()` lee el evento de referencia por `raw_index` y busca
+  su grupo en `cruce_eventquery.json`. Si hay candidato, sugiere al analista
+  activo; si no, ofrece supervisores.
+- El POST construye una fila `kind="publicacion"` con
+  `fuente=<referencia>`, `fila_catalogo=<fila>` y `cruce` (candidato,
+  diferencias, criterio), y encola `generar_informe_revision`.
+- `_resumen()` agrega **Tipo de solicitud**, **Solución local (antecedente)**,
+  **Comparación**, **Criterio de cruce** y **Acción solicitada**.
+- `review_reports` acepta analista o supervisor para `kind="publicacion"`.
+- El modelo agrega `review_requests.kind` (migración
+  `b3d7e9f1c2a4`), con `solucion` por defecto. El listado y el detalle muestran
+  la etiqueta **Publicación**.
+
+La tabla del grupo en Paneles agrega la columna **Cruce / prioridad** con datos
+de `indicios_<fuente>.csv` y del artefacto de cruce, cargados una vez por
+página mediante `_antecedentes_panel()`.
+
 En la vista general, el detalle del evento seleccionado se dibuja en
 `#panel-evento-detalle`, debajo de los mini mapas. La vista de detalle mantiene
 el panel lateral derecho. Los ejes de ambos perfiles agregan margen sobre el

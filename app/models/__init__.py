@@ -477,6 +477,9 @@ class ReviewRequest(db.Model):
     status: Mapped[str] = mapped_column(
         String(20), default="notificada", index=True
     )
+    kind: Mapped[str] = mapped_column(
+        String(20), default="solucion", index=True
+    )
     note: Mapped[str | None] = mapped_column(Text)
     report_path: Mapped[str | None] = mapped_column(String(255))
     report_name: Mapped[str | None] = mapped_column(String(255))

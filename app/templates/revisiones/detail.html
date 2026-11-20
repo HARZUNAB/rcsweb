@@ -12,6 +12,9 @@
     <h1 class="h3 mb-1">Solicitud #{{ solicitud.id }}</h1>
     <div class="d-flex flex-wrap gap-2 align-items-center">
       <span class="badge {{ badge_estado }}">{{ etiqueta_estado }}</span>
+      {% if solicitud.kind == 'publicacion' %}
+      <span class="badge text-bg-dark">Publicación</span>
+      {% endif %}
       <span class="text-secondary small">
         Notificada {{ solicitud.notified_at.strftime('%Y-%m-%d %H:%M') }}
       </span>
@@ -42,6 +45,14 @@
         </a>
         {% else %}
         {{ solicitud.job_id }}
+        {% endif %}
+      </dd>
+      <dt class="col-sm-3 fw-normal text-secondary">Tipo</dt>
+      <dd class="col-sm-9">
+        {% if solicitud.kind == 'publicacion' %}
+        Revisión de publicación
+        {% else %}
+        Revisión de solución local
         {% endif %}
       </dd>
       <dt class="col-sm-3 fw-normal text-secondary">Fuente</dt>
