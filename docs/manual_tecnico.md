@@ -2447,7 +2447,12 @@ estado (pendiente | enviando), report_id, enviado_en
 seguridad.
 
 Los formularios `panels.revision_publicacion` y `panels.revision_local` aceptan
-`accion=bandeja` y agregan el ítem sin encolar el informe.
+`accion=bandeja` y agregan el ítem sin encolar el informe. El listado de
+Revisión también: `results.solicitar_revision` acepta `accion=bandeja`, valida
+la selección como siempre y agrega cada fila de indicios a la bandeja con
+`assigned_to_id` y `kind="solucion"`, devolviendo `{"estado": "bandeja"}`.
+`revision_seleccion.js` envía esa acción, limpia la selección local y redirige
+a `panels.bandeja`. Sin `accion` el endpoint conserva el envío inmediato.
 
 Rutas de la bandeja:
 

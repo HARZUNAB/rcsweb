@@ -44,6 +44,7 @@ from ..services import (
     panels,
     referencias,
     review,
+    review_drafts,
     review_reports,
 )
 from ..services import (
@@ -941,6 +942,35 @@ def solicitar_revision(job_id: str):
     )
     for fila in seleccionadas:
         fila["ondas"] = resumenes_ondas.get(fila["evento"], {})
+
+    if request.form.get("accion", "").strip() == "bandeja":
+        try:
+            for fila in seleccionadas:
+                fila_bandeja = dict(fila)
+                fila_bandeja["kind"] = "solucion"
+                review_drafts.agregar(
+                    job.id,
+                    current_user.id,
+                    {
+                        "fila": fila_bandeja,
+                        "assigned_to_id": asignado,
+                        "kind": "solucion",
+                    },
+                )
+        except review_drafts.BandejaError as exc:
+            return jsonify({"error": str(exc)}), 503
+        registrar(
+            "revision.bandeja",
+            f"job:{job.id}",
+            {
+                "fuente": fuente,
+                "eventos": ids,
+                "asignado": asignado,
+            },
+        )
+        return jsonify(
+            {"estado": "bandeja", "total": len(seleccionadas)}
+        )
 
     report_id = uuid4().hex
     estado = {

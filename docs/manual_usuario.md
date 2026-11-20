@@ -960,23 +960,27 @@ Administradores y supervisores ven todos. La revisión se solicita desde
 1. Filtre por **Analista**. La selección solo admite eventos de un mismo
    analista con usuario activo; **Todos**, **Sin usuario asignable** y los
    analistas de la fuente sin usuario deshabilitan las casillas.
-2. Marque los eventos con las casillas y pulse **Solicitar revisión**. El máximo
-   por solicitud se configura con `RCS_INFORME_MAX_EVENTOS` (50 por defecto).
-3. Escriba una nota opcional y elija el formato. La app genera un informe A4
-   horizontal con un bloque por evento: identificadores, fecha y hora,
-   coordenadas, profundidad, magnitud y tipo, analista, cruce Eventquery,
-   solución (sospechosa o normal), prioridad, motivo de prioridad, una línea
-   **Wadati** cuando hay al menos 3 pares P/S, una línea **Formas de onda**
-   cuando el evento tiene consulta de disponibilidad y el mapa de planta y
-   perfil. La línea Wadati es descriptiva (`N`, `Vp/Vs`, `R²`, dispersión y
-   calidad) y no cambia la prioridad. La línea de formas de onda resume las
-   estaciones consultadas que estaban grabando y no se usaron, y queda fijada
-   en la solicitud aunque después se vuelva a consultar. La evidencia de fases
-   y el enlace al detalle quedan disponibles solo en la app.
-4. Mientras se construye, el modal muestra el progreso. El PDF es el formato
-   principal; si falla, se genera un DOCX de respaldo.
+2. Marque los eventos con las casillas y pulse **Agregar a la bandeja**. Los
+   eventos se acumulan; se pueden sumar más desde Paneles. El máximo por
+   solicitud se configura con `RCS_INFORME_MAX_EVENTOS` (50 por defecto).
+3. Abra **Ver bandeja**, revise los eventos, elija el formato y escriba una nota
+   opcional. Al pulsar **Enviar bandeja** se crea **una solicitud y un PDF por
+   responsable**, con todos sus eventos.
+4. La app genera un informe A4 horizontal con un bloque por evento:
+   identificadores, fecha y hora, coordenadas, profundidad, magnitud y tipo,
+   analista, cruce Eventquery, solución (sospechosa o normal), prioridad,
+   motivo de prioridad, una línea **Wadati** cuando hay al menos 3 pares P/S,
+   una línea **Formas de onda** cuando el evento tiene consulta de
+   disponibilidad y el mapa de planta y perfil. La línea Wadati es descriptiva
+   (`N`, `Vp/Vs`, `R²`, dispersión y calidad) y no cambia la prioridad. La línea
+   de formas de onda resume las estaciones consultadas que estaban grabando y
+   no se usaron, y queda fijada en la solicitud aunque después se vuelva a
+   consultar. La evidencia de fases y el enlace al detalle quedan disponibles
+   solo en la app.
+5. Mientras se construye, la solicitud queda como **En proceso** en la bandeja.
+   El PDF es el formato principal; si falla, se genera un DOCX de respaldo.
 
-La solicitud se crea cuando el informe está listo y usa la hora del clic como
+La solicitud se crea cuando el informe está listo y usa la hora del envío como
 fecha de notificación. La columna **Revisión** muestra el estado de la última
 solicitud: **Notificada**, **En proceso** o **Cerrada**. Mientras la solicitud
 está activa, el evento no se puede volver a seleccionar. Si está cerrada, se

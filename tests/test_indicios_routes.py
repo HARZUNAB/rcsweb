@@ -17,7 +17,12 @@ from app.models import (
     nuevo_uuid,
     utcnow,
 )
-from app.services import availability, indicios, review_reports
+from app.services import (
+    availability,
+    indicios,
+    review_drafts,
+    review_reports,
+)
 from app.services.workspace import crear_workspace, ruta_workspace
 
 
@@ -1079,3 +1084,57 @@ def test_listado_y_detalle_reutilizan_la_clasificacion_sospechoso(
     html = listado.get_data(as_text=True)
     assert "Mapa</a>" not in html
     assert "#indicios-fases" in html
+
+
+class _BandejaFakeRedis:
+    def __init__(self):
+        self.datos = {}
+
+    def get(self, clave):
+        return self.datos.get(clave)
+
+    def set(self, clave, valor, ex=None):
+        self.datos[clave] = valor
+
+    def delete(self, clave):
+        self.datos.pop(clave, None)
+
+    def expire(self, clave, ttl):
+        return clave in self.datos
+
+    def ttl(self, clave):
+        return 43200
+
+
+def test_solicitar_revision_agrega_a_la_bandeja(
+    app, client, login, monkeypatch
+):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    analista = User(username="mdur", role="analista", analyst_code="mdur")
+    analista.set_password("secret")
+    db.session.add(analista)
+    db.session.commit()
+    fake = _BandejaFakeRedis()
+    monkeypatch.setattr(review_drafts, "_redis", lambda: fake)
+    login()
+
+    respuesta = client.post(
+        f"/jobs/{job.id}/indicios/revision",
+        data={
+            "fuente": "seiscomp",
+            "eventos": ["0"],
+            "accion": "bandeja",
+        },
+    )
+
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.get_json()
+    assert cuerpo["estado"] == "bandeja"
+    assert cuerpo["total"] == 1
+    with app.app_context():
+        items = review_drafts.listar(job.id, admin.id)
+        assert len(items) == 1
+        assert items[0]["fila"]["evento"] == "seiscomp:000001"
+        assert items[0]["assigned_to_id"] == analista.id
+        assert items[0]["kind"] == "solucion"

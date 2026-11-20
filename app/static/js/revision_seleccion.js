@@ -10,6 +10,7 @@
   }
 
   const url = panel.dataset.url || "";
+  const urlBandeja = panel.dataset.urlBandeja || "";
   const fuente = panel.dataset.fuente || "";
   const analista = panel.dataset.analista || "";
   const analistaNombre = panel.dataset.analistaNombre || "";
@@ -329,6 +330,7 @@
       datos.append("fuente", fuente);
       datos.append("formato", formato);
       datos.append("nota", modalNota ? modalNota.value.trim() : "");
+      datos.append("accion", "bandeja");
       seleccionadas().forEach(function (caja) {
         datos.append("eventos", String(caja.value));
       });
@@ -341,7 +343,7 @@
         modalResultado.classList.add("d-none");
         modalResultado.innerHTML = "";
       }
-      mostrarProgreso({ progreso: 0, paso: "Encolando la solicitud…" });
+      mostrarProgreso({ progreso: 0, paso: "Agregando a la bandeja…" });
 
       fetch(url, {
         method: "POST",
@@ -360,8 +362,18 @@
           if (!resultado.ok) {
             throw new Error(
               (resultado.datos && resultado.datos.error) ||
-                "No se pudo crear la solicitud."
+                "No se pudo agregar a la bandeja."
             );
+          }
+          if (resultado.datos && resultado.datos.estado === "bandeja") {
+            seleccion.clear();
+            guardar();
+            if (urlBandeja) {
+              window.location.href = urlBandeja;
+            } else {
+              window.location.reload();
+            }
+            return;
           }
           consultarEstado(resultado.datos.report_id);
         })

@@ -173,6 +173,7 @@
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2"
      id="revision-seleccion"
      data-url="{{ url_for('results.solicitar_revision', job_id=job.id) }}"
+     data-url-bandeja="{{ url_for('panels.bandeja', job_id=job.id) }}"
      data-fuente="{{ fuente }}"
      data-analista="{{ analista_id if analista_id not in (none, 'sin') else '' }}"
      data-analista-nombre="{{ analista_nombre }}"
@@ -183,8 +184,12 @@
   </span>
   <button type="button" class="btn btn-sm btn-primary"
           id="btn-solicitar-revision" disabled>
-    Solicitar revisión
+    Agregar a la bandeja
   </button>
+  <a class="btn btn-sm btn-outline-secondary"
+     href="{{ url_for('panels.bandeja', job_id=job.id) }}">
+    Ver bandeja
+  </a>
   <span class="small text-secondary" id="revision-aviso"></span>
 </div>
 {% endif %}
@@ -430,7 +435,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2 class="modal-title fs-5" id="modalRevisionLabel">
-          Solicitar revisión
+          Agregar a la bandeja
         </h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal"
                 aria-label="Cerrar"></button>
@@ -441,15 +446,17 @@
         </p>
         <p class="small text-secondary mb-3">
           <span id="revision-cantidad">0</span> eventos seleccionados.
+          Se acumulan en la bandeja y se envían juntos por analista. El
+          formato y la nota se eligen al enviar.
         </p>
-        <div class="mb-3">
+        <div class="mb-3 d-none">
           <label class="form-label small text-secondary" for="revision-nota">
             Nota para el analista (opcional)
           </label>
           <textarea class="form-control" id="revision-nota" rows="3"
                     placeholder="Qué revisar o por qué se solicita"></textarea>
         </div>
-        <div class="mb-2">
+        <div class="mb-2 d-none">
           <span class="form-label small text-secondary d-block">Formato</span>
           <div class="form-check form-check-inline">
             <input class="form-check-input" type="radio"
@@ -487,7 +494,7 @@
         </button>
         <button type="button" class="btn btn-primary"
                 id="btn-generar-revision">
-          Generar y crear solicitud
+          Agregar a la bandeja
         </button>
       </div>
     </div>
