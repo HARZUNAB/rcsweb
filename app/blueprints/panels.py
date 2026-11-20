@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from urllib.parse import quote
 from uuid import uuid4
 
 from flask import (
@@ -228,13 +229,17 @@ def _eventos_vista(
                 )
         url = None
         if tabla and fila is not None:
+            separador = "&" if "?" in volver else "?"
+            volver_evento = (
+                f"{volver}{separador}sel={quote(str(evento.get('id') or ''))}"
+            )
             url = url_for(
                 "results.detalle",
                 job_id=job.id,
                 tabla=tabla,
                 opcion=origen.get("opcion"),
                 fila=fila,
-                volver=volver,
+                volver=volver_evento,
                 volver_etiqueta=volver_etiqueta,
             )
         vista.append(
@@ -1392,18 +1397,23 @@ def grupo(job_id: str, dataset: str, grupo: str, ident: str):
     if detalle is None:
         abort(404)
 
-    volver = _url_panel(
-        job.id,
-        ctx["dataset"],
-        ctx["tipo"],
-        ctx["fuente"],
+    volver_paneles = _url_panel(
+        job.id, ctx["dataset"], tipo=ctx["tipo"], fuente=ctx["fuente"]
+    )
+    volver_grupo = url_for(
+        "panels.grupo",
+        job_id=job.id,
+        dataset=ctx["dataset"],
         grupo=grupo,
         ident=ident,
+        tipo=ctx["tipo"] or None,
+        fuente=ctx["fuente"] or None,
     )
+    seleccion = request.args.get("sel", "").strip()
     eventos_vista = _eventos_vista(
         job,
         detalle["eventos"],
-        volver,
+        volver_grupo,
         _antecedentes_panel(ruta_workspace(job.id), detalle["eventos"]),
     )
     datos_vista = {
@@ -1467,11 +1477,14 @@ def grupo(job_id: str, dataset: str, grupo: str, ident: str):
             "de las dos vistas para ver sus parámetros."
         ),
         download_name=f"panel_{grupo}_{ident}.png",
-        volver=volver,
+        volver=volver_grupo,
         puede_solicitar=tiene_permiso(current_user, "revisiones.crear"),
         grupo_panel=grupo,
         ident=ident,
         bandeja_total=bandeja_total,
+        seleccion=seleccion,
+        clave_inicial=seleccion,
+        volver_paneles=volver_paneles,
     )
 
 

@@ -2401,8 +2401,12 @@ navegación existente.
 
 Paneles agrega `clave=evento.id` en `_puntos_grupo()` y
 `data-clave`/`data-lista-mapa` en `panels/grupo.html`. El enlace **Ver** de
-`_eventos_vista()` pasa `volver_etiqueta="Volver al listado"` para que el
-detalle regrese al grupo con sus filtros. En Repetidos,
+`_eventos_vista()` pasa `volver_etiqueta="Volver al listado"` y usa como
+`volver` la URL del grupo (`panels.grupo`), no el índice. Además agrega
+`sel=<id>` a esa URL; `panels.grupo` lee `request.args["sel"]`, marca la fila
+`table-active` y pasa `data-clave-inicial` al mapa. `mapa_detalle.js` selecciona
+ese punto al cargar, restaurando el panel y el resaltado. El encabezado
+**Volver a Paneles** usa `volver_paneles`, que sí apunta al índice. En Repetidos,
 `detail.puntos_mapa()` agrega `clave_lista=fila` y la tabla del grupo usa
 `data-clave=_fila`. No hay lógica específica por página.
 

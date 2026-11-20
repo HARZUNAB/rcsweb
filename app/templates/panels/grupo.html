@@ -14,7 +14,7 @@
     <div class="text-secondary small text-uppercase mb-1">
       <a class="text-reset text-decoration-none"
          href="{{ url_for('jobs.detalle', job_id=job.id) }}">Trabajo {{ job.id[:8] }}</a>
-      · <a class="text-reset text-decoration-none" href="{{ volver }}">Paneles</a>
+      · <a class="text-reset text-decoration-none" href="{{ volver_paneles }}">Paneles</a>
       · {{ dataset_titulo }}
     </div>
     <h1 class="h3 mb-1">{{ detalle.titulo }}</h1>
@@ -36,7 +36,7 @@
        href="{{ url_for('panels.bandeja', job_id=job.id) }}">
       Bandeja ({{ bandeja_total or 0 }})
     </a>
-    <a class="btn btn-outline-secondary" href="{{ volver }}">Volver a Paneles</a>
+    <a class="btn btn-outline-secondary" href="{{ volver_paneles }}">Volver a Paneles</a>
   </div>
 </div>
 
@@ -119,7 +119,8 @@
         </thead>
         <tbody>
           {% for evento in datos.eventos %}
-          <tr data-clave="{{ evento.id }}" class="fila-enlazada">
+          <tr data-clave="{{ evento.id }}"
+              class="fila-enlazada{% if seleccion and evento.id == seleccion %} table-active{% endif %}">
             <td>{{ evento.fecha or '—' }}</td>
             <td>
               {% if evento.tipo_observacion %}

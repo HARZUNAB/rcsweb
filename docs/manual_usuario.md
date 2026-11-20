@@ -1079,7 +1079,8 @@ y **Solicitar revisión** está en esa misma fila. El botón de la fila no dispa
 la selección del mapa.
 
 Al abrir **Ver**, el detalle ofrece **Volver al listado**, que regresa al grupo
-de Paneles con sus filtros, además de **Volver al trabajo**.
+de Paneles con sus filtros y deja seleccionado el mismo evento, además de
+**Volver al trabajo**.
 
 ### Cruce y prioridad en el listado
 

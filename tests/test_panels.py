@@ -727,14 +727,24 @@ def test_ruta_detalle_grupo_perfil(client, login, monkeypatch):
         r'href="([^"]*/resultados/[^"]*)"', html
     )
     assert enlace
-    detalle = client.get(
-        enlace.group(1).replace("&amp;", "&")
-    ).get_data(as_text=True)
+    href = enlace.group(1).replace("&amp;", "&")
+    assert "sel=" in href or "sel%3D" in href
+    detalle = client.get(href).get_data(as_text=True)
     assert "Volver al listado" in detalle
+    volver = re.search(
+        r'href="([^"]*paneles[^"]*)"[^>]*>\s*Volver al listado',
+        detalle,
+    )
+    assert volver
+    grupo = client.get(
+        volver.group(1).replace("&amp;", "&")
+    ).get_data(as_text=True)
+    assert "table-active" in grupo
+    assert 'data-clave-inicial=""' not in grupo
+    assert "data-clave-inicial=" in grupo
     assert "paneles.js" not in html
     assert 'id="grupo-descargar-csv"' in html
-    assert "grupo=perfil" in html
-    assert "ident=P001" in html
+    assert "/paneles/observaciones/perfil/P001" in html
     datos_mapa = json.loads(
         re.search(
             r'<script type="application/json" id="mapa-datos">(.*?)</script>',
@@ -769,8 +779,7 @@ def test_ruta_detalle_grupo_territorio_sin_perfil(client, login, monkeypatch):
     assert "mapa_detalle.js" in html
     assert 'id="detalle-evento-panel"' in html
     assert "paneles.js" not in html
-    assert "grupo=territorio" in html
-    assert "ident=Otros" in html
+    assert "/paneles/observaciones/territorio/Otros" in html
     assert 'id="controles-estaciones-mapa"' not in html
     assert 'id="btn-propagacion"' not in html
     assert 'id="btn-propagacion-consultar"' not in html

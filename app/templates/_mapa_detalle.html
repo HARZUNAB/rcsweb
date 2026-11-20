@@ -57,6 +57,7 @@
         <div id="mapa-detalle" class="rounded border"
              style="height: 430px;"
              data-modo="{{ mapa_modo }}"
+             data-clave-inicial="{{ clave_inicial|default('') }}"
              data-offline-url="{{ url_offline }}"
              data-online-url="{{ url_online }}"
              data-url-regiones="{{ url_for('static', filename='data/chile_regiones.json') }}"

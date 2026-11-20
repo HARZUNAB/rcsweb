@@ -709,6 +709,17 @@
   if (cerrarDetalle) {
     cerrarDetalle.addEventListener("click", limpiarSeleccion);
   }
+
+  window.addEventListener("load", function () {
+    const clave = contenedor && contenedor.dataset.claveInicial;
+    if (!clave) {
+      return;
+    }
+    const indice = buscarPorClaveLista(clave);
+    if (indice >= 0) {
+      seleccionar(puntos[indice]);
+    }
+  });
   document.addEventListener("rcs:vineta-cerrada", limpiarSeleccion);
 
   function anclaDeEvento(evento, nodo) {
