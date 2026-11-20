@@ -1117,6 +1117,13 @@ eventos que ya están en una solicitud activa se excluyen al enviar y se avisa.
 Si hay eventos locales y de publicación del mismo responsable, van en la misma
 solicitud y el PDF los distingue.
 
+La bandeja no depende de la sesión del navegador: si cierra sesión o el
+navegador, sigue asociada a su usuario y trabajo. Al volver, la encuentra igual.
+El tiempo de vida se renueva cada vez que abre la bandeja; se muestra como
+**vence en X h Y min**. Tras **Enviar bandeja**, los eventos quedan como
+**En proceso** hasta que la solicitud se crea. Si la generación falla, vuelven
+a **pendientes** para reintentar.
+
 ## Catálogos
 
 Desde el detalle del trabajo puede abrir los catálogos procesados. Los nombres

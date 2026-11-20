@@ -2438,8 +2438,13 @@ local.
 snapshot:
 
 ```text
-fila (dict del informe), assigned_to_id, kind, agregado_en
+fila (dict del informe), assigned_to_id, kind, agregado_en,
+estado (pendiente | enviando), report_id, enviado_en
 ```
+
+`listar()` renueva el TTL con `EXPIRE` en cada lectura. Un envío marcado como
+`enviando` que supere `MAX_ENVIO_SEG` (2 h) vuelve a `pendiente` como red de
+seguridad.
 
 Los formularios `panels.revision_publicacion` y `panels.revision_local` aceptan
 `accion=bandeja` y agregan el ítem sin encolar el informe.
@@ -2459,7 +2464,10 @@ encola un estado por grupo. Si un grupo mezcla `solucion` y `publicacion`, el
 `kind` de la solicitud es `mixta`; `review_reports` permite analista o
 supervisor para `publicacion` y `mixta`. El PDF incluye todos los eventos del
 grupo, cada uno con sus antecedentes. Los eventos con conflicto o los grupos
-excedidos permanecen en la bandeja con un aviso.
+excedidos permanecen en la bandeja con un aviso. Los grupos enviados se marcan
+`enviando` con su `report_id`; `review_reports.ejecutar()` los elimina al crear
+la solicitud y los restaura si la generación falla. El estado `bandeja: true`
+viaja en el estado de Redis para ese cierre.
 
 En la vista general, el detalle del evento seleccionado se dibuja en
 `#panel-evento-detalle`, debajo de los mini mapas. La vista de detalle mantiene

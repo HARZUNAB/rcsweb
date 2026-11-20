@@ -20,6 +20,12 @@ class FakeRedis:
     def delete(self, clave):
         self.datos.pop(clave, None)
 
+    def expire(self, clave, ttl):
+        return clave in self.datos
+
+    def ttl(self, clave):
+        return 43200
+
 
 def _fake(app, monkeypatch):
     fake = FakeRedis()
@@ -89,3 +95,40 @@ def test_bandeja_guarda_ttl(app, monkeypatch):
     assert json.loads(fake.datos[clave])[0]["fila"]["evento"] == (
         "seiscomp:000001"
     )
+
+
+def test_bandeja_marca_enviando_y_restaura(app, monkeypatch):
+    _fake(app, monkeypatch)
+    with app.app_context():
+        review_drafts.agregar(
+            "job",
+            1,
+            {
+                "fila": {"fuente": "seiscomp", "evento": "seiscomp:000001"},
+                "assigned_to_id": 2,
+                "kind": "solucion",
+            },
+        )
+        review_drafts.marcar_enviando(
+            "job",
+            1,
+            {("seiscomp", "seiscomp:000001")},
+            "report-1",
+        )
+        items = review_drafts.listar("job", 1)
+        assert items[0]["estado"] == "enviando"
+        assert items[0]["report_id"] == "report-1"
+
+        review_drafts.restaurar("job", 1, "report-1")
+        items = review_drafts.listar("job", 1)
+        assert items[0]["estado"] == "pendiente"
+        assert "report_id" not in items[0]
+
+        review_drafts.marcar_enviando(
+            "job",
+            1,
+            {("seiscomp", "seiscomp:000001")},
+            "report-2",
+        )
+        review_drafts.quitar_enviados("job", 1, "report-2")
+        assert review_drafts.listar("job", 1) == []

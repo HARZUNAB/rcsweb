@@ -14,7 +14,7 @@ from ..domain.catalogs import canonical
 from ..extensions import db
 from ..models import Job, User
 from ..security import tiene_rol
-from . import indicios, notifications, plots, review
+from . import indicios, notifications, plots, review, review_drafts
 from .audit import registrar
 from .detail import leer_filas
 from .results import cargar_indice
@@ -155,6 +155,9 @@ def ejecutar(report_id: str) -> dict:
     estado = leer_estado(report_id)
     if estado is None:
         return {"estado": "inexistente"}
+    bandeja = bool(estado.get("bandeja"))
+    bandeja_job = estado.get("job_id")
+    bandeja_user = estado.get("user_id")
     ruta: Path | None = None
     try:
         job_id = estado["job_id"]
@@ -382,6 +385,15 @@ def ejecutar(report_id: str) -> dict:
             },
             user_id=estado.get("user_id"),
         )
+        if bandeja and bandeja_job is not None and bandeja_user is not None:
+            try:
+                review_drafts.quitar_enviados(
+                    bandeja_job, bandeja_user, report_id
+                )
+            except review_drafts.BandejaError:
+                log.warning(
+                    "No se pudo limpiar la bandeja del informe %s", report_id
+                )
         return {"estado": "listo", "request_id": solicitud.id}
     except Exception as exc:  # noqa: BLE001 - el estado muestra el error
         db.session.rollback()
@@ -398,4 +410,14 @@ def ejecutar(report_id: str) -> dict:
             paso="Error",
             error=str(exc),
         )
+        if bandeja and bandeja_job is not None and bandeja_user is not None:
+            try:
+                review_drafts.restaurar(
+                    bandeja_job, bandeja_user, report_id
+                )
+            except review_drafts.BandejaError:
+                log.warning(
+                    "No se pudo restaurar la bandeja del informe %s",
+                    report_id,
+                )
         return {"estado": "error", "error": str(exc)}

@@ -871,12 +871,21 @@ def bandeja(job_id: str):
     grupos: dict[int | None, list[dict]] = {}
     for item in items:
         grupos.setdefault(item.get("assigned_to_id"), []).append(item)
+    try:
+        ttl = review_drafts.ttl_restante(job.id, current_user.id)
+    except review_drafts.BandejaError:
+        ttl = 0
     return render_template(
         "panels/bandeja.html",
         job=job,
         items=items,
         grupos=grupos,
         usuarios=usuarios,
+        pendientes=sum(
+            1 for item in items if item.get("estado") != "enviando"
+        ),
+        ttl_horas=ttl // 3600,
+        ttl_minutos=(ttl % 3600) // 60,
         volver=url_for("panels.index", job_id=job.id),
     )
 
@@ -919,10 +928,132 @@ def bandeja_enviar(job_id: str):
     job = _job_panel(job_id)
     if not tiene_permiso(current_user, "revisiones.crear"):
         abort(403)
-    items = _bandeja_items(job)
+    items = [
+        item
+        for item in _bandeja_items(job)
+        if item.get("estado") != "enviando"
+    ]
     if not items:
-        flash("La bandeja está vacía.", "warning")
+        flash("No hay eventos pendientes en la bandeja.", "warning")
         return redirect(url_for("panels.bandeja", job_id=job.id))
+    formato = request.form.get("formato", "pdf").strip().lower()
+    if formato not in ("pdf", "docx"):
+        formato = "pdf"
+    nota = request.form.get("nota", "").strip()
+    maximo = int(
+        current_app.config.get("RCS_INFORME_MAX_EVENTOS", 50) or 50
+    )
+    usuarios = {
+        usuario.id: usuario
+        for usuario in db.session.execute(db.select(User)).scalars()
+    }
+    grupos: dict[int, list[dict]] = {}
+    for item in items:
+        asignado = item.get("assigned_to_id")
+        if asignado is None:
+            continue
+        grupos.setdefault(int(asignado), []).append(item)
+
+    enviados = 0
+    solicitudes = 0
+    for asignado_id, grupo in grupos.items():
+        usuario = usuarios.get(asignado_id)
+        nombre = usuario.username if usuario else f"usuario {asignado_id}"
+        if len(grupo) > maximo:
+            flash(
+                f"{nombre}: {len(grupo)} eventos superan el máximo de "
+                f"{maximo}. No se envió ese grupo.",
+                "warning",
+            )
+            continue
+        if usuario is None or not usuario.active or not (
+            tiene_rol(usuario, "analista") or tiene_rol(usuario, "supervisor")
+        ):
+            flash(
+                f"{nombre} no está activo o no tiene rol para responder.",
+                "warning",
+            )
+            continue
+        filas = []
+        validos = []
+        kinds = set()
+        for item in grupo:
+            fila = item.get("fila") or {}
+            if review.conflictos(
+                job.id, fila.get("fuente"), [fila.get("evento")]
+            ):
+                flash(
+                    f"{fila.get('evento')} ya está en una solicitud activa.",
+                    "warning",
+                )
+                continue
+            filas.append(fila)
+            validos.append(item)
+            kinds.add(str(item.get("kind") or "solucion"))
+        if not filas:
+            continue
+        kind = next(iter(kinds)) if len(kinds) == 1 else "mixta"
+        report_id = uuid4().hex
+        estado = {
+            "job_id": job.id,
+            "user_id": current_user.id,
+            "assigned_to_id": asignado_id,
+            "fuente": filas[0].get("fuente", ""),
+            "formato": formato,
+            "nota": nota,
+            "kind": kind,
+            "bandeja": True,
+            "notified_at": utcnow().isoformat(),
+            "base_url": request.host_url.rstrip("/"),
+            "filas": filas,
+            "estado": "en_cola",
+            "progreso": 0,
+            "paso": "Encolando…",
+        }
+        try:
+            review_reports.guardar_estado(report_id, estado)
+            from tasks.reports import generar_informe_revision
+
+            generar_informe_revision.delay(report_id)
+        except Exception as exc:  # noqa: BLE001 - Redis o Celery no disponibles
+            review_reports.borrar_estado(report_id)
+            flash(f"No se pudo encolar para {nombre}: {exc}", "danger")
+            continue
+        try:
+            review_drafts.marcar_enviando(
+                job.id,
+                current_user.id,
+                {review_drafts.claves(item) for item in validos},
+                report_id,
+            )
+        except review_drafts.BandejaError as exc:
+            flash(
+                f"La solicitud se encoló, pero no se pudo marcar en la "
+                f"bandeja: {exc}",
+                "warning",
+            )
+        enviados += len(filas)
+        solicitudes += 1
+        registrar(
+            "revision.solicitar",
+            f"job:{job.id}",
+            {
+                "fuente": filas[0].get("fuente", ""),
+                "eventos": [fila.get("evento") for fila in filas],
+                "formato": formato,
+                "asignado": asignado_id,
+                "kind": kind,
+            },
+        )
+    if enviados:
+        flash(
+            f"{enviados} evento(s) enviados en {solicitudes} solicitud(es). "
+            "Quedan como En proceso hasta que se cree la solicitud.",
+            "success",
+        )
+    else:
+        flash("No se envió ningún evento.", "warning")
+    return redirect(url_for("panels.bandeja", job_id=job.id))
     formato = request.form.get("formato", "pdf").strip().lower()
     if formato not in ("pdf", "docx"):
         formato = "pdf"

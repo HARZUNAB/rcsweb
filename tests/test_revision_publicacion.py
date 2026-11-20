@@ -237,6 +237,12 @@ class _FakeRedis:
     def delete(self, clave):
         self.datos.pop(clave, None)
 
+    def expire(self, clave, ttl):
+        return clave in self.datos
+
+    def ttl(self, clave):
+        return 43200
+
 
 def test_bandeja_agrupa_por_responsable_y_envia(
     app, client, login, monkeypatch
@@ -308,4 +314,9 @@ def test_bandeja_agrupa_por_responsable_y_envia(
     assert len(por_asignado[segundo.id]["filas"]) == 1
     assert por_asignado[segundo.id]["kind"] == "solucion"
     with app.app_context():
+        items = review_drafts.listar(job.id, admin.id)
+        assert len(items) == 3
+        assert all(item.get("estado") == "enviando" for item in items)
+        for report_id in estados:
+            review_drafts.quitar_enviados(job.id, admin.id, report_id)
         assert review_drafts.listar(job.id, admin.id) == []

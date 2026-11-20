@@ -15,6 +15,7 @@ from flask import current_app
 
 CLAVE_BANDEJA = "rcs:revision:bandeja"
 TTL_BANDEJA = 12 * 3600
+MAX_ENVIO_SEG = 2 * 3600
 
 
 class BandejaError(RuntimeError):
@@ -38,8 +39,12 @@ def clave(job_id: str, user_id: int) -> str:
 
 
 def listar(job_id: str, user_id: int) -> list[dict]:
+    clave_actual = clave(job_id, user_id)
     try:
-        texto = _redis().get(clave(job_id, user_id))
+        conexion = _redis()
+        texto = conexion.get(clave_actual)
+        if texto:
+            conexion.expire(clave_actual, TTL_BANDEJA)
     except redis.RedisError as exc:
         raise BandejaError(f"No se pudo leer la bandeja: {exc}") from exc
     if not texto:
@@ -50,7 +55,84 @@ def listar(job_id: str, user_id: int) -> list[dict]:
         return []
     if not isinstance(datos, list):
         return []
-    return [item for item in datos if isinstance(item, dict)]
+    items = [item for item in datos if isinstance(item, dict)]
+    restaurados = _restaurar_vencidos(items)
+    if restaurados:
+        _guardar(job_id, user_id, items)
+    return items
+
+
+def _restaurar_vencidos(items: list[dict]) -> bool:
+    """Devuelve a pendiente los envíos que quedaron colgados."""
+    ahora = datetime.now(UTC)
+    cambiado = False
+    for item in items:
+        if item.get("estado") != "enviando":
+            continue
+        enviado = str(item.get("enviado_en") or "")
+        try:
+            instante = datetime.fromisoformat(enviado)
+        except ValueError:
+            instante = ahora
+        if (ahora - instante).total_seconds() > MAX_ENVIO_SEG:
+            item["estado"] = "pendiente"
+            item.pop("report_id", None)
+            item.pop("enviado_en", None)
+            cambiado = True
+    return cambiado
+
+
+def ttl_restante(job_id: str, user_id: int) -> int:
+    try:
+        valor = _redis().ttl(clave(job_id, user_id))
+    except redis.RedisError:
+        return 0
+    try:
+        return max(0, int(valor))
+    except (TypeError, ValueError):
+        return 0
+
+
+def claves(item: dict) -> tuple[str, str]:
+    fila = item.get("fila") or {}
+    return (
+        str(fila.get("fuente") or ""),
+        str(fila.get("evento") or ""),
+    )
+
+
+def marcar_enviando(
+    job_id: str,
+    user_id: int,
+    claves_enviadas: set[tuple[str, str]],
+    report_id: str,
+) -> None:
+    items = listar(job_id, user_id)
+    for item in items:
+        if claves(item) in claves_enviadas:
+            item["estado"] = "enviando"
+            item["report_id"] = report_id
+            item["enviado_en"] = datetime.now(UTC).isoformat()
+    _guardar(job_id, user_id, items)
+
+
+def quitar_enviados(job_id: str, user_id: int, report_id: str) -> None:
+    items = [
+        item
+        for item in listar(job_id, user_id)
+        if str(item.get("report_id") or "") != str(report_id)
+    ]
+    _guardar(job_id, user_id, items)
+
+
+def restaurar(job_id: str, user_id: int, report_id: str) -> None:
+    items = listar(job_id, user_id)
+    for item in items:
+        if str(item.get("report_id") or "") == str(report_id):
+            item["estado"] = "pendiente"
+            item.pop("report_id", None)
+            item.pop("enviado_en", None)
+    _guardar(job_id, user_id, items)
 
 
 def _guardar(job_id: str, user_id: int, items: list[dict]) -> None:

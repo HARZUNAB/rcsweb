@@ -35,6 +35,10 @@
         <div class="small text-secondary">
           {{ items|length }} evento{{ '' if items|length == 1 else 's' }}
           en {{ grupos|length }} responsable{{ '' if grupos|length == 1 else 's' }}
+          · {{ pendientes }} pendiente{{ '' if pendientes == 1 else 's' }}
+          {% if ttl_horas or ttl_minutos %}
+          · vence en {{ ttl_horas }} h {{ ttl_minutos }} min
+          {% endif %}
         </div>
       </div>
       <form method="post"
@@ -84,6 +88,9 @@
               <td class="text-nowrap">{{ fila.get('fecha_hora') or '—' }}</td>
               <td>{{ fila.get('analista') or '—' }}</td>
               <td class="text-end">
+                {% if item.estado == 'enviando' %}
+                <span class="badge text-bg-info">En proceso</span>
+                {% else %}
                 <form method="post"
                       action="{{ url_for('panels.bandeja_quitar', job_id=job.id) }}">
                   <input type="hidden" name="fuente"
@@ -94,6 +101,7 @@
                     Quitar
                   </button>
                 </form>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}
@@ -122,7 +130,8 @@
                  placeholder="Se incluye en todas las solicitudes enviadas.">
         </div>
         <div class="col-12 col-lg-2">
-          <button class="btn btn-primary w-100" type="submit">
+          <button class="btn btn-primary w-100" type="submit"
+                  {% if not pendientes %}disabled{% endif %}>
             Enviar bandeja
           </button>
         </div>
