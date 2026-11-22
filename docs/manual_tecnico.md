@@ -2493,6 +2493,13 @@ POST /jobs/<job>/paneles/bandeja/vaciar
 POST /jobs/<job>/paneles/bandeja/enviar
 ```
 
+`_destino_bandeja()` lee `volver` y `volver_etiqueta` de la query o del
+formulario, exige que `volver` empiece con `/` y no con `//`, y cae en
+`panels.index` con **Volver a Paneles** si no es válido. Las acciones de la
+bandeja conservan ambos campos en formularios ocultos y redirigen con
+`_url_bandeja()`. **Ver bandeja** en Revisión envía `volver=request.full_path` y
+**Volver a revisión**; desde Paneles se envía **Volver al listado**.
+
 El envío agrupa por `assigned_to_id`, valida que el responsable esté activo y
 tenga rol, revisa conflictos por evento, aplica `RCS_INFORME_MAX_EVENTOS` y
 encola un estado por grupo. Si un grupo mezcla `solucion` y `publicacion`, el

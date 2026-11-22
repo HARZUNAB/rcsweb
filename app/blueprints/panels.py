@@ -621,7 +621,7 @@ def revision_publicacion(job_id: str, fila: int):
             flash(str(exc), "danger")
             return _render(503)
         flash("Evento agregado a la bandeja de revisión.", "success")
-        return redirect(url_for("panels.bandeja", job_id=job.id))
+        return redirect(_url_bandeja(job, volver, "Volver al listado"))
 
     report_id = uuid4().hex
     estado = {
@@ -809,7 +809,7 @@ def revision_local(job_id: str):
             flash(str(exc), "danger")
             return _render(503)
         flash("Evento agregado a la bandeja de revisión.", "success")
-        return redirect(url_for("panels.bandeja", job_id=job.id))
+        return redirect(_url_bandeja(job, volver, "Volver al listado"))
 
     report_id = uuid4().hex
     estado = {
@@ -864,6 +864,26 @@ def _bandeja_items(job: Job) -> list[dict]:
         return []
 
 
+def _destino_bandeja(job: Job):
+    volver = str(request.values.get("volver") or "").strip()
+    etiqueta = str(
+        request.values.get("volver_etiqueta") or ""
+    ).strip()
+    if not volver.startswith("/") or volver.startswith("//"):
+        volver = url_for("panels.index", job_id=job.id)
+        etiqueta = "Volver a Paneles"
+    return volver, etiqueta or "Volver a Paneles"
+
+
+def _url_bandeja(job: Job, volver: str, etiqueta: str) -> str:
+    parametros = {"job_id": job.id}
+    if volver:
+        parametros["volver"] = volver
+    if etiqueta:
+        parametros["volver_etiqueta"] = etiqueta
+    return url_for("panels.bandeja", **parametros)
+
+
 @panels_bp.get("/jobs/<job_id>/paneles/bandeja")
 @login_required
 @permiso_requerido("paneles.ver")
@@ -883,6 +903,7 @@ def bandeja(job_id: str):
         ttl = review_drafts.ttl_restante(job.id, current_user.id)
     except review_drafts.BandejaError:
         ttl = 0
+    volver, volver_etiqueta = _destino_bandeja(job)
     return render_template(
         "panels/bandeja.html",
         job=job,
@@ -894,7 +915,8 @@ def bandeja(job_id: str):
         ),
         ttl_horas=ttl // 3600,
         ttl_minutos=(ttl % 3600) // 60,
-        volver=url_for("panels.index", job_id=job.id),
+        volver=volver,
+        volver_etiqueta=volver_etiqueta,
     )
 
 
@@ -905,13 +927,14 @@ def bandeja_quitar(job_id: str):
     job = _job_panel(job_id)
     if not tiene_permiso(current_user, "revisiones.crear"):
         abort(403)
+    volver, volver_etiqueta = _destino_bandeja(job)
     fuente = str(request.form.get("fuente") or "").strip()
     evento = str(request.form.get("evento") or "").strip()
     try:
         review_drafts.quitar(job.id, current_user.id, fuente, evento)
     except review_drafts.BandejaError as exc:
         flash(str(exc), "danger")
-    return redirect(url_for("panels.bandeja", job_id=job.id))
+    return redirect(_url_bandeja(job, volver, volver_etiqueta))
 
 
 @panels_bp.post("/jobs/<job_id>/paneles/bandeja/vaciar")
@@ -921,12 +944,13 @@ def bandeja_vaciar(job_id: str):
     job = _job_panel(job_id)
     if not tiene_permiso(current_user, "revisiones.crear"):
         abort(403)
+    volver, volver_etiqueta = _destino_bandeja(job)
     try:
         review_drafts.vaciar(job.id, current_user.id)
         flash("Bandeja vaciada.", "success")
     except review_drafts.BandejaError as exc:
         flash(str(exc), "danger")
-    return redirect(url_for("panels.bandeja", job_id=job.id))
+    return redirect(_url_bandeja(job, volver, volver_etiqueta))
 
 
 @panels_bp.post("/jobs/<job_id>/paneles/bandeja/enviar")
@@ -936,6 +960,7 @@ def bandeja_enviar(job_id: str):
     job = _job_panel(job_id)
     if not tiene_permiso(current_user, "revisiones.crear"):
         abort(403)
+    volver, volver_etiqueta = _destino_bandeja(job)
     items = [
         item
         for item in _bandeja_items(job)
@@ -943,7 +968,7 @@ def bandeja_enviar(job_id: str):
     ]
     if not items:
         flash("No hay eventos pendientes en la bandeja.", "warning")
-        return redirect(url_for("panels.bandeja", job_id=job.id))
+        return redirect(_url_bandeja(job, volver, volver_etiqueta))
     formato = request.form.get("formato", "pdf").strip().lower()
     if formato not in ("pdf", "docx"):
         formato = "pdf"
@@ -1061,120 +1086,7 @@ def bandeja_enviar(job_id: str):
         )
     else:
         flash("No se envió ningún evento.", "warning")
-    return redirect(url_for("panels.bandeja", job_id=job.id))
-    formato = request.form.get("formato", "pdf").strip().lower()
-    if formato not in ("pdf", "docx"):
-        formato = "pdf"
-    nota = request.form.get("nota", "").strip()
-    maximo = int(
-        current_app.config.get("RCS_INFORME_MAX_EVENTOS", 50) or 50
-    )
-    usuarios = {
-        usuario.id: usuario
-        for usuario in db.session.execute(db.select(User)).scalars()
-    }
-    grupos: dict[int, list[dict]] = {}
-    for item in items:
-        asignado = item.get("assigned_to_id")
-        if asignado is None:
-            continue
-        grupos.setdefault(int(asignado), []).append(item)
-
-    restantes: list[dict] = []
-    enviados = 0
-    solicitudes = 0
-    for asignado_id, grupo in grupos.items():
-        usuario = usuarios.get(asignado_id)
-        nombre = usuario.username if usuario else f"usuario {asignado_id}"
-        if len(grupo) > maximo:
-            flash(
-                f"{nombre}: {len(grupo)} eventos superan el máximo de "
-                f"{maximo}. No se envió ese grupo.",
-                "warning",
-            )
-            restantes.extend(grupo)
-            continue
-        if usuario is None or not usuario.active or not (
-            tiene_rol(usuario, "analista") or tiene_rol(usuario, "supervisor")
-        ):
-            flash(
-                f"{nombre} no está activo o no tiene rol para responder.",
-                "warning",
-            )
-            restantes.extend(grupo)
-            continue
-        filas = []
-        kinds = set()
-        conflictivos = []
-        for item in grupo:
-            fila = item.get("fila") or {}
-            if review.conflictos(
-                job.id, fila.get("fuente"), [fila.get("evento")]
-            ):
-                conflictivos.append(item)
-                flash(
-                    f"{fila.get('evento')} ya está en una solicitud activa.",
-                    "warning",
-                )
-                continue
-            filas.append(fila)
-            kinds.add(str(item.get("kind") or "solucion"))
-        if not filas:
-            restantes.extend(conflictivos)
-            continue
-        kind = next(iter(kinds)) if len(kinds) == 1 else "mixta"
-        report_id = uuid4().hex
-        estado = {
-            "job_id": job.id,
-            "user_id": current_user.id,
-            "assigned_to_id": asignado_id,
-            "fuente": filas[0].get("fuente", ""),
-            "formato": formato,
-            "nota": nota,
-            "kind": kind,
-            "notified_at": utcnow().isoformat(),
-            "base_url": request.host_url.rstrip("/"),
-            "filas": filas,
-            "estado": "en_cola",
-            "progreso": 0,
-            "paso": "Encolando…",
-        }
-        try:
-            review_reports.guardar_estado(report_id, estado)
-            from tasks.reports import generar_informe_revision
-
-            generar_informe_revision.delay(report_id)
-        except Exception as exc:  # noqa: BLE001 - Redis o Celery no disponibles
-            review_reports.borrar_estado(report_id)
-            flash(f"No se pudo encolar para {nombre}: {exc}", "danger")
-            restantes.extend(grupo)
-            continue
-        enviados += len(filas)
-        solicitudes += 1
-        restantes.extend(conflictivos)
-        registrar(
-            "revision.solicitar",
-            f"job:{job.id}",
-            {
-                "fuente": filas[0].get("fuente", ""),
-                "eventos": [fila.get("evento") for fila in filas],
-                "formato": formato,
-                "asignado": asignado_id,
-                "kind": kind,
-            },
-        )
-    try:
-        review_drafts.reemplazar(job.id, current_user.id, restantes)
-    except review_drafts.BandejaError as exc:
-        flash(str(exc), "danger")
-    if enviados:
-        flash(
-            f"{enviados} evento(s) enviados en {solicitudes} solicitud(es).",
-            "success",
-        )
-    elif not restantes:
-        flash("No se envió ningún evento.", "warning")
-    return redirect(url_for("panels.bandeja", job_id=job.id))
+    return redirect(_url_bandeja(job, volver, volver_etiqueta))
 
 
 @panels_bp.get("/jobs/<job_id>/paneles")

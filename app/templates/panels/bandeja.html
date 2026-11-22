@@ -12,7 +12,7 @@
   </div>
   <div class="d-flex flex-wrap gap-2">
     <a class="btn btn-outline-secondary" href="{{ volver }}">
-      Volver a Paneles
+      {{ volver_etiqueta }}
     </a>
   </div>
 </div>
@@ -22,7 +22,7 @@
   <div class="card-body">
     <div class="alert alert-light border mb-0" role="status">
       La bandeja está vacía. Use <strong>Agregar a la bandeja</strong> desde un
-      evento en Paneles.
+      evento en Paneles o desde Revisión.
     </div>
   </div>
 </div>
@@ -43,6 +43,9 @@
       </div>
       <form method="post"
             action="{{ url_for('panels.bandeja_vaciar', job_id=job.id) }}">
+        <input type="hidden" name="volver" value="{{ volver }}">
+        <input type="hidden" name="volver_etiqueta"
+               value="{{ volver_etiqueta }}">
         <button class="btn btn-sm btn-outline-secondary" type="submit">
           Vaciar bandeja
         </button>
@@ -93,6 +96,9 @@
                 {% else %}
                 <form method="post"
                       action="{{ url_for('panels.bandeja_quitar', job_id=job.id) }}">
+                  <input type="hidden" name="volver" value="{{ volver }}">
+                  <input type="hidden" name="volver_etiqueta"
+                         value="{{ volver_etiqueta }}">
                   <input type="hidden" name="fuente"
                          value="{{ fila.get('fuente') or '' }}">
                   <input type="hidden" name="evento"
@@ -114,6 +120,8 @@
     <form method="post"
           action="{{ url_for('panels.bandeja_enviar', job_id=job.id) }}"
           class="border-top pt-3">
+      <input type="hidden" name="volver" value="{{ volver }}">
+      <input type="hidden" name="volver_etiqueta" value="{{ volver_etiqueta }}">
       <div class="row g-3 align-items-end">
         <div class="col-12 col-lg-3">
           <label class="form-label small" for="bandeja-formato">Formato</label>

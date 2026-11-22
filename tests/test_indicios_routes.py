@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import zipfile
 
 from app.domain.catalogs import canonical
@@ -177,6 +178,16 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "¿Qué significan estos términos?" in html
     assert "Mostrar miniaturas de perfil y planta" in html
     assert "Ver miniaturas" in html
+    assert "Ver bandeja" in html
+    assert "volver_etiqueta=Volver" in html
+    enlace_bandeja = re.search(
+        r'href="([^"]*paneles/bandeja[^"]*)"', html
+    )
+    assert enlace_bandeja
+    bandeja = client.get(
+        enlace_bandeja.group(1).replace("&amp;", "&")
+    ).get_data(as_text=True)
+    assert "Volver a revisión" in bandeja
     assert "miniatura.png" in html
     assert 'id="mapa-chile-mini"' in html
     assert "inversion" not in html.lower()

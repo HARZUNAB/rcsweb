@@ -1139,8 +1139,11 @@ enviar de inmediato. La bandeja:
 - permite quitar eventos o vaciarla;
 - dura 12 horas y luego se descarta sola.
 
-El enlace **Bandeja (N)** está en el encabezado de cada grupo de Paneles. Los
-eventos que ya están en una solicitud activa se excluyen al enviar y se avisa.
+El enlace **Bandeja (N)** está en el encabezado de cada grupo de Paneles y
+**Ver bandeja** en el listado de Revisión. El botón de regreso de la bandeja
+indica el origen: **Volver al listado** si se abrió desde Paneles o
+**Volver a revisión** si se abrió desde el listado de revisión. Los eventos que
+ya están en una solicitud activa se excluyen al enviar y se avisa.
 Si hay eventos locales y de publicación del mismo responsable, van en la misma
 solicitud y el PDF los distingue.
 

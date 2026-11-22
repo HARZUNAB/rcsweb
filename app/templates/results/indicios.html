@@ -170,10 +170,11 @@
   {% endif %}
 </form>
 
+{% set volver_bandeja = request.full_path.rstrip('?') %}
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2"
      id="revision-seleccion"
      data-url="{{ url_for('results.solicitar_revision', job_id=job.id) }}"
-     data-url-bandeja="{{ url_for('panels.bandeja', job_id=job.id) }}"
+     data-url-bandeja="{{ url_for('panels.bandeja', job_id=job.id, volver=volver_bandeja, volver_etiqueta='Volver a revisión') }}"
      data-fuente="{{ fuente }}"
      data-analista="{{ analista_id if analista_id not in (none, 'sin') else '' }}"
      data-analista-nombre="{{ analista_nombre }}"
@@ -187,7 +188,7 @@
     Agregar a la bandeja
   </button>
   <a class="btn btn-sm btn-outline-secondary"
-     href="{{ url_for('panels.bandeja', job_id=job.id) }}">
+     href="{{ url_for('panels.bandeja', job_id=job.id, volver=volver_bandeja, volver_etiqueta='Volver a revisión') }}">
     Ver bandeja
   </a>
   <span class="small text-secondary" id="revision-aviso"></span>
