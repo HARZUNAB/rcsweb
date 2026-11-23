@@ -1,0 +1,508 @@
+"""Validación del prototipo de señal en estaciones sin arribos.
+
+Se ejecuta dentro del contenedor ``web`` para poder leer ``/workspace`` y
+llamar al servicio ``disponibilidad``. No modifica la app ni el workspace.
+
+Ejemplo::
+
+    docker cp scripts/validar_correlacion.py rcsweb-web:/tmp/
+    docker compose exec -T web python /tmp/validar_correlacion.py \
+        --job 9d461a97-94c7-46ac-8242-041fe6f04c37 \
+        --salida /tmp/validacion_correlacion.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import statistics
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import numpy as np
+import requests
+
+ESTADOS_SENAL = {"podria_picarse", "senal_detectada"}
+
+
+@dataclass
+class Evento:
+    id: str
+    lat: float
+    lon: float
+    prof: float
+    mag: float
+    instante: datetime
+    picks: list[dict]
+    candidatas: list[dict]
+
+
+def leer_jsonl(ruta: Path) -> list[dict]:
+    if not ruta.is_file():
+        return []
+    salida = []
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        if not linea.strip():
+            continue
+        try:
+            salida.append(json.loads(linea))
+        except ValueError:
+            continue
+    return salida
+
+
+def distancia_km(lat1, lon1, lat2, lon2) -> float:
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    h = (
+        math.sin(dp / 2) ** 2
+        + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    )
+    return 2 * 6371.0088 * math.asin(min(1.0, math.sqrt(h)))
+
+
+def es_vertical(stream: str) -> bool:
+    return stream.split(".")[-1].endswith("Z")
+
+
+def iso(instante: datetime) -> str:
+    return instante.replace(microsecond=0).isoformat()
+
+
+def banda_lat(lat: float) -> str:
+    if lat > -25:
+        return "norte"
+    if lat > -35:
+        return "centro"
+    return "sur"
+
+
+def banda_prof(prof: float) -> str:
+    if prof > 100:
+        return "profundo"
+    if prof >= 70:
+        return "intermedio"
+    if prof >= 20:
+        return "somero"
+    return "muy_somero"
+
+
+def streams_verticales(fila: dict) -> list[str]:
+    return [
+        stream
+        for stream in str(fila.get("stream_ids") or "").split(";")
+        if stream and es_vertical(stream)
+    ]
+
+
+def cargar_eventos(
+    workspace: Path, source: str, radio_km: float
+) -> dict[str, Evento]:
+    base = workspace / "catalogo" / source
+    eventos = {e["event_id"]: e for e in leer_jsonl(base / "eventos.jsonl")}
+    picks: dict[str, list[dict]] = defaultdict(list)
+    for arribo in leer_jsonl(base / "arribos.jsonl"):
+        if str(arribo.get("phase", "")).upper() != "P":
+            continue
+        if arribo.get("station_latitude") is None:
+            continue
+        picks[arribo.get("event_id")].append(arribo)
+    candidatas: dict[str, list[dict]] = defaultdict(list)
+    for fila in leer_jsonl(base / "estaciones_sin_arribos.jsonl"):
+        candidatas[fila.get("event_id")].append(fila)
+    salida = {}
+    for eid, fila in eventos.items():
+        if not picks[eid] or not candidatas[eid]:
+            continue
+        lat = fila.get("latitude")
+        lon = fila.get("longitude")
+        prof = fila.get("depth_km")
+        if lat is None or lon is None or prof is None:
+            continue
+        instante = datetime.fromisoformat(fila["event_time"])
+        verticales = [
+            fila_cand
+            for fila_cand in candidatas[eid]
+            if streams_verticales(fila_cand)
+            and fila_cand.get("station_latitude") is not None
+            and fila_cand.get("station_longitude") is not None
+            and distancia_km(
+                lat,
+                lon,
+                fila_cand["station_latitude"],
+                fila_cand["station_longitude"],
+            )
+            <= radio_km
+        ]
+        if len(verticales) < 2:
+            continue
+        salida[eid] = Evento(
+            id=eid,
+            lat=float(lat),
+            lon=float(lon),
+            prof=float(prof),
+            mag=float(fila.get("magnitude") or 0.0),
+            instante=instante,
+            picks=picks[eid],
+            candidatas=verticales,
+        )
+    return salida
+
+
+def elegir_eventos(
+    eventos: dict[str, Evento], por_estrato: int
+) -> list[Evento]:
+    grupos: dict[tuple[str, str], list[Evento]] = defaultdict(list)
+    for evento in eventos.values():
+        if len(evento.picks) < 5:
+            continue
+        grupos[(banda_lat(evento.lat), banda_prof(evento.prof))].append(
+            evento
+        )
+    elegidos = []
+    for clave in sorted(grupos):
+        grupo = sorted(
+            grupos[clave],
+            key=lambda evento: (
+                len(evento.picks),
+                len(evento.candidatas),
+                evento.mag,
+            ),
+            reverse=True,
+        )
+        elegidos.extend(grupo[:por_estrato])
+    return elegidos
+
+
+def construir_payload(
+    evento: Evento, referencia: dict, max_candidatas: int
+) -> dict | None:
+    picks = []
+    for arribo in evento.picks:
+        lat = arribo.get("station_latitude")
+        lon = arribo.get("station_longitude")
+        if lat is None or lon is None:
+            continue
+        distancia = distancia_km(evento.lat, evento.lon, lat, lon)
+        segundos = (
+            datetime.fromisoformat(arribo["pick_time"]) - evento.instante
+        ).total_seconds()
+        if segundos <= 0:
+            continue
+        picks.append(
+            {
+                "dist": distancia,
+                "seg": segundos,
+                "arribo": arribo,
+                "stream": "{}.{}.{}.{}".format(
+                    arribo.get("network", ""),
+                    arribo.get("station", ""),
+                    arribo.get("location", ""),
+                    arribo.get("channel", ""),
+                ),
+            }
+        )
+    if len(picks) < 3:
+        return None
+    xs = np.array([p["dist"] for p in picks])
+    ys = np.array([p["seg"] for p in picks])
+    pendiente, intercepto = np.polyfit(xs, ys, 1)
+    verticales = [p for p in picks if es_vertical(p["stream"])]
+    if not verticales:
+        verticales = picks
+    verticales.sort(
+        key=lambda p: math.hypot(p["dist"], evento.prof)
+    )
+    controles = [
+        p for p in verticales if p["stream"] != referencia["stream"]
+    ][:5]
+    candidatas = []
+    for fila in evento.candidatas:
+        streams = streams_verticales(fila)
+        if not streams:
+            continue
+        distancia = distancia_km(
+            evento.lat,
+            evento.lon,
+            fila["station_latitude"],
+            fila["station_longitude"],
+        )
+        esperado = evento.instante + timedelta(
+            seconds=float(intercepto + pendiente * distancia)
+        )
+        candidatas.append(
+            {
+                "stream": streams[0],
+                "station": "AVAIL {}".format(fila.get("station", "")),
+                "distance_km": round(distancia, 1),
+                "expected_time": iso(esperado),
+            }
+        )
+        if len(candidatas) >= max_candidatas:
+            break
+    negativas = []
+    for candidata in candidatas:
+        copia = dict(candidata)
+        copia["station"] = candidata["station"] + " NEG"
+        copia["expected_time"] = iso(
+            datetime.fromisoformat(candidata["expected_time"])
+            + timedelta(seconds=60)
+        )
+        negativas.append(copia)
+    return {
+        "event_time": iso(evento.instante),
+        "reference": {
+            "stream": referencia["stream"],
+            "pick_time": referencia["arribo"]["pick_time"],
+            "distance_km": round(referencia["dist"], 1),
+        },
+        "candidates": [
+            {
+                "stream": p["stream"],
+                "station": "CTRL {}".format(p["arribo"].get("station", "")),
+                "distance_km": round(p["dist"], 1),
+                "expected_time": iso(
+                    evento.instante + timedelta(seconds=p["seg"])
+                ),
+            }
+            for p in controles
+        ]
+        + candidatas
+        + negativas,
+        "fs": 100.0,
+        "band": [1.0, 10.0],
+        "template_before_s": 1.0,
+        "template_after_s": 7.0,
+        "candidate_before_s": 10.0,
+        "candidate_after_s": 30.0,
+        "max_lag_s": 5.0,
+        "sta_s": 0.5,
+        "lta_s": 10.0,
+        "sta_lta_before_s": 1.5,
+        "sta_lta_after_s": 4.0,
+        "cc_min": 0.5,
+        "sta_lta_min": 3.0,
+    }
+
+
+def grupo_de(estacion: str) -> str:
+    if estacion.endswith(" NEG"):
+        return "NEG"
+    if estacion.startswith("CTRL"):
+        return "CTRL"
+    return "AVAIL"
+
+
+def resumir(respuesta: dict) -> dict:
+    grupos = {"CTRL": [], "AVAIL": [], "NEG": []}
+    for item in respuesta.get("resultados", []):
+        grupos[grupo_de(str(item.get("station", "")))].append(item)
+    salida = {}
+    for clave, items in grupos.items():
+        slt = [
+            item["sta_lta_max"]
+            for item in items
+            if item.get("sta_lta_max") is not None
+        ]
+        cc = [
+            item["cc_max"]
+            for item in items
+            if item.get("cc_max") is not None
+        ]
+        salida[clave] = {
+            "n": len(items),
+            "slt_med": statistics.median(slt) if slt else None,
+            "cc_med": statistics.median(cc) if cc else None,
+            "senal": sum(
+                1
+                for item in items
+                if item.get("clasificacion") in ESTADOS_SENAL
+            ),
+            "sin_datos": sum(
+                1
+                for item in items
+                if item.get("clasificacion") == "sin_datos"
+            ),
+        }
+    return salida
+
+
+def consultar(url: str, token: str, payload: dict) -> dict:
+    respuesta = requests.post(
+        url.rstrip("/") + "/correlacionar",
+        json=payload,
+        headers={"X-RCS-Token": token},
+        timeout=300,
+    )
+    respuesta.raise_for_status()
+    return respuesta.json()
+
+
+def analizar_evento(
+    evento: Evento,
+    url: str,
+    token: str,
+    max_candidatas: int,
+) -> dict | None:
+    candidatos_ref = []
+    for arribo in evento.picks:
+        if not es_vertical(
+            "{}.{}.{}.{}".format(
+                arribo.get("network", ""),
+                arribo.get("station", ""),
+                arribo.get("location", ""),
+                arribo.get("channel", ""),
+            )
+        ):
+            continue
+        lat = arribo.get("station_latitude")
+        lon = arribo.get("station_longitude")
+        if lat is None or lon is None:
+            continue
+        distancia = distancia_km(evento.lat, evento.lon, lat, lon)
+        segundos = (
+            datetime.fromisoformat(arribo["pick_time"]) - evento.instante
+        ).total_seconds()
+        if segundos <= 0:
+            continue
+        candidatos_ref.append(
+            {
+                "dist": distancia,
+                "seg": segundos,
+                "arribo": arribo,
+                "stream": "{}.{}.{}.{}".format(
+                    arribo.get("network", ""),
+                    arribo.get("station", ""),
+                    arribo.get("location", ""),
+                    arribo.get("channel", ""),
+                ),
+            }
+        )
+    candidatos_ref.sort(
+        key=lambda p: math.hypot(p["dist"], evento.prof)
+    )
+    for referencia in candidatos_ref[:3]:
+        payload = construir_payload(
+            evento, referencia, max_candidatas
+        )
+        if payload is None:
+            continue
+        try:
+            respuesta = consultar(url, token, payload)
+        except requests.HTTPError as exc:
+            print(
+                "  referencia {} falló: {}".format(referencia["arribo"].get("station"), exc)
+            )
+            continue
+        return {
+            "evento": evento,
+            "referencia": referencia,
+            "respuesta": respuesta,
+        }
+    return None
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--job",
+        default="9d461a97-94c7-46ac-8242-041fe6f04c37",
+    )
+    parser.add_argument("--source", default="seiscomp")
+    parser.add_argument("--radio-km", type=float, default=250.0)
+    parser.add_argument("--por-estrato", type=int, default=1)
+    parser.add_argument("--max-candidatas", type=int, default=10)
+    parser.add_argument(
+        "--url",
+        default=os.environ.get(
+            "RCS_DISPONIBILIDAD_URL", "http://disponibilidad:8010"
+        ),
+    )
+    parser.add_argument(
+        "--token", default=os.environ.get("RCS_DISPONIBILIDAD_TOKEN", "")
+    )
+    parser.add_argument("--salida", default="")
+    parser.add_argument("--eventos", default="")
+    args = parser.parse_args()
+    workspace = Path("/workspace") / args.job
+    eventos = cargar_eventos(workspace, args.source, args.radio_km)
+    if args.eventos:
+        pedidos = [e.strip() for e in args.eventos.split(",") if e.strip()]
+        elegidos = [eventos[e] for e in pedidos if e in eventos]
+    else:
+        elegidos = elegir_eventos(eventos, args.por_estrato)
+    print(
+        f"job={args.job} eventos={len(elegidos)} "
+        f"radio={args.radio_km:.0f} km "
+        f"max_candidatas={args.max_candidatas}"
+    )
+    filas = []
+    for evento in elegidos:
+        print(
+            f"\n{evento.id} {iso(evento.instante)} M{evento.mag:.1f} prof={evento.prof:.1f} km {banda_lat(evento.lat)}/{banda_prof(evento.prof)}"
+        )
+        resultado = analizar_evento(
+            evento, args.url, args.token, args.max_candidatas
+        )
+        if resultado is None:
+            print("  sin referencia con datos")
+            continue
+        resumen = resumir(resultado["respuesta"])
+        ref = resultado["referencia"]["arribo"].get("station")
+        print(
+            "  ref={} ref_slt={} resumen={}".format(
+                ref,
+                resultado["respuesta"].get("referencia", {}).get(
+                    "sta_lta_max"
+                ),
+                resultado["respuesta"].get("resumen", {}),
+            )
+        )
+        for clave in ("CTRL", "AVAIL", "NEG"):
+            grupo = resumen[clave]
+            slt = (
+                "-"
+                if grupo["slt_med"] is None
+                else str(round(grupo["slt_med"], 2))
+            )
+            cc = (
+                "-"
+                if grupo["cc_med"] is None
+                else str(round(grupo["cc_med"], 2))
+            )
+            print(
+                f"  {clave:<5s} n={grupo['n']:<3} "
+                f"slt_med={slt:<8} cc_med={cc:<8} "
+                f"senal={grupo['senal']:<3} "
+                f"sin_datos={grupo['sin_datos']}"
+            )
+        filas.append(
+            {
+                "evento": evento.id,
+                "instante": iso(evento.instante),
+                "lat": evento.lat,
+                "prof": evento.prof,
+                "mag": evento.mag,
+                "estrato": f"{banda_lat(evento.lat)}/{banda_prof(evento.prof)}",
+                "referencia": ref,
+                "resumen": resumen,
+                "resumen_servicio": resultado["respuesta"].get("resumen"),
+                "resultados": resultado["respuesta"].get("resultados"),
+            }
+        )
+    if args.salida:
+        Path(args.salida).write_text(
+            json.dumps(filas, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        print(f"\nJSON: {args.salida}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
