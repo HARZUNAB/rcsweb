@@ -53,9 +53,17 @@ def test_correlacion_max_encuentra_el_lag():
     assert lag is not None and abs(lag - 0.4) < 0.02
 
 
-def test_clasificar_distingue_los_tres_estados():
+def test_clasificar_distingue_los_estados():
     podria, _ = correlacion.clasificar(
         cc_max=0.8,
+        lag_s=0.2,
+        sta_lta=4.0,
+        cc_min=0.5,
+        sta_lta_min=3.0,
+        lag_max_s=5.0,
+    )
+    senal, _ = correlacion.clasificar(
+        cc_max=0.2,
         lag_s=0.2,
         sta_lta=4.0,
         cc_min=0.5,
@@ -79,6 +87,7 @@ def test_clasificar_distingue_los_tres_estados():
         lag_max_s=5.0,
     )
     assert podria == correlacion.CLASIFICACION_PODRIA
+    assert senal == correlacion.CLASIFICACION_SENAL
     assert debil == correlacion.CLASIFICACION_DEBIL
     assert sin_senal == correlacion.CLASIFICACION_SIN_SENAL
 

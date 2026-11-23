@@ -26,12 +26,14 @@ ESTADO_SIN_DATOS = "SIN_DATOS"
 ESTADO_DATOS_INSUFICIENTES = "DATOS_INSUFICIENTES"
 
 CLASIFICACION_PODRIA = "podria_picarse"
+CLASIFICACION_SENAL = "senal_detectada"
 CLASIFICACION_DEBIL = "senal_debil"
 CLASIFICACION_SIN_SENAL = "sin_senal"
 CLASIFICACION_SIN_DATOS = "sin_datos"
 
 ETIQUETAS = {
     CLASIFICACION_PODRIA: "Podría haberse picado",
+    CLASIFICACION_SENAL: "Señal detectada (revisar)",
     CLASIFICACION_DEBIL: "Señal débil",
     CLASIFICACION_SIN_SENAL: "Sin señal clara",
     CLASIFICACION_SIN_DATOS: "Sin datos",
@@ -327,10 +329,13 @@ def clasificar(
     estacion_ok = sta_lta is not None and sta_lta >= sta_lta_min
     if correlacion_ok and estacion_ok:
         return CLASIFICACION_PODRIA, "Correlación y STA/LTA sobre el umbral."
-    if correlacion_ok or estacion_ok:
-        if correlacion_ok:
-            return CLASIFICACION_DEBIL, "Correlaciona, pero STA/LTA es bajo."
-        return CLASIFICACION_DEBIL, "Hay STA/LTA, pero no correlaciona."
+    if estacion_ok:
+        return (
+            CLASIFICACION_SENAL,
+            "STA/LTA sobre el umbral en la ventana de P.",
+        )
+    if correlacion_ok:
+        return CLASIFICACION_DEBIL, "Correlaciona, pero STA/LTA es bajo."
     return CLASIFICACION_SIN_SENAL, "Ni correlación ni STA/LTA superan el umbral."
 
 
@@ -406,6 +411,10 @@ def _validar(payload: dict) -> dict:
         "max_lag_s": _numero(payload.get("max_lag_s"), 5.0),
         "sta_s": _numero(payload.get("sta_s"), 0.5),
         "lta_s": _numero(payload.get("lta_s"), 10.0),
+        "sta_lta_before_s": _numero(
+            payload.get("sta_lta_before_s"), 1.5
+        ),
+        "sta_lta_after_s": _numero(payload.get("sta_lta_after_s"), 4.0),
         "cc_min": _numero(payload.get("cc_min"), 0.5),
         "sta_lta_min": _numero(payload.get("sta_lta_min"), 3.0),
     }
@@ -417,8 +426,16 @@ def analizar(payload: dict) -> dict:
     params = _validar(payload)
     fs = params["fs"]
     banda = params["banda"]
-    inicio_ref = params["pick_ref"] - params["template_before_s"] - 2.0
-    fin_ref = params["pick_ref"] + params["template_after_s"] + 2.0
+    margen_ref = max(
+        params["lta_s"] + params["sta_lta_before_s"],
+        params["template_before_s"] + 2.0,
+    )
+    inicio_ref = params["pick_ref"] - margen_ref
+    fin_ref = (
+        params["pick_ref"]
+        + max(params["template_after_s"], params["sta_lta_after_s"])
+        + 2.0
+    )
     traza_ref = _leer_ventana(
         params["stream_ref"], inicio_ref, fin_ref, fs, banda
     )
@@ -445,12 +462,13 @@ def analizar(payload: dict) -> dict:
         ratio_ref,
         traza_ref["inicio"],
         fs,
-        params["pick_ref"] - 2.0,
-        params["pick_ref"] + params["template_after_s"],
+        params["pick_ref"] - params["sta_lta_before_s"],
+        params["pick_ref"] + params["sta_lta_after_s"],
     )
     resultados = []
     resumen = {
         CLASIFICACION_PODRIA: 0,
+        CLASIFICACION_SENAL: 0,
         CLASIFICACION_DEBIL: 0,
         CLASIFICACION_SIN_SENAL: 0,
         CLASIFICACION_SIN_DATOS: 0,
@@ -485,17 +503,19 @@ def analizar(payload: dict) -> dict:
             resumen[CLASIFICACION_SIN_DATOS] += 1
             resumen["total"] += 1
             continue
-        desde = (
+        desde = min(
             esperado
             - params["template_before_s"]
             - max_lag
-            - params["candidate_before_s"]
+            - params["candidate_before_s"],
+            esperado - params["lta_s"] - params["sta_lta_before_s"] - 1.0,
         )
-        hasta = (
+        hasta = max(
             esperado
             + params["template_after_s"]
             + max_lag
-            + params["candidate_after_s"]
+            + params["candidate_after_s"],
+            esperado + params["sta_lta_after_s"] + 2.0,
         )
         traza = _leer_ventana(stream, desde, hasta, fs, banda)
         if traza is None:
@@ -538,8 +558,8 @@ def analizar(payload: dict) -> dict:
             ratio,
             traza["inicio"],
             fs,
-            esperado - 2.0,
-            esperado + params["template_after_s"] + max_lag,
+            esperado - params["sta_lta_before_s"],
+            esperado + params["sta_lta_after_s"],
         )
         clasificacion, motivo = clasificar(
             cc_max=cc_max,
@@ -568,6 +588,9 @@ def analizar(payload: dict) -> dict:
         resumen["con_datos"] += 1
         resumen["total"] += 1
     resumen["podrian_picarse"] = resumen[CLASIFICACION_PODRIA]
+    resumen["candidatas_revision"] = (
+        resumen[CLASIFICACION_PODRIA] + resumen[CLASIFICACION_SENAL]
+    )
     resumen["referencia_debil"] = bool(
         sta_ref is not None and sta_ref < params["sta_lta_min"]
     )
@@ -587,6 +610,8 @@ def analizar(payload: dict) -> dict:
             "max_lag_s": max_lag,
             "sta_s": params["sta_s"],
             "lta_s": params["lta_s"],
+            "sta_lta_before_s": params["sta_lta_before_s"],
+            "sta_lta_after_s": params["sta_lta_after_s"],
             "cc_min": params["cc_min"],
             "sta_lta_min": params["sta_lta_min"],
         },
