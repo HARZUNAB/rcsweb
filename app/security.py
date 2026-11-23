@@ -27,6 +27,7 @@ PERMISOS = (
     "revisiones.ver",
     "revisiones.crear",
     "revisiones.responder",
+    "revisiones.eliminar",
     "auditoria.ver",
     "usuarios.gestionar",
 )
@@ -54,7 +55,8 @@ ROLES = {
     "admin": frozenset(PERMISOS),
     # El supervisor hace toda la operación y ve la auditoría, pero no administra
     # cuentas ni contraseñas.
-    "supervisor": frozenset(PERMISOS) - {"usuarios.gestionar"},
+    "supervisor": frozenset(PERMISOS)
+    - {"usuarios.gestionar", "revisiones.eliminar"},
     "analista": _OPERATIVOS,
     # Observador global: ve todo el sistema en modo lectura, sin exportar ni
     # descargar resultados. Sí puede descargar catálogos desde Catálogos.

@@ -992,6 +992,12 @@ todas; los analistas ven solo las asignadas. El analista asignado pulsa
 los antecedentes de lo realizado y pulsa **Cerrar solicitud**; el texto es
 obligatorio.
 
+Solo un administrador ve **Eliminar solicitud** en el detalle. El botón pide
+confirmación, advierte si la solicitud sigue activa y elimina la solicitud, sus
+eventos, el informe PDF/DOCX y la evidencia adjunta. Es una acción definitiva:
+el analista pierde el acceso y la tarea. Supervisores y analistas no pueden
+eliminar solicitudes.
+
 Al crear la solicitud se envía un correo al analista asignado, si tiene un
 correo configurado en **Usuarios**. El correo indica que debe entrar a la
 plataforma para informarse de la solicitud y aceptarla. El detalle muestra si

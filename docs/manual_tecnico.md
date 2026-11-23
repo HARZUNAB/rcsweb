@@ -1404,10 +1404,20 @@ app. El máximo de eventos por solicitud se configura con
 `RCS_INFORME_MAX_EVENTOS` (50 por defecto). Los conflictos se validan dos veces:
 al encolar y dentro de la tarea, antes de insertar la solicitud.
 
-Permisos: `revisiones.ver` para consultar, `revisiones.crear` para solicitar y
-`revisiones.responder` para aceptar y cerrar. El analista asignado es el único
-que puede responder; administradores y supervisores ven todas las solicitudes y
-los analistas solo las asignadas.
+Permisos: `revisiones.ver` para consultar, `revisiones.crear` para solicitar,
+`revisiones.responder` para aceptar y cerrar y `revisiones.eliminar` para
+borrar. El analista asignado es el único que puede responder; administradores y
+supervisores ven todas las solicitudes y los analistas solo las asignadas.
+`revisiones.eliminar` es exclusivo de administradores: ni supervisores ni
+analistas lo reciben.
+
+La eliminación usa `POST /revisiones/<id>/eliminar` con `revisiones.eliminar`.
+El detalle calcula `puede_eliminar` y solo entonces muestra el botón y el modal
+de confirmación. El modal advierte cuando el estado no es **Cerrada**. La ruta
+borra el informe (`report_path`), la carpeta
+`revisiones/evidencia/<request_id>` y la solicitud; sus
+`review_request_events` se eliminan por cascada. Después registra
+`revision.eliminar` con el trabajo, la fuente y los eventos eliminados.
 
 #### Notificación por correo
 

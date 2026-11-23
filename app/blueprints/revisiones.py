@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -206,12 +207,60 @@ def detalle(request_id: int):
             and solicitud.status == "en_proceso"
         ),
         puede_descargar=bool(solicitud.report_path),
+        puede_eliminar=tiene_permiso(
+            current_user, "revisiones.eliminar"
+        ),
         puede_ver_job=bool(
             solicitud.job is not None
             and puede_ver_trabajo(solicitud.job, current_user)
         ),
         formato=formatting,
     )
+
+
+@revisiones_bp.post("/<int:request_id>/eliminar")
+@login_required
+@permiso_requerido("revisiones.eliminar")
+def eliminar(request_id: int):
+    """Elimina una solicitud, sus eventos y sus archivos asociados."""
+    solicitud = _solicitud(request_id)
+    job_id = solicitud.job_id
+    source_id = solicitud.source_id
+    eventos = [evento.event_id for evento in solicitud.events]
+    report_path = solicitud.report_path
+    workspace = ruta_workspace(job_id)
+
+    if report_path:
+        try:
+            (workspace / report_path).unlink(missing_ok=True)
+        except OSError:
+            current_app.logger.warning(
+                "No se pudo borrar el informe %s", report_path
+            )
+    try:
+        shutil.rmtree(
+            workspace / "revisiones" / "evidencia" / str(request_id),
+            ignore_errors=True,
+        )
+    except OSError:
+        current_app.logger.warning(
+            "No se pudo borrar la evidencia de la solicitud %s", request_id
+        )
+
+    db.session.delete(solicitud)
+    db.session.commit()
+    registrar(
+        "revision.eliminar",
+        f"review:{request_id}",
+        {
+            "job": job_id,
+            "fuente": source_id,
+            "eventos": eventos,
+        },
+        user_id=current_user.id,
+    )
+    flash(f"Solicitud #{request_id} eliminada.", "success")
+    return redirect(url_for("revisiones.index"))
 
 
 @revisiones_bp.get("/<int:request_id>/pdf")

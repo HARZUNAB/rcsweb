@@ -22,13 +22,22 @@
       </span>
     </div>
   </div>
-  {% if puede_descargar %}
-  <a class="btn btn-primary"
-     href="{{ url_for('revisiones.pdf', request_id=solicitud.id) }}"
-     download>
-    Descargar {{ solicitud.report_format|upper }}
-  </a>
-  {% endif %}
+  <div class="d-flex flex-wrap gap-2">
+    {% if puede_descargar %}
+    <a class="btn btn-primary"
+       href="{{ url_for('revisiones.pdf', request_id=solicitud.id) }}"
+       download>
+      Descargar {{ solicitud.report_format|upper }}
+    </a>
+    {% endif %}
+    {% if puede_eliminar %}
+    <button type="button" class="btn btn-outline-danger"
+            data-bs-toggle="modal"
+            data-bs-target="#modalEliminarRevision">
+      Eliminar solicitud
+    </button>
+    {% endif %}
+  </div>
 </div>
 
 {{ ayuda_panel("¿Qué debo hacer al cerrar?", [
@@ -341,6 +350,46 @@
         Cerrar solicitud
       </button>
     </form>
+  </div>
+</div>
+{% endif %}
+
+{% if puede_eliminar %}
+<div class="modal fade" id="modalEliminarRevision" tabindex="-1"
+     aria-labelledby="modalEliminarRevisionLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="modalEliminarRevisionLabel">
+          Eliminar solicitud #{{ solicitud.id }}
+        </h2>
+        <button type="button" class="btn-close"
+                data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">
+          Se eliminarán la solicitud, sus eventos, el informe y la evidencia
+          adjunta. Esta acción no se puede deshacer.
+        </p>
+        {% if solicitud.status != 'cerrada' %}
+        <div class="alert alert-warning small mb-0" role="status">
+          La solicitud está <strong>{{ etiqueta_estado }}</strong>. El analista
+          perderá el acceso y la tarea.
+        </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary"
+                data-bs-dismiss="modal">Cancelar</button>
+        <form method="post"
+              action="{{ url_for('revisiones.eliminar', request_id=solicitud.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-danger" type="submit">
+            Eliminar definitivamente
+          </button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 {% endif %}
