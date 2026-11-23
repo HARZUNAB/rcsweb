@@ -158,6 +158,10 @@ def ejecutar(report_id: str) -> dict:
     bandeja = bool(estado.get("bandeja"))
     bandeja_job = estado.get("job_id")
     bandeja_user = estado.get("user_id")
+    notificar = review.notificar_desde_formulario(
+        estado.get("notificar"),
+        current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
+    )
     ruta: Path | None = None
     try:
         job_id = estado["job_id"]
@@ -341,6 +345,7 @@ def ejecutar(report_id: str) -> dict:
             report_name=ruta.name,
             report_format=extension,
             kind=kind,
+            notificar=notificar,
         )
         db.session.commit()
         actualizar_estado(
@@ -362,24 +367,27 @@ def ejecutar(report_id: str) -> dict:
                 "eventos": len(eventos_solicitud),
                 "formato": extension,
                 "asignado": assigned_to_id,
+                "notificar": notificar,
             },
             user_id=estado.get("user_id"),
         )
         enviado = False
-        try:
-            enviado = notifications.enviar_solicitud(
-                solicitud, base_url=base_url
-            )
-        except Exception:  # noqa: BLE001 - el correo no rompe la solicitud
-            log.exception(
-                "Error inesperado al notificar la solicitud %s",
-                solicitud.id,
-            )
+        if notificar:
+            try:
+                enviado = notifications.enviar_solicitud(
+                    solicitud, base_url=base_url
+                )
+            except Exception:  # noqa: BLE001 - el correo no rompe la solicitud
+                log.exception(
+                    "Error inesperado al notificar la solicitud %s",
+                    solicitud.id,
+                )
         registrar(
             "revision.email",
             f"review:{solicitud.id}",
             {
                 "ok": enviado,
+                "omitido": not notificar,
                 "destinatario": solicitud.email_to or "",
                 "error": solicitud.email_error or "",
             },

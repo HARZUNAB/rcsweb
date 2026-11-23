@@ -845,6 +845,10 @@ def solicitar_revision(job_id: str):
     fuente = request.form.get("fuente", "").strip()
     formato = request.form.get("formato", "pdf").strip().lower()
     nota = request.form.get("nota", "").strip()
+    notificar = review.notificar_desde_formulario(
+        request.form.get("notificar"),
+        current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
+    )
     if fuente not in _fuentes_job(job) or formato not in ("pdf", "docx"):
         return jsonify({"error": "Datos de la solicitud inválidos."}), 400
 
@@ -981,6 +985,7 @@ def solicitar_revision(job_id: str):
         "formato": formato,
         "nota": nota,
         "notified_at": utcnow().isoformat(),
+        "notificar": notificar,
         "base_url": request.host_url.rstrip("/"),
         "filas": [
             {
@@ -1038,6 +1043,7 @@ def solicitar_revision(job_id: str):
             "formato": formato,
             "asignado": asignado,
             "report_id": report_id,
+            "notificar": notificar,
         },
     )
     return jsonify({"report_id": report_id})

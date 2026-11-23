@@ -929,7 +929,12 @@ def test_ejecutar_informe_crea_solicitud_con_pdf(
 
     respuesta = client.post(
         f"/jobs/{job.id}/indicios/revision",
-        data={"fuente": "seiscomp", "eventos": ["0"], "formato": "pdf"},
+        data={
+            "fuente": "seiscomp",
+            "eventos": ["0"],
+            "formato": "pdf",
+            "notificar": "1",
+        },
     )
     assert respuesta.status_code == 200
     report_id = respuesta.get_json()["report_id"]
@@ -967,6 +972,69 @@ def test_ejecutar_informe_crea_solicitud_con_pdf(
     assert "download" in html
     assert "Correo de notificación" in html
     assert "mdur@csn.uchile.cl" in html
+
+
+def test_ejecutar_informe_sin_notificar_crea_solicitud_sin_correo(
+    app, client, login, monkeypatch
+):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    analista = User(
+        username="mdur",
+        role="analista",
+        analyst_code="mdur",
+        email="mdur@csn.uchile.cl",
+    )
+    analista.set_password("secret")
+    db.session.add(analista)
+    db.session.commit()
+    login()
+
+    estados = {}
+    monkeypatch.setattr(
+        review_reports,
+        "guardar_estado",
+        lambda key, datos: estados.__setitem__(key, dict(datos)),
+    )
+    monkeypatch.setattr(
+        review_reports, "leer_estado", lambda key: estados.get(key)
+    )
+    monkeypatch.setattr(
+        "tasks.reports.generar_informe_revision.delay", lambda report_id: None
+    )
+
+    respuesta = client.post(
+        f"/jobs/{job.id}/indicios/revision",
+        data={
+            "fuente": "seiscomp",
+            "eventos": ["0"],
+            "formato": "pdf",
+            "notificar": "0",
+        },
+    )
+    assert respuesta.status_code == 200
+    report_id = respuesta.get_json()["report_id"]
+
+    resultado = review_reports.ejecutar(report_id)
+    assert resultado["estado"] == "listo"
+
+    solicitud = ReviewRequest.query.filter_by(job_id=job.id).one()
+    assert solicitud.status == "notificada"
+    assert solicitud.email_sent_at is None
+    assert solicitud.email_error is None
+    assert solicitud.email_skipped is True
+    correo = (
+        crear_workspace(job.id)
+        / "revisiones"
+        / f"correo_{solicitud.id}.eml"
+    )
+    assert not correo.exists()
+
+    detalle = client.get(f"/revisiones/{solicitud.id}")
+    assert detalle.status_code == 200
+    html = detalle.get_data(as_text=True)
+    assert "No enviada" in html
+    assert "sin notificar por correo" in html
 
 
 def test_analista_ve_solo_sus_eventos_y_no_puede_pedir_revision(app, client):

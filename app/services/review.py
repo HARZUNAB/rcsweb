@@ -109,6 +109,17 @@ def conflictos(
     ]
 
 
+def notificar_desde_formulario(valor, defecto: bool = False) -> bool:
+    """Interpreta la elección de enviar el correo de notificación.
+
+    Un valor vacío o ausente usa ``defecto``; los formularios envían ``1`` o
+    ``0`` de forma explícita.
+    """
+    if valor is None or not str(valor).strip():
+        return bool(defecto)
+    return str(valor).strip().lower() in {"1", "true", "on", "si", "sí"}
+
+
 def crear_solicitud(
     *,
     job_id: str,
@@ -122,6 +133,7 @@ def crear_solicitud(
     report_name: str,
     report_format: str,
     kind: str = "solucion",
+    notificar: bool = True,
 ) -> ReviewRequest:
     """Crea la solicitud y sus eventos; el llamador controla la transacción."""
     solicitud = ReviewRequest(
@@ -136,6 +148,7 @@ def crear_solicitud(
         report_name=report_name,
         report_format=report_format,
         notified_at=notified_at,
+        email_skipped=not notificar,
     )
     db.session.add(solicitud)
     db.session.flush()

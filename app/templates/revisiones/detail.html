@@ -104,6 +104,10 @@
         {% if solicitud.email_sent_at %}
         Enviado a <strong>{{ solicitud.email_to }}</strong>
         el {{ solicitud.email_sent_at.strftime('%Y-%m-%d %H:%M') }}
+        {% elif solicitud.email_skipped %}
+        <span class="text-secondary">
+          No enviada: se creó la solicitud sin notificar por correo.
+        </span>
         {% elif solicitud.email_error %}
         <span class="text-warning">{{ solicitud.email_error }}</span>
         {% else %}

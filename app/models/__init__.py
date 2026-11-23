@@ -492,6 +492,9 @@ class ReviewRequest(db.Model):
     closing_note: Mapped[str | None] = mapped_column(Text)
     email_to: Mapped[str | None] = mapped_column(String(255))
     email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_skipped: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
     email_error: Mapped[str | None] = mapped_column(Text)
     evidence_path: Mapped[str | None] = mapped_column(String(255))
     evidence_name: Mapped[str | None] = mapped_column(String(255))

@@ -8,8 +8,15 @@ from datetime import UTC, datetime
 from app.domain.catalogs import canonical
 from app.extensions import db
 from app.models import Job, User, nuevo_uuid
-from app.services import indicios, review_reports
+from app.services import indicios, review, review_reports
 from app.services.workspace import crear_workspace
+
+
+def test_notificar_desde_formulario_usa_valor_o_defecto():
+    assert review.notificar_desde_formulario(None, True) is True
+    assert review.notificar_desde_formulario("", False) is False
+    assert review.notificar_desde_formulario("1", False) is True
+    assert review.notificar_desde_formulario("0", True) is False
 
 
 def _job() -> Job:
@@ -123,6 +130,9 @@ def test_publicacion_muestra_formulario_y_encola(app, client, login, monkeypatch
     assert "seiscomp:000280" in html
     assert "Solicitar revisión" in html
     assert "Agregar a la bandeja" in html
+    assert "No enviar correo; crear la solicitud igualmente" in html
+    assert 'id="publicacion-notificar-no"' in html
+    assert 'id="publicacion-notificar-si"' in html
 
     estados = {}
     monkeypatch.setattr(
@@ -148,6 +158,7 @@ def test_publicacion_muestra_formulario_y_encola(app, client, login, monkeypatch
     assert estado["kind"] == "publicacion"
     assert estado["assigned_to_id"] == analista.id
     assert estado["fuente"] == "eventquery"
+    assert estado["notificar"] is False
     fila = estado["filas"][0]
     assert fila["evento"] == "eventquery:000127"
     assert fila["kind"] == "publicacion"
@@ -195,6 +206,9 @@ def test_revision_local_muestra_formulario_y_encola(
     assert "seiscomp:000280" in html
     assert "tana2" in html
     assert "Agregar a la bandeja" in html
+    assert "No enviar correo; crear la solicitud igualmente" in html
+    assert 'id="revision-local-notificar-no"' in html
+    assert 'id="revision-local-notificar-si"' in html
 
     estados = {}
     monkeypatch.setattr(
@@ -220,6 +234,7 @@ def test_revision_local_muestra_formulario_y_encola(
     estado = next(iter(estados.values()))
     assert estado["kind"] == "solucion"
     assert estado["assigned_to_id"] == analista.id
+    assert estado["notificar"] is False
     assert estado["filas"][0]["evento"] == "seiscomp:000280"
     assert estado["filas"][0]["kind"] == "solucion"
 
@@ -294,6 +309,9 @@ def test_bandeja_agrupa_por_responsable_y_envia(
     assert html.count('<form method="post"') == html.count(
         'name="csrf_token"'
     )
+    assert "No enviar correos; crear las solicitudes igualmente" in html
+    assert 'id="bandeja-notificar-no"' in html
+    assert 'id="bandeja-notificar-si"' in html
 
     estados = {}
     monkeypatch.setattr(
@@ -312,6 +330,7 @@ def test_bandeja_agrupa_por_responsable_y_envia(
     assert respuesta.status_code == 302
     assert len(estados) == 2
     por_asignado = {estado["assigned_to_id"]: estado for estado in estados.values()}
+    assert all(estado["notificar"] is False for estado in estados.values())
     assert len(por_asignado[primero.id]["filas"]) == 2
     assert por_asignado[primero.id]["kind"] == "mixta"
     assert len(por_asignado[segundo.id]["filas"]) == 1

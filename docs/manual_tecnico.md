@@ -44,6 +44,7 @@ core sísmico está incorporado en `core/` y sus datos grandes en `core_data/`.
 | `DATOS_PATH` | Datos externos dentro del contenedor | `/data` |
 | `CARTOPY_DATA_DIR` | Datos de Cartopy | `/data/cartopy` |
 | `MAPS_MODE` | `auto`, `online` u `offline` | `auto` |
+| `RCS_NOTIFICAR_REVISION_DEFAULT` | Preselección del correo en solicitudes de revisión (`0` = No) | `0` |
 | `ADMIN_USERNAME` | Administrador inicial | `admin` |
 | `ADMIN_PASSWORD` | Clave inicial del administrador | `admin` |
 
@@ -375,6 +376,7 @@ informe generado.
 | `closing_note` | Text | Sí | — | Antecedentes escritos al cerrar |
 | `email_to` | String(255) | Sí | — | Destinatario usado para la notificación |
 | `email_sent_at` | DateTime(tz) | Sí | — | Fecha de envío del correo |
+| `email_skipped` | Boolean | No | `false` | La solicitud se creó sin enviar correo |
 | `email_error` | Text | Sí | — | Último error de envío |
 | `evidence_path` | String(255) | Sí | — | Ruta de la evidencia relativa al workspace |
 | `evidence_name` | String(255) | Sí | — | Nombre original de la evidencia |
@@ -1425,6 +1427,13 @@ borra el informe (`report_path`), la carpeta
 `app/services/notifications.py` envía el aviso al analista asignado cuando la
 tarea del informe crea la solicitud. Usa `smtplib` de la biblioteca estándar,
 sin dependencias nuevas.
+
+La elección se toma al solicitar la revisión y viaja como `notificar` en el
+estado del informe. Los formularios envían `1` o `0`; si falta, se usa
+`RCS_NOTIFICAR_REVISION_DEFAULT` (`0` por defecto). Si es falso, la tarea crea
+la solicitud y sus eventos igualmente, marca `email_skipped=True`, omite
+`notifications.enviar_solicitud()` y registra `revision.email` con
+`omitido=True`. El detalle distingue ese caso de un error SMTP.
 
 - Si `MAIL_SUPPRESS_SEND=1`, guarda el correo en
   `workspace/<job>/revisiones/correo_<id>.eml` en vez de enviarlo.

@@ -971,7 +971,9 @@ Administradores y supervisores ven todos. La revisión se solicita desde
    solicitud se configura con `RCS_INFORME_MAX_EVENTOS` (50 por defecto).
 3. Abra **Ver bandeja**, revise los eventos, elija el formato y escriba una nota
    opcional. Al pulsar **Enviar bandeja** se crea **una solicitud y un PDF por
-   responsable**, con todos sus eventos.
+   responsable**, con todos sus eventos. La app también pregunta si desea
+   enviar el correo de notificación. Por ahora **No** aparece seleccionado por
+   defecto: la solicitud y el PDF se crean igual, pero el correo se omite.
 4. La app genera un informe A4 horizontal con un bloque por evento:
    identificadores, fecha y hora, coordenadas, profundidad, magnitud y tipo,
    analista, cruce Eventquery, solución (sospechosa o normal), prioridad,
@@ -991,6 +993,10 @@ fecha de notificación. La columna **Revisión** muestra el estado de la última
 solicitud: **Notificada**, **En proceso** o **Cerrada**. Mientras la solicitud
 está activa, el evento no se puede volver a seleccionar. Si está cerrada, se
 puede volver a incluir en una solicitud nueva.
+
+Si eligió **No** notificar, la solicitud se crea igual y el detalle muestra
+**No enviada: se creó la solicitud sin notificar por correo**. La misma elección
+aparece en los formularios de **Publicación** y **Revisión local**.
 
 El menú **Revisiones** lista las solicitudes. Administradores y supervisores ven
 todas; los analistas ven solo las asignadas. El analista asignado pulsa
@@ -1149,6 +1155,9 @@ enviar de inmediato. La bandeja:
 - los agrupa por responsable;
 - al pulsar **Enviar bandeja**, crea **una solicitud y un PDF por responsable**,
   con todos sus eventos;
+- pregunta si desea enviar los correos de notificación. Por ahora **No** está
+  seleccionado por defecto; las solicitudes se crean igual y solo se omiten los
+  correos;
 - permite quitar eventos o vaciarla;
 - dura 12 horas y luego se descarta sola.
 

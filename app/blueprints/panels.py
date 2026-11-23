@@ -575,6 +575,10 @@ def revision_publicacion(job_id: str, fila: int):
     if formato not in ("pdf", "docx"):
         formato = "pdf"
     nota = request.form.get("nota", "").strip()
+    notificar = review.notificar_desde_formulario(
+        request.form.get("notificar"),
+        current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
+    )
     cruce = {
         "candidato": candidato,
         "diferencias": (grupo or {}).get("diferencias") or {},
@@ -633,6 +637,7 @@ def revision_publicacion(job_id: str, fila: int):
         "nota": nota,
         "kind": "publicacion",
         "notified_at": utcnow().isoformat(),
+        "notificar": notificar,
         "base_url": request.host_url.rstrip("/"),
         "filas": [fila_informe],
         "estado": "en_cola",
@@ -658,6 +663,7 @@ def revision_publicacion(job_id: str, fila: int):
             "formato": formato,
             "asignado": asignado.id,
             "kind": "publicacion",
+            "notificar": notificar,
         },
     )
     flash(
@@ -758,6 +764,10 @@ def revision_local(job_id: str):
     if formato not in ("pdf", "docx"):
         formato = "pdf"
     nota = request.form.get("nota", "").strip()
+    notificar = review.notificar_desde_formulario(
+        request.form.get("notificar"),
+        current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
+    )
     if indice:
         fila_informe = dict(indice)
     else:
@@ -821,6 +831,7 @@ def revision_local(job_id: str):
         "nota": nota,
         "kind": "solucion",
         "notified_at": utcnow().isoformat(),
+        "notificar": notificar,
         "base_url": request.host_url.rstrip("/"),
         "filas": [fila_informe],
         "estado": "en_cola",
@@ -846,6 +857,7 @@ def revision_local(job_id: str):
             "formato": formato,
             "asignado": sugerido.id,
             "kind": "solucion",
+            "notificar": notificar,
         },
     )
     flash(
@@ -973,6 +985,10 @@ def bandeja_enviar(job_id: str):
     if formato not in ("pdf", "docx"):
         formato = "pdf"
     nota = request.form.get("nota", "").strip()
+    notificar = review.notificar_desde_formulario(
+        request.form.get("notificar"),
+        current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
+    )
     maximo = int(
         current_app.config.get("RCS_INFORME_MAX_EVENTOS", 50) or 50
     )
@@ -1037,6 +1053,7 @@ def bandeja_enviar(job_id: str):
             "kind": kind,
             "bandeja": True,
             "notified_at": utcnow().isoformat(),
+            "notificar": notificar,
             "base_url": request.host_url.rstrip("/"),
             "filas": filas,
             "estado": "en_cola",
@@ -1076,6 +1093,7 @@ def bandeja_enviar(job_id: str):
                 "formato": formato,
                 "asignado": asignado_id,
                 "kind": kind,
+                "notificar": notificar,
             },
         )
     if enviados:

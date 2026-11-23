@@ -80,6 +80,11 @@ class Config:
     RCS_EVIDENCIA_MAX_MB = int(
         os.environ.get("RCS_EVIDENCIA_MAX_MB") or 20
     )
+    # Durante desarrollo la notificación por correo parte desmarcada.
+    # Cambie a 1 para preseleccionar el envío cuando se solicite una revisión.
+    RCS_NOTIFICAR_REVISION_DEFAULT = _bool(
+        "RCS_NOTIFICAR_REVISION_DEFAULT", False
+    )
     RCS_PUBLIC_URL = os.environ.get("RCS_PUBLIC_URL", "").strip()
 
     # Correo saliente para notificar solicitudes de revisión
