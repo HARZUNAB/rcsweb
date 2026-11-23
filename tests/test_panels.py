@@ -870,6 +870,8 @@ def test_ruta_detalle_grupo_respeta_mapa_offline(client, login, monkeypatch):
     ).get_data(as_text=True)
 
     assert 'data-modo="offline"' in html
+    assert 'id="mapa-modo-badge"' in html
+    assert 'id="mapa-aviso-texto"' in html
     assert 'id="mapa-datos"' in html
     assert 'id="perfil-datos"' in html
     assert "mapa_detalle.js" in html

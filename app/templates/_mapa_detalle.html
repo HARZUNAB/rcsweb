@@ -12,11 +12,11 @@
       </div>
       <div class="d-flex flex-wrap align-items-center gap-2">
         {% if mapa_modo == 'online' %}
-          <span class="badge text-bg-success">Online</span>
+          <span class="badge text-bg-success" id="mapa-modo-badge">Online</span>
           <a class="btn btn-sm btn-outline-secondary" id="enlace-mapa-modo"
              href="{{ url_offline }}{% if hist_activo %}&historico=1{% endif %}">Usar offline</a>
         {% else %}
-          <span class="badge text-bg-secondary">Offline</span>
+          <span class="badge text-bg-secondary" id="mapa-modo-badge">Offline</span>
           <a class="btn btn-sm btn-outline-secondary" id="enlace-mapa-modo"
              href="{{ url_online }}{% if hist_activo %}&historico=1{% endif %}">Intentar online</a>
         {% endif %}
@@ -45,9 +45,10 @@
       {% endif %}
     </div>
 
-    <div id="mapa-aviso" class="alert alert-warning small d-none">
-      No se pudieron cargar las tiles del mapa online.
-      <a id="mapa-aviso-link" href="{{ url_offline }}">Cambiar al mapa offline</a>.
+    <div id="mapa-aviso" class="alert alert-warning small d-none" role="status">
+      <span id="mapa-aviso-texto">
+        Sin conexión: se muestra el mapa local.
+      </span>
     </div>
 
     {% include "results/_controles_estaciones.html" %}

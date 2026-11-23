@@ -46,8 +46,10 @@
   }
 
   const modo = contenedor.dataset.modo || "offline";
+  let modoEfectivo = modo;
   const aviso = document.getElementById("mapa-aviso");
-  const avisoLink = document.getElementById("mapa-aviso-link");
+  const avisoTexto = document.getElementById("mapa-aviso-texto");
+  const badgeModo = document.getElementById("mapa-modo-badge");
 
   // Vista inicial de la planta: si el evento o el grupo están muy
   // concentrados, se abre con contexto regional en vez de zoom de ciudad.
@@ -409,6 +411,7 @@
 
   let plantaTipo = "plotly";
   let marcadoresLeaflet = [];
+  let mapaLeaflet = null;
   let perfilEventos = [];
   let perfilTrazaIdx = null;
 
@@ -734,13 +737,94 @@
     return null;
   }
 
-  function mostrarAvisoOffline() {
+  function mostrarAvisoOffline(texto) {
+    if (avisoTexto) {
+      avisoTexto.textContent =
+        texto || "Sin conexión: se muestra el mapa local.";
+    }
     if (aviso) {
       aviso.classList.remove("d-none");
     }
-    if (avisoLink && contenedor.dataset.offlineUrl) {
-      avisoLink.href = contenedor.dataset.offlineUrl;
+  }
+
+  function actualizarBadgeModo() {
+    if (!badgeModo) {
+      return;
     }
+    const online = modoEfectivo === "online";
+    badgeModo.textContent = online ? "Online" : "Offline";
+    badgeModo.className =
+      "badge " + (online ? "text-bg-success" : "text-bg-secondary");
+  }
+
+  // Comprueba la conectividad desde el navegador, no solo desde el servidor.
+  // Se usa la misma tile de OpenStreetMap que consulta ``modo_mapa`` para
+  // mantener el mismo criterio de online/offline.
+  function comprobarInternet() {
+    return new Promise(function (resolve) {
+      if (navigator.onLine === false) {
+        resolve(false);
+        return;
+      }
+      const imagen = new Image();
+      let resuelto = false;
+      const temporizador = window.setTimeout(function () {
+        finalizar(false);
+      }, 2000);
+
+      function finalizar(online) {
+        if (resuelto) {
+          return;
+        }
+        resuelto = true;
+        window.clearTimeout(temporizador);
+        imagen.onload = null;
+        imagen.onerror = null;
+        resolve(online);
+      }
+
+      imagen.onload = function () {
+        finalizar(true);
+      };
+      imagen.onerror = function () {
+        finalizar(false);
+      };
+      imagen.src =
+        "https://tile.openstreetmap.org/0/0/0.png?rcs=" + Date.now();
+    });
+  }
+
+  function limpiarClasesLeaflet() {
+    contenedor.classList.remove(
+      "leaflet-container",
+      "leaflet-touch",
+      "leaflet-fade-anim",
+      "leaflet-grab",
+      "leaflet-touch-drag",
+      "leaflet-touch-zoom"
+    );
+  }
+
+  function irAOffline(texto) {
+    if (modoEfectivo === "offline" && !mapaLeaflet) {
+      mostrarAvisoOffline(texto);
+      return;
+    }
+    modoEfectivo = "offline";
+    if (mapaLeaflet) {
+      try {
+        mapaLeaflet.remove();
+      } catch (error) {
+        // El mapa ya estaba destruido.
+      }
+      mapaLeaflet = null;
+      limpiarClasesLeaflet();
+    }
+    marcadoresLeaflet = [];
+    actualizarBadgeModo();
+    actualizarEnlaceModo();
+    dibujarPlotly();
+    mostrarAvisoOffline(texto);
   }
 
   function rangoConMargen(minimo, maximo, margenMinimo, porcentaje) {
@@ -1918,9 +2002,11 @@
     if (!enlaceModo) {
       return;
     }
-    const base = modo === "online"
+    const online = modoEfectivo === "online";
+    const base = online
       ? contenedor.dataset.offlineUrl
       : contenedor.dataset.onlineUrl;
+    enlaceModo.textContent = online ? "Usar offline" : "Intentar online";
     if (!base) {
       return;
     }
@@ -2006,6 +2092,16 @@
 
   function dibujarPlotly() {
     plantaTipo = "plotly";
+    if (mapaLeaflet) {
+      try {
+        mapaLeaflet.remove();
+      } catch (error) {
+        // El mapa ya estaba destruido.
+      }
+      mapaLeaflet = null;
+      limpiarClasesLeaflet();
+    }
+    contenedor.innerHTML = "";
     if (!window.Plotly) {
       contenedor.innerHTML =
         '<div class="text-secondary small p-3">No se pudo cargar el mapa offline.</div>';
@@ -2868,12 +2964,16 @@
       window.RCSRegiones.ocultar(contenedor);
     }
     if (!window.L) {
-      dibujarPlotly();
+      irAOffline(
+        "No se pudo cargar el mapa online; se muestra el mapa local."
+      );
       return;
     }
+    contenedor.innerHTML = "";
     const mapa = window.L.map(contenedor, {
       scrollWheelZoom: true,
     });
+    mapaLeaflet = mapa;
     const capa = window.L.tileLayer(
       "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
       {
@@ -2882,10 +2982,12 @@
       }
     ).addTo(mapa);
     let errores = 0;
+    let offlineAplicado = false;
     capa.on("tileerror", function () {
       errores += 1;
-      if (errores >= 2) {
-        mostrarAvisoOffline();
+      if (errores >= 2 && !offlineAplicado) {
+        offlineAplicado = true;
+        irAOffline("Sin conexión: se muestra el mapa local.");
       }
     });
     const coordenadas = [];
@@ -3247,8 +3349,18 @@
     historicoCheck.addEventListener("change", cargarHistorico);
   }
 
+  actualizarBadgeModo();
+  actualizarEnlaceModo();
   if (modo === "online") {
-    dibujarLeaflet();
+    contenedor.innerHTML =
+      '<div class="text-secondary small p-3">Comprobando conexión…</div>';
+    comprobarInternet().then(function (online) {
+      if (online) {
+        dibujarLeaflet();
+      } else {
+        irAOffline("Sin conexión: se muestra el mapa local.");
+      }
+    });
   } else {
     dibujarPlotly();
   }

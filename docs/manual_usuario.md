@@ -227,6 +227,10 @@ Al pulsar **Ver** en una fila se abre la ficha del evento.
   el panel pasa debajo de los mapas.
 - En modo offline se resaltan el contorno nacional y las divisiones regionales
   de Chile.
+- Antes de dibujar el mapa online, la app comprueba la conexión. Si no hay
+  acceso a las tiles, cambia automáticamente al mapa local y muestra el aviso
+  **Sin conexión: se muestra el mapa local.** El selector permite reintentar
+  online cuando vuelva la conexión.
 
 Más abajo está el perfil de subducción.
 
@@ -784,7 +788,8 @@ El resumen distingue estos conteos:
   zoom de pocos kilómetros. Si el par quedó fuera del cruce estricto pero dentro
   del amplio, la comparación lo explica y recuerda que ese cruce aparece en el
   informe de cobertura. Si no hay candidato en la ventana, se indica que no
-  existe contraparte local comparable.
+  existen contraparte local comparable. Si la imagen no se puede cargar por un
+  corte de conexión, el bloque muestra **Reintentar** para volver a pedirla.
 - **Cobertura del cruce:** cuántas referencias tienen al menos un cruce local y
   cuántas no lo tienen.
 
@@ -1050,7 +1055,8 @@ perfil, por territorio.
   la lista.
 - **Ver** abre el detalle del grupo con el mismo mapa interactivo de Resultados
   y Catálogos: planta, perfil, selector online/offline, listado de eventos y
-  botones para abrir o descargar el PNG.
+  botones para abrir o descargar el PNG. La comprobación de conexión y el cambio
+  automático al mapa local funcionan igual que en el detalle.
 - Al volver desde el detalle, se conserva seleccionado el mismo perfil o
   territorio que estaba viendo.
 - Al pasar el cursor por un evento de la planta o del perfil, el detalle se

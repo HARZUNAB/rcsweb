@@ -2562,6 +2562,19 @@ regionales con el mismo `chile_regiones.json` de las miniaturas, recortados al
 marco del geo de Plotly. Las vistas de detalle usan el contenedor ancho
 `.container-detalle`.
 
+`app/services/maps.py` elige online u offline en el servidor con un `HEAD` a
+`https://tile.openstreetmap.org/0/0/0.png` (timeout 2 s, caché 5 min).
+`mapa_detalle.js` repite la comprobación desde el navegador antes de inicializar
+Leaflet: si falla, dibuja Plotly y actualiza el badge a **Offline**. Si la
+comprobación pasa pero fallan dos tiles, `irAOffline()` destruye el mapa Leaflet,
+limpia sus clases, redibuja en Plotly y muestra el aviso. El enlace del badge
+pasa a **Intentar online**.
+
+Los mapas PNG no dependen de internet: usan el relieve local y los shapefiles de
+`CARTOPY_DATA_DIR`. El comparativo de `jobs/_page.html` escucha `load` y `error`;
+si la imagen falla, muestra `[data-mapa-cruce-estado]` con **Reintentar**, que
+vuelve a pedirla con `reintento=<timestamp>` para no reutilizar el error previo.
+
 La vista en planta del PNG ajusta el margen en `app/services/extent.py`. Con un
 solo evento usa 2.0° de contexto; con varias soluciones usa
 `clamp(separación × 0.5, 0.01°, 0.6°)`, donde la separación es la mayor

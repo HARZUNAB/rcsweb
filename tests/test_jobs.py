@@ -467,6 +467,9 @@ def test_detalle_muestra_coincidencias_extra(
     assert "Fuera del cruce estricto" in html
     assert "informe de cobertura" in html
     assert "Ver mapa comparativo" in html
+    assert "data-mapa-cruce-estado" in html
+    assert "data-mapa-cruce-reintentar" in html
+    assert "Reintentar" in html
     assert f"/jobs/{job.id}/indicios/sin-cruce/5/mapa.png" in html
 
     from app.blueprints import results as results_bp

@@ -330,22 +330,78 @@
 
   // Mapa comparativo de un evento sin cruce: se genera solo al pedirlo.
   document.querySelectorAll("[data-mapa-cruce]").forEach(function (boton) {
-    boton.addEventListener("click", function () {
-      const contenedor = boton.parentElement.querySelector(
-        "[data-mapa-cruce-contenedor]"
-      );
-      const imagen = contenedor && contenedor.querySelector(
-        "[data-mapa-cruce-img]"
-      );
-      if (!imagen) {
+    const contenedor = boton.parentElement.querySelector(
+      "[data-mapa-cruce-contenedor]"
+    );
+    const imagen = contenedor && contenedor.querySelector(
+      "[data-mapa-cruce-img]"
+    );
+    const estado = boton.parentElement.querySelector(
+      "[data-mapa-cruce-estado]"
+    );
+    const reintentar = estado && estado.querySelector(
+      "[data-mapa-cruce-reintentar]"
+    );
+    if (!imagen) {
+      return;
+    }
+
+    function cargar(reintento) {
+      const src = boton.dataset.src;
+      if (!src) {
         return;
       }
-      const src = boton.dataset.src;
-      if (src && imagen.getAttribute("src") !== src) {
+      if (estado) {
+        estado.classList.add("d-none");
+      }
+      imagen.classList.remove("d-none");
+      delete imagen.dataset.fallido;
+      if (reintento) {
+        const url = new URL(src, window.location.href);
+        url.searchParams.set("reintento", String(Date.now()));
+        imagen.src = url.toString();
+      } else {
         imagen.src = src;
+      }
+    }
+
+    imagen.addEventListener("load", function () {
+      delete imagen.dataset.fallido;
+      imagen.classList.remove("d-none");
+      if (estado) {
+        estado.classList.add("d-none");
+      }
+    });
+    imagen.addEventListener("error", function () {
+      imagen.dataset.fallido = "1";
+      imagen.classList.add("d-none");
+      if (estado && !contenedor.classList.contains("d-none")) {
+        estado.classList.remove("d-none");
+      }
+    });
+    if (reintentar) {
+      reintentar.addEventListener("click", function () {
+        cargar(true);
+      });
+    }
+
+    boton.addEventListener("click", function () {
+      const mostrando = contenedor.classList.contains("d-none");
+      if (mostrando && boton.dataset.src) {
+        const sinCargar = !imagen.getAttribute("src");
+        const fallido = imagen.dataset.fallido === "1";
+        if (sinCargar || fallido) {
+          cargar(fallido);
+        }
       }
       contenedor.classList.toggle("d-none");
       const visible = !contenedor.classList.contains("d-none");
+      if (estado) {
+        estado.classList.toggle(
+          "d-none",
+          !visible || imagen.dataset.fallido !== "1"
+        );
+      }
       boton.textContent = visible
         ? "Ocultar mapa comparativo"
         : "Ver mapa comparativo";

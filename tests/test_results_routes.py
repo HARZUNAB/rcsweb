@@ -349,6 +349,8 @@ def test_detalle_muestra_mapa_interactivo(client, login):
 
     assert 'id="mapa-detalle"' in html
     assert 'data-modo="offline"' in html
+    assert 'id="mapa-modo-badge"' in html
+    assert 'id="mapa-aviso-texto"' in html
     assert 'id="mapa-datos"' in html
     assert "Mapa interactivo" in html
     assert "Sismo registrado" in html
