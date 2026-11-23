@@ -1983,11 +1983,18 @@ En el perfil, las estaciones se dibujan como triángulos en
 `(along_km, elevación)`, con las mismas trazas superpuestas `x`/`circle` para
 los estados de ondas. La propagación agrega dos grupos de cuatro círculos
 `Perfil propagación · Frente P` y `Perfil propagación · Frente S`, centrados en
-el evento seleccionado, usando `along_km` y `-prof`, con los radios P/S y el
-mismo tiempo que la planta. También agrega las trazas
-`Perfil propagación · Anillos P` y `Perfil propagación · Anillos S`. El evento
-se elige por `rol` (`local` o `seleccionado`) y, si no existe, por el primero
-con `along_km` y `prof` válidos.
+el evento seleccionado, usando `along_km` y `-prof`. El radio de cada círculo es
+el hipocentral equivalente `sqrt(radio_epicentral² + profundidad²)`, para que la
+intersección con la superficie coincida con el radio epicentral de la planta.
+También agrega las trazas `Perfil propagación · Anillos P` y
+`Perfil propagación · Anillos S`. El evento se elige por `rol` (`local` o
+`seleccionado`) y, si no existe, por el primero con `along_km` y `prof` válidos.
+
+La nota `#perfil-estaciones-nota` indica cuántas estaciones quedaron fuera del
+rango y cuántas están a más de `PERFIL_PERP_AVISO_KM = 20` km de la línea. En
+ese caso advierte que su posición es una proyección y que el frente puede no
+pasar por ellas. El tooltip de cada estación muestra `along_km` y su distancia
+fuera del plano.
 
 Al redibujar el perfil por la sismicidad histórica se emite
 `rcs:perfil-redibujado`; `estaciones.js` reaplica la capa activa. Las trazas se

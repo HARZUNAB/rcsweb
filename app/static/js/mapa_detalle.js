@@ -944,6 +944,7 @@
     const yMax = ys.length ? Math.max.apply(null, ys) : undefined;
 
     const PERFIL_PERP_MAX_KM = 150;
+    const PERFIL_PERP_AVISO_KM = 20;
     const slabPuntos = [];
     const slabLat = datos.slab_lat || [];
     const slabLon = datos.slab_lon || [];
@@ -1147,9 +1148,9 @@
         (punto.red || "") + " " + (punto.estacion || ""),
         "Perfil: " +
           Number(punto.along_km).toFixed(1) +
-          " km · perp " +
+          " km · " +
           Number(punto.perp_km).toFixed(1) +
-          " km",
+          " km fuera del plano",
       ];
       const estado = textoEstadoOndas(punto);
       if (estado) {
@@ -1191,7 +1192,7 @@
     }
 
     function circuloPerfil(centroX, centroY, radioKm) {
-      const pasos = 72;
+      const pasos = 180;
       const x = [];
       const y = [];
       for (let indice = 0; indice <= pasos; indice += 1) {
@@ -1200,6 +1201,17 @@
         y.push(centroY + radioKm * Math.sin(angulo));
       }
       return { x: x, y: y };
+    }
+
+    // El frente de la planta es un radio epicentral. En el perfil el círculo
+    // está centrado en el hipocentro, así que su radio debe ser la distancia
+    // hipocentral equivalente para que la intersección con la superficie
+    // coincida con el radio epicentral de la planta.
+    function radioHipocentralPerfil(radioEpicentral, centroY) {
+      return Math.hypot(
+        Math.max(0, Number(radioEpicentral) || 0),
+        Math.abs(Number(centroY) || 0)
+      );
     }
 
     function eventoPerfilReferencia() {
@@ -1218,23 +1230,53 @@
       );
     }
 
-    function actualizarNotaPerfil(mostradas, total) {
+    function actualizarNotaPerfil(estaciones, total) {
       const nota = document.getElementById("perfil-estaciones-nota");
       if (!nota) {
         return;
       }
-      if (total > 0 && mostradas < total) {
-        nota.textContent =
-          "Perfil: " +
-          mostradas +
-          " de " +
-          total +
-          " estaciones a ≤150 km. Las lejanas no son representativas.";
-        nota.classList.remove("d-none");
-      } else {
+      if (!total) {
         nota.textContent = "";
         nota.classList.add("d-none");
+        return;
       }
+      const mostradas = (estaciones || []).length;
+      const fueraPlano = (estaciones || []).filter(function (punto) {
+        return Number(punto.perp_km) > PERFIL_PERP_AVISO_KM;
+      });
+      if (mostradas >= total && !fueraPlano.length) {
+        nota.textContent = "";
+        nota.classList.add("d-none");
+        return;
+      }
+      let texto =
+        "Perfil: " +
+        (mostradas < total
+          ? mostradas + " de " + total + " estaciones a ≤150 km."
+          : mostradas + " estaciones en el perfil.");
+      if (fueraPlano.length) {
+        const maxPerp = Math.max.apply(
+          null,
+          fueraPlano.map(function (punto) {
+            return Number(punto.perp_km) || 0;
+          })
+        );
+        texto +=
+          " De las " +
+          mostradas +
+          ", " +
+          fueraPlano.length +
+          " están a más de " +
+          PERFIL_PERP_AVISO_KM +
+          " km de la línea (máx. " +
+          maxPerp.toFixed(1) +
+          " km). Su posición es una proyección; el frente puede no pasar " +
+          "por ellas.";
+      } else if (mostradas < total) {
+        texto += " Las lejanas no son representativas.";
+      }
+      nota.textContent = texto;
+      nota.classList.remove("d-none");
     }
 
     function ocultarNotaPerfil() {
@@ -1277,7 +1319,7 @@
       }
       borrarTrazasPerfil("Perfil estático ·");
       const estaciones = proyectarEstacionesPerfil(puntos);
-      actualizarNotaPerfil(estaciones.length, (puntos || []).length);
+      actualizarNotaPerfil(estaciones, (puntos || []).length);
       if (!estaciones.length) {
         return;
       }
@@ -1511,19 +1553,26 @@
       const frenteS = frentes.s || {};
       const radioP = Math.max(0, Number(frenteP.radio_km) || 0);
       const radioS = Math.max(0, Number(frenteS.radio_km) || 0);
+      const profundidad = Math.abs(Number(centroY) || 0);
       const factores = [1, 0.97, 0.94, 0.91];
       const circulosP = factores.map(function (factor) {
         return circuloPerfil(
           centroX,
           centroY,
-          Math.max(0.01, radioP * factor)
+          Math.max(
+            0.01,
+            radioHipocentralPerfil(radioP * factor, profundidad)
+          )
         );
       });
       const circulosS = factores.map(function (factor) {
         return circuloPerfil(
           centroX,
           centroY,
-          Math.max(0.01, radioS * factor)
+          Math.max(
+            0.01,
+            radioHipocentralPerfil(radioS * factor, profundidad)
+          )
         );
       });
       const opacidadesBase = [0.85, 0.3, 0.24, 0.18];
@@ -1729,7 +1778,7 @@
         datosPropagacion.estaciones || []
       );
       actualizarNotaPerfil(
-        estaciones.length,
+        estaciones,
         (datosPropagacion.estaciones || []).length
       );
       if (!evento) {
@@ -1742,6 +1791,7 @@
       const frenteS = frentes.s || {};
       const radioP = Math.max(0, Number(frenteP.radio_km) || 0);
       const radioS = Math.max(0, Number(frenteS.radio_km) || 0);
+      const profundidad = Math.abs(Number(centroY) || 0);
       if (perfilPropagacionLista) {
         actualizarPropagacionPerfil(
           datosPropagacion,
@@ -1768,7 +1818,10 @@
         const circulo = circuloPerfil(
           centroX,
           centroY,
-          Math.max(0.01, radioP * factor)
+          Math.max(
+            0.01,
+            radioHipocentralPerfil(radioP * factor, profundidad)
+          )
         );
         trazas.push({
           type: "scatter",
@@ -1793,7 +1846,10 @@
         const circulo = circuloPerfil(
           centroX,
           centroY,
-          Math.max(0.01, radioS * factor)
+          Math.max(
+            0.01,
+            radioHipocentralPerfil(radioS * factor, profundidad)
+          )
         );
         trazas.push({
           type: "scatter",

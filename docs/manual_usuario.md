@@ -608,8 +608,14 @@ Las mismas capas se aplican al mapa de perfil:
   Perfil: 27 de 30 estaciones a ≤150 km. Las lejanas no son representativas.
   ```
 - Mantienen los triángulos, los badges `×`/`•` y los estados de ondas.
-- La propagación dibuja un **frente proyectado** con el mismo radio y tiempo
-  que el mapa de planta.
+- La propagación dibuja un **frente proyectado** con la misma llegada en la
+  superficie que el mapa de planta. El círculo del perfil está centrado en el
+  hipocentro y usa el radio hipocentral equivalente
+  `sqrt(radio_epicentral² + profundidad²)`, de modo que su intersección con la
+  superficie cae en `evento.along_km ± radio_epicentral`.
+- Si hay estaciones a más de **20 km** de la línea del perfil, aparece un aviso
+  con cuántas son y la máxima distancia. Su posición es una proyección: el
+  frente puede no pasar por ellas aunque su tiempo de llegada sea correcto.
 - Al activar o desactivar la sismicidad histórica, la capa se vuelve a aplicar
   automáticamente sobre el perfil redibujado.
 
