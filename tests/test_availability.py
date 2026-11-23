@@ -156,6 +156,36 @@ def test_servicio_http_requiere_token_y_responde(monkeypatch, tmp_path):
         hilo.join(timeout=5)
 
 
+def test_servicio_http_correlacion(monkeypatch):
+    monkeypatch.setenv("RCS_DISPONIBILIDAD_TOKEN", "secreto")
+    monkeypatch.setattr(
+        availability_service.correlacion,
+        "analizar",
+        lambda payload: {"version": 1, "reference": payload.get("reference")},
+    )
+    servidor = availability_service.crear_servidor("127.0.0.1", 0)
+    hilo = threading.Thread(target=servidor.serve_forever, daemon=True)
+    hilo.start()
+    puerto = servidor.server_address[1]
+    try:
+        respuesta = requests.post(
+            f"http://127.0.0.1:{puerto}/correlacionar",
+            headers={"X-RCS-Token": "secreto"},
+            json={
+                "reference": {"stream": "CX.HMBCX..HHZ"},
+                "candidates": [],
+            },
+            timeout=5,
+        )
+        assert respuesta.status_code == 200
+        assert respuesta.json()["version"] == 1
+        assert respuesta.json()["reference"]["stream"] == "CX.HMBCX..HHZ"
+    finally:
+        servidor.shutdown()
+        servidor.server_close()
+        hilo.join(timeout=5)
+
+
 def test_cliente_consulta_y_errores(app, monkeypatch):
     app.config["RCS_DISPONIBILIDAD_URL"] = "http://sidecar:8010"
     app.config["RCS_DISPONIBILIDAD_TOKEN"] = "token"

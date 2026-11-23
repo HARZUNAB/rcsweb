@@ -10,8 +10,9 @@ API:
 
     GET  /health
     POST /consultar
+    POST /correlacionar
 
-El POST recibe::
+El POST de /consultar recibe::
 
     {"event_time": "2026-10-22T00:00:00", "streams": ["AI.DSPA.02.BHZ"]}
 
@@ -19,6 +20,10 @@ y devuelve::
 
     {"results": {"AI.DSPA.02.BHZ": {"status": "CON_DATOS", ...}},
      "fuentes": ["SDS"], "duracion_ms": 123}
+
+El POST de /correlacionar recibe la estación de referencia, las candidatas y
+los parámetros de la ventana; devuelve métricas de STA/LTA y correlación por
+estación. El detalle del contrato está en ``core.correlacion``.
 
 La cabecera ``X-RCS-Token`` debe coincidir con RCS_DISPONIBILIDAD_TOKEN cuando
 esa variable está definida.
@@ -34,7 +39,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from core import disponibilidad
+from core import correlacion, disponibilidad
 
 log = logging.getLogger("rcsweb.disponibilidad")
 
@@ -42,6 +47,7 @@ MAX_STREAMS = 5000
 MAX_BODY = 2 * 1024 * 1024
 TAMANO_LOTE = 300
 SEMAFORO = threading.BoundedSemaphore(2)
+SEMAFORO_CORRELACION = threading.BoundedSemaphore(1)
 
 
 class ErrorConsulta(ValueError):
@@ -173,7 +179,8 @@ class Manejador(BaseHTTPRequestHandler):
             self._json(500, {"error": str(exc)})
 
     def do_POST(self):  # noqa: N802 - API de BaseHTTPRequestHandler
-        if self.path.split("?", 1)[0] != "/consultar":
+        ruta = self.path.split("?", 1)[0]
+        if ruta not in ("/consultar", "/correlacionar"):
             self._json(404, {"error": "Ruta no encontrada."})
             return
         if not _autorizado(self):
@@ -187,8 +194,19 @@ class Manejador(BaseHTTPRequestHandler):
         if largo <= 0 or largo > MAX_BODY:
             self._json(400, {"error": "Cuerpo vacío o demasiado grande."})
             return
-        if not SEMAFORO.acquire(blocking=False):
-            self._json(429, {"error": "Hay otra consulta en curso."})
+        correlacionando = ruta == "/correlacionar"
+        semaforo = SEMAFORO_CORRELACION if correlacionando else SEMAFORO
+        if not semaforo.acquire(blocking=False):
+            self._json(
+                429,
+                {
+                    "error": (
+                        "Hay otra correlación en curso."
+                        if correlacionando
+                        else "Hay otra consulta en curso."
+                    )
+                },
+            )
             return
         try:
             crudo = self.rfile.read(largo)
@@ -197,14 +215,18 @@ class Manejador(BaseHTTPRequestHandler):
             except (UnicodeDecodeError, ValueError):
                 self._json(400, {"error": "JSON inválido."})
                 return
-            self._json(200, consultar(payload))
-        except ErrorConsulta as exc:
+            if correlacionando:
+                respuesta = correlacion.analizar(payload)
+            else:
+                respuesta = consultar(payload)
+            self._json(200, respuesta)
+        except (ErrorConsulta, correlacion.ErrorCorrelacion) as exc:
             self._json(400, {"error": str(exc)})
         except Exception as exc:  # noqa: BLE001 - responde sin tumbar el server
-            log.exception("Error al consultar disponibilidad")
+            log.exception("Error en la consulta de formas de onda")
             self._json(500, {"error": str(exc)})
         finally:
-            SEMAFORO.release()
+            semaforo.release()
 
 
 def crear_servidor(host: str = "0.0.0.0", puerto: int = 8010) -> ThreadingHTTPServer:
