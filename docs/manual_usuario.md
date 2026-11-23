@@ -776,7 +776,8 @@ El resumen distingue estos conteos:
   **Comparar** despliega bajo la misma fila una tabla con ambos eventos lado a
   lado: fecha, coordenadas, profundidad, magnitud, región y analista, con sus
   diferencias. Los enlaces **Abrir en Eventquery** y **Abrir evento local**
-  abren cada evento en una pestaña nueva. **Ver mapa comparativo** dibuja
+  abren el detalle del evento en la misma pestaña; el botón
+  **Volver al trabajo** regresa al listado. **Ver mapa comparativo** dibuja
   planta y perfil con los dos eventos en la misma imagen, para ver la cercanía
   epicentral y la diferencia de profundidad. La planta usa una vista regional
   de unos 200 × 150 km —con costa y localidades— para ubicar los eventos, no un

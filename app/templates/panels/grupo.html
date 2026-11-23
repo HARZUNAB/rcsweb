@@ -144,8 +144,8 @@
             </td>
             <td class="text-end text-nowrap">
               {% if evento.url %}
-              <a class="btn btn-sm btn-outline-primary" target="_blank"
-                 rel="noopener" href="{{ evento.url }}">Ver</a>
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{{ evento.url }}">Ver</a>
               {% endif %}
               {% if puede_solicitar and evento.es_referencia and evento.fila_catalogo is not none %}
               <a class="btn btn-sm btn-outline-secondary"

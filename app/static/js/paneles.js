@@ -345,7 +345,7 @@
       "</dd></dl>";
     if (evento.url) {
       html +=
-        '<a class="btn btn-sm btn-primary mt-2" target="_blank" rel="noopener" href="' +
+        '<a class="btn btn-sm btn-primary mt-2" href="' +
         esc(evento.url) +
         '">Ver detalle</a>';
     }
@@ -425,7 +425,7 @@
             ? "—"
             : Number(evento.prof).toFixed(1);
         const accion = evento.url
-          ? '<a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener" href="' +
+          ? '<a class="btn btn-sm btn-outline-primary" href="' +
             esc(evento.url) +
             '">Ver</a>'
           : "";

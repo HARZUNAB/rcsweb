@@ -460,6 +460,7 @@ def test_detalle_muestra_coincidencias_extra(
     assert "Comparación · eventquery:000005" in html
     assert "Abrir en Eventquery" in html
     assert "Abrir evento local" in html
+    assert 'target="_blank"' not in html
     assert "40.5" in html
     assert "1.0 km" in html
     assert "tark" in html

@@ -1317,7 +1317,8 @@ anterior. Leerlo cuesta ~0.1 ms; recalcular, ~40–55 ms.
 los números y las tablas siempre coinciden. La plantilla `jobs/_page.html`
 muestra **Ver extras** y **Ver sin cruce** con un `collapse` cada uno. Dentro de
 **Ver sin cruce**, el botón **Comparar** expande una fila (`<tr class="collapse">`)
-con la tabla lado a lado; los enlaces a cada evento abren en pestaña nueva.
+con la tabla lado a lado; los enlaces a cada evento abren el detalle en la
+misma pestaña, de modo que **Volver al trabajo** regresa al listado.
 
 Dentro de la comparación, **Ver mapa comparativo** carga
 `/jobs/<job>/indicios/sin-cruce/<fila>/mapa.png`. El endpoint lee el artefacto

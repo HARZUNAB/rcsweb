@@ -725,6 +725,9 @@ def test_ruta_detalle_grupo_perfil(client, login, monkeypatch):
     assert "data-lista-mapa" in html
     assert "data-clave=" in html
     assert "volver_etiqueta=Volver+al+listado" in html
+    enlaces_ver = re.findall(r'<a[^>]*>\s*Ver\s*</a>', html)
+    assert enlaces_ver
+    assert all("target=" not in enlace for enlace in enlaces_ver)
     enlace = re.search(
         r'href="([^"]*/resultados/[^"]*)"', html
     )

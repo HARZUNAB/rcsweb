@@ -527,13 +527,11 @@
                     {% endif %}
                     <div class="d-flex flex-wrap gap-2">
                       <a class="btn btn-sm btn-outline-primary"
-                         target="_blank" rel="noopener noreferrer"
                          href="{{ url_for('results.detalle', job_id=job.id, tabla='catalogos', opcion='eventquery', fila=evento.fila, volver=url_for('jobs.detalle', job_id=job.id), volver_etiqueta='Volver al trabajo') }}">
                         Abrir en Eventquery
                       </a>
                       {% if evento.candidato.fila_local is not none %}
                       <a class="btn btn-sm btn-outline-primary"
-                         target="_blank" rel="noopener noreferrer"
                          href="{{ url_for('results.detalle', job_id=job.id, tabla='catalogos', opcion=evento.candidato.fuente, fila=evento.candidato.fila_local, volver=url_for('jobs.detalle', job_id=job.id), volver_etiqueta='Volver al trabajo') }}">
                         Abrir evento local
                       </a>
