@@ -53,6 +53,44 @@ def test_correlacion_max_encuentra_el_lag():
     assert lag is not None and abs(lag - 0.4) < 0.02
 
 
+def test_racha_sobre_umbral_mide_la_racha_del_pico():
+    ratio = np.array([0.0, 0.0, 4.0, 5.0, 4.5, 0.0, 0.0, 0.0])
+    duracion = correlacion.racha_sobre_umbral(
+        ratio,
+        inicio=0.0,
+        fs=100.0,
+        umbral=3.0,
+        desde=0.0,
+        hasta=0.08,
+    )
+    assert abs(duracion - 0.03) < 1e-9
+
+
+def test_clasificar_exige_persistencia():
+    corta, _ = correlacion.clasificar(
+        cc_max=0.2,
+        lag_s=0.0,
+        sta_lta=10.0,
+        cc_min=0.5,
+        sta_lta_min=3.0,
+        lag_max_s=5.0,
+        sta_lta_racha_s=0.1,
+        sta_lta_persistencia_s=0.3,
+    )
+    larga, _ = correlacion.clasificar(
+        cc_max=0.2,
+        lag_s=0.0,
+        sta_lta=10.0,
+        cc_min=0.5,
+        sta_lta_min=3.0,
+        lag_max_s=5.0,
+        sta_lta_racha_s=0.5,
+        sta_lta_persistencia_s=0.3,
+    )
+    assert corta == correlacion.CLASIFICACION_SIN_SENAL
+    assert larga == correlacion.CLASIFICACION_SENAL
+
+
 def test_clasificar_distingue_los_estados():
     podria, _ = correlacion.clasificar(
         cc_max=0.8,

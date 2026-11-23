@@ -180,7 +180,12 @@ def elegir_eventos(
 
 
 def construir_payload(
-    evento: Evento, referencia: dict, max_candidatas: int
+    evento: Evento,
+    referencia: dict,
+    max_candidatas: int,
+    banda: tuple[float, float],
+    persistencia: float,
+    streams_filtro: set[str] | None,
 ) -> dict | None:
     picks = []
     for arribo in evento.picks:
@@ -226,6 +231,8 @@ def construir_payload(
         streams = streams_verticales(fila)
         if not streams:
             continue
+        if streams_filtro and streams[0] not in streams_filtro:
+            continue
         distancia = distancia_km(
             evento.lat,
             evento.lon,
@@ -245,6 +252,8 @@ def construir_payload(
         )
         if len(candidatas) >= max_candidatas:
             break
+    if streams_filtro and not candidatas:
+        return None
     negativas = []
     for candidata in candidatas:
         copia = dict(candidata)
@@ -275,7 +284,7 @@ def construir_payload(
         + candidatas
         + negativas,
         "fs": 100.0,
-        "band": [1.0, 10.0],
+        "band": [banda[0], banda[1]],
         "template_before_s": 1.0,
         "template_after_s": 7.0,
         "candidate_before_s": 10.0,
@@ -285,6 +294,7 @@ def construir_payload(
         "lta_s": 10.0,
         "sta_lta_before_s": 1.5,
         "sta_lta_after_s": 4.0,
+        "sta_lta_persistencia_s": persistencia,
         "cc_min": 0.5,
         "sta_lta_min": 3.0,
     }
@@ -348,7 +358,10 @@ def analizar_evento(
     url: str,
     token: str,
     max_candidatas: int,
-) -> dict | None:
+    bandas: list[tuple[float, float]],
+    persistencia: float,
+    streams_filtro: set[str] | None,
+) -> list[dict]:
     candidatos_ref = []
     for arribo in evento.picks:
         if not es_vertical(
@@ -386,25 +399,55 @@ def analizar_evento(
     candidatos_ref.sort(
         key=lambda p: math.hypot(p["dist"], evento.prof)
     )
-    for referencia in candidatos_ref[:3]:
-        payload = construir_payload(
-            evento, referencia, max_candidatas
-        )
-        if payload is None:
+    salida = []
+    for banda in bandas:
+        for referencia in candidatos_ref[:3]:
+            payload = construir_payload(
+                evento,
+                referencia,
+                max_candidatas,
+                banda,
+                persistencia,
+                streams_filtro,
+            )
+            if payload is None:
+                return salida
+            try:
+                respuesta = consultar(url, token, payload)
+            except requests.HTTPError as exc:
+                print(
+                    "  banda {:.1f}-{:.1f} ref {} falló: {}".format(
+                        banda[0],
+                        banda[1],
+                        referencia["arribo"].get("station"),
+                        exc,
+                    )
+                )
+                continue
+            salida.append(
+                {
+                    "banda": banda,
+                    "referencia": referencia,
+                    "respuesta": respuesta,
+                }
+            )
+            break
+    return salida
+
+
+def parse_bandas(texto: str) -> list[tuple[float, float]]:
+    salida = []
+    for parte in texto.split(","):
+        if not parte.strip():
             continue
         try:
-            respuesta = consultar(url, token, payload)
-        except requests.HTTPError as exc:
-            print(
-                "  referencia {} falló: {}".format(referencia["arribo"].get("station"), exc)
-            )
-            continue
-        return {
-            "evento": evento,
-            "referencia": referencia,
-            "respuesta": respuesta,
-        }
-    return None
+            fmin, fmax = parte.split("-", 1)
+            salida.append((float(fmin), float(fmax)))
+        except ValueError as exc:
+            raise SystemExit(f"Banda inválida: {parte!r}") from exc
+    if not salida:
+        raise SystemExit("No hay bandas para probar.")
+    return salida
 
 
 def main() -> int:
@@ -418,6 +461,16 @@ def main() -> int:
     parser.add_argument("--por-estrato", type=int, default=1)
     parser.add_argument("--max-candidatas", type=int, default=10)
     parser.add_argument(
+        "--bandas", default="1-10", help="Ej: 0.7-2,1-5,1-10,2-15"
+    )
+    parser.add_argument("--persistencia", type=float, default=0.0)
+    parser.add_argument(
+        "--streams",
+        default="",
+        help="Filtra candidatas por stream, separadas por coma",
+    )
+    parser.add_argument("--detalle", action="store_true")
+    parser.add_argument(
         "--url",
         default=os.environ.get(
             "RCS_DISPONIBILIDAD_URL", "http://disponibilidad:8010"
@@ -429,6 +482,12 @@ def main() -> int:
     parser.add_argument("--salida", default="")
     parser.add_argument("--eventos", default="")
     args = parser.parse_args()
+    bandas = parse_bandas(args.bandas)
+    streams_filtro = {
+        stream.strip()
+        for stream in args.streams.split(",")
+        if stream.strip()
+    } or None
     workspace = Path("/workspace") / args.job
     eventos = cargar_eventos(workspace, args.source, args.radio_km)
     if args.eventos:
@@ -439,62 +498,108 @@ def main() -> int:
     print(
         f"job={args.job} eventos={len(elegidos)} "
         f"radio={args.radio_km:.0f} km "
-        f"max_candidatas={args.max_candidatas}"
+        f"max_candidatas={args.max_candidatas} "
+        f"bandas={bandas} persistencia={args.persistencia}s"
     )
     filas = []
     for evento in elegidos:
         print(
-            f"\n{evento.id} {iso(evento.instante)} M{evento.mag:.1f} prof={evento.prof:.1f} km {banda_lat(evento.lat)}/{banda_prof(evento.prof)}"
+            f"\n{evento.id} {iso(evento.instante)} M{evento.mag:.1f} "
+            f"prof={evento.prof:.1f} km "
+            f"{banda_lat(evento.lat)}/{banda_prof(evento.prof)}"
         )
-        resultado = analizar_evento(
-            evento, args.url, args.token, args.max_candidatas
+        resultados = analizar_evento(
+            evento,
+            args.url,
+            args.token,
+            args.max_candidatas,
+            bandas,
+            args.persistencia,
+            streams_filtro,
         )
-        if resultado is None:
-            print("  sin referencia con datos")
+        if not resultados:
+            print("  sin referencia o candidatas con datos")
             continue
-        resumen = resumir(resultado["respuesta"])
-        ref = resultado["referencia"]["arribo"].get("station")
-        print(
-            "  ref={} ref_slt={} resumen={}".format(
-                ref,
-                resultado["respuesta"].get("referencia", {}).get(
-                    "sta_lta_max"
-                ),
-                resultado["respuesta"].get("resumen", {}),
-            )
-        )
-        for clave in ("CTRL", "AVAIL", "NEG"):
-            grupo = resumen[clave]
-            slt = (
-                "-"
-                if grupo["slt_med"] is None
-                else str(round(grupo["slt_med"], 2))
-            )
-            cc = (
-                "-"
-                if grupo["cc_med"] is None
-                else str(round(grupo["cc_med"], 2))
-            )
+        fila = {
+            "evento": evento.id,
+            "instante": iso(evento.instante),
+            "lat": evento.lat,
+            "prof": evento.prof,
+            "mag": evento.mag,
+            "estrato": f"{banda_lat(evento.lat)}/"
+            f"{banda_prof(evento.prof)}",
+            "bandas": [],
+        }
+        for resultado in resultados:
+            respuesta = resultado["respuesta"]
+            resumen = resumir(respuesta)
+            banda = resultado["banda"]
+            ref = resultado["referencia"]["arribo"].get("station")
             print(
-                f"  {clave:<5s} n={grupo['n']:<3} "
-                f"slt_med={slt:<8} cc_med={cc:<8} "
-                f"senal={grupo['senal']:<3} "
-                f"sin_datos={grupo['sin_datos']}"
+                "  banda {:.1f}-{:.1f} Hz ref={} ref_slt={} resumen={}".format(
+                    banda[0],
+                    banda[1],
+                    ref,
+                    respuesta.get("referencia", {}).get("sta_lta_max"),
+                    respuesta.get("resumen", {}),
+                )
             )
-        filas.append(
-            {
-                "evento": evento.id,
-                "instante": iso(evento.instante),
-                "lat": evento.lat,
-                "prof": evento.prof,
-                "mag": evento.mag,
-                "estrato": f"{banda_lat(evento.lat)}/{banda_prof(evento.prof)}",
-                "referencia": ref,
-                "resumen": resumen,
-                "resumen_servicio": resultado["respuesta"].get("resumen"),
-                "resultados": resultado["respuesta"].get("resultados"),
-            }
-        )
+            for clave in ("CTRL", "AVAIL", "NEG"):
+                grupo = resumen[clave]
+                slt = (
+                    "-"
+                    if grupo["slt_med"] is None
+                    else str(round(grupo["slt_med"], 2))
+                )
+                cc = (
+                    "-"
+                    if grupo["cc_med"] is None
+                    else str(round(grupo["cc_med"], 2))
+                )
+                print(
+                    f"    {clave:<5s} n={grupo['n']:<3} "
+                    f"slt_med={slt:<8} cc_med={cc:<8} "
+                    f"senal={grupo['senal']:<3} "
+                    f"sin_datos={grupo['sin_datos']}"
+                )
+            if args.detalle:
+                for item in respuesta.get("resultados", []):
+                    estacion = str(item.get("station", ""))
+                    if not estacion.startswith("AVAIL"):
+                        continue
+                    slt = (
+                        round(item["sta_lta_max"], 2)
+                        if item.get("sta_lta_max") is not None
+                        else "-"
+                    )
+                    racha = (
+                        round(item.get("sta_lta_racha_s", 0.0), 2)
+                        if item.get("sta_lta_racha_s") is not None
+                        else "-"
+                    )
+                    cc = (
+                        round(item["cc_max"], 2)
+                        if item.get("cc_max") is not None
+                        else "-"
+                    )
+                    print(
+                        f"      {estacion:<20s} "
+                        f"{str(item.get('stream')):<20s} "
+                        f"{str(item.get('status')):<8s} "
+                        f"slt={str(slt):<6s} racha={str(racha):<5s} "
+                        f"cc={str(cc):<6s} "
+                        f"{item.get('clasificacion')}"
+                    )
+            fila["bandas"].append(
+                {
+                    "banda": banda,
+                    "referencia": ref,
+                    "resumen": resumen,
+                    "resumen_servicio": respuesta.get("resumen"),
+                    "resultados": respuesta.get("resultados"),
+                }
+            )
+        filas.append(fila)
     if args.salida:
         Path(args.salida).write_text(
             json.dumps(filas, ensure_ascii=False, indent=2),

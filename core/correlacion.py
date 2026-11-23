@@ -308,6 +308,43 @@ def max_sta_lta(
     return float(ratio[posicion]), float(tiempos[posicion])
 
 
+def racha_sobre_umbral(
+    ratio: np.ndarray,
+    inicio: float,
+    fs: float,
+    umbral: float,
+    desde: float,
+    hasta: float,
+) -> float:
+    """Duración de la racha continua sobre el umbral que contiene el pico."""
+    ratio = np.asarray(ratio, dtype=float)
+    if ratio.size == 0 or fs <= 0:
+        return 0.0
+    tiempos = inicio + np.arange(ratio.size) / float(fs)
+    mascara = (tiempos >= desde) & (tiempos <= hasta) & np.isfinite(ratio)
+    if not np.any(mascara):
+        return 0.0
+    indices = np.flatnonzero(mascara)
+    pico = int(indices[int(np.argmax(ratio[mascara]))])
+    if not np.isfinite(ratio[pico]) or ratio[pico] < umbral:
+        return 0.0
+    izquierda = pico
+    derecha = pico
+    while (
+        izquierda - 1 >= 0
+        and np.isfinite(ratio[izquierda - 1])
+        and ratio[izquierda - 1] >= umbral
+    ):
+        izquierda -= 1
+    while (
+        derecha + 1 < ratio.size
+        and np.isfinite(ratio[derecha + 1])
+        and ratio[derecha + 1] >= umbral
+    ):
+        derecha += 1
+    return (derecha - izquierda + 1) / float(fs)
+
+
 def clasificar(
     *,
     cc_max: float | None,
@@ -316,6 +353,8 @@ def clasificar(
     cc_min: float,
     sta_lta_min: float,
     lag_max_s: float,
+    sta_lta_racha_s: float = 0.0,
+    sta_lta_persistencia_s: float = 0.0,
 ) -> tuple[str, str]:
     """Clasificación conservadora a partir de los dos indicadores."""
     if cc_max is None and sta_lta is None:
@@ -326,7 +365,15 @@ def clasificar(
         and lag_s is not None
         and abs(lag_s) <= lag_max_s
     )
-    estacion_ok = sta_lta is not None and sta_lta >= sta_lta_min
+    persistencia_ok = (
+        sta_lta_persistencia_s <= 0
+        or sta_lta_racha_s >= sta_lta_persistencia_s
+    )
+    estacion_ok = (
+        sta_lta is not None
+        and sta_lta >= sta_lta_min
+        and persistencia_ok
+    )
     if correlacion_ok and estacion_ok:
         return CLASIFICACION_PODRIA, "Correlación y STA/LTA sobre el umbral."
     if estacion_ok:
@@ -415,6 +462,9 @@ def _validar(payload: dict) -> dict:
             payload.get("sta_lta_before_s"), 1.5
         ),
         "sta_lta_after_s": _numero(payload.get("sta_lta_after_s"), 4.0),
+        "sta_lta_persistencia_s": _numero(
+            payload.get("sta_lta_persistencia_s"), 0.0
+        ),
         "cc_min": _numero(payload.get("cc_min"), 0.5),
         "sta_lta_min": _numero(payload.get("sta_lta_min"), 3.0),
     }
@@ -561,6 +611,14 @@ def analizar(payload: dict) -> dict:
             esperado - params["sta_lta_before_s"],
             esperado + params["sta_lta_after_s"],
         )
+        racha = racha_sobre_umbral(
+            ratio,
+            traza["inicio"],
+            fs,
+            params["sta_lta_min"],
+            esperado - params["sta_lta_before_s"],
+            esperado + params["sta_lta_after_s"],
+        )
         clasificacion, motivo = clasificar(
             cc_max=cc_max,
             lag_s=lag_s,
@@ -568,6 +626,8 @@ def analizar(payload: dict) -> dict:
             cc_min=params["cc_min"],
             sta_lta_min=params["sta_lta_min"],
             lag_max_s=max_lag,
+            sta_lta_racha_s=racha,
+            sta_lta_persistencia_s=params["sta_lta_persistencia_s"],
         )
         item.update(
             {
@@ -578,6 +638,7 @@ def analizar(payload: dict) -> dict:
                 "sta_lta_time": (
                     _formatear_instante(sta_time) if sta_time else None
                 ),
+                "sta_lta_racha_s": racha,
                 "clasificacion": clasificacion,
                 "etiqueta": ETIQUETAS[clasificacion],
                 "motivo": motivo,
@@ -612,6 +673,7 @@ def analizar(payload: dict) -> dict:
             "lta_s": params["lta_s"],
             "sta_lta_before_s": params["sta_lta_before_s"],
             "sta_lta_after_s": params["sta_lta_after_s"],
+            "sta_lta_persistencia_s": params["sta_lta_persistencia_s"],
             "cc_min": params["cc_min"],
             "sta_lta_min": params["sta_lta_min"],
         },
@@ -628,5 +690,6 @@ __all__ = [
     "correlacion_max",
     "media_movil",
     "parse_stream",
+    "racha_sobre_umbral",
     "sta_lta_ratio",
 ]
