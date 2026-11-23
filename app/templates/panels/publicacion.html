@@ -106,6 +106,7 @@
 <form method="post"
       action="{{ url_for('panels.revision_publicacion', job_id=job.id, fila=fila) }}"
       class="card border-0 shadow-sm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="dataset" value="{{ dataset }}">
   <input type="hidden" name="grupo" value="{{ grupo_panel }}">
   <input type="hidden" name="ident" value="{{ ident }}">

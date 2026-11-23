@@ -121,6 +121,7 @@
 <form method="post"
       action="{{ url_for('panels.revision_local', job_id=job.id) }}"
       class="card border-0 shadow-sm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="fuente" value="{{ fuente }}">
   <input type="hidden" name="evento" value="{{ ref.get('event_id') }}">
   <input type="hidden" name="dataset" value="{{ dataset }}">

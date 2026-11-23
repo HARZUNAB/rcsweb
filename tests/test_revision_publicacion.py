@@ -291,6 +291,9 @@ def test_bandeja_agrupa_por_responsable_y_envia(
     assert "Bandeja de revisión" in html
     assert "uno" in html and "dos" in html
     assert "3 eventos" in html
+    assert html.count('<form method="post"') == html.count(
+        'name="csrf_token"'
+    )
 
     estados = {}
     monkeypatch.setattr(
