@@ -5,6 +5,23 @@ RCS Web.
 
 **Versión:** 0.8.0 · **Actualizado:** noviembre de 2026
 
+## Mapa de la documentación
+
+| Tema | Dónde encontrarlo |
+|---|---|
+| Parámetros, variables de entorno y constantes | Anexo D |
+| Variables de entorno (tabla completa) | Anexo D.1 |
+| Constantes de módulos | Anexo D.2 |
+| Parámetros de scripts | Anexo D.3 |
+| Reglas y umbrales | Anexo D.5 |
+| Adaptadores, fuentes y consultas | Anexo A y Anexo B (fase 2) |
+| Normalización canónica | Anexo C (fase 2) |
+| Glosario | Anexo F (fase 3) |
+
+El registro completo de parámetros vive en `docs/parametros.toml`. Las tablas
+del Anexo D se generan con `scripts/generar_parametros.py --write` y se
+validan con `--check` en las pruebas.
+
 ## Arquitectura
 
 RCS Web es una aplicación Flask con tareas asíncronas en Celery. La interfaz
@@ -47,6 +64,9 @@ core sísmico está incorporado en `core/` y sus datos grandes en `core_data/`.
 | `RCS_NOTIFICAR_REVISION_DEFAULT` | Preselección del correo en solicitudes de revisión (`0` = No) | `0` |
 | `ADMIN_USERNAME` | Administrador inicial | `admin` |
 | `ADMIN_PASSWORD` | Clave inicial del administrador | `admin` |
+
+Esta tabla es un resumen de arranque. El listado completo, con el módulo y la
+línea donde se define cada variable, está en el **Anexo D.1**.
 
 Cambie `ADMIN_PASSWORD` antes de la primera puesta en marcha. `seed-admin`
 solo crea el usuario si no existe; no cambia una clave existente.
@@ -2688,6 +2708,16 @@ Genera:
 - `docs/manual_usuario.docx`
 - `docs/manual_tecnico.docx`
 
+El manual técnico incluye el Anexo D, que se genera antes con:
+
+```bash
+.venv/bin/python scripts/generar_parametros.py --write
+```
+
+El índice del DOCX es un campo TOC de Word. Se actualiza al abrir el
+documento; si se abre en LibreOffice, presione F9 o use
+**Herramientas → Actualizar → Actualizar todo** para ver las páginas.
+
 Los Markdown son la fuente de verdad; no edite los `.docx` a mano.
 
 ## Seguridad
@@ -2702,3 +2732,25 @@ Los Markdown son la fuente de verdad; no edite los `.docx` a mano.
 - Revise la auditoría y desactive las cuentas que ya no se usan.
 - No modifique `core/` desde la aplicación; los cambios de código se hacen en
   el repositorio y se despliegan con el resto de RCS Web.
+
+## Anexos
+
+Los anexos amplían la información de referencia. Los cuadros del Anexo D se
+generan desde `docs/parametros.toml`; el resto se mantiene en Markdown.
+
+| Anexo | Contenido | Estado |
+|---|---|---|
+| A. Fuentes y adaptadores | Origen, formato y capacidades de cada fuente | Fase 2 |
+| B. Consultas y tablas | SQL, tablas, columnas y filtros de cada fuente | Fase 2 |
+| C. Normalización canónica | Mapeo campo a campo y unidades | Fase 2 |
+| D. Parámetros y configuración | Variables, constantes, scripts y reglas | Disponible |
+| E. Reglas y umbrales | Indicios, prioridad, cobertura y señal | Fase 3 |
+| F. Glosario | Siglas, estados y clasificaciones | Fase 3 |
+
+Para regenerar el Anexo D después de cambiar un parámetro:
+
+```bash
+python scripts/generar_parametros.py --write
+python scripts/generar_parametros.py --check
+python scripts/generar_docs.py
+```

@@ -49,6 +49,12 @@ MANUALES = {
     ),
 }
 
+PARTES = {
+    "manual_usuario": ["manual_usuario.md"],
+    "manual_tecnico": ["manual_tecnico.md", "anexos/D_parametros.md"],
+    "guia_despliegue_prueba": ["guia_despliegue_prueba.md"],
+}
+
 MESES = (
     "enero",
     "febrero",
@@ -225,7 +231,13 @@ def _tabla(doc: Document, tabla: Tag) -> None:
             fila_doc[indice].width = Cm(anchos[indice])
             parrafo = fila_doc[indice].paragraphs[0]
             es_cabecera = celda.name == "th"
-            _runs(parrafo, celda, negrita=es_cabecera)
+            referencia = re.fullmatch(
+                r"\[\[PAGEREF:([A-Za-z0-9_]+)\]\]", _texto(celda)
+            )
+            if referencia:
+                _pageref(parrafo, referencia.group(1))
+            else:
+                _runs(parrafo, celda, negrita=es_cabecera)
             for run in parrafo.runs:
                 run.font.size = Pt(9)
             if es_cabecera:
@@ -251,7 +263,9 @@ def _cuerpo(doc: Document, soup: BeautifulSoup) -> None:
         if nombre in ("h1", "script", "style"):
             continue
         if nombre in ("h2", "h3", "h4", "h5"):
-            doc.add_heading(_texto(elemento), level=int(nombre[1]))
+            texto = _texto(elemento)
+            parrafo = doc.add_heading(texto, level=int(nombre[1]))
+            _bookmark(parrafo, texto)
         elif nombre == "p":
             imagenes = elemento.find_all("img")
             if imagenes and not _texto(elemento):
@@ -313,20 +327,85 @@ def _portada(doc: Document, titulo: str, subtitulo: str) -> None:
     doc.add_page_break()
 
 
-def _indice(doc: Document, soup: BeautifulSoup) -> None:
-    doc.add_heading("Contenido", level=1)
-    for elemento in soup.find_all(["h2", "h3"]):
-        texto = _texto(elemento)
-        if not texto:
-            continue
-        parrafo = doc.add_paragraph()
-        parrafo.paragraph_format.space_after = Pt(1)
-        if elemento.name == "h3":
-            parrafo.paragraph_format.left_indent = Cm(0.7)
-        run = parrafo.add_run(texto)
-        run.font.size = Pt(10)
-        run.font.color.rgb = GRIS if elemento.name == "h3" else AZUL
+def _indice(doc: Document) -> None:
+    """Índice real de Word, con números de página.
+
+    El campo TOC se actualiza al abrir el DOCX (``updateFields``) o con F9.
+    En Markdown no existe paginación; las páginas viven en el DOCX.
+    """
+    parrafo = doc.add_paragraph()
+    run = parrafo.add_run("Contenido")
+    run.bold = True
+    run.font.size = Pt(19)
+    run.font.color.rgb = AZUL
+    parrafo.paragraph_format.space_before = Pt(14)
+    parrafo.paragraph_format.space_after = Pt(5)
+
+    campo = OxmlElement("w:fldSimple")
+    campo.set(qn("w:instr"), 'TOC \\o "1-3" \\h \\z \\u')
+    campo.set(qn("w:dirty"), "true")
+    relleno = OxmlElement("w:r")
+    texto = OxmlElement("w:t")
+    texto.text = (
+        "Actualice el índice con F9 o al abrir el documento para ver "
+        "las páginas."
+    )
+    relleno.append(texto)
+    campo.append(relleno)
+    parrafo._p.append(campo)
     doc.add_page_break()
+
+
+def _actualizar_campos(doc: Document) -> None:
+    """Pide a Word/LibreOffice que actualice TOC y PAGEREF al abrir."""
+    ajustes = doc.settings.element
+    for anterior in ajustes.findall(qn("w:updateFields")):
+        ajustes.remove(anterior)
+    actualizar = OxmlElement("w:updateFields")
+    actualizar.set(qn("w:val"), "true")
+    ajustes.append(actualizar)
+
+
+_BOOKMARKS: set[str] = set()
+_BOOKMARK_ID = [0]
+
+
+def _nombre_bookmark(texto: str) -> str:
+    coincidencia = re.match(
+        r"^(Anexo [A-F])|^([A-F]\.\d+(?:\.\d+)?)", texto.strip()
+    )
+    if not coincidencia:
+        return ""
+    base = coincidencia.group(1) or coincidencia.group(2)
+    return "_" + re.sub(r"[^A-Za-z0-9]+", "_", base).strip("_")
+
+
+def _bookmark(parrafo, texto: str) -> None:
+    nombre = _nombre_bookmark(texto)
+    if not nombre or nombre in _BOOKMARKS:
+        return
+    _BOOKMARKS.add(nombre)
+    _BOOKMARK_ID[0] += 1
+    identificador = str(_BOOKMARK_ID[0])
+    inicio = OxmlElement("w:bookmarkStart")
+    inicio.set(qn("w:id"), identificador)
+    inicio.set(qn("w:name"), nombre)
+    fin = OxmlElement("w:bookmarkEnd")
+    fin.set(qn("w:id"), identificador)
+    parrafo._p.insert(0, inicio)
+    parrafo._p.append(fin)
+
+
+def _pageref(parrafo, nombre: str) -> None:
+    campo = OxmlElement("w:fldSimple")
+    campo.set(qn("w:instr"), f"PAGEREF {nombre} \\h")
+    campo.set(qn("w:dirty"), "true")
+    run = OxmlElement("w:r")
+    texto = OxmlElement("w:t")
+    texto.text = "—"
+    run.append(texto)
+    campo.append(run)
+    parrafo._p.append(campo)
 
 
 def _pie(doc: Document, titulo: str) -> None:
@@ -340,8 +419,22 @@ def _pie(doc: Document, titulo: str) -> None:
     pie._p.append(campo)
 
 
+def _texto_manual(nombre: str) -> str:
+    partes = PARTES.get(nombre, [f"{nombre}.md"])
+    trozos = []
+    for parte in partes:
+        ruta = DOCS / parte
+        if not ruta.is_file():
+            print(f"aviso: no existe {ruta.relative_to(RAIZ)}; se omite")
+            continue
+        trozos.append(ruta.read_text(encoding="utf-8"))
+    return "\n\n".join(trozos)
+
+
 def _convertir(nombre: str, titulo: str, subtitulo: str) -> Path:
-    texto = (DOCS / f"{nombre}.md").read_text(encoding="utf-8")
+    texto = _texto_manual(nombre)
+    _BOOKMARKS.clear()
+    _BOOKMARK_ID[0] = 0
     conversor = markdown.Markdown(
         extensions=["extra", "toc", "sane_lists"],
         extension_configs={"toc": {"toc_depth": "2-3"}},
@@ -363,9 +456,10 @@ def _convertir(nombre: str, titulo: str, subtitulo: str) -> Path:
     doc.core_properties.comments = f"Versión {_version()}"
 
     _portada(doc, titulo, subtitulo)
-    _indice(doc, soup)
+    _indice(doc)
     _cuerpo(doc, soup)
     _pie(doc, titulo)
+    _actualizar_campos(doc)
 
     salida = DOCS / f"{nombre}.docx"
     doc.save(salida)

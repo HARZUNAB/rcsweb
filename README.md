@@ -20,6 +20,17 @@ incluye ayuda contextual desplegable y un glosario en `/ayuda`.
   [DOCX](docs/manual_tecnico.docx)
 - **Guía de despliegue de prueba**: [Markdown](docs/guia_despliegue_prueba.md) ·
   [DOCX](docs/guia_despliegue_prueba.docx)
+- **Parámetros y configuración**: [Registro TOML](docs/parametros.toml) ·
+  Manual técnico, Anexo D
+
+El registro de parámetros se valida contra el código y se usa para generar el
+Anexo D del manual técnico:
+
+```bash
+.venv/bin/python scripts/generar_parametros.py --check
+.venv/bin/python scripts/generar_parametros.py --write
+.venv/bin/python scripts/generar_docs.py
+```
 
 Los Markdown son la fuente de verdad. Los DOCX se regeneran con:
 
