@@ -124,9 +124,10 @@ magnitude_metadata
 ```
 
 Cada bloque incluye `source`, `derived` y `derived_fields`. En esta etapa
-SeisComp y Central los llenan; Seisan deja los bloques vacíos para que el
-contrato sea idéntico en todas las fuentes. `derived_fields` lista los campos
-calculados cuando un bloque mezcla datos directos y derivados.
+SeisComp, Central y Seisan los llenan. En Seisan, RMS y GAP salen del
+encabezado de `select.out`; ERH/ERZ se mapean a incertidumbre horizontal y de
+profundidad. `derived_fields` lista los campos calculados cuando un bloque
+mezcla datos directos y derivados.
 
 El flujo es:
 
@@ -150,7 +151,7 @@ CONSULTA_SQL
 
 El detalle de un trabajo terminado muestra **Catálogo completo** solo para
 administradores y supervisores, con el permiso `trabajos.descargar`. La fuente
-se elige entre **SeisComp** y **Central**.
+se elige entre **SeisComp**, **Central** y **Seisan**.
 
 Genera:
 
@@ -328,6 +329,29 @@ Pasos:
 2. `armar_catalogo` → `revisacollect.py`.
 3. `preparar_arribos` → parseo de `select.out` y resolución de estaciones.
 
+##### Calidad del evento
+
+El adaptador agrega al final de `datos/salida_collect.csv` las mismas columnas
+genéricas que usan las otras fuentes:
+
+- `standard_error`: RMS del encabezado del evento (columnas 52–56).
+- `azimuthal_gap`: valor `GAP=` de la línea siguiente al encabezado.
+- `horizontal_uncertainty` y `depth_uncertainty`: ERH y ERZ de esa línea.
+- `error_ellipse`: la línea `GAP=` completa, para conservar los valores de
+  confianza.
+- `used_phase_count`, `associated_phase_count`, estaciones usadas/asociadas y
+  distancia mínima/máxima/mediana: derivados de las fases.
+- `used` = peso 0–3, el mismo criterio que usa la app.
+- `origin_time_us`: microsegundos del encabezado.
+- `evaluation_status`: texto de `STATUS:` en la línea `ACTION`.
+- `software`: `seisan`.
+
+Los campos calculados se listan en `quality_derived_fields`. Las ocho columnas
+históricas de `salida_collect.csv` no cambian; las nuevas van al final.
+
+La exportación del catálogo completo permite elegir **Seisan** y genera el
+mismo ZIP de tres CSV más el LEEME.
+
 #### A.4.10 Salidas canónicas
 
 - `catalogo/seisan/eventos.jsonl` desde `salida_collect.csv`.
@@ -393,7 +417,8 @@ Central llena los mismos bloques que SeisComp:
 - `quality_derived_fields` lista los campos calculados.
 - `pick_uncertainty` conserva `pick.uncertainty`. `residual` queda vacío porque
   Central no trae un residual de tiempo separado.
-- La exportación del catálogo completo ya permite elegir **Central**.
+- La exportación del catálogo completo permite elegir **Central**, junto con
+  SeisComp y Seisan.
 
 Errores frecuentes:
 

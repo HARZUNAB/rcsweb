@@ -111,6 +111,25 @@ def test_bloques_select_out_lee_fases_y_descarta_amplitudes(tmp_path):
     assert bloque["fases"][3]["peso"] == 4
     assert bloque["fases"][3]["polaridad"] == ""
 
+    calidad_evento = bloque["calidad"]
+    assert calidad_evento["standard_error"] == 0.2
+    assert calidad_evento["azimuthal_gap"] == 93.0
+    assert calidad_evento["horizontal_uncertainty"] == 0.67
+    assert calidad_evento["depth_uncertainty"] == 2.1
+    assert calidad_evento["error_ellipse"].startswith("GAP=")
+
+    calidad = seisan._calidad_bloque(bloque)
+    assert calidad["used_phase_count"] == 3
+    assert calidad["associated_phase_count"] == 4
+    assert calidad["used_station_count"] == 2
+    assert calidad["associated_station_count"] == 3
+    assert calidad["minimum_distance_km"] == 50.8
+    assert calidad["maximum_distance_km"] == 83.1
+    assert calidad["median_distance_km"] == 54.9
+    assert calidad["origin_time_us"] == 200000
+    assert calidad["quality_source"] == "seisan"
+    assert "used_phase_count" in calidad["quality_derived_fields"]
+
 
 def test_instante_encabezado_usa_la_hora_del_evento_no_la_del_id():
     from app.domain.catalogs.adapters.seisan import _instante_encabezado
@@ -136,6 +155,24 @@ def test_preparar_arribos_escribe_canonico_y_revisa(tmp_path, monkeypatch):
     job = _job()
 
     adaptador._preparar_arribos(job, workspace)
+
+    with (workspace / "datos" / "salida_collect.csv").open(
+        encoding="utf-8", newline=""
+    ) as archivo:
+        catalogo = next(csv.DictReader(archivo))
+    assert catalogo["standard_error"] == "0.2"
+    assert catalogo["azimuthal_gap"] == "93.0"
+    assert catalogo["horizontal_uncertainty"] == "0.67"
+    assert catalogo["depth_uncertainty"] == "2.1"
+    assert catalogo["used_phase_count"] == "3"
+    assert catalogo["associated_phase_count"] == "4"
+    assert catalogo["used_station_count"] == "2"
+    assert catalogo["associated_station_count"] == "3"
+    assert catalogo["minimum_distance_km"] == "50.8"
+    assert catalogo["maximum_distance_km"] == "83.1"
+    assert catalogo["median_distance_km"] == "54.9"
+    assert catalogo["origin_time_us"] == "200000"
+    assert catalogo["quality_source"] == "seisan"
 
     ruta_fases = workspace / adaptador._ruta_fases(job)
     assert ruta_fases.is_file()
@@ -174,6 +211,21 @@ def test_preparar_arribos_escribe_canonico_y_revisa(tmp_path, monkeypatch):
     )
     eventos = leer_canonico(workspace, "seisan")
     assert eventos[0]["source_event_id"] == "0"
+    calidad = eventos[0]["origin_quality"]
+    assert calidad["source"] == "seisan"
+    assert calidad["standard_error"] == 0.2
+    assert calidad["azimuthal_gap"] == 93.0
+    assert calidad["used_phase_count"] == 3
+    assert calidad["associated_phase_count"] == 4
+    assert calidad["used_station_count"] == 2
+    assert calidad["associated_station_count"] == 3
+    assert "used_phase_count" in calidad["derived_fields"]
+    incertidumbre = eventos[0]["origin_uncertainty"]
+    assert incertidumbre["horizontal"]["value"] == 0.67
+    assert incertidumbre["depth"]["value"] == 2.1
+    assert incertidumbre["error_ellipse"].startswith("GAP=")
+    assert eventos[0]["origin_metadata"]["software"] == "seisan"
+    assert eventos[0]["origin_metadata"]["origin_time_us"] == 200000
     revision = revisar_evento(workspace, "seisan", eventos[0])
     assert revision["estado"] == "ok"
     assert revision["tiene_coordenadas"] is True

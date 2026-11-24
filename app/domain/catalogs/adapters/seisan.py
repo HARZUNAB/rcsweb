@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import logging
 import re
+import statistics
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -17,6 +18,36 @@ LOG = logging.getLogger(__name__)
 
 RE_ID = re.compile(r"ID:(\d{14})")
 RE_OPERADOR = re.compile(r"OP:(\S+)")
+
+COLUMNAS_CALIDAD_SEISAN = (
+    "standard_error",
+    "azimuthal_gap",
+    "used_phase_count",
+    "associated_phase_count",
+    "used_station_count",
+    "associated_station_count",
+    "minimum_distance_km",
+    "maximum_distance_km",
+    "median_distance_km",
+    "horizontal_uncertainty",
+    "depth_uncertainty",
+    "error_ellipse",
+    "origin_time_us",
+    "evaluation_status",
+    "software",
+    "quality_source",
+    "quality_derived",
+    "quality_derived_fields",
+    "unc_source",
+    "unc_derived",
+    "unc_derived_fields",
+    "origin_source",
+    "origin_derived",
+    "origin_derived_fields",
+    "magnitude_source",
+    "magnitude_derived",
+    "magnitude_derived_fields",
+)
 
 
 def _operador(linea: str) -> str:
@@ -81,6 +112,88 @@ def _instante_encabezado(linea: str) -> datetime | None:
         return None
 
 
+def _calidad_encabezado(linea: str) -> dict:
+    """RMS del encabezado del evento (columnas 52:56 de select.out)."""
+    rms = _numero(linea[52:56])
+    return {"standard_error": rms} if rms is not None else {}
+
+
+def _calidad_gap(linea: str) -> dict:
+    """GAP y errores de la línea ``GAP=`` de select.out.
+
+    La línea trae, en orden, el azimutal gap y los errores horizontal y
+    vertical. Se guarda la línea completa en ``error_ellipse`` para no perder
+    los valores de confianza que trae después.
+    """
+    valores = []
+    for token in linea.split()[1:]:
+        valor = _numero(token.rstrip("E"))
+        if valor is not None:
+            valores.append(valor)
+    datos = {"error_ellipse": linea.strip()}
+    if valores:
+        datos["azimuthal_gap"] = valores[0]
+    if len(valores) >= 2:
+        datos["horizontal_uncertainty"] = valores[1]
+    if len(valores) >= 3:
+        datos["depth_uncertainty"] = valores[2]
+    return datos
+
+
+def _estado_action(linea: str) -> str:
+    if "STATUS:" not in linea:
+        return ""
+    resto = linea.split("STATUS:", 1)[1]
+    return resto.split("ID:", 1)[0].strip()
+
+
+def _calidad_bloque(bloque: dict) -> dict:
+    """Calidad del evento y conteos derivados de sus fases."""
+    fases = bloque.get("fases") or []
+    usadas = [fase for fase in fases if (fase.get("peso") or 0) < 4]
+    estaciones_usadas = {fase["estacion"] for fase in usadas}
+    estaciones = {fase["estacion"] for fase in fases}
+    distancias = [
+        fase["distancia"]
+        for fase in fases
+        if fase.get("distancia") is not None
+    ]
+    calidad = dict(bloque.get("calidad") or {})
+    calidad.update(
+        {
+            "used_phase_count": len(usadas),
+            "associated_phase_count": len(fases),
+            "used_station_count": len(estaciones_usadas),
+            "associated_station_count": len(estaciones),
+            "minimum_distance_km": min(distancias) if distancias else None,
+            "maximum_distance_km": max(distancias) if distancias else None,
+            "median_distance_km": (
+                statistics.median(distancias) if distancias else None
+            ),
+            "origin_time_us": int(bloque["instante"].microsecond),
+            "software": "seisan",
+            "quality_source": "seisan",
+            "quality_derived": "False",
+            "quality_derived_fields": (
+                "used_phase_count,associated_phase_count,"
+                "used_station_count,associated_station_count,"
+                "minimum_distance_km,maximum_distance_km,"
+                "median_distance_km"
+            ),
+            "unc_source": "seisan",
+            "unc_derived": "False",
+            "unc_derived_fields": "",
+            "origin_source": "seisan",
+            "origin_derived": "False",
+            "origin_derived_fields": "",
+            "magnitude_source": "seisan",
+            "magnitude_derived": "False",
+            "magnitude_derived_fields": "",
+        }
+    )
+    return calidad
+
+
 def _verificar(workspace) -> None:
     ruta = Path(workspace) / "datos" / "salida_collect.csv"
     if not ruta.is_file() or ruta.stat().st_size <= 1:
@@ -108,11 +221,14 @@ def _fila_hora(fila: dict) -> datetime | None:
     return _instante(fila.get("Fecha_Hora"))
 
 
-def _enriquecer_catalogo(ruta: Path) -> None:
-    """Agrega ``id_evento`` al CSV normalizado sin tocar el core.
+def _enriquecer_catalogo(
+    ruta: Path, calidad_por_indice: dict | None = None
+) -> None:
+    """Agrega ``id_evento`` y la calidad del evento al CSV normalizado.
 
-    El valor es el índice de la fila, el mismo que usa el contrato para el
-    ``event_id`` y para enlazar los arribos.
+    El valor de ``id_evento`` es el índice de la fila, el mismo que usa el
+    contrato para el ``event_id`` y para enlazar los arribos. Las columnas de
+    calidad se agregan al final para no alterar las ocho históricas.
     """
     with ruta.open(encoding="utf-8-sig", newline="") as archivo:
         lector = csv.reader(archivo)
@@ -120,12 +236,21 @@ def _enriquecer_catalogo(ruta: Path) -> None:
     if not filas:
         return
     cabecera = filas[0]
-    if "id_evento" in cabecera:
-        return
-    cabecera.append("id_evento")
-    for fila in filas[1:]:
+    for columna in ("id_evento",) + COLUMNAS_CALIDAD_SEISAN:
+        if columna not in cabecera:
+            cabecera.append(columna)
+    posiciones = {nombre: indice for indice, nombre in enumerate(cabecera)}
+    for numero_fila in range(1, len(filas)):
+        fila = list(filas[numero_fila])
+        fila = fila + [""] * (len(cabecera) - len(fila))
         indice = fila[0].strip() if fila else ""
-        fila.append(indice)
+        datos = {"id_evento": indice}
+        datos.update((calidad_por_indice or {}).get(indice, {}))
+        for columna, valor in datos.items():
+            posicion = posiciones.get(columna)
+            if posicion is not None:
+                fila[posicion] = "" if valor is None else str(valor)
+        filas[numero_fila] = fila
     temporal = ruta.with_suffix(ruta.suffix + ".tmp")
     with temporal.open("w", encoding="utf-8", newline="") as archivo:
         escritor = csv.writer(archivo)
@@ -225,6 +350,7 @@ def _bloques_select_out(ruta: Path) -> list[dict]:
     bloques: list[dict] = []
     actual: dict | None = None
     encabezado: datetime | None = None
+    calidad_pendiente: dict = {}
     en_fases = False
     try:
         lineas = ruta.read_text(encoding="latin-1", errors="replace").splitlines()
@@ -236,6 +362,10 @@ def _bloques_select_out(ruta: Path) -> list[dict]:
             posible = _instante_encabezado(linea)
             if posible is not None:
                 encabezado = posible
+                calidad_pendiente = _calidad_encabezado(linea)
+        if not en_fases and linea.strip().startswith("GAP="):
+            calidad_pendiente.update(_calidad_gap(linea))
+            continue
         coincidencia_id = RE_ID.search(linea)
         if coincidencia_id:
             instante = encabezado
@@ -250,9 +380,14 @@ def _bloques_select_out(ruta: Path) -> list[dict]:
                 actual = {
                     "instante": instante,
                     "operador": _operador(linea),
+                    "calidad": dict(calidad_pendiente),
                     "fases": [],
                 }
+                estado = _estado_action(linea)
+                if estado:
+                    actual["calidad"]["evaluation_status"] = estado
             encabezado = None
+            calidad_pendiente = {}
             continue
         operador = _operador(linea)
         if operador and actual is not None:
@@ -349,7 +484,6 @@ class Adaptador(Base):
         if not catalogo.is_file():
             return
         try:
-            _enriquecer_catalogo(catalogo)
             eventos = _leer_eventos_normalizados(catalogo)
             origen = next(
                 (
@@ -360,8 +494,15 @@ class Adaptador(Base):
                 None,
             )
             if origen is None or not eventos:
+                _enriquecer_catalogo(catalogo)
                 return
             bloques = _bloques_select_out(origen)
+            calidad: dict[str, dict] = {}
+            for bloque in bloques:
+                evento = _elegir_evento(bloque, eventos)
+                if evento is not None:
+                    calidad[str(evento["indice"])] = _calidad_bloque(bloque)
+            _enriquecer_catalogo(catalogo, calidad)
             if not bloques:
                 LOG.info("Seisan: select.out no trae bloques de fases.")
                 return

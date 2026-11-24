@@ -1011,8 +1011,9 @@ incluye `source`, `derived` y `derived_fields`: `source` indica la fuente,
 `derived_fields` lista los campos calculados cuando el bloque mezcla datos
 directos y derivados.
 
-En esta etapa SeisComp y Central los llenan; Seisan queda con bloques vacíos
-(`{}`), para que el contrato sea el mismo en todas las fuentes.
+En esta etapa SeisComp, Central y Seisan los llenan. En Seisan, el error
+estándar y el azimutal gap salen del encabezado de `select.out`, y ERH/ERZ se
+mapean a incertidumbre horizontal y de profundidad.
 
 Las distancias de calidad se guardan en **km**. SeisComp entrega
 `OriginQuality.minimumDistance`, `maximumDistance` y `medianDistance` en grados;
@@ -1022,7 +1023,7 @@ el conversor las pasa a km y conserva el valor original en el CSV crudo.
 
 El detalle de un trabajo terminado ofrece **Catálogo completo** para
 administradores y supervisores, con el permiso `trabajos.descargar`. La fuente
-se elige entre **SeisComp** y **Central**. El botón genera un ZIP en
+se elige entre **SeisComp**, **Central** y **Seisan**. El botón genera un ZIP en
 `workspace/<job_id>/descargas/`:
 
 ```text
@@ -1040,8 +1041,12 @@ catalogo_completo_<fuente>_<inicio>_<fin>.zip
 - `LEEME.txt`: unidades, procedencia y versión del esquema.
 
 En Central no hay un residual de tiempo separado: `pick_uncertainty` conserva
-la incertidumbre del pick y el resumen usa `uncertainty_*`. En SeisComp, el
-residual está en `residual` y el resumen usa `residual_*`.
+la incertidumbre del pick y el resumen usa `uncertainty_*`. En SeisComp y
+Seisan, el residual está en `residual` y el resumen usa `residual_*`.
+
+En Seisan, el RMS y el azimutal gap salen del encabezado de `select.out`; ERH
+y ERZ se mapean a incertidumbre horizontal y de profundidad. No hay
+incertidumbre por pick.
 
 El resumen por estación se calcula al exportar desde `arribos.jsonl`; no se
 persiste. Las distancias se calculan desde coordenadas y quedan en km. El

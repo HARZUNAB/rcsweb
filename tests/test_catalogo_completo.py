@@ -265,7 +265,7 @@ def test_generar_zip_con_tres_csv_y_leeme(app):
 def test_generar_rechaza_fuente_no_habilitada(app):
     job = _preparar(app)
     with pytest.raises(servicio.CatalogoCompletoError):
-        servicio.generar(job, "seisan")
+        servicio.generar(job, "eventquery")
 
 
 def test_canonico_guarda_bloques_para_seiscomp(tmp_path):

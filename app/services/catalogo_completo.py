@@ -33,7 +33,7 @@ class CatalogoCompletoError(RuntimeError):
 
 
 # Fuentes con bloques de calidad completos en esta etapa.
-FUENTES_HABILITADAS = frozenset({"seiscomp", "central"})
+FUENTES_HABILITADAS = frozenset({"seiscomp", "central", "seisan"})
 
 
 CABECERA_EVENTOS = (
@@ -554,8 +554,8 @@ def generar(job, fuente: str = "seiscomp") -> tuple[Path, dict]:
     fuente = str(fuente or "").strip()
     if fuente not in FUENTES_HABILITADAS:
         raise CatalogoCompletoError(
-            "En esta etapa el catálogo completo solo está disponible "
-            "para SeisComp."
+            "El catálogo completo solo está disponible para SeisComp, "
+            "Central o Seisan."
         )
     disponibles = {source.kind for source in job.sources}
     if fuente not in disponibles:
