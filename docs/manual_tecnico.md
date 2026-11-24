@@ -999,7 +999,50 @@ Cada línea es un objeto `EventoCanonico`:
 | `origin_id` | texto | Origen preferido de la solución en la fuente |
 | `database` | texto | Base de SeisComp de la que salió la solución |
 | `raw_index` | entero | Posición de la fila en el archivo crudo |
+| `origin_quality` | JSON | Calidad del origen; vacío si la fuente no la aporta |
+| `origin_uncertainty` | JSON | Incertidumbres del origen |
+| `origin_metadata` | JSON | Tipo, modo de evaluación, método y modelo |
+| `magnitude_metadata` | JSON | Incertidumbre y metadatos de la magnitud |
 | `raw` | JSON | Fila original normalizada |
+
+Los cuatro bloques de calidad se agregaron en el esquema **1.3**. Cada bloque
+incluye `source` y `derived`: `source` indica la fuente y `derived=false`
+significa dato directo; `derived=true`, dato calculado. En esta etapa SeisComp
+los llena y Seisan/Central los dejan vacíos (`{}`), para que el contrato sea el
+mismo en todas las fuentes.
+
+Las distancias de calidad se guardan en **km**. SeisComp entrega
+`OriginQuality.minimumDistance`, `maximumDistance` y `medianDistance` en grados;
+el conversor las pasa a km y conserva el valor original en el CSV crudo.
+
+#### Catálogo completo de SeisComp
+
+El detalle de un trabajo terminado ofrece **Catálogo completo** para
+administradores y supervisores, con el permiso `trabajos.descargar`. El botón
+genera un ZIP en `workspace/<job_id>/descargas/`:
+
+```text
+catalogo_completo_seiscomp_<inicio>_<fin>.zip
+  eventos.csv
+  arribos.csv
+  estaciones_resumen.csv
+  LEEME.txt
+```
+
+- `eventos.csv`: eventos con los bloques de calidad aplanados.
+- `arribos.csv`: todos los arribos de la fuente.
+- `estaciones_resumen.csv`: RMS, conteos, distancias y azimut por estación.
+- `LEEME.txt`: unidades, procedencia y versión del esquema.
+
+El resumen por estación se calcula al exportar desde `arribos.jsonl`; no se
+persiste. Las distancias se calculan desde coordenadas y quedan en km. El
+`distance_km` de `arribos.csv` conserva el valor nativo de la fuente, que en
+SeisComp está en grados; `distance_km_calc` es la distancia en km.
+
+La opción se controla con `RCS_CATALOGO_COMPLETO_ACTIVO` (activa por defecto).
+Si se pone en `0`, el botón desaparece y la ruta responde 404. El catálogo
+canónico sigue guardando los bloques extendidos aunque la exportación esté
+desactivada.
 
 Los contratos de estación, arribo y disponibilidad de onda están definidos en
 `app/domain/catalogs/schema.py`:

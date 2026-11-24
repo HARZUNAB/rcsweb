@@ -80,6 +80,10 @@ class Config:
     RCS_EVIDENCIA_MAX_MB = int(
         os.environ.get("RCS_EVIDENCIA_MAX_MB") or 20
     )
+    # Exportación temporal del catálogo completo de una fuente local.
+    RCS_CATALOGO_COMPLETO_ACTIVO = _bool(
+        "RCS_CATALOGO_COMPLETO_ACTIVO", True
+    )
     # Durante desarrollo la notificación por correo parte desmarcada.
     # Cambie a 1 para preseleccionar el envío cuando se solicite una revisión.
     RCS_NOTIFICAR_REVISION_DEFAULT = _bool(

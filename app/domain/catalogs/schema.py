@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
-SCHEMA_VERSION = "1.2"
+SCHEMA_VERSION = "1.3"
 
 CAPACIDADES = {
     "eventos",
@@ -49,6 +49,13 @@ class EventoCanonico:
     # recalcular el inventario de estaciones al ampliar el radio.
     database: str = ""
     raw_index: int | None = None
+    # Bloques opcionales de calidad. Se definen para todas las fuentes, pero
+    # cada adaptador llena solo lo que puede. Un bloque vacío significa que la
+    # fuente no lo proporciona.
+    origin_quality: dict = field(default_factory=dict)
+    origin_uncertainty: dict = field(default_factory=dict)
+    origin_metadata: dict = field(default_factory=dict)
+    magnitude_metadata: dict = field(default_factory=dict)
     raw: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:

@@ -13,16 +13,19 @@ generajson.py lee los CSV por POSICIÓN, y la columna 0 tiene que ser el índice
 de la fila: de ahí salen 'id' y 'n_fila_origen', que es el enlace de
 trazabilidad de vuelta al archivo crudo. El archivo de Seisan que produce
 revisacollect.py tiene 8 columnas, con el índice como columna 0 porque pandas
-escribe el índice por defecto. Este script reproduce ese mismo formato, con el
-OPERADOR de la solución preferred de SeisComp en la columna del analista.
+escribe el índice por defecto. Este script conserva esas primeras 8 columnas
+con el OPERADOR de la solución preferred de SeisComp en la columna del
+analista. Después agrega las columnas de calidad, incertidumbre y metadatos,
+para que el catálogo canónico conserve el detalle de SeisComp.
+
+Las columnas nuevas van al final: los consumidores que leen por posición las
+ignoran y siguen encontrando los mismos índices históricos.
 
 Lo que NO se copia
 ------------------
-La exportación cruda tiene 15 columnas, y varias no se copian: el panel de
-análisis no las usa y el CSV crudo queda intacto al lado, para el análisis de
-estaciones y fases. En particular no se copia 'region', porque la columna del
-analista ya la ocupa el operador, y la región se ve igual en el panel de
-revisión de SeisComp.
+No se copia 'region', porque la columna del analista ya la ocupa el operador,
+y la región se ve igual en el panel de revisión de SeisComp. El CSV crudo
+queda intacto al lado, para el análisis de estaciones y fases.
 
     columnas crudas -> columnas del conversor
     ot_utc          -> Fecha_Hora
@@ -57,12 +60,24 @@ Uso:
 """
 
 import csv
+import math
 import os
 import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import rutas
 import prog
+from seiscomp_campos import (
+    COLUMNAS_CONVERTIDAS,
+    COLUMNAS_DERIVADAS,
+    COLUMNAS_EXTENDIDAS,
+)
+
+DERIVADAS_DESDE = {
+    "minimum_distance_km": "minimum_distance_deg",
+    "maximum_distance_km": "maximum_distance_deg",
+    "median_distance_km": "median_distance_deg",
+}
 
 # Columnas de la exportación que hacen falta para convertir. Si el esquema de
 # la base cambiara y el SELECT dejara de devolver alguna, el nombre nuevo
@@ -74,8 +89,20 @@ COLUMNAS_DE_LA_EXPORTACION = (
 
 # Encabezado de la salida. El primer campo va vacío a propósito: es la columna
 # del índice, y así lo escribe pandas en los CSV del resto del flujo.
-ENCABEZADO = ("", "Fecha_Hora", "Latitud", "Longitud", "Prof.", "Mag.",
-              "Tipo_mag.", "Analista")
+# Después de las columnas históricas van las de calidad e incertidumbre, para
+# que el catálogo canónico conserve el detalle de SeisComp.
+ENCABEZADO = (
+    "", "Fecha_Hora", "Latitud", "Longitud", "Prof.", "Mag.",
+    "Tipo_mag.", "Analista",
+) + COLUMNAS_CONVERTIDAS
+
+
+def _km_desde_grados(valor):
+    """Convierte una distancia angular de SeisComp a kilómetros."""
+    numero = _numero(valor)
+    if numero is None:
+        return ""
+    return round(math.radians(numero) * 6371.0088, 3)
 
 
 def _numero(texto):
@@ -93,7 +120,10 @@ def _numero(texto):
 
 def convertir(ruta_origen, ruta_destino=None):
     """
-    Convierte la exportación y escribe el archivo de 8 columnas.
+    Convierte la exportación y escribe el catálogo canónico plano.
+
+    Las primeras 8 columnas conservan el formato histórico; después van las
+    columnas extendidas de calidad e incertidumbre.
 
     Devuelve un dict con el resumen: leidas, convertidas, descartadas, sin
     latitud/longitud, sin magnitud, con profundidad, por operador y las
@@ -119,6 +149,15 @@ def convertir(ruta_origen, ruta_destino=None):
                 "SELECT de exporta_ventana_seiscomp.py."
                 % (os.path.basename(ruta_origen), ", ".join(faltantes),
                    ", ".join(sorted(nombres))))
+        faltantes_extendidas = [
+            columna for columna in COLUMNAS_EXTENDIDAS
+            if columna not in nombres
+        ]
+        if faltantes_extendidas:
+            print(
+                "   [Aviso] La exportación no trae %d columnas extendidas; "
+                "se escriben vacías." % len(faltantes_extendidas)
+            )
 
         filas = list(lector)
 
@@ -165,12 +204,22 @@ def convertir(ruta_origen, ruta_destino=None):
             # fila, 'n_fila_origen' apuntaría a otro evento del CSV crudo y la
             # trazabilidad del panel de análisis mentiría.
             fecha = (fila.get("ot_utc") or "").strip()
-            escritor.writerow([i, fecha,
-                               (fila.get("latitud") or "").strip(),
-                               (fila.get("longitud") or "").strip(),
-                               profundidad, magnitud,
-                               (fila.get("tipo_magnitud") or "").strip(),
-                               operador])
+            valores = [
+                i, fecha,
+                (fila.get("latitud") or "").strip(),
+                (fila.get("longitud") or "").strip(),
+                profundidad, magnitud,
+                (fila.get("tipo_magnitud") or "").strip(),
+                operador,
+            ]
+            for columna in COLUMNAS_CONVERTIDAS:
+                if columna in DERIVADAS_DESDE:
+                    valores.append(
+                        _km_desde_grados(fila.get(DERIVADAS_DESDE[columna]))
+                    )
+                else:
+                    valores.append(fila.get(columna, ""))
+            escritor.writerow(valores)
             resumen["convertidas"] += 1
             if operador:
                 resumen["por_operador"][operador] = \

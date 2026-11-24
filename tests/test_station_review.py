@@ -163,7 +163,7 @@ def test_canonico_enlaza_id_evento_y_escribe_meta(tmp_path):
     assert estaciones[0]["stream_ids"] == "IU.LVC.00.BHZ;IU.LVC.00.HHZ"
 
     meta = leer_meta(workspace, "seiscomp")
-    assert meta["schema_version"] == "1.2"
+    assert meta["schema_version"] == "1.3"
     assert meta["extensions"]["arribos"]["rows"] == 2
     assert meta["extensions"]["estaciones_sin_arribos"]["rows"] == 1
     assert meta["extensions"]["tensores"]["present"] is False

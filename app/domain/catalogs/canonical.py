@@ -97,6 +97,136 @@ def _leer_crudo(ruta: Path | None) -> list[dict]:
         return list(csv.DictReader(archivo))
 
 
+def _bloques_calidad(fila: dict, source_id: str) -> dict:
+    """Bloques opcionales de calidad del origen.
+
+    Si la fuente no aporta las columnas extendidas, los cuatro bloques quedan
+    vacíos. Así el contrato es el mismo para todas las fuentes y el consumidor
+    no necesita preguntar por la fuente.
+    """
+    claves = (
+        "associated_phase_count",
+        "minimum_distance_deg",
+        "time_uncertainty",
+        "magnitude_uncertainty",
+        "origin_type",
+    )
+    if not any(clave in fila for clave in claves):
+        return {
+            "origin_quality": {},
+            "origin_uncertainty": {},
+            "origin_metadata": {},
+            "magnitude_metadata": {},
+        }
+
+    def numero(clave):
+        return _numero(fila.get(clave))
+
+    def primero(*claves):
+        for clave in claves:
+            valor = numero(clave)
+            if valor is not None:
+                return valor
+        return None
+
+    def texto(clave):
+        valor = _texto(fila.get(clave))
+        return valor or None
+
+    calidad = {
+        "source": source_id,
+        "derived": False,
+        "used_phase_count": _entero(fila.get("fases")),
+        "associated_phase_count": _entero(fila.get("associated_phase_count")),
+        "used_station_count": _entero(fila.get("used_station_count")),
+        "associated_station_count": _entero(
+            fila.get("associated_station_count")
+        ),
+        "depth_phase_count": _entero(fila.get("depth_phase_count")),
+        "standard_error": primero("standard_error", "rms"),
+        "azimuthal_gap": primero("azimuthal_gap", "azgap"),
+        "secondary_azimuthal_gap": numero("secondary_azimuthal_gap"),
+        "ground_truth_level": texto("ground_truth_level"),
+        "minimum_distance_km": numero("minimum_distance_km"),
+        "maximum_distance_km": numero("maximum_distance_km"),
+        "median_distance_km": numero("median_distance_km"),
+    }
+    incertidumbre = {
+        "source": source_id,
+        "derived": False,
+        "time": {
+            "value": numero("time_uncertainty"),
+            "lower": numero("time_lower_uncertainty"),
+            "upper": numero("time_upper_uncertainty"),
+            "confidence": numero("time_confidence"),
+        },
+        "latitude": {
+            "value": numero("latitude_uncertainty"),
+            "lower": numero("latitude_lower_uncertainty"),
+            "upper": numero("latitude_upper_uncertainty"),
+            "confidence": numero("latitude_confidence"),
+        },
+        "longitude": {
+            "value": numero("longitude_uncertainty"),
+            "lower": numero("longitude_lower_uncertainty"),
+            "upper": numero("longitude_upper_uncertainty"),
+            "confidence": numero("longitude_confidence"),
+        },
+        "depth": {
+            "value": numero("depth_uncertainty"),
+            "lower": numero("depth_lower_uncertainty"),
+            "upper": numero("depth_upper_uncertainty"),
+            "confidence": numero("depth_confidence"),
+        },
+        "horizontal": {
+            "value": numero("horizontal_uncertainty"),
+            "min": numero("min_horizontal_uncertainty"),
+            "max": numero("max_horizontal_uncertainty"),
+            "azimuth_max": numero("azimuth_max_horizontal_uncertainty"),
+        },
+        "ellipse": {
+            "semimajor": numero("ellipse_semimajor"),
+            "semiminor": numero("ellipse_semiminor"),
+            "semiintermediate": numero("ellipse_semiintermediate"),
+            "plunge": numero("ellipse_plunge"),
+            "azimuth": numero("ellipse_azimuth"),
+            "rotation": numero("ellipse_rotation"),
+        },
+        "preferred_description": texto(
+            "uncertainty_preferred_description"
+        ),
+        "confidence_level": numero("uncertainty_confidence"),
+    }
+    metadatos = {
+        "source": source_id,
+        "derived": False,
+        "origin_time_us": _entero(fila.get("origin_time_us")),
+        "type": texto("origin_type"),
+        "evaluation_mode": texto("evaluation_mode"),
+        "method_id": texto("method_id"),
+        "earth_model_id": texto("earth_model_id"),
+        "depth_type": texto("depth_type"),
+    }
+    magnitud = {
+        "source": source_id,
+        "derived": False,
+        "uncertainty": numero("magnitude_uncertainty"),
+        "lower_uncertainty": numero("magnitude_lower_uncertainty"),
+        "upper_uncertainty": numero("magnitude_upper_uncertainty"),
+        "confidence": numero("magnitude_confidence"),
+        "station_count": _entero(fila.get("magnitude_station_count")),
+        "azimuthal_gap": numero("magnitude_azimuthal_gap"),
+        "status": texto("magnitude_status"),
+        "method_id": texto("magnitude_method_id"),
+    }
+    return {
+        "origin_quality": calidad,
+        "origin_uncertainty": incertidumbre,
+        "origin_metadata": metadatos,
+        "magnitude_metadata": magnitud,
+    }
+
+
 def escribir_desde_csv(
     workspace: Path,
     source_id: str,
@@ -141,6 +271,7 @@ def escribir_desde_csv(
                     or _texto(fila.get("Revision"))
                     or _texto(fila.get("revision"))
                 )
+                bloques = _bloques_calidad(fila, source_id)
                 evento = EventoCanonico(
                     source_id=source_id,
                     event_id=f"{source_id}:{indice:06d}",
@@ -169,6 +300,10 @@ def escribir_desde_csv(
                         or _texto(original.get("base_datos"))
                     ),
                     raw_index=indice,
+                    origin_quality=bloques["origin_quality"],
+                    origin_uncertainty=bloques["origin_uncertainty"],
+                    origin_metadata=bloques["origin_metadata"],
+                    magnitude_metadata=bloques["magnitude_metadata"],
                     raw=dict(fila),
                 )
                 salida.write(json.dumps(evento.to_dict(), ensure_ascii=False) + "\n")

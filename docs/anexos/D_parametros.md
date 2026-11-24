@@ -18,7 +18,7 @@ La columna **Módulo** muestra el archivo y la línea actual donde se define el 
 
 > Las páginas se resuelven al actualizar el índice en el DOCX. En Markdown no existe paginación.
 
-Resumen: 61 variables de entorno, 96 constantes y 17 parámetros de scripts.
+Resumen: 62 variables de entorno, 96 constantes y 17 parámetros de scripts.
 
 ### D.1 Variables de entorno
 
@@ -48,6 +48,12 @@ Se leen al arrancar la aplicación o el servicio. Cambiarlas requiere reiniciar 
 |---|---|---|---|---|
 | `DATABASE_URL` | `app/config.py:35` | `postgresql+psycopg://rcs:rcs@db:5432/rcs` | despliegue | Conexión SQLAlchemy a PostgreSQL de la aplicación. |
 
+**Catálogo completo**
+
+| Variable | Módulo | Defecto | Ámbito | Efecto |
+|---|---|---|---|---|
+| `RCS_CATALOGO_COMPLETO_ACTIVO` | `app/config.py:84` | `1` | despliegue | Habilita la exportación temporal del catálogo completo desde el detalle del trabajo. |
+
 **Catálogos y fuentes**
 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
@@ -59,7 +65,7 @@ Se leen al arrancar la aplicación o el servicio. Cambiarlas requiere reiniciar 
 | `DEFAULT_PRIMARY_LOCAL` | `app/domain/catalogs/registry.py:146` | `local_export` | despliegue | Fuente local principal por defecto (local_export o local_select). |
 | `RCS_CATALOGO_SISMICIDAD` | `app/config.py:57` | `base_2018_2026.dat` | despliegue | Archivo del catálogo sísmico histórico. |
 | `RCS_CENTRAL_DSN` | `app/config.py:74` | `—` | despliegue | DSN de solo lectura de la base central CSN. |
-| `RCS_DATA_DIR` | `core/exporta_ventana_seiscomp.py:612` | `—` | despliegue | Directorio de datos del core para exportaciones. |
+| `RCS_DATA_DIR` | `core/exporta_ventana_seiscomp.py:673` | `—` | despliegue | Directorio de datos del core para exportaciones. |
 | `RCS_RECORDSTREAM` | `core/disponibilidad.py:107` | `—` | despliegue | Comando de recordstream; si está vacío se lee de global.cfg. |
 | `RCS_SCART` | `core/disponibilidad.py:76` | `—` | despliegue | Comando o ruta de scart para consultar la base. |
 | `RCS_SDS_ROOT` | `core/disponibilidad.py:71` | `—` | despliegue | Raíz del SDS con formas de onda. |
@@ -79,8 +85,8 @@ Se leen al arrancar la aplicación o el servicio. Cambiarlas requiere reiniciar 
 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
 |---|---|---|---|---|
-| `CELERY_BROKER_URL` | `app/config.py:109` | `redis://redis:6379/0` | despliegue | Broker de Celery. |
-| `CELERY_RESULT_BACKEND` | `app/config.py:110` | `redis://redis:6379/1` | despliegue | Backend de resultados de Celery. |
+| `CELERY_BROKER_URL` | `app/config.py:113` | `redis://redis:6379/0` | despliegue | Broker de Celery. |
+| `CELERY_RESULT_BACKEND` | `app/config.py:114` | `redis://redis:6379/1` | despliegue | Backend de resultados de Celery. |
 | `PIPELINE_STEP_TIMEOUT` | `app/services/pipeline.py:54` | `1800` | despliegue | Timeout por paso del pipeline, en segundos. |
 | `RCS_ENRIQUECER_RESIDUALES` | `app/services/pipeline.py:439` | `1` | despliegue | Enriquece residuales con fuentes locales (1 = sí). |
 
@@ -89,32 +95,32 @@ Se leen al arrancar la aplicación o el servicio. Cambiarlas requiere reiniciar 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
 |---|---|---|---|---|
 | `RCS_DISPONIBILIDAD_HOST` | `app/services/availability_service.py:241` | `0.0.0.0` | despliegue | Interfaz donde escucha el sidecar. |
-| `RCS_DISPONIBILIDAD_MAX_ESTACIONES` | `app/config.py:122` | `150` | despliegue | Máximo de estaciones por consulta. |
-| `RCS_DISPONIBILIDAD_MAX_STREAMS` | `app/config.py:125` | `5000` | despliegue | Máximo duro de streams por consulta. |
+| `RCS_DISPONIBILIDAD_MAX_ESTACIONES` | `app/config.py:126` | `150` | despliegue | Máximo de estaciones por consulta. |
+| `RCS_DISPONIBILIDAD_MAX_STREAMS` | `app/config.py:129` | `5000` | despliegue | Máximo duro de streams por consulta. |
 | `RCS_DISPONIBILIDAD_PORT` | `app/services/availability_service.py:242` | `8010` | despliegue | Puerto del sidecar. |
-| `RCS_DISPONIBILIDAD_TIMEOUT` | `app/config.py:119` | `240` | despliegue | Timeout de la consulta de disponibilidad, en segundos. |
-| `RCS_DISPONIBILIDAD_TOKEN` | `app/config.py:116` | `—` | despliegue | Token compartido con el sidecar. |
-| `RCS_DISPONIBILIDAD_URL` | `app/config.py:113` | `—` | despliegue | URL del sidecar de disponibilidad. |
+| `RCS_DISPONIBILIDAD_TIMEOUT` | `app/config.py:123` | `240` | despliegue | Timeout de la consulta de disponibilidad, en segundos. |
+| `RCS_DISPONIBILIDAD_TOKEN` | `app/config.py:120` | `—` | despliegue | Token compartido con el sidecar. |
+| `RCS_DISPONIBILIDAD_URL` | `app/config.py:117` | `—` | despliegue | URL del sidecar de disponibilidad. |
 
 **Informes y correo**
 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
 |---|---|---|---|---|
-| `MAIL_DEFAULT_SENDER` | `app/config.py:97` | `rcsweb@localhost` | despliegue | Remitente por defecto. |
-| `MAIL_FROM_NAME` | `app/config.py:100` | `RCS Web` | despliegue | Nombre visible del remitente. |
-| `MAIL_PASSWORD` | `app/config.py:96` | `—` | despliegue | Clave SMTP. |
-| `MAIL_PORT` | `app/config.py:92` | `25` | despliegue | Puerto SMTP. |
-| `MAIL_SERVER` | `app/config.py:91` | `—` | despliegue | Servidor SMTP. |
-| `MAIL_SIGNATURE` | `app/config.py:101` | `RCS Web\|Centro Sismológico Nacional\|Universidad de Chile` | despliegue | Firma al pie de los correos. |
-| `MAIL_SUPPRESS_SEND` | `app/config.py:106` | `0` | despliegue | No envía correos; solo los registra (1 = sí). |
-| `MAIL_TIMEOUT` | `app/config.py:105` | `10` | despliegue | Timeout SMTP, en segundos. |
-| `MAIL_USERNAME` | `app/config.py:95` | `—` | despliegue | Usuario SMTP. |
-| `MAIL_USE_SSL` | `app/config.py:93` | `0` | despliegue | Usa SSL para el correo (1 = sí). |
-| `MAIL_USE_TLS` | `app/config.py:94` | `0` | despliegue | Usa TLS para el correo (1 = sí). |
+| `MAIL_DEFAULT_SENDER` | `app/config.py:101` | `rcsweb@localhost` | despliegue | Remitente por defecto. |
+| `MAIL_FROM_NAME` | `app/config.py:104` | `RCS Web` | despliegue | Nombre visible del remitente. |
+| `MAIL_PASSWORD` | `app/config.py:100` | `—` | despliegue | Clave SMTP. |
+| `MAIL_PORT` | `app/config.py:96` | `25` | despliegue | Puerto SMTP. |
+| `MAIL_SERVER` | `app/config.py:95` | `—` | despliegue | Servidor SMTP. |
+| `MAIL_SIGNATURE` | `app/config.py:105` | `RCS Web\|Centro Sismológico Nacional\|Universidad de Chile` | despliegue | Firma al pie de los correos. |
+| `MAIL_SUPPRESS_SEND` | `app/config.py:110` | `0` | despliegue | No envía correos; solo los registra (1 = sí). |
+| `MAIL_TIMEOUT` | `app/config.py:109` | `10` | despliegue | Timeout SMTP, en segundos. |
+| `MAIL_USERNAME` | `app/config.py:99` | `—` | despliegue | Usuario SMTP. |
+| `MAIL_USE_SSL` | `app/config.py:97` | `0` | despliegue | Usa SSL para el correo (1 = sí). |
+| `MAIL_USE_TLS` | `app/config.py:98` | `0` | despliegue | Usa TLS para el correo (1 = sí). |
 | `RCS_EVIDENCIA_MAX_MB` | `app/config.py:80` | `20` | despliegue | Tamaño máximo de la evidencia de cierre, en MB. |
 | `RCS_INFORME_MAX_EVENTOS` | `app/config.py:77` | `50` | despliegue | Máximo de eventos por solicitud de revisión. |
-| `RCS_NOTIFICAR_REVISION_DEFAULT` | `app/config.py:85` | `0` | despliegue | Preselecciona la notificación por correo (1 = sí). |
-| `RCS_PUBLIC_URL` | `app/config.py:88` | `—` | despliegue | URL pública usada en los enlaces de los correos. |
+| `RCS_NOTIFICAR_REVISION_DEFAULT` | `app/config.py:89` | `0` | despliegue | Preselecciona la notificación por correo (1 = sí). |
+| `RCS_PUBLIC_URL` | `app/config.py:92` | `—` | despliegue | URL pública usada en los enlaces de los correos. |
 
 ### D.2 Constantes de módulos
 
@@ -177,18 +183,18 @@ Son valores de código. Cambiarlos exige modificar el módulo, revisar las prueb
 
 | Constante | Módulo | Valor | Ámbito | Efecto |
 |---|---|---|---|---|
-| `ACTIVIDAD_HORAS` | `core/exporta_ventana_seiscomp.py:202` | `2.0` | operación | Ventana de actividad para estimar disponibilidad, en horas. |
-| `AVISO_DE_LOTES` | `core/exporta_ventana_seiscomp.py:179` | `200000` | operación | Número de filas que dispara el aviso de volumen. |
-| `AVISO_NO_PICADAS_MB` | `core/exporta_ventana_seiscomp.py:1158` | `200.0` | operación | Tamaño que dispara el aviso de no picadas, en MB. |
-| `GRADO_CELDA` | `core/exporta_ventana_seiscomp.py:1174` | `1.0` | operación | Tamaño de celda geográfica, en grados. |
-| `NO_PICADAS_BYTES_FILA` | `core/exporta_ventana_seiscomp.py:1154` | `154` | operación | Bytes estimados por fila de estaciones sin arribos. |
-| `RADIO_ESTACIONES_KM` | `core/exporta_ventana_seiscomp.py:192` | `400.0` | operación | Radio de búsqueda de estaciones, en km. |
-| `RADIO_TIERRA_KM` | `core/exporta_ventana_seiscomp.py:1167` | `110.574` | operación | Kilómetros por grado de latitud para celdas. |
-| `RADIO_TIERRA_LON_KM` | `core/exporta_ventana_seiscomp.py:1168` | `111.32` | operación | Kilómetros por grado de longitud en el ecuador. |
-| `RANGO_MAG_ESTACION` | `core/exporta_ventana_seiscomp.py:184` | `(-1.0, 10.0)` | operación | Rango válido de magnitud por estación. |
-| `STATEMENT_TIMEOUT_MS` | `core/exporta_ventana_seiscomp.py:171` | `60000` | operación | Timeout de sentencia SQL, en milisegundos. |
-| `TAMANO_LOTE` | `core/exporta_ventana_seiscomp.py:175` | `5000` | operación | Filas por lote en la exportación. |
-| `TIMEOUT_CONEXION` | `core/exporta_ventana_seiscomp.py:164` | `10` | operación | Timeout de conexión a la base, en segundos. |
+| `ACTIVIDAD_HORAS` | `core/exporta_ventana_seiscomp.py:203` | `2.0` | operación | Ventana de actividad para estimar disponibilidad, en horas. |
+| `AVISO_DE_LOTES` | `core/exporta_ventana_seiscomp.py:180` | `200000` | operación | Número de filas que dispara el aviso de volumen. |
+| `AVISO_NO_PICADAS_MB` | `core/exporta_ventana_seiscomp.py:1219` | `200.0` | operación | Tamaño que dispara el aviso de no picadas, en MB. |
+| `GRADO_CELDA` | `core/exporta_ventana_seiscomp.py:1235` | `1.0` | operación | Tamaño de celda geográfica, en grados. |
+| `NO_PICADAS_BYTES_FILA` | `core/exporta_ventana_seiscomp.py:1215` | `154` | operación | Bytes estimados por fila de estaciones sin arribos. |
+| `RADIO_ESTACIONES_KM` | `core/exporta_ventana_seiscomp.py:193` | `400.0` | operación | Radio de búsqueda de estaciones, en km. |
+| `RADIO_TIERRA_KM` | `core/exporta_ventana_seiscomp.py:1228` | `110.574` | operación | Kilómetros por grado de latitud para celdas. |
+| `RADIO_TIERRA_LON_KM` | `core/exporta_ventana_seiscomp.py:1229` | `111.32` | operación | Kilómetros por grado de longitud en el ecuador. |
+| `RANGO_MAG_ESTACION` | `core/exporta_ventana_seiscomp.py:185` | `(-1.0, 10.0)` | operación | Rango válido de magnitud por estación. |
+| `STATEMENT_TIMEOUT_MS` | `core/exporta_ventana_seiscomp.py:172` | `60000` | operación | Timeout de sentencia SQL, en milisegundos. |
+| `TAMANO_LOTE` | `core/exporta_ventana_seiscomp.py:176` | `5000` | operación | Filas por lote en la exportación. |
+| `TIMEOUT_CONEXION` | `core/exporta_ventana_seiscomp.py:165` | `10` | operación | Timeout de conexión a la base, en segundos. |
 
 **Indicios y prioridad**
 

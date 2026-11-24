@@ -153,6 +153,7 @@ from datetime import datetime, timedelta
 
 import disponibilidad
 import prog
+from seiscomp_campos import COLUMNAS_EXTENDIDAS
 
 try:
     # El módulo de mediciones solo existe en el proyecto NewPT; aquí es opcional.
@@ -208,7 +209,9 @@ ACTIVIDAD_HORAS = 2.0
 CABECERA = [
     "id_evento", "id_origen", "ot_utc", "magnitud", "tipo_magnitud", "fases",
     "rms", "azgap", "latitud", "longitud", "profundidad_km", "agencia",
-    "operador", "region", "estatus", "base_datos",
+    "operador", "region", "estatus",
+    *COLUMNAS_EXTENDIDAS,
+    "base_datos",
 ]
 
 # Anclada al evento y unida a su solución preferida: evento -> origen preferido
@@ -237,7 +240,67 @@ SELECT
     o.m_creationinfo_agencyid AS agencia,
     o.m_creationinfo_author AS operador,
     ed.m_text AS region,
-    o.m_evaluationstatus AS estatus
+    o.m_evaluationstatus AS estatus,
+    o.m_time_value_ms AS origin_time_us,
+    o.m_quality_standarderror AS standard_error,
+    o.m_quality_azimuthalgap AS azimuthal_gap,
+    o.m_time_uncertainty AS time_uncertainty,
+    o.m_time_loweruncertainty AS time_lower_uncertainty,
+    o.m_time_upperuncertainty AS time_upper_uncertainty,
+    o.m_time_confidencelevel AS time_confidence,
+    o.m_latitude_uncertainty AS latitude_uncertainty,
+    o.m_latitude_loweruncertainty AS latitude_lower_uncertainty,
+    o.m_latitude_upperuncertainty AS latitude_upper_uncertainty,
+    o.m_latitude_confidencelevel AS latitude_confidence,
+    o.m_longitude_uncertainty AS longitude_uncertainty,
+    o.m_longitude_loweruncertainty AS longitude_lower_uncertainty,
+    o.m_longitude_upperuncertainty AS longitude_upper_uncertainty,
+    o.m_longitude_confidencelevel AS longitude_confidence,
+    o.m_depth_uncertainty AS depth_uncertainty,
+    o.m_depth_loweruncertainty AS depth_lower_uncertainty,
+    o.m_depth_upperuncertainty AS depth_upper_uncertainty,
+    o.m_depth_confidencelevel AS depth_confidence,
+    o.m_uncertainty_horizontaluncertainty AS horizontal_uncertainty,
+    o.m_uncertainty_minhorizontaluncertainty AS min_horizontal_uncertainty,
+    o.m_uncertainty_maxhorizontaluncertainty AS max_horizontal_uncertainty,
+    o.m_uncertainty_azimuthmaxhorizontaluncertainty
+        AS azimuth_max_horizontal_uncertainty,
+    o.m_uncertainty_confidenceellipsoid_semimajoraxislength
+        AS ellipse_semimajor,
+    o.m_uncertainty_confidenceellipsoid_semiminoraxislength
+        AS ellipse_semiminor,
+    o.m_uncertainty_confidenceellipsoid_semiintermediateaxislength
+        AS ellipse_semiintermediate,
+    o.m_uncertainty_confidenceellipsoid_majoraxisplunge
+        AS ellipse_plunge,
+    o.m_uncertainty_confidenceellipsoid_majoraxisazimuth
+        AS ellipse_azimuth,
+    o.m_uncertainty_confidenceellipsoid_majoraxisrotation
+        AS ellipse_rotation,
+    o.m_uncertainty_preferreddescription AS uncertainty_preferred_description,
+    o.m_uncertainty_confidencelevel AS uncertainty_confidence,
+    o.m_quality_associatedphasecount AS associated_phase_count,
+    o.m_quality_usedstationcount AS used_station_count,
+    o.m_quality_associatedstationcount AS associated_station_count,
+    o.m_quality_depthphasecount AS depth_phase_count,
+    o.m_quality_secondaryazimuthalgap AS secondary_azimuthal_gap,
+    o.m_quality_groundtruthlevel AS ground_truth_level,
+    o.m_quality_minimumdistance AS minimum_distance_deg,
+    o.m_quality_maximumdistance AS maximum_distance_deg,
+    o.m_quality_mediandistance AS median_distance_deg,
+    o.m_type AS origin_type,
+    o.m_evaluationmode AS evaluation_mode,
+    o.m_methodid AS method_id,
+    o.m_earthmodelid AS earth_model_id,
+    o.m_depthtype AS depth_type,
+    m.m_magnitude_uncertainty AS magnitude_uncertainty,
+    m.m_magnitude_loweruncertainty AS magnitude_lower_uncertainty,
+    m.m_magnitude_upperuncertainty AS magnitude_upper_uncertainty,
+    m.m_magnitude_confidencelevel AS magnitude_confidence,
+    m.m_stationcount AS magnitude_station_count,
+    m.m_azimuthalgap AS magnitude_azimuthal_gap,
+    m.m_evaluationstatus AS magnitude_status,
+    m.m_methodid AS magnitude_method_id
 FROM event e
 INNER JOIN publicobject po_e ON e._oid = po_e._oid
 INNER JOIN publicobject po_o ON po_o.m_publicid = e.m_preferredoriginid

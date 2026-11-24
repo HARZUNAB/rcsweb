@@ -111,6 +111,68 @@ app/services/seiscomp.py:exportar_ventana
   disponibilidad de ondas.
 - El detalle de las consultas y tablas está en el Anexo B.2.
 
+#### A.3.1 Catálogo canónico extendido
+
+El catálogo canónico de SeisComp guarda, además de los campos base, cuatro
+bloques opcionales:
+
+```text
+origin_quality
+origin_uncertainty
+origin_metadata
+magnitude_metadata
+```
+
+Cada bloque incluye `source` y `derived`. En esta etapa SeisComp los llena con
+datos directos (`derived=false`). Seisan y Central dejan los bloques vacíos para
+que el contrato sea idéntico en todas las fuentes.
+
+El flujo es:
+
+```text
+CONSULTA_SQL
+  → seiscomp_<inicio>_<fin>.csv   (columnas extendidas)
+  → seiscomp_a_parametros.py
+  → datos/seiscomp_parametros.csv (base + columnas extendidas)
+  → canonical.py
+  → eventos.jsonl                 (bloques origin_quality, etc.)
+```
+
+- Esquema canónico: **1.3**.
+- `origin_time_us` está en microsegundos.
+- Las distancias de `origin_quality` están en **km**.
+- El CSV crudo conserva `minimum_distance_deg`, `maximum_distance_deg` y
+  `median_distance_deg` en grados, como los entrega SeisComp.
+- El bloque `raw` del evento conserva la fila normalizada completa.
+
+#### A.3.2 Descarga del catálogo completo
+
+El detalle de un trabajo terminado muestra **Catálogo completo** solo para
+administradores y supervisores, con el permiso `trabajos.descargar`.
+
+Genera:
+
+```text
+workspace/<job>/descargas/catalogo_completo_seiscomp_<inicio>_<fin>.zip
+  eventos.csv
+  arribos.csv
+  estaciones_resumen.csv
+  LEEME.txt
+```
+
+- `eventos.csv`: eventos con los bloques aplanados.
+- `arribos.csv`: todos los arribos de la fuente.
+- `estaciones_resumen.csv`: RMS, conteos, distancias y azimut por estación.
+  Se calcula al exportar y siempre lleva `derived=true`.
+- `LEEME.txt`: unidades, procedencia y versión del esquema.
+
+En `arribos.csv`, `distance_km` conserva el valor nativo de la fuente y
+`distance_km_calc` es la distancia en km calculada desde coordenadas.
+
+La opción se controla con `RCS_CATALOGO_COMPLETO_ACTIVO` (activa por defecto).
+Si se pone en `0`, el botón desaparece y la ruta responde 404. El canónico sigue
+guardando los bloques extendidos aunque la exportación esté desactivada.
+
 Errores frecuentes:
 
 - base o credenciales no configuradas;

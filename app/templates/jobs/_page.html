@@ -61,6 +61,26 @@
         <a class="btn btn-sm btn-outline-secondary"
            href="{{ url_for('jobs.descargas', job_id=job.id) }}">Descargas</a>
         {% endif %}
+        {% if puede_catalogo_completo and catalogo_completo_activo
+              and fuentes_catalogo_completo %}
+        <form method="post"
+              action="{{ url_for('jobs.catalogo_completo', job_id=job.id) }}"
+              class="d-flex align-items-center gap-1">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="fuente" class="form-select form-select-sm"
+                  style="width: auto;"
+                  aria-label="Fuente del catálogo completo">
+            {% for fuente in fuentes_catalogo_completo %}
+            <option value="{{ fuente }}">
+              {{ etiquetas.get(fuente, fuente) }}
+            </option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm btn-outline-primary" type="submit">
+            Catálogo completo
+          </button>
+        </form>
+        {% endif %}
       {% endif %}
       {% if puede('trabajos.crear')
             and job.status in ('done', 'failed', 'cancelled')

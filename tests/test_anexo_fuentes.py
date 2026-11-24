@@ -58,6 +58,20 @@ def test_anexo_documenta_el_flujo_de_seisan():
     assert "no tiene tablas ni sql consultable" in texto.lower()
 
 
+def test_anexo_documenta_el_catalogo_extendido_y_su_descarga():
+    texto = _texto()
+    for marca in (
+        "origin_quality",
+        "origin_uncertainty",
+        "origin_metadata",
+        "magnitude_metadata",
+        "estaciones_resumen.csv",
+        "RCS_CATALOGO_COMPLETO_ACTIVO",
+        "distance_km_calc",
+    ):
+        assert marca in texto, marca
+
+
 def test_anexo_esta_integrado_en_el_generador_y_el_manual():
     generador = (RAIZ / "scripts" / "generar_docs.py").read_text(
         encoding="utf-8"

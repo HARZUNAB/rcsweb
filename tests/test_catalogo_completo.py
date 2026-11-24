@@ -1,0 +1,400 @@
+"""Pruebas del catálogo canónico extendido y su exportación."""
+
+from __future__ import annotations
+
+import csv
+import io
+import json
+import zipfile
+from datetime import UTC, datetime
+
+import pytest
+from sqlalchemy import select
+
+from app.domain.catalogs import canonical
+from app.extensions import db
+from app.models import Job, JobArtifact, JobSource, User, nuevo_uuid
+from app.services import catalogo_completo as servicio
+from app.services.workspace import crear_workspace
+
+
+def _evento() -> dict:
+    return {
+        "source_id": "seiscomp",
+        "event_id": "seiscomp:000001",
+        "source_event_id": "csn_sc1",
+        "origin_id": "NLL.1",
+        "database": "seiscomp2",
+        "event_time": "2026-01-01 00:00:00",
+        "latitude": -30.0,
+        "longitude": -71.0,
+        "depth_km": 35.0,
+        "magnitude": 4.5,
+        "magnitude_type": "MLv",
+        "agency": "CSN",
+        "analyst": "ana",
+        "status": "published",
+        "revision": "reviewed",
+        "is_preferred": True,
+        "is_published": True,
+        "raw_index": 0,
+        "origin_quality": {
+            "source": "seiscomp",
+            "derived": False,
+            "used_phase_count": 12,
+            "associated_phase_count": 20,
+            "used_station_count": 10,
+            "associated_station_count": 14,
+            "depth_phase_count": 2,
+            "standard_error": 0.25,
+            "azimuthal_gap": 120.0,
+            "secondary_azimuthal_gap": 130.0,
+            "ground_truth_level": "A",
+            "minimum_distance_km": 55.6,
+            "maximum_distance_km": 222.4,
+            "median_distance_km": 133.4,
+        },
+        "origin_uncertainty": {
+            "source": "seiscomp",
+            "derived": False,
+            "time": {
+                "value": 0.1,
+                "lower": 0.05,
+                "upper": 0.2,
+                "confidence": 0.9,
+            },
+            "latitude": {
+                "value": 2.5,
+                "lower": None,
+                "upper": None,
+                "confidence": None,
+            },
+            "longitude": {
+                "value": 3.5,
+                "lower": None,
+                "upper": None,
+                "confidence": None,
+            },
+            "depth": {
+                "value": 4.5,
+                "lower": None,
+                "upper": None,
+                "confidence": None,
+            },
+            "horizontal": {
+                "value": 6.0,
+                "min": None,
+                "max": None,
+                "azimuth_max": None,
+            },
+            "ellipse": {
+                "semimajor": 7.0,
+                "semiminor": 5.0,
+                "semiintermediate": None,
+                "plunge": None,
+                "azimuth": None,
+                "rotation": None,
+            },
+            "preferred_description": "ellipse",
+            "confidence_level": 0.9,
+        },
+        "origin_metadata": {
+            "source": "seiscomp",
+            "derived": False,
+            "origin_time_us": 123456,
+            "type": "hypocenter",
+            "evaluation_mode": "manual",
+            "method_id": "LOCSAT",
+            "earth_model_id": "iasp91",
+            "depth_type": "operator",
+        },
+        "magnitude_metadata": {
+            "source": "seiscomp",
+            "derived": False,
+            "uncertainty": 0.2,
+            "lower_uncertainty": 0.1,
+            "upper_uncertainty": 0.3,
+            "confidence": 0.9,
+            "station_count": 8,
+            "azimuthal_gap": 110.0,
+            "status": "reviewed",
+            "method_id": "ML",
+        },
+        "raw": {},
+    }
+
+
+def _arribo(residual: float, azimut: float) -> dict:
+    return {
+        "source_id": "seiscomp",
+        "event_id": "seiscomp:000001",
+        "source_event_id": "csn_sc1",
+        "origin_id": "NLL.1",
+        "pick_id": "Pick/1",
+        "network": "C1",
+        "station": "ABC",
+        "location": "",
+        "channel": "HNZ",
+        "phase": "P",
+        "pick_time": "2026-01-01 00:00:10",
+        "pick_status": "manual",
+        "is_used_in_solution": True,
+        "weight": 1.0,
+        "polarity": "C",
+        "residual": residual,
+        "distance_km": 0.5,
+        "azimuth": azimut,
+        "snr": 12.0,
+        "qc": "aprobado",
+        "picker_probability": None,
+        "time_correction_s": 0.0,
+        "pick_author": "ana",
+        "pick_agency": "CSN",
+        "pick_method": "",
+        "station_magnitude": 2.3,
+        "station_magnitude_type": "MLv",
+        "has_station_magnitude": "Si",
+        "station_magnitude_residual": -0.2,
+        "station_latitude": -30.5,
+        "station_longitude": -71.0,
+        "station_elevation_m": 100.0,
+        "station_place": "",
+        "station_country": "",
+        "database": "seiscomp2",
+        "raw": {},
+    }
+
+
+def _preparar(app) -> Job:
+    usuario = db.session.scalar(select(User).limit(1))
+    job = Job(
+        id=nuevo_uuid(),
+        status="done",
+        period_start=datetime(2026, 1, 1, tzinfo=UTC),
+        period_end=datetime(2026, 1, 31, tzinfo=UTC),
+        created_by_id=usuario.id if usuario else None,
+    )
+    db.session.add(job)
+    db.session.add(
+        JobSource(
+            job_id=job.id,
+            kind="seiscomp",
+            alias="SeisComp",
+            format="local_export",
+            role="local_principal",
+            priority=0,
+            capabilities=["eventos", "arribos"],
+        )
+    )
+    db.session.commit()
+    workspace = crear_workspace(job.id)
+    destino = workspace / "catalogo" / "seiscomp"
+    destino.mkdir(parents=True, exist_ok=True)
+    (destino / "eventos.jsonl").write_text(
+        json.dumps(_evento(), ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    (destino / "arribos.jsonl").write_text(
+        json.dumps(_arribo(-0.2, 90.0), ensure_ascii=False)
+        + "\n"
+        + json.dumps(_arribo(0.4, 90.0), ensure_ascii=False)
+        + "\n",
+        encoding="utf-8",
+    )
+    return job
+
+
+def test_aplanar_evento_incluye_calidad_e_incertidumbres():
+    fila = servicio._aplanar_evento(_evento())
+    assert fila["quality_used_phase_count"] == 12
+    assert fila["quality_minimum_distance_km"] == 55.6
+    assert fila["unc_time_value"] == 0.1
+    assert fila["origin_time_us"] == 123456
+    assert fila["magnitude_uncertainty"] == 0.2
+
+
+def test_resumen_estaciones_calcula_rms_y_distancia():
+    resumen = servicio._resumen_estaciones(
+        [_arribo(-0.2, 90.0), _arribo(0.4, 90.0)],
+        {"seiscomp:000001": _evento()},
+    )
+    assert len(resumen) == 1
+    fila = resumen[0]
+    assert fila["associated_phases"] == 2
+    assert fila["used_phases"] == 2
+    assert fila["residual_rms_s"] == pytest.approx(0.3162277)
+    assert fila["residual_mean_s"] == pytest.approx(0.1)
+    assert fila["residual_max_abs_s"] == pytest.approx(0.4)
+    assert fila["distance_min_km"] == pytest.approx(55.5975, abs=0.01)
+    assert fila["distance_max_km"] == pytest.approx(55.5975, abs=0.01)
+    assert fila["azimuth_mean_deg"] == 90.0
+    assert fila["derived"] is True
+
+
+def test_generar_zip_con_tres_csv_y_leeme(app):
+    job = _preparar(app)
+    ruta, totales = servicio.generar(job, "seiscomp")
+    assert ruta.is_file()
+    assert totales == {"eventos": 1, "arribos": 2, "estaciones": 1}
+
+    with zipfile.ZipFile(ruta) as zf:
+        nombres = set(zf.namelist())
+        assert nombres == {
+            "eventos.csv",
+            "arribos.csv",
+            "estaciones_resumen.csv",
+            "LEEME.txt",
+        }
+        with zf.open("eventos.csv") as bruto:
+            filas = list(
+                csv.DictReader(io.TextIOWrapper(bruto, encoding="utf-8"))
+            )
+        assert filas[0]["quality_used_phase_count"] == "12"
+        assert filas[0]["unc_time_value"] == "0.1"
+        with zf.open("estaciones_resumen.csv") as bruto:
+            resumen = list(
+                csv.DictReader(io.TextIOWrapper(bruto, encoding="utf-8"))
+            )
+        assert resumen[0]["residual_rms_s"].startswith("0.316")
+        assert resumen[0]["distance_min_km"].startswith("55.5")
+        assert resumen[0]["derived"] == "True"
+        leeme = zf.read("LEEME.txt").decode("utf-8")
+        assert "Esquema canónico: 1.3" in leeme
+        assert "microsegundos" in leeme
+
+
+def test_generar_rechaza_fuente_no_habilitada(app):
+    job = _preparar(app)
+    with pytest.raises(servicio.CatalogoCompletoError):
+        servicio.generar(job, "seisan")
+
+
+def test_canonico_guarda_bloques_para_seiscomp(tmp_path):
+    fila = {
+        "": "0",
+        "Fecha_Hora": "2026-01-01 00:00:00",
+        "Latitud": "-30.0",
+        "Longitud": "-71.0",
+        "Prof.": "35.0",
+        "Mag.": "4.5",
+        "Tipo_mag.": "MLv",
+        "Analista": "ana",
+        "fases": "12",
+        "rms": "0.25",
+        "azgap": "120",
+        "associated_phase_count": "20",
+        "used_station_count": "10",
+        "associated_station_count": "14",
+        "minimum_distance_km": "55.6",
+        "maximum_distance_km": "222.4",
+        "median_distance_km": "133.4",
+        "time_uncertainty": "0.1",
+        "time_confidence": "0.9",
+        "latitude_uncertainty": "2.5",
+        "longitude_uncertainty": "3.5",
+        "depth_uncertainty": "4.5",
+        "origin_time_us": "123456",
+        "origin_type": "hypocenter",
+        "magnitude_uncertainty": "0.2",
+        "magnitude_station_count": "8",
+    }
+    normalizado = tmp_path / "normalizado.csv"
+    with normalizado.open("w", encoding="utf-8", newline="") as archivo:
+        escritor = csv.DictWriter(archivo, fieldnames=list(fila))
+        escritor.writeheader()
+        escritor.writerow(fila)
+    destino = canonical.escribir_desde_csv(
+        tmp_path / "ws", "seiscomp", "local_export", normalizado
+    )
+    evento = json.loads(destino.read_text(encoding="utf-8").splitlines()[0])
+    assert evento["origin_quality"]["used_phase_count"] == 12
+    assert evento["origin_quality"]["associated_phase_count"] == 20
+    assert evento["origin_quality"]["standard_error"] == 0.25
+    assert evento["origin_uncertainty"]["time"]["value"] == 0.1
+    assert evento["origin_metadata"]["origin_time_us"] == 123456
+    assert evento["magnitude_metadata"]["uncertainty"] == 0.2
+
+
+def test_ruta_genera_zip_y_artefacto(app, client, login):
+    job = _preparar(app)
+    login()
+    respuesta = client.post(
+        f"/jobs/{job.id}/catalogo-completo",
+        data={"fuente": "seiscomp"},
+    )
+    assert respuesta.status_code == 302
+    assert f"/jobs/{job.id}/descargas" in respuesta.headers["Location"]
+    artefacto = db.session.scalar(
+        select(JobArtifact).where(
+            JobArtifact.job_id == job.id,
+            JobArtifact.tipo == "catalogo_completo",
+        )
+    )
+    assert artefacto is not None
+    assert artefacto.ruta.startswith("descargas/")
+    assert artefacto.size > 0
+
+
+def test_ruta_respeta_flag_desactivado(app, client, login):
+    job = _preparar(app)
+    app.config["RCS_CATALOGO_COMPLETO_ACTIVO"] = False
+    login()
+    respuesta = client.post(
+        f"/jobs/{job.id}/catalogo-completo",
+        data={"fuente": "seiscomp"},
+    )
+    assert respuesta.status_code == 404
+
+
+def test_ruta_solo_admin_o_supervisor(app, client, login):
+    job = _preparar(app)
+    usuario = db.session.scalar(select(User).limit(1))
+    usuario.role = "analista"
+    db.session.commit()
+    login()
+    respuesta = client.post(
+        f"/jobs/{job.id}/catalogo-completo",
+        data={"fuente": "seiscomp"},
+    )
+    assert respuesta.status_code == 403
+
+
+def test_detalle_muestra_boton_y_descarga_el_zip(app, client, login):
+    job = _preparar(app)
+    login()
+    detalle = client.get(f"/jobs/{job.id}")
+    assert detalle.status_code == 200
+    assert "Catálogo completo" in detalle.get_data(as_text=True)
+
+    client.post(
+        f"/jobs/{job.id}/catalogo-completo",
+        data={"fuente": "seiscomp"},
+    )
+    descargas = client.get(f"/jobs/{job.id}/descargas")
+    assert descargas.status_code == 200
+    assert "Catálogo completo" in descargas.get_data(as_text=True)
+
+
+def test_canonico_deja_bloques_vacios_sin_columnas(tmp_path):
+    fila = {
+        "": "0",
+        "Fecha_Hora": "2026-01-01 00:00:00",
+        "Latitud": "-30.0",
+        "Longitud": "-71.0",
+        "Prof.": "35.0",
+        "Mag.": "4.5",
+        "Tipo_mag.": "MLv",
+        "Analista": "ana",
+    }
+    normalizado = tmp_path / "normalizado.csv"
+    with normalizado.open("w", encoding="utf-8", newline="") as archivo:
+        escritor = csv.DictWriter(archivo, fieldnames=list(fila))
+        escritor.writeheader()
+        escritor.writerow(fila)
+    destino = canonical.escribir_desde_csv(
+        tmp_path / "ws", "seisan", "local_select", normalizado
+    )
+    evento = json.loads(destino.read_text(encoding="utf-8").splitlines()[0])
+    assert evento["origin_quality"] == {}
+    assert evento["origin_uncertainty"] == {}
+    assert evento["origin_metadata"] == {}
+    assert evento["magnitude_metadata"] == {}
