@@ -14,6 +14,7 @@ Ejemplo::
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
 import os
@@ -155,26 +156,38 @@ def cargar_eventos(
 
 
 def elegir_eventos(
-    eventos: dict[str, Evento], por_estrato: int
+    eventos: dict[str, Evento], por_estrato: int, estrategia: str = "picks"
 ) -> list[Evento]:
     grupos: dict[tuple[str, str], list[Evento]] = defaultdict(list)
     for evento in eventos.values():
-        if len(evento.picks) < 5:
+        if len(evento.picks) < 3:
+            continue
+        if estrategia == "cobertura" and len(evento.picks) > 6:
             continue
         grupos[(banda_lat(evento.lat), banda_prof(evento.prof))].append(
             evento
         )
     elegidos = []
     for clave in sorted(grupos):
-        grupo = sorted(
-            grupos[clave],
-            key=lambda evento: (
-                len(evento.picks),
-                len(evento.candidatas),
-                evento.mag,
-            ),
-            reverse=True,
-        )
+        if estrategia == "cobertura":
+            grupo = sorted(
+                grupos[clave],
+                key=lambda evento: (
+                    len(evento.picks),
+                    -len(evento.candidatas),
+                    -evento.mag,
+                ),
+            )
+        else:
+            grupo = sorted(
+                grupos[clave],
+                key=lambda evento: (
+                    len(evento.picks),
+                    len(evento.candidatas),
+                    evento.mag,
+                ),
+                reverse=True,
+            )
         elegidos.extend(grupo[:por_estrato])
     return elegidos
 
@@ -353,6 +366,123 @@ def consultar(url: str, token: str, payload: dict) -> dict:
     return respuesta.json()
 
 
+def cargar_indicios(workspace: Path, source: str) -> dict[str, dict]:
+    ruta = (
+        workspace
+        / "resultados"
+        / "indicios"
+        / f"indicios_{source}.csv"
+    )
+    if not ruta.is_file():
+        return {}
+    with ruta.open(encoding="utf-8", newline="") as archivo:
+        return {
+            fila.get("evento", ""): fila
+            for fila in csv.DictReader(archivo)
+        }
+
+
+def combinar(
+    resultados: list[dict],
+    indice: dict | None,
+    usadas_fallback: int = 0,
+) -> dict:
+    """Aplica la regla de >=2 bandas y resume el evento."""
+    estaciones: dict[str, dict] = {}
+    for resultado in resultados:
+        banda = resultado["banda"]
+        etiqueta = f"{banda[0]:g}-{banda[1]:g}"
+        for item in resultado["respuesta"].get("resultados", []):
+            estacion = str(item.get("station", ""))
+            if not estacion.startswith("AVAIL") or estacion.endswith(" NEG"):
+                continue
+            stream = str(item.get("stream") or estacion)
+            datos = estaciones.setdefault(
+                stream,
+                {
+                    "station": estacion.replace("AVAIL ", ""),
+                    "stream": stream,
+                    "bandas": [],
+                    "max_slt": 0.0,
+                    "max_racha": 0.0,
+                    "max_cc": None,
+                    "con_datos": False,
+                },
+            )
+            if item.get("status") == "CON_DATOS":
+                datos["con_datos"] = True
+            slt = item.get("sta_lta_max")
+            if slt is not None:
+                datos["max_slt"] = max(datos["max_slt"], float(slt))
+            racha = item.get("sta_lta_racha_s")
+            if racha is not None:
+                datos["max_racha"] = max(datos["max_racha"], float(racha))
+            cc = item.get("cc_max")
+            if cc is not None:
+                if datos["max_cc"] is None or cc > datos["max_cc"]:
+                    datos["max_cc"] = float(cc)
+            if (
+                item.get("clasificacion") in ESTADOS_SENAL
+                and (item.get("sta_lta_racha_s") or 0.0) >= 0.3
+            ):
+                if etiqueta not in datos["bandas"]:
+                    datos["bandas"].append(etiqueta)
+    disponibles = [
+        datos for datos in estaciones.values() if datos["con_datos"]
+    ]
+    con_senal = [
+        datos for datos in disponibles if len(datos["bandas"]) >= 2
+    ]
+    usadas = 0
+    contexto = ""
+    sospechoso = ""
+    prioridad = ""
+    if indice:
+        try:
+            usadas = int(float(indice.get("n_usadas") or 0))
+        except ValueError:
+            usadas = 0
+        contexto = str(indice.get("contexto") or "")
+        sospechoso = str(indice.get("sospechoso") or "")
+        prioridad = str(indice.get("prioridad") or "")
+    if usadas <= 0:
+        usadas = usadas_fallback
+    cobertura_estimada = not bool(contexto)
+    if cobertura_estimada:
+        contexto = "débil" if usadas < 5 else "suficiente (estimada)"
+    ratio = (
+        len(con_senal) / len(disponibles) if disponibles else 0.0
+    )
+    cobertura_debil = "débil" in contexto.lower()
+    antecedente = bool(
+        len(con_senal) >= 3
+        and (
+            ratio >= 0.3
+            or (usadas and len(con_senal) >= usadas)
+        )
+        and (cobertura_debil or sospechoso == "Sí")
+    )
+    return {
+        "disponibles": len(disponibles),
+        "con_senal": len(con_senal),
+        "ratio": round(ratio, 3),
+        "usadas": usadas,
+        "cobertura": contexto,
+        "cobertura_estimada": cobertura_estimada,
+        "sospechoso": sospechoso,
+        "prioridad": prioridad,
+        "antecedente": antecedente,
+        "estaciones": sorted(
+            disponibles,
+            key=lambda item: (
+                -len(item["bandas"]),
+                -item["max_slt"],
+                item["station"],
+            ),
+        ),
+    }
+
+
 def analizar_evento(
     evento: Evento,
     url: str,
@@ -459,6 +589,11 @@ def main() -> int:
     parser.add_argument("--source", default="seiscomp")
     parser.add_argument("--radio-km", type=float, default=250.0)
     parser.add_argument("--por-estrato", type=int, default=1)
+    parser.add_argument(
+        "--estrategia",
+        choices=("picks", "cobertura"),
+        default="picks",
+    )
     parser.add_argument("--max-candidatas", type=int, default=10)
     parser.add_argument(
         "--bandas", default="1-10", help="Ej: 0.7-2,1-5,1-10,2-15"
@@ -490,11 +625,14 @@ def main() -> int:
     } or None
     workspace = Path("/workspace") / args.job
     eventos = cargar_eventos(workspace, args.source, args.radio_km)
+    indicios = cargar_indicios(workspace, args.source)
     if args.eventos:
         pedidos = [e.strip() for e in args.eventos.split(",") if e.strip()]
         elegidos = [eventos[e] for e in pedidos if e in eventos]
     else:
-        elegidos = elegir_eventos(eventos, args.por_estrato)
+        elegidos = elegir_eventos(
+            eventos, args.por_estrato, args.estrategia
+        )
     print(
         f"job={args.job} eventos={len(elegidos)} "
         f"radio={args.radio_km:.0f} km "
@@ -599,6 +737,32 @@ def main() -> int:
                     "resultados": respuesta.get("resultados"),
                 }
             )
+        combinado = combinar(
+            resultados,
+            indicios.get(evento.id),
+            len(
+                {
+                    (
+                        pick.get("network"),
+                        pick.get("station"),
+                    )
+                    for pick in evento.picks
+                }
+            ),
+        )
+        print(
+            "  combinado: disponibles={} con_senal={} ({}%) "
+            "usadas={} cobertura={} sospechoso={} antecedente={}".format(
+                combinado["disponibles"],
+                combinado["con_senal"],
+                round(combinado["ratio"] * 100, 0),
+                combinado["usadas"],
+                combinado["cobertura"] or "-",
+                combinado["sospechoso"] or "-",
+                "Sí" if combinado["antecedente"] else "No",
+            )
+        )
+        fila["combinado"] = combinado
         filas.append(fila)
     if args.salida:
         Path(args.salida).write_text(
