@@ -14,7 +14,8 @@ RCS Web.
 | Constantes de módulos | Anexo D.2 |
 | Parámetros de scripts | Anexo D.3 |
 | Reglas y umbrales | Anexo D.5 |
-| Adaptadores, fuentes y consultas | Anexo A y Anexo B (fase 2) |
+| Adaptadores y fuentes | Anexo A |
+| Consultas y tablas | Anexo B (fase 2) |
 | Normalización canónica | Anexo C (fase 2) |
 | Glosario | Anexo F (fase 3) |
 
@@ -774,6 +775,13 @@ es la
 posición de esa fila, recuperada de la columna 0 del CSV normalizado. Esos tres
 campos permiten enlazar las extensiones de estaciones sin una tabla relacional.
 
+**Seisan no es una base de datos.** Sus datos se obtienen de un servidor
+remoto con el programa `select`, que produce `select.out`; luego
+`revisaselect.py` y `revisacollect.py` lo normalizan y el adaptador lo lleva al
+catálogo canónico. El detalle completo, con servidor, plantilla, comando y
+estructura de `select.out`, está en el **Anexo A.4**. El resto de las fuentes
+y sus adaptadores están en el **Anexo A**.
+
 `job_sources` registra las fuentes locales del trabajo: `kind`, `format`,
 `role`, `priority`, `capabilities` y el `catalog_file_id` cuando el archivo vino
 de una solicitud. `job_files` registra los archivos subidos y
@@ -797,6 +805,10 @@ eventos, publicados y no publicados:
 - La conexión se abre con `default_transaction_read_only=on`.
 - No se agrega ni se modifica ninguna tabla de la base central.
 
+El detalle de la exportación y sus archivos está en el **Anexo A.5**; las
+consultas y tablas, en el Anexo B.3 (fase 2); la normalización, en el Anexo C.5
+(fase 2).
+
 #### Estaciones para Seisan y Central
 
 Los adaptadores resuelven las coordenadas de estación **antes** de escribir el
@@ -816,6 +828,8 @@ estaciones ni sistemas de procesamiento.
   antiguo conserva la posición que usó, aunque la lista cambie después.
 - La procedencia (`est_lista`, `est_vigencia`, `software`, `origen_local`) se
   conserva en `raw`, sin agregar campos al contrato canónico.
+
+El detalle de proveedores, reglas y resolución está en el **Anexo A.7**.
 
 La configuración del manifiesto tiene esta forma:
 
@@ -2389,7 +2403,8 @@ de root.
 3. El trabajo se encola en Redis y lo ejecuta el worker.
 4. El worker corre los scripts del core con `cwd` en el workspace:
    eventquery, SeisComp, Seisan, Central, comparaciones, revisión de eventos y
-   repetidos.
+   repetidos. Para Seisan, el detalle de la adquisición y normalización está en
+   el **Anexo A.4**.
 5. Los resultados se normalizan en `workspace/<job_id>/resultados/`.
 6. La interfaz lee esos archivos para las tablas, miniaturas, mapas y paneles.
 
@@ -2735,12 +2750,13 @@ Los Markdown son la fuente de verdad; no edite los `.docx` a mano.
 
 ## Anexos
 
-Los anexos amplían la información de referencia. Los cuadros del Anexo D se
-generan desde `docs/parametros.toml`; el resto se mantiene en Markdown.
+Los anexos amplían la información de referencia. El Anexo A se mantiene en
+Markdown y se valida con pruebas; los cuadros del Anexo D se generan desde
+`docs/parametros.toml`.
 
 | Anexo | Contenido | Estado |
 |---|---|---|
-| A. Fuentes y adaptadores | Origen, formato y capacidades de cada fuente | Fase 2 |
+| A. Fuentes y adaptadores | Origen, transporte, archivos y adaptador de cada fuente | Disponible |
 | B. Consultas y tablas | SQL, tablas, columnas y filtros de cada fuente | Fase 2 |
 | C. Normalización canónica | Mapeo campo a campo y unidades | Fase 2 |
 | D. Parámetros y configuración | Variables, constantes, scripts y reglas | Disponible |

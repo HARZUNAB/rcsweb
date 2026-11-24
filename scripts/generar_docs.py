@@ -51,7 +51,11 @@ MANUALES = {
 
 PARTES = {
     "manual_usuario": ["manual_usuario.md"],
-    "manual_tecnico": ["manual_tecnico.md", "anexos/D_parametros.md"],
+    "manual_tecnico": [
+        "manual_tecnico.md",
+        "anexos/A_fuentes_y_adaptadores.md",
+        "anexos/D_parametros.md",
+    ],
     "guia_despliegue_prueba": ["guia_despliegue_prueba.md"],
 }
 
