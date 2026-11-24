@@ -14,6 +14,7 @@ import csv
 import hashlib
 import logging
 import os
+import statistics
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -36,6 +37,42 @@ ESTADOS = {
     "manual": "Manual",
 }
 
+COLUMNAS_CALIDAD_CENTRAL = (
+    "standard_error",
+    "azimuthal_gap",
+    "used_phase_count",
+    "associated_phase_count",
+    "used_station_count",
+    "associated_station_count",
+    "minimum_distance_km",
+    "maximum_distance_km",
+    "median_distance_km",
+    "time_uncertainty",
+    "latitude_uncertainty",
+    "longitude_uncertainty",
+    "depth_uncertainty",
+    "error_ellipse",
+    "origin_time_us",
+    "evaluation_status",
+    "software",
+    "velocity_model",
+    "magnitude_uncertainty",
+    "magnitude_station_count",
+    "magnitude_method_id",
+    "quality_source",
+    "quality_derived",
+    "quality_derived_fields",
+    "unc_source",
+    "unc_derived",
+    "unc_derived_fields",
+    "origin_source",
+    "origin_derived",
+    "origin_derived_fields",
+    "magnitude_source",
+    "magnitude_derived",
+    "magnitude_derived_fields",
+)
+
 COLUMNAS_EVENTOS = (
     "",
     "Fecha_Hora",
@@ -49,7 +86,7 @@ COLUMNAS_EVENTOS = (
     "Revisión",
     "id_evento",
     "id_origen",
-)
+) + COLUMNAS_CALIDAD_CENTRAL
 
 COLUMNAS_TENSORES = (
     "id_evento",
@@ -149,6 +186,13 @@ def _numero_texto(valor) -> str:
     return "" if valor is None else str(valor)
 
 
+def _numero(valor):
+    try:
+        return float(str(valor).strip())
+    except (TypeError, ValueError):
+        return None
+
+
 def _fecha_texto(valor) -> str:
     if valor is None:
         return ""
@@ -191,6 +235,53 @@ def _estado_texto(valor) -> str:
 
 def _si_no(valor) -> str:
     return "Sí" if bool(valor) else "No"
+
+
+def _resumen_calidad(arribos: list[dict]) -> dict[str, dict]:
+    """Cuenta fases/estaciones y distancias por evento a partir de los picks."""
+    acumulado: dict[str, dict] = {}
+    for arribo in arribos:
+        clave = str(arribo.get("id_evento") or "")
+        datos = acumulado.setdefault(
+            clave,
+            {
+                "usadas": 0,
+                "asociadas": 0,
+                "estaciones_usadas": set(),
+                "estaciones_asociadas": set(),
+                "distancias": [],
+            },
+        )
+        estacion = (arribo.get("red"), arribo.get("estacion"))
+        datos["asociadas"] += 1
+        datos["estaciones_asociadas"].add(estacion)
+        if str(arribo.get("usada") or "").strip().lower() in {
+            "true",
+            "1",
+            "si",
+            "sí",
+        }:
+            datos["usadas"] += 1
+            datos["estaciones_usadas"].add(estacion)
+        distancia = _numero(arribo.get("distancia"))
+        if distancia is not None:
+            datos["distancias"].append(distancia)
+
+    resumen: dict[str, dict] = {}
+    for clave, datos in acumulado.items():
+        distancias = datos["distancias"]
+        resumen[clave] = {
+            "used_phase_count": datos["usadas"],
+            "associated_phase_count": datos["asociadas"],
+            "used_station_count": len(datos["estaciones_usadas"]),
+            "associated_station_count": len(datos["estaciones_asociadas"]),
+            "minimum_distance_km": min(distancias) if distancias else None,
+            "maximum_distance_km": max(distancias) if distancias else None,
+            "median_distance_km": (
+                statistics.median(distancias) if distancias else None
+            ),
+        }
+    return resumen
 
 
 def _periodo(job) -> tuple[datetime, datetime]:
@@ -343,27 +434,122 @@ class Adaptador(Base):
             LOG.exception("No se pudieron exportar los arribos de la base central.")
             arribos = []
 
+        resumen = _resumen_calidad(arribos)
         destino = workspace / self._ruta_parametros()
         destino.parent.mkdir(parents=True, exist_ok=True)
         with destino.open("w", encoding="utf-8", newline="") as archivo:
             escritor = csv.writer(archivo)
             escritor.writerow(COLUMNAS_EVENTOS)
             for posicion, evento in enumerate(eventos):
-                escritor.writerow(
-                    [
-                        posicion,
-                        _fecha_texto(evento.get("origin_time")),
-                        _numero_texto(evento.get("latitude")),
-                        _numero_texto(evento.get("longitude")),
-                        _numero_texto(evento.get("depth")),
-                        _numero_texto(evento.get("magnitude_value")),
-                        _texto(evento.get("magnitude_type")),
-                        _texto(evento.get("author")),
-                        _si_no(evento.get("published")),
-                        _estado_texto(evento.get("status")),
-                        _texto(evento.get("event_id")),
-                        _texto(evento.get("origin_id")),
+                clave = str(evento.get("event_id") or "")
+                datos = resumen.get(clave, {})
+                estaciones_directas = evento.get("station_count")
+                if estaciones_directas is not None:
+                    used_station_count = estaciones_directas
+                    derivados = [
+                        "used_phase_count",
+                        "associated_phase_count",
+                        "associated_station_count",
+                        "minimum_distance_km",
+                        "maximum_distance_km",
+                        "median_distance_km",
                     ]
+                else:
+                    used_station_count = datos.get("used_station_count", 0)
+                    derivados = [
+                        "used_phase_count",
+                        "associated_phase_count",
+                        "used_station_count",
+                        "associated_station_count",
+                        "minimum_distance_km",
+                        "maximum_distance_km",
+                        "median_distance_km",
+                    ]
+                origin_time = evento.get("origin_time")
+                origin_time_us = (
+                    origin_time.microsecond
+                    if isinstance(origin_time, datetime)
+                    else ""
+                )
+                valores = {
+                    "": posicion,
+                    "Fecha_Hora": _fecha_texto(origin_time),
+                    "Latitud": _numero_texto(evento.get("latitude")),
+                    "Longitud": _numero_texto(evento.get("longitude")),
+                    "Prof.": _numero_texto(evento.get("depth")),
+                    "Mag.": _numero_texto(evento.get("magnitude_value")),
+                    "Tipo_mag.": _texto(evento.get("magnitude_type")),
+                    "Analista": _texto(evento.get("author")),
+                    "Publicado": _si_no(evento.get("published")),
+                    "Revisión": _estado_texto(evento.get("status")),
+                    "id_evento": _texto(evento.get("event_id")),
+                    "id_origen": _texto(evento.get("origin_id")),
+                    "standard_error": _numero_texto(
+                        evento.get("standard_error")
+                    ),
+                    "azimuthal_gap": _numero_texto(
+                        evento.get("azimuthal_gap")
+                    ),
+                    "used_phase_count": datos.get("used_phase_count", 0),
+                    "associated_phase_count": datos.get(
+                        "associated_phase_count", 0
+                    ),
+                    "used_station_count": used_station_count,
+                    "associated_station_count": datos.get(
+                        "associated_station_count", 0
+                    ),
+                    "minimum_distance_km": _numero_texto(
+                        datos.get("minimum_distance_km")
+                    ),
+                    "maximum_distance_km": _numero_texto(
+                        datos.get("maximum_distance_km")
+                    ),
+                    "median_distance_km": _numero_texto(
+                        datos.get("median_distance_km")
+                    ),
+                    "time_uncertainty": _numero_texto(
+                        evento.get("time_uncertainty")
+                    ),
+                    "latitude_uncertainty": _numero_texto(
+                        evento.get("latitude_uncertainty")
+                    ),
+                    "longitude_uncertainty": _numero_texto(
+                        evento.get("longitude_uncertainty")
+                    ),
+                    "depth_uncertainty": _numero_texto(
+                        evento.get("depth_uncertainty")
+                    ),
+                    "error_ellipse": _texto(evento.get("error_ellipse")),
+                    "origin_time_us": origin_time_us,
+                    "evaluation_status": _texto(evento.get("status")),
+                    "software": _texto(evento.get("software")),
+                    "velocity_model": _texto(
+                        evento.get("velocity_model")
+                    ),
+                    "magnitude_uncertainty": _numero_texto(
+                        evento.get("mag_uncertainty")
+                    ),
+                    "magnitude_station_count": _numero_texto(
+                        evento.get("magnitude_station_count")
+                    ),
+                    "magnitude_method_id": _texto(
+                        evento.get("calculation_method")
+                    ),
+                    "quality_source": "central",
+                    "quality_derived": "False",
+                    "quality_derived_fields": ",".join(derivados),
+                    "unc_source": "central",
+                    "unc_derived": "False",
+                    "unc_derived_fields": "",
+                    "origin_source": "central",
+                    "origin_derived": "False",
+                    "origin_derived_fields": "",
+                    "magnitude_source": "central",
+                    "magnitude_derived": "False",
+                    "magnitude_derived_fields": "",
+                }
+                escritor.writerow(
+                    [valores.get(columna, "") for columna in COLUMNAS_EVENTOS]
                 )
 
         ruta_tensores = workspace / self._ruta_tensores()
@@ -453,8 +639,20 @@ class Adaptador(Base):
                            o.longitude,
                            o.depth,
                            o.software,
+                           o.azimuthal_gap,
+                           o.standard_error,
+                           o.time_uncertainty,
+                           o.latitude_uncertainty,
+                           o.longitude_uncertainty,
+                           o.depth_uncertainty,
+                           o.station_count,
+                           o.error_ellipse,
+                           o.velocity_model,
                            m.magnitude_value,
                            m.magnitude_type,
+                           m.mag_uncertainty,
+                           m.station_count AS magnitude_station_count,
+                           m.calculation_method,
                            EXISTS (
                                SELECT 1 FROM pick p
                                 WHERE p.origin_id = o.origin_id
@@ -612,13 +810,18 @@ class Adaptador(Base):
                     "loc": loc,
                     "cha": cha,
                     "fase": pick.get("phase") or "",
-                    # ``pick.uncertainty`` es el campo donde la base Central
-                    # guardará el residual cuando el traspaso lo incluya. Hoy
-                    # suele venir vacío; el adaptador lo entrega igual para que
-                    # el canónico no dependa de un caso especial de la app.
-                    "residual_s": (
+                    # La base Central no trae un residual de tiempo separado.
+                    # ``pick.uncertainty`` es la incertidumbre del pick y se
+                    # conserva en su propia columna.
+                    "residual_s": "",
+                    "pick_uncertainty": (
                         pick.get("uncertainty")
                         if pick.get("uncertainty") is not None
+                        else ""
+                    ),
+                    "picker_probability": (
+                        pick.get("probability")
+                        if pick.get("probability") is not None
                         else ""
                     ),
                     "llegada_utc": llegada_utc,

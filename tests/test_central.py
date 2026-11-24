@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import csv
+import json
 from datetime import UTC, datetime
 
 import pytest
 
+from app.domain.catalogs import canonical
 from app.domain.catalogs.adapters.central import (
     Adaptador,
     _elegir_origen_local,
     _estado_texto,
     _periodo,
+    _resumen_calidad,
     limpiar_cache_disponibilidad,
 )
 from app.domain.catalogs.stations import EstacionLista
@@ -510,13 +514,15 @@ def test_consultar_arribos_publicado_y_no_publicado(app, monkeypatch):
         assert publicado["base_datos"] == "Seisan_v9.1"
         assert publicado["fase"] == "P"
         assert publicado["usada"] == "True"
-        assert publicado["residual_s"] == 1.25
+        assert publicado["residual_s"] == ""
+        assert publicado["pick_uncertainty"] == 1.25
         local = por_evento["e-local"]
         assert local["id_origen"] == "o-local"
         assert local["est_lat"] == -21.31
         assert local["fase"] == "S"
         assert local["usada"] == "False"
         assert local["residual_s"] == ""
+        assert local["pick_uncertainty"] == ""
 
 
 def test_exportar_escribe_arribos_y_extension(app, tmp_path, monkeypatch):
@@ -674,3 +680,158 @@ def test_elegir_origen_local_prefiere_solucion_revisada():
 
     assert elegido is not None
     assert elegido["origin_id"] == "revisado"
+
+
+def test_resumen_calidad_cuenta_fases_estaciones_y_distancias():
+    resumen = _resumen_calidad(
+        [
+            {"id_evento": "e1", "red": "C1", "estacion": "A", "usada": "True", "distancia": 50.0},
+            {"id_evento": "e1", "red": "C1", "estacion": "A", "usada": "True", "distancia": 50.0},
+            {"id_evento": "e1", "red": "C1", "estacion": "B", "usada": "False", "distancia": 100.0},
+        ]
+    )
+    datos = resumen["e1"]
+    assert datos["used_phase_count"] == 2
+    assert datos["associated_phase_count"] == 3
+    assert datos["used_station_count"] == 1
+    assert datos["associated_station_count"] == 2
+    assert datos["minimum_distance_km"] == 50.0
+    assert datos["maximum_distance_km"] == 100.0
+    assert datos["median_distance_km"] == 50.0
+
+
+def test_exportar_incluye_calidad_central_y_canonico(app, tmp_path, monkeypatch):
+    with app.app_context():
+        usuario = _usuario("admin-calidad", "admin")
+        job = _job(usuario.id)
+        adaptador = Adaptador()
+        adaptador.source_id = "central"
+        evento = {
+            "event_id": "e-cal",
+            "published": True,
+            "origin_id": "o-cal",
+            "author": "ana",
+            "status": "REVIEWED",
+            "origin_time": datetime(
+                2026, 10, 1, 0, 0, 0, 123456, tzinfo=UTC
+            ),
+            "latitude": -30.0,
+            "longitude": -71.0,
+            "depth": 35.0,
+            "magnitude_value": 4.5,
+            "magnitude_type": "ML",
+            "software": "SeisComP3",
+            "azimuthal_gap": 120.0,
+            "standard_error": 0.25,
+            "time_uncertainty": 0.1,
+            "latitude_uncertainty": 2.5,
+            "longitude_uncertainty": 3.5,
+            "depth_uncertainty": 4.5,
+            "station_count": 10,
+            "error_ellipse": "ellipse",
+            "velocity_model": "iasp91",
+            "mag_uncertainty": 0.2,
+            "magnitude_station_count": 8,
+            "calculation_method": "ML",
+        }
+        arribos = [
+            {
+                "id_evento": "e-cal",
+                "id_origen": "o-cal",
+                "id_pick": "p1",
+                "red": "C1",
+                "estacion": "A",
+                "loc": "",
+                "cha": "HNZ",
+                "fase": "P",
+                "usada": "True",
+                "distancia": 50.0,
+                "pick_uncertainty": 0.1,
+            },
+            {
+                "id_evento": "e-cal",
+                "id_origen": "o-cal",
+                "id_pick": "p2",
+                "red": "C1",
+                "estacion": "A",
+                "loc": "",
+                "cha": "HNZ",
+                "fase": "S",
+                "usada": "True",
+                "distancia": 50.0,
+                "pick_uncertainty": 0.2,
+            },
+            {
+                "id_evento": "e-cal",
+                "id_origen": "o-cal",
+                "id_pick": "p3",
+                "red": "C1",
+                "estacion": "B",
+                "loc": "",
+                "cha": "HNZ",
+                "fase": "P",
+                "usada": "False",
+                "distancia": 100.0,
+                "pick_uncertainty": None,
+            },
+        ]
+        monkeypatch.setattr(
+            adaptador, "_consultar", lambda _i, _f: ([evento], [])
+        )
+        monkeypatch.setattr(
+            adaptador,
+            "_consultar_arribos",
+            lambda _i, _f, _e: arribos,
+        )
+
+        adaptador.exportar(tmp_path, job)
+
+        ruta = tmp_path / adaptador._ruta_parametros()
+        with ruta.open(encoding="utf-8", newline="") as archivo:
+            fila = next(csv.DictReader(archivo))
+        assert fila["standard_error"] == "0.25"
+        assert fila["azimuthal_gap"] == "120.0"
+        assert fila["used_phase_count"] == "2"
+        assert fila["associated_phase_count"] == "3"
+        assert fila["used_station_count"] == "10"
+        assert fila["associated_station_count"] == "2"
+        assert fila["minimum_distance_km"] == "50.0"
+        assert fila["maximum_distance_km"] == "100.0"
+        assert fila["median_distance_km"] == "50.0"
+        assert fila["origin_time_us"] == "123456"
+        assert fila["quality_source"] == "central"
+        assert "used_phase_count" in fila["quality_derived_fields"]
+        assert "used_station_count" not in fila["quality_derived_fields"]
+
+        destino = canonical.escribir_desde_csv(
+            tmp_path / "ws",
+            "central",
+            "local_db",
+            ruta,
+            es_referencia=False,
+        )
+        evento_canonico = json.loads(
+            destino.read_text(encoding="utf-8").splitlines()[0]
+        )
+        calidad = evento_canonico["origin_quality"]
+        assert calidad["source"] == "central"
+        assert calidad["derived"] is False
+        assert calidad["used_phase_count"] == 2
+        assert calidad["used_station_count"] == 10
+        assert "used_phase_count" in calidad["derived_fields"]
+        assert evento_canonico["origin_uncertainty"]["time"]["value"] == 0.1
+        assert (
+            evento_canonico["origin_uncertainty"]["error_ellipse"]
+            == "ellipse"
+        )
+        assert evento_canonico["origin_metadata"]["software"] == "SeisComP3"
+        assert (
+            evento_canonico["origin_metadata"]["velocity_model"]
+            == "iasp91"
+        )
+        assert (
+            evento_canonico["magnitude_metadata"]["uncertainty"] == 0.2
+        )
+        assert (
+            evento_canonico["magnitude_metadata"]["station_count"] == 8
+        )

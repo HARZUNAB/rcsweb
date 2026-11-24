@@ -133,10 +133,28 @@ def _bloques_calidad(fila: dict, source_id: str) -> dict:
         valor = _texto(fila.get(clave))
         return valor or None
 
+    def lista(clave):
+        valor = _texto(fila.get(clave)).replace(";", ",")
+        return [item.strip() for item in valor.split(",") if item.strip()]
+
+    def fuente(prefijo):
+        return texto(f"{prefijo}_source") or source_id
+
+    def derivado(prefijo):
+        return bool(_boleano(fila.get(f"{prefijo}_derived")))
+
+    def derivados(prefijo):
+        return lista(f"{prefijo}_derived_fields")
+
     calidad = {
-        "source": source_id,
-        "derived": False,
-        "used_phase_count": _entero(fila.get("fases")),
+        "source": fuente("quality"),
+        "derived": derivado("quality"),
+        "derived_fields": derivados("quality"),
+        "used_phase_count": (
+            _entero(fila.get("fases"))
+            if "fases" in fila
+            else _entero(fila.get("used_phase_count"))
+        ),
         "associated_phase_count": _entero(fila.get("associated_phase_count")),
         "used_station_count": _entero(fila.get("used_station_count")),
         "associated_station_count": _entero(
@@ -152,8 +170,9 @@ def _bloques_calidad(fila: dict, source_id: str) -> dict:
         "median_distance_km": numero("median_distance_km"),
     }
     incertidumbre = {
-        "source": source_id,
-        "derived": False,
+        "source": fuente("unc"),
+        "derived": derivado("unc"),
+        "derived_fields": derivados("unc"),
         "time": {
             "value": numero("time_uncertainty"),
             "lower": numero("time_lower_uncertainty"),
@@ -196,20 +215,27 @@ def _bloques_calidad(fila: dict, source_id: str) -> dict:
             "uncertainty_preferred_description"
         ),
         "confidence_level": numero("uncertainty_confidence"),
+        "error_ellipse": texto("error_ellipse"),
     }
     metadatos = {
-        "source": source_id,
-        "derived": False,
+        "source": fuente("origin"),
+        "derived": derivado("origin"),
+        "derived_fields": derivados("origin"),
         "origin_time_us": _entero(fila.get("origin_time_us")),
         "type": texto("origin_type"),
         "evaluation_mode": texto("evaluation_mode"),
         "method_id": texto("method_id"),
         "earth_model_id": texto("earth_model_id"),
         "depth_type": texto("depth_type"),
+        "evaluation_status": texto("evaluation_status")
+        or texto("estatus"),
+        "software": texto("software"),
+        "velocity_model": texto("velocity_model"),
     }
     magnitud = {
-        "source": source_id,
-        "derived": False,
+        "source": fuente("magnitude"),
+        "derived": derivado("magnitude"),
+        "derived_fields": derivados("magnitude"),
         "uncertainty": numero("magnitude_uncertainty"),
         "lower_uncertainty": numero("magnitude_lower_uncertainty"),
         "upper_uncertainty": numero("magnitude_upper_uncertainty"),
@@ -441,7 +467,8 @@ def _extension_arribos(
             azimuth=_numero(fila.get("azimut")),
             snr=_numero(fila.get("snr")),
             qc=_texto(fila.get("qc_estacion")),
-            picker_probability=None,
+            picker_probability=_numero(fila.get("picker_probability")),
+            pick_uncertainty=_numero(fila.get("pick_uncertainty")),
             source_event_id=_texto(fila.get("id_evento")),
             pick_id=_texto(fila.get("id_pick")),
             time_correction_s=_numero(fila.get("correccion_s")),

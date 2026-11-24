@@ -123,9 +123,10 @@ origin_metadata
 magnitude_metadata
 ```
 
-Cada bloque incluye `source` y `derived`. En esta etapa SeisComp los llena con
-datos directos (`derived=false`). Seisan y Central dejan los bloques vacíos para
-que el contrato sea idéntico en todas las fuentes.
+Cada bloque incluye `source`, `derived` y `derived_fields`. En esta etapa
+SeisComp y Central los llenan; Seisan deja los bloques vacíos para que el
+contrato sea idéntico en todas las fuentes. `derived_fields` lista los campos
+calculados cuando un bloque mezcla datos directos y derivados.
 
 El flujo es:
 
@@ -148,12 +149,13 @@ CONSULTA_SQL
 #### A.3.2 Descarga del catálogo completo
 
 El detalle de un trabajo terminado muestra **Catálogo completo** solo para
-administradores y supervisores, con el permiso `trabajos.descargar`.
+administradores y supervisores, con el permiso `trabajos.descargar`. La fuente
+se elige entre **SeisComp** y **Central**.
 
 Genera:
 
 ```text
-workspace/<job>/descargas/catalogo_completo_seiscomp_<inicio>_<fin>.zip
+workspace/<job>/descargas/catalogo_completo_<fuente>_<inicio>_<fin>.zip
   eventos.csv
   arribos.csv
   estaciones_resumen.csv
@@ -375,6 +377,23 @@ adapters/central.py:exportar
 - Capacidades: eventos, orígenes, magnitudes, arribos y tensores.
 - Es una fuente `derived`: no se usa como referencia de publicación ni suma al
   conteo de cruces.
+
+#### A.5.1 Bloques de calidad
+
+Central llena los mismos bloques que SeisComp:
+
+- **Directo**: `standard_error`, `azimuthal_gap`, incertidumbres de tiempo,
+  latitud, longitud y profundidad, `origin.station_count`, `error_ellipse`,
+  `velocity_model`, `software`, `status`, incertidumbre de magnitud,
+  estaciones de la magnitud y método de cálculo.
+- **Derivado de los picks**: fases usadas/asociadas, estaciones
+  usadas/asociadas, distancia mínima/máxima/mediana en km.
+- `used_station_count` usa `origin.station_count` cuando existe; si no, se
+  deriva de los picks.
+- `quality_derived_fields` lista los campos calculados.
+- `pick_uncertainty` conserva `pick.uncertainty`. `residual` queda vacío porque
+  Central no trae un residual de tiempo separado.
+- La exportación del catálogo completo ya permite elegir **Central**.
 
 Errores frecuentes:
 

@@ -68,6 +68,7 @@ def test_anexo_documenta_el_catalogo_extendido_y_su_descarga():
         "estaciones_resumen.csv",
         "RCS_CATALOGO_COMPLETO_ACTIVO",
         "distance_km_calc",
+        "pick_uncertainty",
     ):
         assert marca in texto, marca
 

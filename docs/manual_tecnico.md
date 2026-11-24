@@ -1001,28 +1001,32 @@ Cada línea es un objeto `EventoCanonico`:
 | `raw_index` | entero | Posición de la fila en el archivo crudo |
 | `origin_quality` | JSON | Calidad del origen; vacío si la fuente no la aporta |
 | `origin_uncertainty` | JSON | Incertidumbres del origen |
-| `origin_metadata` | JSON | Tipo, modo de evaluación, método y modelo |
+| `origin_metadata` | JSON | Tipo, modo de evaluación, método, modelo y estado |
 | `magnitude_metadata` | JSON | Incertidumbre y metadatos de la magnitud |
 | `raw` | JSON | Fila original normalizada |
 
 Los cuatro bloques de calidad se agregaron en el esquema **1.3**. Cada bloque
-incluye `source` y `derived`: `source` indica la fuente y `derived=false`
-significa dato directo; `derived=true`, dato calculado. En esta etapa SeisComp
-los llena y Seisan/Central los dejan vacíos (`{}`), para que el contrato sea el
-mismo en todas las fuentes.
+incluye `source`, `derived` y `derived_fields`: `source` indica la fuente,
+`derived=false` significa dato directo y `derived=true`, dato calculado.
+`derived_fields` lista los campos calculados cuando el bloque mezcla datos
+directos y derivados.
+
+En esta etapa SeisComp y Central los llenan; Seisan queda con bloques vacíos
+(`{}`), para que el contrato sea el mismo en todas las fuentes.
 
 Las distancias de calidad se guardan en **km**. SeisComp entrega
 `OriginQuality.minimumDistance`, `maximumDistance` y `medianDistance` en grados;
 el conversor las pasa a km y conserva el valor original en el CSV crudo.
 
-#### Catálogo completo de SeisComp
+#### Catálogo completo por fuente
 
 El detalle de un trabajo terminado ofrece **Catálogo completo** para
-administradores y supervisores, con el permiso `trabajos.descargar`. El botón
-genera un ZIP en `workspace/<job_id>/descargas/`:
+administradores y supervisores, con el permiso `trabajos.descargar`. La fuente
+se elige entre **SeisComp** y **Central**. El botón genera un ZIP en
+`workspace/<job_id>/descargas/`:
 
 ```text
-catalogo_completo_seiscomp_<inicio>_<fin>.zip
+catalogo_completo_<fuente>_<inicio>_<fin>.zip
   eventos.csv
   arribos.csv
   estaciones_resumen.csv
@@ -1031,8 +1035,13 @@ catalogo_completo_seiscomp_<inicio>_<fin>.zip
 
 - `eventos.csv`: eventos con los bloques de calidad aplanados.
 - `arribos.csv`: todos los arribos de la fuente.
-- `estaciones_resumen.csv`: RMS, conteos, distancias y azimut por estación.
+- `estaciones_resumen.csv`: RMS de residuales y de incertidumbres, conteos,
+  distancias y azimut por estación.
 - `LEEME.txt`: unidades, procedencia y versión del esquema.
+
+En Central no hay un residual de tiempo separado: `pick_uncertainty` conserva
+la incertidumbre del pick y el resumen usa `uncertainty_*`. En SeisComp, el
+residual está en `residual` y el resumen usa `residual_*`.
 
 El resumen por estación se calcula al exportar desde `arribos.jsonl`; no se
 persiste. Las distancias se calculan desde coordenadas y quedan en km. El

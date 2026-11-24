@@ -79,4 +79,11 @@ COLUMNAS_DERIVADAS = (
 # Columnas del evento que el conversor necesita conservar para el canónico.
 COLUMNAS_CALIDAD = ("fases", "rms", "azgap")
 
-COLUMNAS_CONVERTIDAS = COLUMNAS_CALIDAD + COLUMNAS_EXTENDIDAS + COLUMNAS_DERIVADAS
+# ``estatus`` se conserva para que el bloque origin_metadata pueda llevar el
+# estado de evaluación del origen.
+COLUMNAS_CONVERTIDAS = (
+    COLUMNAS_CALIDAD
+    + ("estatus",)
+    + COLUMNAS_EXTENDIDAS
+    + COLUMNAS_DERIVADAS
+)

@@ -33,7 +33,7 @@ class CatalogoCompletoError(RuntimeError):
 
 
 # Fuentes con bloques de calidad completos en esta etapa.
-FUENTES_HABILITADAS = frozenset({"seiscomp"})
+FUENTES_HABILITADAS = frozenset({"seiscomp", "central"})
 
 
 CABECERA_EVENTOS = (
@@ -57,6 +57,7 @@ CABECERA_EVENTOS = (
     "raw_index",
     "quality_source",
     "quality_derived",
+    "quality_derived_fields",
     "quality_used_phase_count",
     "quality_associated_phase_count",
     "quality_used_station_count",
@@ -71,6 +72,7 @@ CABECERA_EVENTOS = (
     "quality_median_distance_km",
     "unc_source",
     "unc_derived",
+    "unc_derived_fields",
     "unc_time_value",
     "unc_time_lower",
     "unc_time_upper",
@@ -99,16 +101,22 @@ CABECERA_EVENTOS = (
     "unc_ellipse_rotation",
     "unc_preferred_description",
     "unc_confidence_level",
+    "unc_error_ellipse",
     "origin_source",
     "origin_derived",
+    "origin_derived_fields",
     "origin_time_us",
     "origin_type",
     "origin_evaluation_mode",
     "origin_method_id",
     "origin_earth_model_id",
     "origin_depth_type",
+    "origin_evaluation_status",
+    "origin_software",
+    "origin_velocity_model",
     "magnitude_source",
     "magnitude_derived",
+    "magnitude_derived_fields",
     "magnitude_uncertainty",
     "magnitude_lower_uncertainty",
     "magnitude_upper_uncertainty",
@@ -136,6 +144,7 @@ CABECERA_ARRIBOS = (
     "weight",
     "polarity",
     "residual",
+    "pick_uncertainty",
     "distance_km",
     "distance_km_calc",
     "azimuth",
@@ -170,6 +179,10 @@ CABECERA_ESTACIONES = (
     "residual_rms_s",
     "residual_mean_s",
     "residual_max_abs_s",
+    "uncertainty_count",
+    "uncertainty_rms_s",
+    "uncertainty_mean_s",
+    "uncertainty_max_abs_s",
     "distance_min_km",
     "distance_max_km",
     "azimuth_mean_deg",
@@ -206,6 +219,14 @@ def _numero(valor) -> float | None:
         return None
 
 
+def _derivados(valor) -> str:
+    if not valor:
+        return ""
+    if isinstance(valor, str):
+        return valor
+    return ";".join(str(item) for item in valor)
+
+
 def _aplanar_evento(evento: dict) -> dict:
     calidad = evento.get("origin_quality") or {}
     incertidumbre = evento.get("origin_uncertainty") or {}
@@ -239,6 +260,9 @@ def _aplanar_evento(evento: dict) -> dict:
         "raw_index": evento.get("raw_index"),
         "quality_source": calidad.get("source"),
         "quality_derived": calidad.get("derived"),
+        "quality_derived_fields": _derivados(
+            calidad.get("derived_fields")
+        ),
         "quality_used_phase_count": calidad.get("used_phase_count"),
         "quality_associated_phase_count": calidad.get(
             "associated_phase_count"
@@ -259,6 +283,9 @@ def _aplanar_evento(evento: dict) -> dict:
         "quality_median_distance_km": calidad.get("median_distance_km"),
         "unc_source": incertidumbre.get("source"),
         "unc_derived": incertidumbre.get("derived"),
+        "unc_derived_fields": _derivados(
+            incertidumbre.get("derived_fields")
+        ),
     }
     for nombre in ("time", "latitude", "longitude", "depth"):
         datos = incertidumbre.get(nombre) or {}
@@ -283,15 +310,27 @@ def _aplanar_evento(evento: dict) -> dict:
         "preferred_description"
     )
     fila["unc_confidence_level"] = incertidumbre.get("confidence_level")
+    fila["unc_error_ellipse"] = incertidumbre.get("error_ellipse")
     fila["origin_source"] = metadatos.get("source")
     fila["origin_derived"] = metadatos.get("derived")
+    fila["origin_derived_fields"] = _derivados(
+        metadatos.get("derived_fields")
+    )
     fila["origin_time_us"] = metadatos.get("origin_time_us")
     fila["origin_type"] = metadatos.get("type")
     fila["origin_evaluation_mode"] = metadatos.get("evaluation_mode")
     fila["origin_method_id"] = metadatos.get("method_id")
     fila["origin_earth_model_id"] = metadatos.get("earth_model_id")
     fila["origin_depth_type"] = metadatos.get("depth_type")
+    fila["origin_evaluation_status"] = metadatos.get(
+        "evaluation_status"
+    )
+    fila["origin_software"] = metadatos.get("software")
+    fila["origin_velocity_model"] = metadatos.get("velocity_model")
     fila.update(bloque("magnitude", magnitud))
+    fila["magnitude_derived_fields"] = _derivados(
+        magnitud.get("derived_fields")
+    )
     return fila
 
 
@@ -339,6 +378,10 @@ def _resumen_estaciones(arribos, eventos: dict[str, dict]) -> list[dict]:
                 "residual_suma": 0.0,
                 "residual_suma_cuadrados": 0.0,
                 "residual_max_abs": 0.0,
+                "uncertainty_count": 0,
+                "uncertainty_suma": 0.0,
+                "uncertainty_suma_cuadrados": 0.0,
+                "uncertainty_max_abs": 0.0,
                 "distance_min_km": None,
                 "distance_max_km": None,
                 "azimuth_suma": 0.0,
@@ -358,6 +401,16 @@ def _resumen_estaciones(arribos, eventos: dict[str, dict]) -> list[dict]:
             datos["residual_suma_cuadrados"] += residual * residual
             datos["residual_max_abs"] = max(
                 datos["residual_max_abs"], abs(residual)
+            )
+        incertidumbre = _numero(arribo.get("pick_uncertainty"))
+        if incertidumbre is not None:
+            datos["uncertainty_count"] += 1
+            datos["uncertainty_suma"] += incertidumbre
+            datos["uncertainty_suma_cuadrados"] += (
+                incertidumbre * incertidumbre
+            )
+            datos["uncertainty_max_abs"] = max(
+                datos["uncertainty_max_abs"], abs(incertidumbre)
             )
         distancia = _distancia_calculada(
             arribo, eventos.get(arribo.get("event_id") or "")
@@ -389,6 +442,19 @@ def _resumen_estaciones(arribos, eventos: dict[str, dict]) -> list[dict]:
             else None
         )
         medio = datos["residual_suma"] / cantidad if cantidad else None
+        cantidad_inc = datos["uncertainty_count"]
+        rms_inc = (
+            math.sqrt(
+                datos["uncertainty_suma_cuadrados"] / cantidad_inc
+            )
+            if cantidad_inc
+            else None
+        )
+        medio_inc = (
+            datos["uncertainty_suma"] / cantidad_inc
+            if cantidad_inc
+            else None
+        )
         azimut_medio = (
             datos["azimuth_suma"] / datos["azimuth_count"]
             if datos["azimuth_count"]
@@ -408,6 +474,12 @@ def _resumen_estaciones(arribos, eventos: dict[str, dict]) -> list[dict]:
                 "residual_mean_s": medio,
                 "residual_max_abs_s": (
                     datos["residual_max_abs"] if cantidad else None
+                ),
+                "uncertainty_count": cantidad_inc,
+                "uncertainty_rms_s": rms_inc,
+                "uncertainty_mean_s": medio_inc,
+                "uncertainty_max_abs_s": (
+                    datos["uncertainty_max_abs"] if cantidad_inc else None
                 ),
                 "distance_min_km": datos["distance_min_km"],
                 "distance_max_km": datos["distance_max_km"],
@@ -457,6 +529,8 @@ def _leeme(fuente: str, job, totales: dict) -> str:
             "- origin_time_us: microsegundos.",
             "- depth_km y quality_*_distance_km: kilómetros.",
             "- residual: segundos.",
+            "- pick_uncertainty: incertidumbre del pick, en segundos. Central "
+            "no trae residual separado.",
             "- distance_km: valor nativo de la fuente (SeisComp lo entrega en grados).",
             "- distance_km_calc: kilómetros calculados desde coordenadas.",
             "- azimuth y unc_horizontal_azimuth_max: grados.",

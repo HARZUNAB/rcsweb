@@ -131,11 +131,11 @@ def _contexto_detalle(job: Job) -> dict:
         "puede_catalogo_completo": tiene_rol(
             current_user, "admin", "supervisor"
         ),
-        # En esta etapa solo SeisComp tiene bloques extendidos completos.
+        # Fuentes con bloques de calidad habilitados en esta etapa.
         "fuentes_catalogo_completo": [
             source.kind
             for source in job.sources
-            if source.kind == "seiscomp"
+            if source.kind in catalogo_completo_service.FUENTES_HABILITADAS
         ],
     }
 

@@ -137,4 +137,5 @@ def test_conversor_y_canonico_arman_los_bloques(tmp_path):
     assert calidad["minimum_distance_km"] == 55.598
     assert evento["origin_uncertainty"]["time"]["value"] == 0.1
     assert evento["origin_metadata"]["origin_time_us"] == 123456
+    assert evento["origin_metadata"]["evaluation_status"] == "confirmed"
     assert evento["magnitude_metadata"]["station_count"] == 8

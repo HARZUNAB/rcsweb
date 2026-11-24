@@ -101,6 +101,8 @@ class ArriboCanonico:
     snr: float | None = None
     qc: str = ""
     picker_probability: float | None = None
+    # Incertidumbre del pick cuando la fuente la distingue del residual.
+    pick_uncertainty: float | None = None
     # Identidad en la fuente. ``event_id`` es el id canónico del evento y
     # ``source_event_id`` el identificador que trae el archivo de arribos.
     source_event_id: str = ""

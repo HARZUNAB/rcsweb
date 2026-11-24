@@ -398,3 +398,61 @@ def test_canonico_deja_bloques_vacios_sin_columnas(tmp_path):
     assert evento["origin_uncertainty"] == {}
     assert evento["origin_metadata"] == {}
     assert evento["magnitude_metadata"] == {}
+
+
+def test_generar_central_incluye_incertidumbre_por_estacion(app):
+    usuario = db.session.scalar(select(User).limit(1))
+    job = Job(
+        id=nuevo_uuid(),
+        status="done",
+        period_start=datetime(2026, 1, 1, tzinfo=UTC),
+        period_end=datetime(2026, 1, 31, tzinfo=UTC),
+        created_by_id=usuario.id if usuario else None,
+    )
+    db.session.add(job)
+    db.session.add(
+        JobSource(
+            job_id=job.id,
+            kind="central",
+            alias="Central",
+            format="local_db",
+            role="local_principal",
+            priority=0,
+            capabilities=["eventos", "arribos"],
+        )
+    )
+    db.session.commit()
+    workspace = crear_workspace(job.id)
+    destino = workspace / "catalogo" / "central"
+    destino.mkdir(parents=True, exist_ok=True)
+    evento = _evento()
+    evento["source_id"] = "central"
+    evento["event_id"] = "central:000001"
+    evento["origin_quality"] = {
+        "source": "central",
+        "derived": False,
+        "derived_fields": ["used_phase_count"],
+        "used_phase_count": 1,
+    }
+    arribo = _arribo(-0.2, 90.0)
+    arribo["source_id"] = "central"
+    arribo["event_id"] = "central:000001"
+    arribo["residual"] = None
+    arribo["pick_uncertainty"] = 0.2
+    (destino / "eventos.jsonl").write_text(
+        json.dumps(evento, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    (destino / "arribos.jsonl").write_text(
+        json.dumps(arribo, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+    ruta, totales = servicio.generar(job, "central")
+    assert totales == {"eventos": 1, "arribos": 1, "estaciones": 1}
+    with zipfile.ZipFile(ruta) as zf:
+        with zf.open("estaciones_resumen.csv") as bruto:
+            filas = list(
+                csv.DictReader(io.TextIOWrapper(bruto, encoding="utf-8"))
+            )
+    assert filas[0]["uncertainty_count"] == "1"
+    assert filas[0]["uncertainty_rms_s"].startswith("0.2")
+    assert filas[0]["residual_count"] == "0"
