@@ -151,7 +151,8 @@ def test_catalogos_analista_global_sin_columnas_de_analista(app, client):
     assert "Coquimbo" in html
     assert "Valparaíso" in html
     assert 'name="f_Analista"' not in html
-    assert "Descargar catálogo" in html
+    assert "Abrir catálogo" in html
+    assert "Exportar tabla" not in html
     assert "Descargar todo" not in html
     assert "Descargar filtrado" not in html
     assert "Descargar seleccionados" not in html
@@ -172,8 +173,13 @@ def test_catalogos_admin_mantiene_columnas_y_botones(app, client):
     ).get_data(as_text=True)
 
     assert 'name="f_Analista"' in html
-    assert "Descargar catálogo" in html
-    assert "Descargar todo" in html
+    assert "Abrir catálogo" in html
+    assert "Exportar tabla" in html
+    assert "Filtrada (" in html
+    assert "Completa" in html
+    assert "Descargar todo" not in html
+    assert "Descargar filtrado" not in html
+    assert "Descargar seleccionados" in html
     assert 'title="Abrir el catálogo diario de sismologia.cl"' not in html
     assert "Ver miniaturas" in html
 
@@ -216,7 +222,8 @@ def test_catalogos_descarga_catalogo_sin_exportar(app, client):
         query_string={"catalogo": "seisan"},
     ).get_data(as_text=True)
 
-    assert "Descargar catálogo" in html
+    assert "Abrir catálogo" in html
+    assert "Exportar tabla" not in html
     assert "Descargar todo" not in html
     assert "Descargar filtrado" not in html
     assert "Descargar seleccionados" not in html

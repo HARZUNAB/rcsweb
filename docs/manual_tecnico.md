@@ -2408,16 +2408,21 @@ El filtro se aplica en:
 
 En Catálogos, el analista ve todas las fuentes y usa los filtros, pero la tabla
 oculta las columnas de analista, no permite detalle, miniaturas ni Web, y solo
-ofrece **Descargar catálogo**. El observador y el rol Catálogos ven el catálogo
+ofrece **Abrir catálogo**. El observador y el rol Catálogos ven el catálogo
 completo, incluido el detalle y las miniaturas. El resto de las descargas queda
 bloqueada también por URL.
+
+En la tabla de Catálogos, administrador y supervisor ven además el desplegable
+**Exportar tabla**, con **Filtrada (CSV)** y **Completa (CSV)**. Ninguna de
+esas exportaciones incluye arribos; el catálogo completo con arribos se descarga
+desde la página que abre **Abrir catálogo**.
 
 El enlace **Web** al catálogo diario de sismologia.cl no se muestra en las
 tablas. Se muestra solo en el detalle cuando existe una fecha de referencia
 válida: evento de Eventquery, evento local con cruce, No actualizados y
 Repetidos.
 
-`Descargar catálogo` usa `app/services/catalog_export.py`. Cada evento se asigna
+`Abrir catálogo` usa `app/services/catalog_export.py`. Cada evento se asigna
 individualmente a su perfil más cercano con `asigna_perfiles.asignar_eventos`;
 no se usa el perfil de referencia del grupo. Luego se categoriza por territorio
 con `panels.categorizar_territorio` y se generan plantas separadas para

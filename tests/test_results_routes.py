@@ -750,7 +750,10 @@ def test_catalogo_lista_con_las_mismas_prestaciones(client, login):
     assert "Catálogos" in html
     assert "Seisan" in html
     assert "Ubicación" in html
-    assert "Descargar filtrado" in html
+    assert "Abrir catálogo" in html
+    assert "Exportar tabla" in html
+    assert "Filtrada (" in html
+    assert "Completa" in html
     assert "data-src=" in html
     assert "2026-10-01" in html
 

@@ -198,6 +198,9 @@ de la fuente local.
 - **Descargar todo** incluye todas las filas del archivo.
 - **Descargar filtrado** incluye todas las filas que cumplen el filtro, no solo
   la página visible.
+- En **Catálogos**, esas dos opciones se agrupan en **Exportar tabla**:
+  **Filtrada** respeta los filtros y **Completa** incluye todas las filas.
+  Ninguna incluye arribos.
 - **Descargar seleccionados** incluye solo las filas marcadas, aunque estén
   ocultas por el filtro.
 - La barra horizontal superior permite desplazar la tabla sin bajar hasta el
@@ -1193,19 +1196,23 @@ aplicación.
   y **Revisión** (`Revisado`, `Final`, `Confirmado`, etc.). Así se distingue un
   evento local de uno que no está publicado, sin ocultar los publicados.
 - **Administrador y supervisor** mantienen el acceso completo: columnas de
-  analista, **Ver**, **Ver miniaturas**, descargas completas y el nuevo
-  **Descargar catálogo**.
+  analista, **Ver**, **Ver miniaturas**, descargas completas y **Abrir
+  catálogo**.
 - **Analista** ve todas las fuentes y usa los filtros, pero no ve las columnas
   **Analista** ni **Analista probable**, y no puede abrir **Ver** ni
-  **Ver miniaturas**. Tampoco puede usar las descargas completas. Su única
-  descarga es **Descargar catálogo**.
+  **Ver miniaturas**. Tampoco puede usar las descargas completas. Su única vía
+  es **Abrir catálogo**, que abre la vista del catálogo; no accede a las
+  descargas de resultados.
 - **Observador y Catálogos** ven el catálogo completo, con **Ver** y
-  **Ver miniaturas**, y pueden usar **Descargar catálogo**. No acceden a las
+  **Ver miniaturas**, y pueden usar **Abrir catálogo**. No acceden a las
   descargas de resultados.
 - El enlace **Web** al catálogo público ya no está en las tablas: aparece en el
   detalle del evento cuando corresponde, usando la fecha del evento de
   referencia Eventquery.
-- **Descargar catálogo** abre una vista previa con mapas de planta por
+- **Exportar tabla** agrupa dos CSV de la tabla de Catálogos: **Filtrada (N)**
+  respeta los filtros y **Completa** incluye todas las filas. Ninguno incluye
+  arribos. Solo está disponible para administrador y supervisor.
+- **Abrir catálogo** abre una vista previa con mapas de planta por
   territorio y dos variantes por perfil. **Ningún mapa se genera al abrir la
   página**: use **Ver** para abrirlo en un modal con indicador de actividad, o
   **Descargar** para obtener solo ese PNG. El panel **Generar todos los mapas**
