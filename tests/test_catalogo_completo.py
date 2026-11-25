@@ -479,3 +479,74 @@ def test_generar_central_incluye_incertidumbre_por_estacion(app):
     assert filas[0]["uncertainty_count"] == "1"
     assert filas[0]["uncertainty_rms_s"].startswith("0.2")
     assert filas[0]["residual_count"] == "0"
+
+
+def _url_vista(job) -> str:
+    return (
+        f"/jobs/{job.id}/resultados/catalogos/seiscomp/eventos-arribos"
+    )
+
+
+def test_vista_eventos_arribos_y_ficha(app, client, login, monkeypatch):
+    job = _preparar(app)
+    monkeypatch.setattr(
+        "app.blueprints.results._datos_catalogo",
+        _datos_catalogo_filtrados,
+    )
+    login()
+    url = _url_vista(job)
+
+    respuesta = client.get(url)
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    assert "Eventos y arribos descargados" in html
+    assert "Eventos (1)" in html
+    assert "Arribos (2)" in html
+    assert "Estaciones (1)" in html
+    assert "seiscomp:000001" in html
+    assert "Ver ficha" in html
+
+    for tab in ("arribos", "estaciones", "leeme"):
+        assert client.get(url, query_string={"tab": tab}).status_code == 200
+
+    arribos = client.get(
+        url, query_string={"tab": "arribos", "estacion": "ABC"}
+    )
+    assert arribos.status_code == 200
+    assert "ABC" in arribos.get_data(as_text=True)
+
+    leeme = client.get(url, query_string={"tab": "leeme"})
+    assert "Esquema canónico" in leeme.get_data(as_text=True)
+    assert "Filtros: Sin filtros" in leeme.get_data(as_text=True)
+
+    ficha = client.get(url + "/evento/seiscomp:000001")
+    assert ficha.status_code == 200
+    texto_ficha = ficha.get_data(as_text=True)
+    assert "Calidad" in texto_ficha
+    assert "Incertidumbre" in texto_ficha
+    assert "JSON completo" in texto_ficha
+
+    fuera = client.get(url + "/evento/seiscomp:999999")
+    assert fuera.status_code == 404
+
+
+def test_vista_eventos_arribos_permisos_y_flag(
+    app, client, login, monkeypatch
+):
+    job = _preparar(app)
+    monkeypatch.setattr(
+        "app.blueprints.results._datos_catalogo",
+        _datos_catalogo_filtrados,
+    )
+    url = _url_vista(job)
+
+    app.config["RCS_CATALOGO_COMPLETO_ACTIVO"] = False
+    login()
+    assert client.get(url).status_code == 404
+
+    app.config["RCS_CATALOGO_COMPLETO_ACTIVO"] = True
+    usuario = db.session.scalar(select(User).limit(1))
+    usuario.role = "analista"
+    db.session.commit()
+    login()
+    assert client.get(url).status_code == 403

@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}Eventos y arribos descargados · Trabajo {{ job.id[:8] }}{% endblock %}
+
+{% macro valor(v) -%}
+  {%- if v is none -%}—
+  {%- elif v is sameas true -%}Sí
+  {%- elif v is sameas false -%}No
+  {%- elif v is sequence and v is not string -%}{{ v|join('; ') }}
+  {%- else -%}{{ v }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro paginacion(url, page, total, etiqueta) %}
+{% if total > 1 %}
+<nav class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3"
+     aria-label="Paginación de {{ etiqueta }}">
+  <span class="small text-secondary">
+    Página {{ page }} de {{ total }} · {{ etiqueta }}
+  </span>
+  <ul class="pagination pagination-sm mb-0">
+    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+      <a class="page-link" href="{{ url(page - 1 if page > 1 else 1) }}">Anterior</a>
+    </li>
+    <li class="page-item disabled">
+      <span class="page-link">{{ page }} / {{ total }}</span>
+    </li>
+    <li class="page-item {% if page >= total %}disabled{% endif %}">
+      <a class="page-link" href="{{ url(page + 1 if page < total else total) }}">Siguiente</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="text-secondary small text-uppercase mb-1">
+      <a class="text-reset text-decoration-none" href="{{ url_filtros }}">
+        Catálogos
+      </a>
+      · {{ titulo }}
+    </div>
+    <h1 class="h3 mb-1">Eventos y arribos descargados</h1>
+    <p class="text-secondary mb-0">
+      Contenido del catálogo completo de {{ titulo }}.
+      {{ filtros_texto }}.
+    </p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_filtros }}">
+      Cambiar filtros
+    </a>
+    {% if puede('trabajos.descargar') %}
+    <a class="btn btn-outline-primary" href="{{ url_descarga }}">
+      Descargar ZIP
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<ul class="nav nav-pills flex-wrap gap-2 mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'eventos' %}active{% endif %}"
+       href="{{ url_tab('eventos') }}">
+      Eventos ({{ totales.eventos }})
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'arribos' %}active{% endif %}"
+       href="{{ url_tab('arribos') }}">
+      Arribos ({{ totales.arribos }})
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'estaciones' %}active{% endif %}"
+       href="{{ url_tab('estaciones') }}">
+      Estaciones ({{ totales.estaciones }})
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'leeme' %}active{% endif %}"
+       href="{{ url_tab('leeme') }}">
+      LEEME
+    </a>
+  </li>
+</ul>
+
+{% if tab == 'eventos' %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div>
+        <h2 class="h6 text-uppercase text-secondary mb-1">Eventos</h2>
+        <p class="small text-secondary mb-0">
+          Tabla agrupada. La ficha muestra todos los parámetros del evento.
+        </p>
+      </div>
+      <span class="small text-secondary">{{ totales.eventos }} eventos</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            {% for grupo, claves in grupos_evento %}
+            <th colspan="{{ claves|length }}" class="text-center small">
+              {{ grupo }}
+            </th>
+            {% endfor %}
+            <th rowspan="2" class="text-center align-middle small">Ficha</th>
+          </tr>
+          <tr>
+            {% for grupo, claves in grupos_evento %}
+              {% for clave in claves %}
+              <th class="small text-nowrap" title="{{ clave }}">
+                {{ etiqueta_evento(clave) }}
+              </th>
+              {% endfor %}
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for fila in eventos %}
+          <tr>
+            {% for grupo, claves in grupos_evento %}
+              {% for clave in claves %}
+              <td class="small text-nowrap">{{ valor(fila.get(clave)) }}</td>
+              {% endfor %}
+            {% endfor %}
+            <td class="text-nowrap">
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{{ url_ficha(fila.event_id) }}">
+                Ver ficha
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {{ paginacion(url_pagina_eventos, page_eventos, total_pag_eventos,
+                  totales.eventos ~ ' eventos') }}
+  </div>
+</div>
+
+{% elif tab == 'arribos' %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-3">Arribos</h2>
+    <form method="get" class="row g-2 align-items-end mb-3">
+      {% for clave, value in request.args.items() %}
+        {% if clave not in ('tab', 'page_arribos', 'evento', 'estacion', 'fase', 'usada') %}
+        <input type="hidden" name="{{ clave }}" value="{{ value }}">
+        {% endif %}
+      {% endfor %}
+      <input type="hidden" name="tab" value="arribos">
+      <div class="col-12 col-md-3">
+        <label class="form-label small mb-1" for="filtro-evento">Evento</label>
+        <input class="form-control form-control-sm" id="filtro-evento"
+               name="evento" value="{{ filtros_arribos.get('evento', '') }}"
+               placeholder="ID canónico o de la fuente">
+      </div>
+      <div class="col-12 col-md-2">
+        <label class="form-label small mb-1" for="filtro-estacion">Estación</label>
+        <input class="form-control form-control-sm" id="filtro-estacion"
+               name="estacion" value="{{ filtros_arribos.get('estacion', '') }}">
+      </div>
+      <div class="col-12 col-md-2">
+        <label class="form-label small mb-1" for="filtro-fase">Fase</label>
+        <input class="form-control form-control-sm" id="filtro-fase"
+               name="fase" value="{{ filtros_arribos.get('fase', '') }}">
+      </div>
+      <div class="col-12 col-md-2">
+        <label class="form-label small mb-1" for="filtro-usada">Usada</label>
+        <select class="form-select form-select-sm" id="filtro-usada" name="usada">
+          <option value="">Todas</option>
+          <option value="1" {% if filtros_arribos.get('usada') == '1' %}selected{% endif %}>Sí</option>
+          <option value="0" {% if filtros_arribos.get('usada') == '0' %}selected{% endif %}>No</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3 d-flex gap-2">
+        <button class="btn btn-sm btn-primary" type="submit">Filtrar</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_tab('arribos') }}">
+          Limpiar
+        </a>
+      </div>
+    </form>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            {% for clave in cabecera_arribos %}
+            <th class="small text-nowrap" title="{{ clave }}">
+              {{ etiqueta_arribo(clave) }}
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for fila in arribos %}
+          <tr>
+            {% for clave in cabecera_arribos %}
+            <td class="small text-nowrap">{{ valor(fila.get(clave)) }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {{ paginacion(url_pagina_arribos, page_arribos, total_pag_arribos,
+                  totales.arribos ~ ' arribos') }}
+  </div>
+</div>
+
+{% elif tab == 'estaciones' %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-1">Estaciones</h2>
+    <p class="small text-secondary mb-3">
+      Resumen derivado de los arribos filtrados. Siempre lleva
+      <code>derived=True</code>.
+    </p>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            {% for clave in cabecera_estaciones %}
+            <th class="small text-nowrap" title="{{ clave }}">
+              {{ etiqueta_estacion(clave) }}
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for fila in estaciones %}
+          <tr>
+            {% for clave in cabecera_estaciones %}
+            <td class="small text-nowrap">{{ valor(fila.get(clave)) }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {{ paginacion(url_pagina_estaciones, page_estaciones,
+                  total_pag_estaciones, totales.estaciones ~ ' estaciones') }}
+  </div>
+</div>
+
+{% else %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-3">LEEME</h2>
+    <pre class="small bg-light border rounded p-3 mb-0">{{ leeme }}</pre>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

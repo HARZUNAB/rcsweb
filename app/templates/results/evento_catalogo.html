@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Ficha {{ evento.event_id }} · Trabajo {{ job.id[:8] }}{% endblock %}
+
+{% macro valor(v) -%}
+  {%- if v is none -%}—
+  {%- elif v is sameas true -%}Sí
+  {%- elif v is sameas false -%}No
+  {%- elif v is sequence and v is not string -%}{{ v|join('; ') }}
+  {%- else -%}{{ v }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="text-secondary small text-uppercase mb-1">
+      <a class="text-reset text-decoration-none" href="{{ url_volver }}">
+        Eventos y arribos descargados
+      </a>
+      · {{ titulo }}
+    </div>
+    <h1 class="h3 mb-1">{{ evento.event_id }}</h1>
+    <p class="text-secondary mb-0">
+      Ficha completa del evento extraído.
+    </p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_volver }}">
+      Volver a eventos
+    </a>
+    <a class="btn btn-outline-primary" href="{{ url_arribos }}">
+      Ver arribos de este evento
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small text-uppercase mb-1">Evento</div>
+        <div class="fs-5">{{ evento.event_id }}</div>
+        <div class="text-secondary small">
+          {{ evento.event_time }} ·
+          {{ etiqueta_evento("magnitude") }} {{ valor(fila.get("magnitude")) }}
+          {{ fila.get("magnitude_type") or "" }}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body small">
+        <div class="d-flex justify-content-between">
+          <span class="text-secondary">Fuente</span>
+          <span>{{ valor(fila.get("source_id")) }}</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-secondary">Origen</span>
+          <span>{{ valor(fila.get("origin_id")) }}</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-secondary">Base de datos</span>
+          <span>{{ valor(fila.get("database")) }}</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-secondary">Estado</span>
+          <span>{{ valor(fila.get("status")) }}</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-secondary">Analista</span>
+          <span>{{ valor(fila.get("analyst")) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% for grupo, claves in grupos_evento %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-3">{{ grupo }}</h2>
+    <div class="row g-2">
+      {% for clave in claves %}
+      <div class="col-12 col-md-6 col-xl-4">
+        <div class="border rounded p-2 h-100">
+          <div class="small text-secondary">{{ etiqueta_evento(clave) }}</div>
+          <div class="small text-break" title="{{ clave }}">
+            {{ valor(fila.get(clave)) }}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-3">JSON completo</h2>
+    <details>
+      <summary class="small text-secondary">Mostrar el evento canónico completo</summary>
+      <pre class="small bg-light border rounded p-3 mt-2 mb-0">{{ json_texto }}</pre>
+    </details>
+  </div>
+</div>
+{% endblock %}

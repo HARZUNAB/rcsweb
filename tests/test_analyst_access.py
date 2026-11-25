@@ -428,6 +428,7 @@ def test_catalogo_explica_descargas_y_completo_solo_admin(app, client):
     assert "No incluye arribos" in admin_html
     assert "Sin mapas" in admin_html
     assert "js-catalogo-completo" in admin_html
+    assert "Ver eventos y arribos" in admin_html
     assert "puede tardar varios minutos" in admin_html
     assert "data-nombre=" in admin_html
 
@@ -436,4 +437,5 @@ def test_catalogo_explica_descargas_y_completo_solo_admin(app, client):
         f"/jobs/{job.id}/resultados/catalogos/seisan/catalogo"
     ).get_data(as_text=True)
     assert "Descargar catálogo completo" not in analista_html
+    assert "Ver eventos y arribos" not in analista_html
     assert "js-catalogo-completo" not in analista_html

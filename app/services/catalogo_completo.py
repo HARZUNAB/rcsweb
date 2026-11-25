@@ -191,6 +191,261 @@ CABECERA_ESTACIONES = (
     "derived",
 )
 
+ETIQUETAS_EVENTO = {
+    "source_id": "Fuente",
+    "event_id": "Evento",
+    "source_event_id": "ID en la fuente",
+    "origin_id": "Origen",
+    "database": "Base de datos",
+    "event_time": "Fecha y hora",
+    "latitude": "Latitud",
+    "longitude": "Longitud",
+    "depth_km": "Profundidad (km)",
+    "magnitude": "Magnitud",
+    "magnitude_type": "Tipo de magnitud",
+    "agency": "Agencia",
+    "analyst": "Analista",
+    "status": "Estado",
+    "revision": "Revisión",
+    "is_preferred": "Preferida",
+    "is_published": "Publicada",
+    "raw_index": "Índice crudo",
+    "quality_source": "Fuente de calidad",
+    "quality_derived": "Calidad derivada",
+    "quality_derived_fields": "Campos derivados",
+    "quality_used_phase_count": "Fases usadas",
+    "quality_associated_phase_count": "Fases asociadas",
+    "quality_used_station_count": "Estaciones usadas",
+    "quality_associated_station_count": "Estaciones asociadas",
+    "quality_depth_phase_count": "Fases de profundidad",
+    "quality_standard_error": "Error estándar (s)",
+    "quality_azimuthal_gap": "Azimutal gap (°)",
+    "quality_secondary_azimuthal_gap": "Azimutal gap secundario (°)",
+    "quality_ground_truth_level": "Nivel ground truth",
+    "quality_minimum_distance_km": "Distancia mínima (km)",
+    "quality_maximum_distance_km": "Distancia máxima (km)",
+    "quality_median_distance_km": "Distancia mediana (km)",
+    "unc_source": "Fuente de incertidumbre",
+    "unc_derived": "Incertidumbre derivada",
+    "unc_derived_fields": "Campos derivados",
+    "unc_time_value": "Incertidumbre tiempo (s)",
+    "unc_time_lower": "Tiempo inferior",
+    "unc_time_upper": "Tiempo superior",
+    "unc_time_confidence": "Confianza tiempo",
+    "unc_latitude_value": "Incertidumbre latitud",
+    "unc_latitude_lower": "Latitud inferior",
+    "unc_latitude_upper": "Latitud superior",
+    "unc_latitude_confidence": "Confianza latitud",
+    "unc_longitude_value": "Incertidumbre longitud",
+    "unc_longitude_lower": "Longitud inferior",
+    "unc_longitude_upper": "Longitud superior",
+    "unc_longitude_confidence": "Confianza longitud",
+    "unc_depth_value": "Incertidumbre profundidad",
+    "unc_depth_lower": "Profundidad inferior",
+    "unc_depth_upper": "Profundidad superior",
+    "unc_depth_confidence": "Confianza profundidad",
+    "unc_horizontal_value": "Incertidumbre horizontal",
+    "unc_horizontal_min": "Horizontal mínima",
+    "unc_horizontal_max": "Horizontal máxima",
+    "unc_horizontal_azimuth_max": "Azimut horizontal máximo",
+    "unc_ellipse_semimajor": "Elipse semieje mayor",
+    "unc_ellipse_semiminor": "Elipse semieje menor",
+    "unc_ellipse_semiintermediate": "Elipse semieje intermedio",
+    "unc_ellipse_plunge": "Elipse inclinación",
+    "unc_ellipse_azimuth": "Elipse azimut",
+    "unc_ellipse_rotation": "Elipse rotación",
+    "unc_preferred_description": "Descripción preferida",
+    "unc_confidence_level": "Nivel de confianza",
+    "unc_error_ellipse": "Elipse de error",
+    "origin_source": "Fuente del origen",
+    "origin_derived": "Origen derivado",
+    "origin_derived_fields": "Campos derivados",
+    "origin_time_us": "Tiempo de origen (µs)",
+    "origin_type": "Tipo de origen",
+    "origin_evaluation_mode": "Modo de evaluación",
+    "origin_method_id": "Método",
+    "origin_earth_model_id": "Modelo terrestre",
+    "origin_depth_type": "Tipo de profundidad",
+    "origin_evaluation_status": "Estado de evaluación",
+    "origin_software": "Software",
+    "origin_velocity_model": "Modelo de velocidades",
+    "magnitude_source": "Fuente de magnitud",
+    "magnitude_derived": "Magnitud derivada",
+    "magnitude_derived_fields": "Campos derivados",
+    "magnitude_uncertainty": "Incertidumbre magnitud",
+    "magnitude_lower_uncertainty": "Magnitud inferior",
+    "magnitude_upper_uncertainty": "Magnitud superior",
+    "magnitude_confidence": "Confianza magnitud",
+    "magnitude_station_count": "Estaciones de la magnitud",
+    "magnitude_azimuthal_gap": "Azimutal gap de magnitud",
+    "magnitude_status": "Estado de magnitud",
+    "magnitude_method_id": "Método de magnitud",
+}
+
+ETIQUETAS_ARRIBO = {
+    "source_id": "Fuente",
+    "event_id": "Evento",
+    "source_event_id": "ID en la fuente",
+    "origin_id": "Origen",
+    "pick_id": "Pick",
+    "network": "Red",
+    "station": "Estación",
+    "location": "Localización",
+    "channel": "Canal",
+    "phase": "Fase",
+    "pick_time": "Hora del pick",
+    "pick_status": "Modo del pick",
+    "is_used_in_solution": "Usada",
+    "weight": "Peso",
+    "polarity": "Polaridad",
+    "residual": "Residual (s)",
+    "pick_uncertainty": "Incertidumbre del pick (s)",
+    "distance_km": "Distancia nativa",
+    "distance_km_calc": "Distancia calculada (km)",
+    "azimuth": "Azimut (°)",
+    "snr": "SNR",
+    "qc": "QC",
+    "picker_probability": "Probabilidad",
+    "time_correction_s": "Corrección (s)",
+    "pick_author": "Autor del pick",
+    "pick_agency": "Agencia del pick",
+    "pick_method": "Método del pick",
+    "station_magnitude": "Magnitud de estación",
+    "station_magnitude_type": "Tipo magnitud estación",
+    "has_station_magnitude": "Tiene magnitud",
+    "station_magnitude_residual": "Residual de magnitud",
+    "station_latitude": "Latitud estación",
+    "station_longitude": "Longitud estación",
+    "station_elevation_m": "Elevación estación (m)",
+    "station_place": "Lugar estación",
+    "station_country": "País estación",
+    "database": "Base de datos",
+}
+
+ETIQUETAS_ESTACION = {
+    "source_id": "Fuente",
+    "network": "Red",
+    "station": "Estación",
+    "location": "Localización",
+    "channel": "Canal",
+    "associated_phases": "Fases asociadas",
+    "used_phases": "Fases usadas",
+    "residual_count": "Residuales",
+    "residual_rms_s": "RMS residual (s)",
+    "residual_mean_s": "Residual medio (s)",
+    "residual_max_abs_s": "Residual máx. abs. (s)",
+    "uncertainty_count": "Incertidumbres",
+    "uncertainty_rms_s": "RMS incertidumbre (s)",
+    "uncertainty_mean_s": "Incertidumbre media (s)",
+    "uncertainty_max_abs_s": "Incertidumbre máx. abs. (s)",
+    "distance_min_km": "Distancia mínima (km)",
+    "distance_max_km": "Distancia máxima (km)",
+    "azimuth_mean_deg": "Azimut medio (°)",
+    "used_in_solution": "Usada",
+    "pick_authors": "Autores de pick",
+    "derived": "Derivada",
+}
+
+GRUPOS_EVENTO_RESUMEN = (
+    (
+        "Evento",
+        (
+            "event_id",
+            "event_time",
+            "latitude",
+            "longitude",
+            "depth_km",
+            "magnitude",
+            "magnitude_type",
+            "analyst",
+            "status",
+        ),
+    ),
+    (
+        "Calidad",
+        (
+            "quality_used_phase_count",
+            "quality_associated_phase_count",
+            "quality_used_station_count",
+            "quality_associated_station_count",
+            "quality_standard_error",
+            "quality_azimuthal_gap",
+            "quality_minimum_distance_km",
+            "quality_maximum_distance_km",
+        ),
+    ),
+    (
+        "Incertidumbre",
+        (
+            "unc_time_value",
+            "unc_latitude_value",
+            "unc_longitude_value",
+            "unc_depth_value",
+            "unc_horizontal_value",
+        ),
+    ),
+    (
+        "Origen",
+        (
+            "origin_time_us",
+            "origin_evaluation_status",
+            "origin_software",
+            "origin_velocity_model",
+        ),
+    ),
+    (
+        "Magnitud",
+        (
+            "magnitude_uncertainty",
+            "magnitude_station_count",
+            "magnitude_method_id",
+        ),
+    ),
+)
+
+
+def _grupos_evento_ficha():
+    grupos: dict[str, list[str]] = {
+        "Evento": [],
+        "Calidad": [],
+        "Incertidumbre": [],
+        "Origen": [],
+        "Magnitud": [],
+    }
+    for clave in CABECERA_EVENTOS:
+        if clave.startswith("quality_"):
+            grupos["Calidad"].append(clave)
+        elif clave.startswith("unc_"):
+            grupos["Incertidumbre"].append(clave)
+        elif clave.startswith("origin_"):
+            grupos["Origen"].append(clave)
+        elif clave.startswith("magnitude_"):
+            grupos["Magnitud"].append(clave)
+        else:
+            grupos["Evento"].append(clave)
+    return tuple((nombre, tuple(claves)) for nombre, claves in grupos.items())
+
+
+GRUPOS_EVENTO_FICHA = _grupos_evento_ficha()
+
+
+def etiqueta_evento(clave: str) -> str:
+    return ETIQUETAS_EVENTO.get(
+        clave, clave.replace("_", " ").capitalize()
+    )
+
+
+def etiqueta_arribo(clave: str) -> str:
+    return ETIQUETAS_ARRIBO.get(
+        clave, clave.replace("_", " ").capitalize()
+    )
+
+
+def etiqueta_estacion(clave: str) -> str:
+    return ETIQUETAS_ESTACION.get(
+        clave, clave.replace("_", " ").capitalize()
+    )
+
 
 def _iter_jsonl(ruta: Path):
     if not ruta.is_file():
@@ -556,6 +811,84 @@ def _leeme(
             f"estaciones: {totales.get('estaciones', 0)}",
         ]
     ) + "\n"
+
+
+def cargar_eventos(
+    job, fuente: str, ids: set[str] | None = None
+) -> list[dict]:
+    workspace = ruta_workspace(job.id)
+    ruta = canonical.ruta_canonica(workspace, fuente)
+    eventos = list(_iter_jsonl(ruta))
+    if ids is not None:
+        eventos = [
+            evento for evento in eventos if evento.get("event_id") in ids
+        ]
+    return eventos
+
+
+def _pasa_filtro_arribo(arribo: dict, filtros: dict | None) -> bool:
+    if not filtros:
+        return True
+    evento = str(filtros.get("evento") or "").strip()
+    if evento and str(arribo.get("event_id") or "") != evento:
+        if str(arribo.get("source_event_id") or "") != evento:
+            return False
+    estacion = str(filtros.get("estacion") or "").strip().upper()
+    if estacion and estacion not in str(arribo.get("station") or "").upper():
+        return False
+    fase = str(filtros.get("fase") or "").strip().upper()
+    if fase and str(arribo.get("phase") or "").upper() != fase:
+        return False
+    usada = str(filtros.get("usada") or "").strip().lower()
+    if usada in ("1", "true", "si", "sí"):
+        if not arribo.get("is_used_in_solution"):
+            return False
+    elif usada in ("0", "false", "no"):
+        if arribo.get("is_used_in_solution"):
+            return False
+    return True
+
+
+def pagina_arribos(
+    job,
+    fuente: str,
+    ids: set[str] | None,
+    *,
+    page: int = 1,
+    per_page: int = 100,
+    filtros: dict | None = None,
+) -> tuple[int, list[dict]]:
+    """Total filtrado y la página pedida, en una sola pasada."""
+    inicio = max(0, (page - 1) * per_page)
+    fin = inicio + per_page
+    total = 0
+    filas: list[dict] = []
+    ruta = canonical.ruta_arribos(ruta_workspace(job.id), fuente)
+    for arribo in _iter_arribos(ruta, ids):
+        if not _pasa_filtro_arribo(arribo, filtros):
+            continue
+        total += 1
+        if inicio < total <= fin:
+            filas.append(arribo)
+    return total, filas
+
+
+def resumen_estaciones(
+    job, fuente: str, ids: set[str] | None
+) -> list[dict]:
+    eventos = cargar_eventos(job, fuente, ids)
+    por_evento = {evento.get("event_id"): evento for evento in eventos}
+    ruta = canonical.ruta_arribos(ruta_workspace(job.id), fuente)
+    return _resumen_estaciones(_iter_arribos(ruta, ids), por_evento)
+
+
+def texto_leeme(
+    job,
+    fuente: str,
+    totales: dict,
+    filtros_texto: str = "",
+) -> str:
+    return _leeme(fuente, job, totales, filtros_texto)
 
 
 def generar(

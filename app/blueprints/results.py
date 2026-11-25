@@ -1533,6 +1533,7 @@ def catalogo(job_id: str, opcion: str):
         ),
         url_zip=url_for("results.catalogo_zip", **params),
         url_completo=url_for("results.catalogo_completo_zip", **params),
+        url_vista=url_for("results.catalogo_eventos_arribos", **params),
         puede_catalogo_completo=(
             tiene_rol(current_user, "admin", "supervisor")
             and tiene_permiso(current_user, "trabajos.descargar")
@@ -1636,6 +1637,241 @@ def catalogo_completo_zip(job_id: str, opcion: str):
         mimetype="application/zip",
         as_attachment=True,
         download_name=nombre,
+    )
+
+
+@results_bp.get(
+    "/jobs/<job_id>/resultados/catalogos/<opcion>/eventos-arribos"
+)
+@login_required
+@permiso_requerido("catalogos.ver")
+def catalogo_eventos_arribos(job_id: str, opcion: str):
+    """Vista ordenada de lo que contiene el catálogo completo."""
+    if not current_app.config.get("RCS_CATALOGO_COMPLETO_ACTIVO", True):
+        abort(404)
+    if not tiene_rol(current_user, "admin", "supervisor"):
+        abort(403)
+    job = _job(job_id)
+    _archivo, titulo, datos, extra = _datos_catalogo(job, opcion)
+    ids = set(datos.get("ids_filtrados") or [])
+    if not ids:
+        abort(404)
+
+    tab = request.args.get("tab", "eventos")
+    if tab not in ("eventos", "arribos", "estaciones", "leeme"):
+        tab = "eventos"
+    try:
+        page_eventos = max(1, int(request.args.get("page_eventos", "1")))
+    except ValueError:
+        page_eventos = 1
+    try:
+        page_arribos = max(1, int(request.args.get("page_arribos", "1")))
+    except ValueError:
+        page_arribos = 1
+    try:
+        page_estaciones = max(
+            1, int(request.args.get("page_estaciones", "1"))
+        )
+    except ValueError:
+        page_estaciones = 1
+
+    eventos = catalogo_completo_service.cargar_eventos(job, opcion, ids)
+    filas_eventos = [
+        catalogo_completo_service._aplanar_evento(evento)
+        for evento in eventos
+    ]
+    filas_eventos.sort(key=lambda fila: fila.get("event_time") or "")
+    total_eventos = len(filas_eventos)
+    if not total_eventos:
+        abort(404)
+
+    per_eventos = 50
+    total_pag_eventos = max(
+        1, (total_eventos + per_eventos - 1) // per_eventos
+    )
+    page_eventos = min(page_eventos, total_pag_eventos)
+    inicio_eventos = (page_eventos - 1) * per_eventos
+    eventos_pagina = filas_eventos[
+        inicio_eventos : inicio_eventos + per_eventos
+    ]
+
+    filtros_arribos = {
+        clave: request.args.get(clave, "").strip()
+        for clave in ("evento", "estacion", "fase", "usada")
+    }
+    filtros_arribos = {
+        clave: valor for clave, valor in filtros_arribos.items() if valor
+    }
+    total_arribos, arribos_pagina = (
+        catalogo_completo_service.pagina_arribos(
+            job,
+            opcion,
+            ids,
+            page=page_arribos,
+            per_page=100,
+            filtros=filtros_arribos,
+        )
+    )
+    total_pag_arribos = max(1, (total_arribos + 99) // 100)
+    page_arribos = min(page_arribos, total_pag_arribos)
+
+    resumen = catalogo_completo_service.resumen_estaciones(
+        job, opcion, ids
+    )
+    total_estaciones = len(resumen)
+    per_estaciones = 100
+    total_pag_estaciones = max(
+        1, (total_estaciones + per_estaciones - 1) // per_estaciones
+    )
+    page_estaciones = min(page_estaciones, total_pag_estaciones)
+    inicio_estaciones = (page_estaciones - 1) * per_estaciones
+    estaciones_pagina = resumen[
+        inicio_estaciones : inicio_estaciones + per_estaciones
+    ]
+
+    totales = {
+        "eventos": total_eventos,
+        "arribos": total_arribos,
+        "estaciones": total_estaciones,
+    }
+    leeme = catalogo_completo_service.texto_leeme(
+        job, opcion, totales, extra.get("filtros_texto", "")
+    )
+
+    params_base = _params_catalogo(job.id, opcion)
+
+    def url_tab(nombre: str) -> str:
+        return url_for(
+            "results.catalogo_eventos_arribos",
+            **{**params_base, "tab": nombre},
+        )
+
+    def url_pagina_eventos(numero: int) -> str:
+        return url_for(
+            "results.catalogo_eventos_arribos",
+            **{
+                **params_base,
+                "tab": "eventos",
+                "page_eventos": numero,
+            },
+        )
+
+    def url_pagina_arribos(numero: int) -> str:
+        return url_for(
+            "results.catalogo_eventos_arribos",
+            **{
+                **params_base,
+                "tab": "arribos",
+                "page_arribos": numero,
+                **filtros_arribos,
+            },
+        )
+
+    def url_pagina_estaciones(numero: int) -> str:
+        return url_for(
+            "results.catalogo_eventos_arribos",
+            **{
+                **params_base,
+                "tab": "estaciones",
+                "page_estaciones": numero,
+            },
+        )
+
+    return render_template(
+        "results/eventos_arribos.html",
+        job=job,
+        opcion=opcion,
+        titulo=titulo,
+        tab=tab,
+        totales=totales,
+        filtros_texto=extra.get("filtros_texto", ""),
+        eventos=eventos_pagina,
+        total_eventos=total_eventos,
+        page_eventos=page_eventos,
+        total_pag_eventos=total_pag_eventos,
+        arribos=arribos_pagina,
+        total_arribos=total_arribos,
+        page_arribos=page_arribos,
+        total_pag_arribos=total_pag_arribos,
+        filtros_arribos=filtros_arribos,
+        estaciones=estaciones_pagina,
+        total_estaciones=total_estaciones,
+        page_estaciones=page_estaciones,
+        total_pag_estaciones=total_pag_estaciones,
+        leeme=leeme,
+        grupos_evento=catalogo_completo_service.GRUPOS_EVENTO_RESUMEN,
+        cabecera_arribos=catalogo_completo_service.CABECERA_ARRIBOS,
+        cabecera_estaciones=catalogo_completo_service.CABECERA_ESTACIONES,
+        etiqueta_evento=catalogo_completo_service.etiqueta_evento,
+        etiqueta_arribo=catalogo_completo_service.etiqueta_arribo,
+        etiqueta_estacion=catalogo_completo_service.etiqueta_estacion,
+        url_tab=url_tab,
+        url_pagina_eventos=url_pagina_eventos,
+        url_pagina_arribos=url_pagina_arribos,
+        url_pagina_estaciones=url_pagina_estaciones,
+        url_volver=url_for("results.catalogo", **params_base),
+        url_filtros=url_for(
+            "results.catalogos",
+            **_params_lista_catalogo(job.id, opcion),
+        ),
+        url_descarga=url_for(
+            "results.catalogo_completo_zip", **params_base
+        ),
+        url_ficha=lambda event_id: url_for(
+            "results.catalogo_evento_ficha",
+            event_id=event_id,
+            **params_base,
+        ),
+    )
+
+
+@results_bp.get(
+    "/jobs/<job_id>/resultados/catalogos/<opcion>/eventos-arribos/"
+    "evento/<event_id>"
+)
+@login_required
+@permiso_requerido("catalogos.ver")
+def catalogo_evento_ficha(job_id: str, opcion: str, event_id: str):
+    """Ficha con todos los parámetros de un evento del catálogo completo."""
+    if not current_app.config.get("RCS_CATALOGO_COMPLETO_ACTIVO", True):
+        abort(404)
+    if not tiene_rol(current_user, "admin", "supervisor"):
+        abort(403)
+    job = _job(job_id)
+    _archivo, titulo, datos, _extra = _datos_catalogo(job, opcion)
+    ids = set(datos.get("ids_filtrados") or [])
+    if event_id not in ids:
+        abort(404)
+    eventos = catalogo_completo_service.cargar_eventos(
+        job, opcion, {event_id}
+    )
+    if not eventos:
+        abort(404)
+    evento = eventos[0]
+    fila = catalogo_completo_service._aplanar_evento(evento)
+    params_base = _params_catalogo(job.id, opcion)
+    return render_template(
+        "results/evento_catalogo.html",
+        job=job,
+        opcion=opcion,
+        titulo=titulo,
+        evento=evento,
+        fila=fila,
+        json_texto=json.dumps(evento, ensure_ascii=False, indent=2),
+        grupos_evento=catalogo_completo_service.GRUPOS_EVENTO_FICHA,
+        etiqueta_evento=catalogo_completo_service.etiqueta_evento,
+        url_volver=url_for(
+            "results.catalogo_eventos_arribos",
+            **{**params_base, "tab": "eventos"},
+        ),
+        url_arribos=url_for(
+            "results.catalogo_eventos_arribos",
+            **{
+                **params_base,
+                "tab": "arribos",
+                "evento": event_id,
+            },
+        ),
     )
 
 

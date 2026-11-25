@@ -1052,6 +1052,19 @@ filtrados y un aviso de progreso mientras se genera. En catálogos grandes
 puede tardar varios minutos; conviene filtrar. Solo está disponible para
 **admin/supervisor**, con `catalogos.ver` y `trabajos.descargar`.
 
+La opción **Ver eventos y arribos** abre una vista separada de la tabla del
+catálogo, con pestañas:
+
+- **Eventos**: tabla agrupada con los parámetros principales y ficha completa
+  por evento.
+- **Arribos**: todos los arribos de los eventos filtrados, con filtros por
+  evento, estación, fase y uso.
+- **Estaciones**: resumen derivado por estación.
+- **LEEME**: el mismo texto del ZIP.
+
+La vista usa los mismos `ids_filtrados` y las mismas funciones que el ZIP, así
+que los totales coinciden con la descarga.
+
 En Central no hay un residual de tiempo separado: `pick_uncertainty` conserva
 la incertidumbre del pick y el resumen usa `uncertainty_*`. En SeisComp y
 Seisan, el residual está en `residual` y el resumen usa `residual_*`.

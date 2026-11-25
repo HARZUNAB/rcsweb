@@ -188,6 +188,19 @@ defecto). Si se pone en `0`, el botón desaparece y la ruta responde 404. El
 canónico sigue guardando los bloques extendidos aunque la exportación esté
 desactivada.
 
+La opción **Ver eventos y arribos** abre una vista separada de la tabla del
+catálogo, con cuatro pestañas:
+
+- **Eventos**: tabla agrupada con los parámetros principales y acceso a la
+  ficha completa de cada evento.
+- **Arribos**: todos los arribos de los eventos filtrados, con filtros por
+  evento, estación, fase y uso.
+- **Estaciones**: resumen derivado por estación.
+- **LEEME**: el mismo texto del ZIP, con unidades, filtros y esquema.
+
+La vista usa las mismas funciones y los mismos `ids_filtrados` que el ZIP, de
+modo que los totales coinciden con la descarga.
+
 Errores frecuentes:
 
 - base o credenciales no configuradas;
