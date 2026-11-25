@@ -18,7 +18,7 @@ La columna **Módulo** muestra el archivo y la línea actual donde se define el 
 
 > Las páginas se resuelven al actualizar el índice en el DOCX. En Markdown no existe paginación.
 
-Resumen: 62 variables de entorno, 96 constantes y 17 parámetros de scripts.
+Resumen: 65 variables de entorno, 96 constantes y 17 parámetros de scripts.
 
 ### D.1 Variables de entorno
 
@@ -62,10 +62,10 @@ Se leen al arrancar la aplicación o el servicio. Cambiarlas requiere reiniciar 
 | `CATALOGOS_SSH_USER` | `app/forms.py:75` | `sysopr` | despliegue | Usuario SSH para descargar catálogos. |
 | `CATALOG_SOURCES_MANIFEST` | `app/domain/catalogs/manifest.py:89` | `—` | despliegue | Ruta alternativa del manifiesto de fuentes. |
 | `CSN_DUMP_PATH` | `app/blueprints/health.py:41` | `/data/csn/dumps/csn_test_full_2026-09-30.dump` | despliegue | Dump de la base CSN usado por el chequeo de salud. |
-| `DEFAULT_PRIMARY_LOCAL` | `app/domain/catalogs/registry.py:146` | `local_export` | despliegue | Fuente local principal por defecto (local_export o local_select). |
+| `DEFAULT_PRIMARY_LOCAL` | `app/domain/catalogs/registry.py:168` | `local_export` | despliegue | Fuente local principal por defecto (local_export o local_select). |
 | `RCS_CATALOGO_SISMICIDAD` | `app/config.py:57` | `base_2018_2026.dat` | despliegue | Archivo del catálogo sísmico histórico. |
 | `RCS_CENTRAL_DSN` | `app/config.py:74` | `—` | despliegue | DSN de solo lectura de la base central CSN. |
-| `RCS_DATA_DIR` | `core/exporta_ventana_seiscomp.py:673` | `—` | despliegue | Directorio de datos del core para exportaciones. |
+| `RCS_DATA_DIR` | `core/exporta_ventana_seiscomp.py:675` | `—` | despliegue | Directorio de datos del core para exportaciones. |
 | `RCS_RECORDSTREAM` | `core/disponibilidad.py:107` | `—` | despliegue | Comando de recordstream; si está vacío se lee de global.cfg. |
 | `RCS_SCART` | `core/disponibilidad.py:76` | `—` | despliegue | Comando o ruta de scart para consultar la base. |
 | `RCS_SDS_ROOT` | `core/disponibilidad.py:71` | `—` | despliegue | Raíz del SDS con formas de onda. |
@@ -87,8 +87,16 @@ Se leen al arrancar la aplicación o el servicio. Cambiarlas requiere reiniciar 
 |---|---|---|---|---|
 | `CELERY_BROKER_URL` | `app/config.py:113` | `redis://redis:6379/0` | despliegue | Broker de Celery. |
 | `CELERY_RESULT_BACKEND` | `app/config.py:114` | `redis://redis:6379/1` | despliegue | Backend de resultados de Celery. |
-| `PIPELINE_STEP_TIMEOUT` | `app/services/pipeline.py:54` | `1800` | despliegue | Timeout por paso del pipeline, en segundos. |
-| `RCS_ENRIQUECER_RESIDUALES` | `app/services/pipeline.py:439` | `1` | despliegue | Enriquece residuales con fuentes locales (1 = sí). |
+| `PIPELINE_STEP_TIMEOUT` | `app/services/pipeline.py:56` | `1800` | despliegue | Timeout por paso del pipeline, en segundos. |
+| `RCS_ENRIQUECER_RESIDUALES` | `app/services/pipeline.py:452` | `1` | despliegue | Enriquece residuales con fuentes locales (1 = sí). |
+
+**Cobertura de picks**
+
+| Variable | Módulo | Defecto | Ámbito | Efecto |
+|---|---|---|---|---|
+| `RCS_PICKS_CERCA_KM` | `app/config.py:137` | `100` | regla | Distancia para prioridad alta de una estación cercana. |
+| `RCS_PICKS_MAX_CANDIDATAS` | `app/config.py:140` | `60` | regla | Máximo de estaciones candidatas por evento. |
+| `RCS_PICKS_RADIO_KM` | `app/config.py:134` | `250` | regla | Radio de búsqueda de estaciones cercanas, en kilómetros. |
 
 **Disponibilidad de ondas**
 
@@ -133,7 +141,7 @@ Son valores de código. Cambiarlos exige modificar el módulo, revisar las prueb
 | `TOL_EVENTO_KM` | `app/domain/catalogs/adapters/residuals.py:32` | `5.0` | operación | Tolerancia geográfica para emparejar evento, en km. |
 | `TOL_EVENTO_S` | `app/domain/catalogs/adapters/residuals.py:31` | `2.0` | operación | Tolerancia temporal para emparejar evento, en segundos. |
 | `TOL_PICK_S` | `app/domain/catalogs/adapters/residuals.py:33` | `0.5` | operación | Tolerancia temporal para emparejar pick, en segundos. |
-| `_TTL_DISPONIBILIDAD` | `app/domain/catalogs/adapters/central.py:178` | `300` | operación | Vigencia de la caché de disponibilidad de Central, en segundos. |
+| `_TTL_DISPONIBILIDAD` | `app/domain/catalogs/adapters/central.py:222` | `300` | operación | Vigencia de la caché de disponibilidad de Central, en segundos. |
 
 **Correlación y señal**
 
@@ -185,12 +193,12 @@ Son valores de código. Cambiarlos exige modificar el módulo, revisar las prueb
 |---|---|---|---|---|
 | `ACTIVIDAD_HORAS` | `core/exporta_ventana_seiscomp.py:203` | `2.0` | operación | Ventana de actividad para estimar disponibilidad, en horas. |
 | `AVISO_DE_LOTES` | `core/exporta_ventana_seiscomp.py:180` | `200000` | operación | Número de filas que dispara el aviso de volumen. |
-| `AVISO_NO_PICADAS_MB` | `core/exporta_ventana_seiscomp.py:1219` | `200.0` | operación | Tamaño que dispara el aviso de no picadas, en MB. |
-| `GRADO_CELDA` | `core/exporta_ventana_seiscomp.py:1235` | `1.0` | operación | Tamaño de celda geográfica, en grados. |
-| `NO_PICADAS_BYTES_FILA` | `core/exporta_ventana_seiscomp.py:1215` | `154` | operación | Bytes estimados por fila de estaciones sin arribos. |
+| `AVISO_NO_PICADAS_MB` | `core/exporta_ventana_seiscomp.py:1221` | `200.0` | operación | Tamaño que dispara el aviso de no picadas, en MB. |
+| `GRADO_CELDA` | `core/exporta_ventana_seiscomp.py:1237` | `1.0` | operación | Tamaño de celda geográfica, en grados. |
+| `NO_PICADAS_BYTES_FILA` | `core/exporta_ventana_seiscomp.py:1217` | `154` | operación | Bytes estimados por fila de estaciones sin arribos. |
 | `RADIO_ESTACIONES_KM` | `core/exporta_ventana_seiscomp.py:193` | `400.0` | operación | Radio de búsqueda de estaciones, en km. |
-| `RADIO_TIERRA_KM` | `core/exporta_ventana_seiscomp.py:1228` | `110.574` | operación | Kilómetros por grado de latitud para celdas. |
-| `RADIO_TIERRA_LON_KM` | `core/exporta_ventana_seiscomp.py:1229` | `111.32` | operación | Kilómetros por grado de longitud en el ecuador. |
+| `RADIO_TIERRA_KM` | `core/exporta_ventana_seiscomp.py:1230` | `110.574` | operación | Kilómetros por grado de latitud para celdas. |
+| `RADIO_TIERRA_LON_KM` | `core/exporta_ventana_seiscomp.py:1231` | `111.32` | operación | Kilómetros por grado de longitud en el ecuador. |
 | `RANGO_MAG_ESTACION` | `core/exporta_ventana_seiscomp.py:185` | `(-1.0, 10.0)` | operación | Rango válido de magnitud por estación. |
 | `STATEMENT_TIMEOUT_MS` | `core/exporta_ventana_seiscomp.py:172` | `60000` | operación | Timeout de sentencia SQL, en milisegundos. |
 | `TAMANO_LOTE` | `core/exporta_ventana_seiscomp.py:176` | `5000` | operación | Filas por lote en la exportación. |
@@ -200,34 +208,34 @@ Son valores de código. Cambiarlos exige modificar el módulo, revisar las prueb
 
 | Constante | Módulo | Valor | Ámbito | Efecto |
 |---|---|---|---|---|
-| `CRUCE_AMPLIO_GRADOS` | `app/services/indicios.py:1296` | `2.0` | regla | Tolerancia geográfica del cruce amplio, en grados. |
-| `CRUCE_AMPLIO_SEG` | `app/services/indicios.py:1295` | `6.0` | regla | Tolerancia temporal del cruce amplio, en segundos. |
-| `CRUCE_ESTRICTO_GRADOS` | `app/services/indicios.py:1294` | `1.0` | regla | Tolerancia geográfica del cruce estricto, en grados. |
-| `CRUCE_ESTRICTO_SEG` | `app/services/indicios.py:1293` | `3.0` | regla | Tolerancia temporal del cruce estricto, en segundos. |
-| `ESQUEMA_INDICIOS` | `app/services/indicios.py:46` | `7` | regla | Versión del esquema de indicios. |
-| `FACTOR_RESIDUAL_EXTREMO` | `app/services/indicios.py:38` | `10.0` | regla | Factor para clasificar residual extremo. |
-| `MAX_PARES_DETALLE` | `app/services/indicios.py:45` | `40` | regla | Máximo de pares guardados en el detalle. |
-| `MIN_ESTACIONES_FASE` | `app/services/indicios.py:36` | `3` | regla | Estaciones mínimas para evaluar un patrón de fase. |
-| `SEPARACION_MINIMA_KM` | `app/services/indicios.py:35` | `20.0` | regla | Separación mínima entre estaciones, en km. |
-| `UMBRAL_CONTEXTO_AZGAP` | `app/services/indicios.py:44` | `180.0` | regla | Azimutal gap máximo para cobertura suficiente. |
-| `UMBRAL_CONTEXTO_ESTACIONES` | `app/services/indicios.py:42` | `5` | regla | Estaciones mínimas para considerar cobertura suficiente. |
-| `UMBRAL_CONTEXTO_SIN_INVENTARIO` | `app/services/indicios.py:43` | `8` | regla | Umbral de estaciones cuando no hay inventario. |
-| `UMBRAL_PESO` | `app/services/indicios.py:30` | `0.5` | regla | Peso que se considera influyente. |
-| `UMBRAL_PESO_INFLUYENTE` | `app/services/indicios.py:31` | `0.125` | regla | Peso mínimo para marcar una fase influyente. |
-| `UMBRAL_RESIDUAL` | `app/services/indicios.py:29` | `5.0` | regla | Residual alto, en segundos. |
-| `UMBRAL_RESIDUAL_EXTREMO` | `app/services/indicios.py:37` | `60.0` | regla | Residual extremo, en segundos. |
-| `UMBRAL_RESIDUAL_FUERA_DE_ORDEN` | `app/services/indicios.py:32` | `5.0` | regla | Residual fuera de orden, en segundos. |
-| `UMBRAL_RESIDUAL_FUERA_DE_ORDEN_DEBIL` | `app/services/indicios.py:34` | `5.0` | regla | Residual débil fuera de orden, en segundos. |
-| `UMBRAL_SISTEMATICO_ESTACIONES` | `app/services/indicios.py:39` | `5` | regla | Estaciones mínimas para un sesgo sistemático. |
-| `UMBRAL_SISTEMATICO_MEDIANA` | `app/services/indicios.py:41` | `2.0` | regla | Residual mediano para un sesgo sistemático. |
-| `UMBRAL_SISTEMATICO_PROPORCION` | `app/services/indicios.py:40` | `0.7` | regla | Proporción mínima para un sesgo sistemático. |
-| `UMBRAL_TIEMPO_FUERA_DE_ORDEN_S` | `app/services/indicios.py:33` | `2.0` | regla | Diferencia temporal fuera de orden, en segundos. |
-| `VENTANA_CANDIDATO_KM` | `app/services/indicios.py:1289` | `50.0` | regla | Ventana geográfica para buscar candidato, en km. |
-| `VENTANA_CANDIDATO_SEG` | `app/services/indicios.py:1288` | `120.0` | regla | Ventana temporal para buscar candidato, en segundos. |
-| `VENTANA_COMPATIBLE_MAG` | `app/services/indicios.py:1292` | `0.5` | regla | Diferencia de magnitud compatible. |
-| `VENTANA_COMPATIBLE_PROF_KM` | `app/services/indicios.py:1291` | `20.0` | regla | Diferencia de profundidad compatible, en km. |
-| `VENTANA_COMPATIBLE_SEG` | `app/services/indicios.py:1290` | `6.0` | regla | Diferencia temporal para considerar compatible, en segundos. |
-| `VERSION_CRUCE` | `app/services/indicios.py:1287` | `4` | regla | Versión del cruce con Eventquery. |
+| `CRUCE_AMPLIO_GRADOS` | `app/services/indicios.py:1317` | `2.0` | regla | Tolerancia geográfica del cruce amplio, en grados. |
+| `CRUCE_AMPLIO_SEG` | `app/services/indicios.py:1316` | `6.0` | regla | Tolerancia temporal del cruce amplio, en segundos. |
+| `CRUCE_ESTRICTO_GRADOS` | `app/services/indicios.py:1315` | `1.0` | regla | Tolerancia geográfica del cruce estricto, en grados. |
+| `CRUCE_ESTRICTO_SEG` | `app/services/indicios.py:1314` | `3.0` | regla | Tolerancia temporal del cruce estricto, en segundos. |
+| `ESQUEMA_INDICIOS` | `app/services/indicios.py:47` | `8` | regla | Versión del esquema de indicios. |
+| `FACTOR_RESIDUAL_EXTREMO` | `app/services/indicios.py:39` | `10.0` | regla | Factor para clasificar residual extremo. |
+| `MAX_PARES_DETALLE` | `app/services/indicios.py:46` | `40` | regla | Máximo de pares guardados en el detalle. |
+| `MIN_ESTACIONES_FASE` | `app/services/indicios.py:37` | `3` | regla | Estaciones mínimas para evaluar un patrón de fase. |
+| `SEPARACION_MINIMA_KM` | `app/services/indicios.py:36` | `20.0` | regla | Separación mínima entre estaciones, en km. |
+| `UMBRAL_CONTEXTO_AZGAP` | `app/services/indicios.py:45` | `180.0` | regla | Azimutal gap máximo para cobertura suficiente. |
+| `UMBRAL_CONTEXTO_ESTACIONES` | `app/services/indicios.py:43` | `5` | regla | Estaciones mínimas para considerar cobertura suficiente. |
+| `UMBRAL_CONTEXTO_SIN_INVENTARIO` | `app/services/indicios.py:44` | `8` | regla | Umbral de estaciones cuando no hay inventario. |
+| `UMBRAL_PESO` | `app/services/indicios.py:31` | `0.5` | regla | Peso que se considera influyente. |
+| `UMBRAL_PESO_INFLUYENTE` | `app/services/indicios.py:32` | `0.125` | regla | Peso mínimo para marcar una fase influyente. |
+| `UMBRAL_RESIDUAL` | `app/services/indicios.py:30` | `5.0` | regla | Residual alto, en segundos. |
+| `UMBRAL_RESIDUAL_EXTREMO` | `app/services/indicios.py:38` | `60.0` | regla | Residual extremo, en segundos. |
+| `UMBRAL_RESIDUAL_FUERA_DE_ORDEN` | `app/services/indicios.py:33` | `5.0` | regla | Residual fuera de orden, en segundos. |
+| `UMBRAL_RESIDUAL_FUERA_DE_ORDEN_DEBIL` | `app/services/indicios.py:35` | `5.0` | regla | Residual débil fuera de orden, en segundos. |
+| `UMBRAL_SISTEMATICO_ESTACIONES` | `app/services/indicios.py:40` | `5` | regla | Estaciones mínimas para un sesgo sistemático. |
+| `UMBRAL_SISTEMATICO_MEDIANA` | `app/services/indicios.py:42` | `2.0` | regla | Residual mediano para un sesgo sistemático. |
+| `UMBRAL_SISTEMATICO_PROPORCION` | `app/services/indicios.py:41` | `0.7` | regla | Proporción mínima para un sesgo sistemático. |
+| `UMBRAL_TIEMPO_FUERA_DE_ORDEN_S` | `app/services/indicios.py:34` | `2.0` | regla | Diferencia temporal fuera de orden, en segundos. |
+| `VENTANA_CANDIDATO_KM` | `app/services/indicios.py:1310` | `50.0` | regla | Ventana geográfica para buscar candidato, en km. |
+| `VENTANA_CANDIDATO_SEG` | `app/services/indicios.py:1309` | `120.0` | regla | Ventana temporal para buscar candidato, en segundos. |
+| `VENTANA_COMPATIBLE_MAG` | `app/services/indicios.py:1313` | `0.5` | regla | Diferencia de magnitud compatible. |
+| `VENTANA_COMPATIBLE_PROF_KM` | `app/services/indicios.py:1312` | `20.0` | regla | Diferencia de profundidad compatible, en km. |
+| `VENTANA_COMPATIBLE_SEG` | `app/services/indicios.py:1311` | `6.0` | regla | Diferencia temporal para considerar compatible, en segundos. |
+| `VERSION_CRUCE` | `app/services/indicios.py:1308` | `4` | regla | Versión del cruce con Eventquery. |
 
 **Interfaz**
 
@@ -309,7 +317,7 @@ Los valores que definen una regla de negocio se listan también en D.2. Esta tab
 | Indicios y prioridad | `CRUCE_AMPLIO_SEG` | `6.0` | `app/services/indicios.py` |
 | Indicios y prioridad | `CRUCE_ESTRICTO_GRADOS` | `1.0` | `app/services/indicios.py` |
 | Indicios y prioridad | `CRUCE_ESTRICTO_SEG` | `3.0` | `app/services/indicios.py` |
-| Indicios y prioridad | `ESQUEMA_INDICIOS` | `7` | `app/services/indicios.py` |
+| Indicios y prioridad | `ESQUEMA_INDICIOS` | `8` | `app/services/indicios.py` |
 | Indicios y prioridad | `FACTOR_RESIDUAL_EXTREMO` | `10.0` | `app/services/indicios.py` |
 | Indicios y prioridad | `MAX_PARES_DETALLE` | `40` | `app/services/indicios.py` |
 | Indicios y prioridad | `MIN_ESTACIONES_FASE` | `3` | `app/services/indicios.py` |

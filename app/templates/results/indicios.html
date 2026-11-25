@@ -13,9 +13,10 @@
     </div>
     <h1 class="h3 mb-1">Revisión de eventos</h1>
     <p class="text-secondary mb-0">
-      Eventos con cruce Eventquery y solución sospechosa, y eventos con
-      inconsistencias en las fases. La revisión es posterior al procesamiento.
-      La prioridad combina cruce, solución y fuerza de las fases.
+      Eventos con cruce Eventquery y solución sospechosa, eventos con
+      inconsistencias en las fases y eventos con estaciones cercanas que no
+      aportaron a la solución. La revisión es posterior al procesamiento.
+      La prioridad combina cruce, solución, fases y cobertura de picks.
     </p>
     <div class="small text-secondary mt-1">
       Cruce estimado contra Eventquery
@@ -93,6 +94,20 @@
   </div>
 </div>
 
+{% if info_fuente.picks_eventos %}
+<div class="alert alert-warning" role="status">
+  <strong>Estaciones cercanas sin aportar.</strong>
+  {{ info_fuente.picks_eventos }}
+  evento{{ '' if info_fuente.picks_eventos == 1 else 's' }} con
+  {{ info_fuente.picks_sin_picar }} sin picar y
+  {{ info_fuente.picks_no_usadas }} picadas no usadas.
+  <a class="alert-link"
+     href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='picks') }}">
+    Ver cobertura de picks
+  </a>.
+</div>
+{% endif %}
+
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
   <ul class="nav nav-pills flex-wrap gap-2">
     {% for codigo in fuentes %}
@@ -121,6 +136,15 @@
       <a class="nav-link {% if alcance == 'todos' %}active{% endif %}"
          href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='todos') }}">
         Todos los indicios
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if alcance == 'picks' %}active{% endif %}"
+         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='picks') }}">
+        Cobertura de picks
+        {% if info_fuente.picks_eventos %}
+        ({{ info_fuente.picks_eventos }})
+        {% endif %}
       </a>
     </li>
   </ul>
@@ -239,6 +263,10 @@
                 title="Estaciones usadas en la solución">
               Usadas
             </th>
+            <th data-sort-key="picks" data-sort-type="number" class="text-end"
+                title="Estaciones cercanas con registro disponible que no aportaron: sin picar + picadas no usadas">
+              Sin aportar
+            </th>
             <th data-sort-key="residual" data-sort-type="number" class="text-end">Máx. residual</th>
             <th data-sort-key="patron" data-sort-type="text">Patrón</th>
             <th data-sort-key="contexto" data-sort-type="order"
@@ -330,6 +358,24 @@
             </td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.n_disponibles or '' }}">{{ fila.n_disponibles if fila.n_disponibles not in (none, '') else '—' }}</td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.n_usadas }}">{{ fila.n_usadas if fila.n_usadas not in (none, '') else '—' }}</td>
+            <td class="text-end text-nowrap" data-sort-value="{{ fila.picks_total or 0 }}">
+              {% if fila.picks_total %}
+              <span class="badge {% if fila.picks_prioridad == 'Alta' %}text-bg-danger{% elif fila.picks_prioridad == 'Media' %}text-bg-warning text-dark{% else %}text-bg-secondary{% endif %}"
+                    title="{{ fila.picks_estaciones }}">
+                {{ fila.picks_sin_picar }} + {{ fila.picks_no_usadas }}
+              </span>
+              {% if fila.picks_min_distancia %}
+              <div class="small text-secondary">{{ fila.picks_min_distancia }} km</div>
+              {% endif %}
+              {% if fila.picks_senal_estado == 'pendiente' %}
+              <div class="small text-secondary">señal pendiente</div>
+              {% elif fila.picks_senal_n %}
+              <div class="small text-success">{{ fila.picks_senal_n }} con señal</div>
+              {% endif %}
+              {% else %}
+              —
+              {% endif %}
+            </td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.max_residual_usado or '' }}">{{ fila.max_residual_usado or '—' }}</td>
             <td data-sort-value="{{ fila.patron }}">
               <span class="badge text-bg-light text-dark"

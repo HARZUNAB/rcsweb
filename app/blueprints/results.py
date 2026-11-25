@@ -51,6 +51,7 @@ from ..services import (
     formatting,
     indicios,
     panels,
+    picks_coverage,
     referencias,
     review,
     review_drafts,
@@ -599,6 +600,102 @@ def overview(job_id: str):
     return redirect(url_for("jobs.detalle", job_id=job.id) + "#resultados")
 
 
+def _combinar_picks(filas: list[dict], workspace, fuente: str) -> None:
+    """Agrega a la revisión las estaciones cercanas que no aportaron."""
+    if not fuente:
+        return
+    picks = picks_coverage.leer(workspace, fuente)
+    if not picks:
+        return
+    por_evento = {
+        str(fila.get("evento") or ""): fila for fila in filas
+    }
+    for pick in picks:
+        event_id = str(pick.get("evento") or "")
+        if not event_id:
+            continue
+        sin_picar = int(pick.get("sin_picar_n") or 0)
+        no_usadas = int(pick.get("no_usadas_n") or 0)
+        total = sin_picar + no_usadas
+        if total <= 0:
+            continue
+        prioridad = str(pick.get("prioridad") or "Informativa")
+        orden = indicios.ORDEN_PRIORIDAD.get(prioridad, 1)
+        campos = {
+            "picks_sin_picar": sin_picar,
+            "picks_no_usadas": no_usadas,
+            "picks_total": total,
+            "picks_min_distancia": pick.get("min_distancia_km") or "",
+            "picks_prioridad": prioridad,
+            "picks_orden": orden,
+            "picks_estaciones": pick.get("estaciones") or "",
+            "picks_detalle": pick.get("detalle") or [],
+            "picks_senal_n": int(pick.get("senal_n") or 0),
+            "picks_senal_estaciones": pick.get("senal_estaciones") or "",
+            "picks_senal_estado": pick.get("senal_estado") or "",
+            "picks_n_usadas": int(pick.get("n_usadas") or 0),
+        }
+        fila = por_evento.get(event_id)
+        if fila is None:
+            n_usadas = campos["picks_n_usadas"]
+            fila = {
+                "fuente": fuente,
+                "evento": event_id,
+                "id_evento_fuente": pick.get("id_evento_fuente") or "",
+                "fecha_hora": pick.get("fecha_hora") or "",
+                "latitud": pick.get("latitud") or "",
+                "longitud": pick.get("longitud") or "",
+                "profundidad_km": pick.get("profundidad_km") or "",
+                "magnitud": pick.get("magnitud") or "",
+                "analista": pick.get("analista") or "",
+                "region": "",
+                "fila_catalogo": pick.get("fila_catalogo") or "",
+                "cruce_eventquery": "",
+                "anomalia": "No",
+                "fuerza": "",
+                "prioridad": prioridad,
+                "prioridad_orden": orden,
+                "patron": "",
+                "contexto": "",
+                "extremo": "No",
+                "n_disponibles": n_usadas + total,
+                "inventario_disponible": "Sí",
+                "n_usadas": n_usadas,
+                "azimutal_gap": "",
+                "max_residual_usado": "",
+                "residual_mediana": "",
+                "n_outliers": "",
+                "n_fuera_de_orden": "",
+                "n_fuera_de_orden_debiles": "",
+                "n_picks_antes_origen": "",
+                "tipos_indicio": "picks_faltantes",
+                "resumen": "Estaciones cercanas sin aportar",
+                "residual_temporal": "No",
+                "residual_fuentes": "",
+                "sospechoso": "Desconocido",
+                "explicacion_sospechoso": "",
+                "wadati_n": "",
+                "wadati_vp_vs": "",
+                "wadati_r2": "",
+                "wadati_dispersion": "",
+                "wadati_calidad": "",
+                "motivo": "picks",
+            }
+            filas.append(fila)
+            por_evento[event_id] = fila
+        else:
+            fila["motivo"] = "ambas"
+            tipos = [
+                tipo.strip()
+                for tipo in str(fila.get("tipos_indicio") or "").split(",")
+                if tipo.strip()
+            ]
+            if "picks_faltantes" not in tipos:
+                tipos.append("picks_faltantes")
+            fila["tipos_indicio"] = ", ".join(tipos)
+        fila.update(campos)
+
+
 def _filas_revision(workspace, fuente, usuario) -> list[dict]:
     """Filas de revisión: fase, solución, prioridad y visibilidad."""
     filas = indicios.leer_indicios(workspace, fuente) if fuente else []
@@ -613,17 +710,38 @@ def _filas_revision(workspace, fuente, usuario) -> list[dict]:
         fila["motivo"] = "ambas" if fila.get("sospechoso") == "Sí" else "fase"
 
     filas.extend(_filas_sospechosas_sin_fase(workspace, fuente, filas))
+    _combinar_picks(filas, workspace, fuente)
 
     for fila in filas:
         con_cruce = _estado_cruce_desde_texto(
             fila.get("cruce_eventquery")
         )
         sospechoso = _bool_desde_texto(fila.get("sospechoso"))
-        prioridad = indicios.prioridad_evento(
+        prioridad_base = indicios.prioridad_evento(
             con_cruce, fila.get("fuerza") or "", sospechoso
         )
+        orden_base = indicios.ORDEN_PRIORIDAD[prioridad_base]
+        picks_orden = int(fila.get("picks_orden") or 0)
+        if picks_orden > orden_base:
+            prioridad = fila.get("picks_prioridad") or "Informativa"
+            fila["prioridad_orden"] = picks_orden
+            fila["motivo_prioridad"] = "Cobertura de picks"
+        else:
+            prioridad = prioridad_base
+            fila["prioridad_orden"] = orden_base
+            if prioridad == "Alta":
+                fila["motivo_prioridad"] = (
+                    "Localización + fases"
+                    if fila.get("fuerza") == "fuerte"
+                    else "Localización"
+                )
+            elif prioridad == "Media":
+                fila["motivo_prioridad"] = "Fases"
+            elif prioridad == "Baja":
+                fila["motivo_prioridad"] = "No publicado"
+            else:
+                fila["motivo_prioridad"] = ""
         fila["prioridad"] = prioridad
-        fila["prioridad_orden"] = indicios.ORDEN_PRIORIDAD[prioridad]
         fila["wadati_orden"] = {
             "consistente": 1,
             "preliminar": 2,
@@ -633,18 +751,6 @@ def _filas_revision(workspace, fuente, usuario) -> list[dict]:
         fila["revision_prioritaria"] = (
             "Sí" if prioridad in ("Alta", "Media") else "No"
         )
-        if prioridad == "Alta":
-            fila["motivo_prioridad"] = (
-                "Localización + fases"
-                if fila.get("fuerza") == "fuerte"
-                else "Localización"
-            )
-        elif prioridad == "Media":
-            fila["motivo_prioridad"] = "Fases"
-        elif prioridad == "Baja":
-            fila["motivo_prioridad"] = "No publicado"
-        else:
-            fila["motivo_prioridad"] = ""
         fila["_sospechoso_orden"] = {
             "Sí": 2,
             "No": 1,
@@ -676,7 +782,12 @@ def indicios_eventos(job_id: str):
         return redirect(
             url_for("results.indicios_eventos", job_id=job.id, **argumentos)
         )
-    if alcance not in ("prioritarios", "cruce_eventquery", "todos"):
+    if alcance not in (
+        "prioritarios",
+        "cruce_eventquery",
+        "todos",
+        "picks",
+    ):
         alcance = "prioritarios"
 
     puede_crear_revision = tiene_permiso(current_user, "revisiones.crear")
@@ -778,6 +889,15 @@ def indicios_eventos(job_id: str):
     info_fuente["con_cruce_eventquery"] = sum(
         1 for fila in filas if fila.get("cruce_eventquery") == "con_cruce"
     )
+    info_fuente["picks_eventos"] = sum(
+        1 for fila in filas if fila.get("picks_total")
+    )
+    info_fuente["picks_sin_picar"] = sum(
+        int(fila.get("picks_sin_picar") or 0) for fila in filas
+    )
+    info_fuente["picks_no_usadas"] = sum(
+        int(fila.get("picks_no_usadas") or 0) for fila in filas
+    )
 
     if alcance == "prioritarios":
         filas = [
@@ -789,6 +909,8 @@ def indicios_eventos(job_id: str):
             for fila in filas
             if fila.get("cruce_eventquery") == "con_cruce"
         ]
+    elif alcance == "picks":
+        filas = [fila for fila in filas if fila.get("picks_total")]
 
     filas.sort(
         key=lambda fila: (

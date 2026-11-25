@@ -754,7 +754,7 @@ Después del procesamiento, la app reúne dos señales:
   distancia-tiempo.
 
 La revisión es posterior a la publicación. La tarjeta **Revisión de eventos** de
-la página del trabajo abre el listado. Hay tres alcances:
+la página del trabajo abre el listado. Hay cuatro alcances:
 
 - **Revisión prioritaria:** eventos publicados con solución sospechosa
   (prioridad Alta) o con solución normal y fase fuerte (prioridad Media). La
@@ -764,6 +764,8 @@ la página del trabajo abre el listado. Hay tres alcances:
 - **Todos:** agrega las soluciones sin cruce Eventquery que tienen fases
   inconsistentes, para revisar la calidad del catálogo. Las soluciones
   sospechosas sin cruce y sin fase quedan en los paneles.
+- **Cobertura de picks:** eventos con estaciones cercanas que no aportaron a la
+  solución, aunque no tengan una anomalía de fase.
 
 La publicación no viene como un campo de la fuente local: se **estima** cruzando
 cada fuente local con **Eventquery**, que es la referencia publicada. Central no
@@ -819,6 +821,20 @@ Cada evento combina dos lecturas:
 
 La vista ya no tiene una columna **Motivo** separada: esa información se deduce
 de **Solución** y **Señales de fase**.
+
+La columna **Sin aportar** muestra las estaciones cercanas con registro
+disponible que no contribuyeron a la solución:
+
+```text
+4 + 1
+```
+
+significa **4 sin picar** y **1 picada no usada**. El tooltip lista las
+estaciones y sus distancias. La pestaña **Cobertura de picks** filtra estos
+eventos. El aviso se genera automáticamente al terminar el trabajo, sin leer
+formas de onda. La etiqueta **señal pendiente** indica que falta confirmar la
+señal; el conteo actual es de inventario. Una estación muy cercana o varias
+estaciones candidatas suben la prioridad.
 
 La columna **Fases P/S** muestra el resultado de Wadati por evento:
 

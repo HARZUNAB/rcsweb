@@ -93,6 +93,7 @@ DESCRIPCIONES_PATRON = {
 }
 
 ETIQUETAS_TIPO_INDICIO = {
+    "picks_faltantes": "Estaciones cercanas sin aportar",
     "residual_alto": "Residual alto",
     "fuera_de_orden": "Fase inconsistente con la distancia",
     "fuera_de_orden_debil": (

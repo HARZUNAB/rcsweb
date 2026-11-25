@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import math
 import statistics
 from collections import defaultdict
@@ -24,7 +25,7 @@ from pathlib import Path
 
 from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
-from . import formatting, wadati
+from . import formatting, picks_coverage, wadati
 
 UMBRAL_RESIDUAL = 5.0
 UMBRAL_PESO = 0.5
@@ -43,7 +44,9 @@ UMBRAL_CONTEXTO_ESTACIONES = 5
 UMBRAL_CONTEXTO_SIN_INVENTARIO = 8
 UMBRAL_CONTEXTO_AZGAP = 180.0
 MAX_PARES_DETALLE = 40
-ESQUEMA_INDICIOS = 7
+ESQUEMA_INDICIOS = 8
+
+LOG = logging.getLogger(__name__)
 
 ORDEN_PRIORIDAD = {
     "Alta": 5,
@@ -1112,6 +1115,9 @@ def generar_indicios(
         "revision_prioritaria": 0,
         "soluciones_con_cruce": 0,
         "residual_temporal": False,
+        "picks_eventos": 0,
+        "picks_sin_picar": 0,
+        "picks_no_usadas": 0,
     }
 
     for source_id in fuentes:
@@ -1155,6 +1161,18 @@ def generar_indicios(
         )
         _escribir_csv(ruta_detalle(workspace, source_id), CAMPOS_DETALLE, detalle)
 
+        try:
+            picks = picks_coverage.generar(
+                workspace,
+                source_id,
+                eventos=eventos,
+                arribos=arribos,
+                sin_arribos=sin_arribos,
+            )
+        except Exception:  # noqa: BLE001 - no invalida los indicios
+            LOG.exception("No se pudo generar cobertura de picks")
+            picks = {"eventos": 0, "sin_picar": 0, "no_usadas": 0}
+
         info = {
             "eventos": len(evaluados),
             "evaluables": sum(1 for evento in evaluados if evento["n_usadas"] > 0),
@@ -1186,6 +1204,9 @@ def generar_indicios(
             "inventario_disponible": any(
                 evento["inventario_disponible"] for evento in evaluados
             ),
+            "picks_eventos": picks["eventos"],
+            "picks_sin_picar": picks["sin_picar"],
+            "picks_no_usadas": picks["no_usadas"],
         }
         resumen["fuentes"][source_id] = info
         for clave in total:

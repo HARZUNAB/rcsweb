@@ -1375,6 +1375,7 @@ La salida queda en:
 resultados/indicios/indicios_<fuente>.csv
 resultados/indicios/indicios_<fuente>_detalle.csv
 resultados/indicios/resumen.json
+resultados/revision_picks_<fuente>.csv
 ```
 
 El CSV conserva las filas de fase. Como el generador no conoce la clasificación
@@ -1382,10 +1383,40 @@ de solución, sus campos `revision_prioritaria` y `prioridad` son conservadores:
 un evento con cruce y fase fuerte queda en **Media** (calidad de catálogo), no
 en Alta. El listado y el detalle recalculan la prioridad con la solución. La
 columna `cruce_eventquery` contiene `con_cruce`, `sin_cruce` o `sin_evaluar`. El
-esquema actual de estos reportes es 7; al cambiarlo, `asegurar_indicios` los
+esquema actual de estos reportes es 8; al cambiarlo, `asegurar_indicios` los
 regenera.
 
-El esquema 7 agrega el resultado de Wadati por evento, calculado en
+El esquema 8 agrega la cobertura de picks. `picks_coverage.generar` corre al
+final de `generar_indicios` y escribe
+`resultados/revision_picks_<fuente>.csv`. Para cada evento cuenta:
+
+- estaciones cercanas sin arribo (`sin_picar_n`);
+- estaciones con pick no usado (`no_usadas_n`);
+- total, distancia mínima, prioridad y lista compacta de estaciones.
+
+El radio y los umbrales se controlan con:
+
+```text
+RCS_PICKS_RADIO_KM=250
+RCS_PICKS_CERCA_KM=100
+RCS_PICKS_MAX_CANDIDATAS=60
+```
+
+El listado de revisión une `indicios_<fuente>.csv` con
+`revision_picks_<fuente>.csv`. Un evento que solo tiene cobertura de picks se
+agrega con `tipos_indicio=picks_faltantes` y aparece en la pestaña
+**Cobertura de picks**. La prioridad final es la mayor entre la prioridad de
+fases/solución y la de picks. La columna **Sin aportar** muestra
+`sin picar + no usadas`.
+
+La confirmación de señal con formas de onda queda como segunda etapa, bajo
+demanda: el reporte guarda `senal_n`, `senal_estaciones` y `senal_estado`
+(`pendiente`, `analizado`, `sin_candidatas`). Cuando se implemente, usará las
+bandas 1–5, 1–10 y 2–15 Hz, exigirá ≥2 bandas con STA/LTA ≥3 y racha ≥0.7 s, y
+calculará el tiempo esperado con distancia hipocentral o modelo 1D para no
+fallar en eventos profundos.
+
+El esquema 7 agregó el resultado de Wadati por evento, calculado en
 `evaluar_evento` con los arribos que ya están en memoria: `wadati_n`,
 `wadati_vp_vs`, `wadati_r2`, `wadati_dispersion` y `wadati_calidad`
 (`consistente`, `preliminar`, `dudoso`, `insuficiente`). Es un dato descriptivo:

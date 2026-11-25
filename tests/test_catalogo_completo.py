@@ -776,6 +776,48 @@ def test_vista_no_avisa_trabajo_actualizado(
     assert "Trabajo generado con una versión anterior" not in html
 
 
+def test_revision_muestra_estaciones_sin_aportar(app, client, login):
+    job = _preparar(app)
+    ruta = (
+        ruta_workspace(job.id)
+        / "catalogo"
+        / "seiscomp"
+        / "estaciones_sin_arribos.jsonl"
+    )
+    ruta.write_text(
+        json.dumps(
+            {
+                "source_id": "seiscomp",
+                "event_id": "seiscomp:000001",
+                "network": "C1",
+                "station": "NEAR",
+                "location": "",
+                "channel": "HNZ",
+                "streams": "C1.NEAR..HNZ",
+                "stream_ids": "C1.NEAR..HNZ",
+                "station_latitude": -30.4,
+                "station_longitude": -71.0,
+                "evidence": "NO_CONSULTADO",
+                "waveform_status": "NO_CONSULTADO",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    login()
+    respuesta = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp", "alcance": "picks"},
+    )
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    assert "Cobertura de picks" in html
+    assert "Sin aportar" in html
+    assert "NEAR" in html
+    assert "1 + 0" in html
+
+
 def test_vista_eventos_arribos_permisos_y_flag(
     app, client, login, monkeypatch
 ):

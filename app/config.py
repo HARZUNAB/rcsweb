@@ -130,6 +130,17 @@ class Config:
         os.environ.get("RCS_DISPONIBILIDAD_MAX_STREAMS") or 5000
     )
 
+    # Cobertura de picks cercanos
+    RCS_PICKS_RADIO_KM = float(
+        os.environ.get("RCS_PICKS_RADIO_KM") or 250
+    )
+    RCS_PICKS_CERCA_KM = float(
+        os.environ.get("RCS_PICKS_CERCA_KM") or 100
+    )
+    RCS_PICKS_MAX_CANDIDATAS = int(
+        os.environ.get("RCS_PICKS_MAX_CANDIDATAS") or 60
+    )
+
 
 class TestConfig(Config):
     TESTING = True
