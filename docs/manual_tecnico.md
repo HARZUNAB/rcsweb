@@ -1019,6 +1019,25 @@ Las distancias de calidad se guardan en **km**. SeisComp entrega
 `OriginQuality.minimumDistance`, `maximumDistance` y `medianDistance` en grados;
 el conversor las pasa a km y conserva el valor original en el CSV crudo.
 
+La conversión al canónico escribe en un archivo temporal y valida que los
+bloques requeridos por el formato tengan datos antes de reemplazar
+`eventos.jsonl`. Si la validación falla, el trabajo queda fallido con un
+mensaje que indica el bloque faltante y el canónico anterior no se modifica.
+
+Los formatos locales declaran qué bloques requieren:
+
+- SeisComp y Central: los cuatro bloques.
+- Seisan: calidad, incertidumbre y metadatos de origen; magnitud es opcional.
+
+`meta.json` guarda un resumen `quality_blocks` con el número de eventos que
+tienen datos en cada bloque. La vista **Eventos y arribos descargados** muestra
+un aviso si un trabajo viejo no tiene ese resumen; en ese caso conviene
+eliminarlo y regenerarlo.
+
+El worker de Celery no recarga código automáticamente. Después de actualizar la
+aplicación hay que reiniciar `web` y `worker`; de lo contrario los trabajos
+nuevos se generan con el código anterior.
+
 #### Descarga del catálogo completo
 
 La descarga vive en la página **Catálogos**, no en el detalle del trabajo.

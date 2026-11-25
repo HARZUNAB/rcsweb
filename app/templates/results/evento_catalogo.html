@@ -42,6 +42,14 @@
   </div>
 </div>
 
+{% if trabajo_desactualizado %}
+<div class="alert alert-warning">
+  <strong>Trabajo generado con una versión anterior.</strong>
+  No tiene los bloques normalizados completos. Elimine y regenere el trabajo
+  para ver Calidad, Incertidumbre, Origen y Magnitud.
+</div>
+{% endif %}
+
 <div class="row g-3 mb-3">
   <div class="col-12 col-lg-7">
     <div class="card border-0 shadow-sm h-100">

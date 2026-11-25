@@ -11,8 +11,11 @@ from __future__ import annotations
 import csv
 import json
 import math
+import os
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 from .schema import (
     SCHEMA_VERSION,
@@ -28,6 +31,17 @@ EXTENSIONES = {
     "tensores": "tensores.jsonl",
 }
 META = "meta.json"
+
+BLOQUES_CALIDAD = (
+    "origin_quality",
+    "origin_uncertainty",
+    "origin_metadata",
+    "magnitude_metadata",
+)
+
+
+class CanonicoInvalidoError(ValueError):
+    """El catálogo canónico no cumple la validación de bloques."""
 
 
 def _texto(valor) -> str:
@@ -253,6 +267,168 @@ def _bloques_calidad(fila: dict, source_id: str) -> dict:
     }
 
 
+def _valor_con_datos(valor) -> bool:
+    if valor is None:
+        return False
+    if isinstance(valor, str):
+        return valor.strip() not in ("", "-")
+    return True
+
+
+def _calidad_con_datos(calidad: dict) -> bool:
+    if not isinstance(calidad, dict):
+        return False
+    return any(
+        _valor_con_datos(calidad.get(clave))
+        for clave in (
+            "used_phase_count",
+            "associated_phase_count",
+            "used_station_count",
+            "associated_station_count",
+            "depth_phase_count",
+            "standard_error",
+            "azimuthal_gap",
+            "secondary_azimuthal_gap",
+            "ground_truth_level",
+            "minimum_distance_km",
+            "maximum_distance_km",
+            "median_distance_km",
+        )
+    )
+
+
+def _incertidumbre_con_datos(incertidumbre: dict) -> bool:
+    if not isinstance(incertidumbre, dict):
+        return False
+    for eje in ("time", "latitude", "longitude", "depth"):
+        datos = incertidumbre.get(eje) or {}
+        if any(
+            _valor_con_datos(datos.get(clave))
+            for clave in ("value", "lower", "upper", "confidence")
+        ):
+            return True
+    horizontal = incertidumbre.get("horizontal") or {}
+    if any(
+        _valor_con_datos(horizontal.get(clave))
+        for clave in ("value", "min", "max", "azimuth_max")
+    ):
+        return True
+    elipse = incertidumbre.get("ellipse") or {}
+    if any(
+        _valor_con_datos(elipse.get(clave))
+        for clave in (
+            "semimajor",
+            "semiminor",
+            "semiintermediate",
+            "plunge",
+            "azimuth",
+            "rotation",
+        )
+    ):
+        return True
+    return any(
+        _valor_con_datos(incertidumbre.get(clave))
+        for clave in (
+            "preferred_description",
+            "confidence_level",
+            "error_ellipse",
+        )
+    )
+
+
+def _origen_con_datos(metadatos: dict) -> bool:
+    if not isinstance(metadatos, dict):
+        return False
+    return any(
+        _valor_con_datos(metadatos.get(clave))
+        for clave in (
+            "origin_time_us",
+            "type",
+            "evaluation_mode",
+            "method_id",
+            "earth_model_id",
+            "depth_type",
+            "evaluation_status",
+            "software",
+            "velocity_model",
+        )
+    )
+
+
+def _magnitud_con_datos(magnitud: dict) -> bool:
+    if not isinstance(magnitud, dict):
+        return False
+    return any(
+        _valor_con_datos(magnitud.get(clave))
+        for clave in (
+            "uncertainty",
+            "lower_uncertainty",
+            "upper_uncertainty",
+            "confidence",
+            "station_count",
+            "azimuthal_gap",
+            "status",
+            "method_id",
+        )
+    )
+
+
+def bloques_con_datos(evento: dict) -> dict[str, bool]:
+    """Indica qué bloques normalizados tienen datos útiles."""
+    return {
+        "origin_quality": _calidad_con_datos(
+            evento.get("origin_quality") or {}
+        ),
+        "origin_uncertainty": _incertidumbre_con_datos(
+            evento.get("origin_uncertainty") or {}
+        ),
+        "origin_metadata": _origen_con_datos(
+            evento.get("origin_metadata") or {}
+        ),
+        "magnitude_metadata": _magnitud_con_datos(
+            evento.get("magnitude_metadata") or {}
+        ),
+    }
+
+
+def resumen_bloques_calidad(eventos: list[dict]) -> dict:
+    """Conteo de eventos con datos en cada bloque."""
+    resumen = {
+        "events": len(eventos),
+        **{f"with_{bloque}": 0 for bloque in BLOQUES_CALIDAD},
+    }
+    for evento in eventos:
+        for bloque, tiene_datos in bloques_con_datos(evento).items():
+            if tiene_datos:
+                resumen[f"with_{bloque}"] += 1
+    return resumen
+
+
+def validar_bloques_calidad(
+    eventos: list[dict],
+    bloques_requeridos: tuple[str, ...],
+) -> list[str]:
+    """Errores de validación para los bloques que exige el formato."""
+    if not eventos or not bloques_requeridos:
+        return []
+    errores = []
+    for bloque in bloques_requeridos:
+        if bloque not in BLOQUES_CALIDAD:
+            errores.append(f"Bloque de calidad desconocido: {bloque}.")
+            continue
+        if not any(
+            bloques_con_datos(evento).get(bloque, False)
+            for evento in eventos
+        ):
+            errores.append(f"El canónico no generó datos en {bloque}.")
+    return errores
+
+
+def leer_eventos(ruta: Path) -> list[dict]:
+    """Eventos de un JSONL canónico, útil para validar un temporal."""
+    return _lineas_jsonl(ruta)
+
+
 def escribir_desde_csv(
     workspace: Path,
     source_id: str,
@@ -261,6 +437,7 @@ def escribir_desde_csv(
     *,
     es_referencia: bool | None = None,
     ruta_cruda: Path | None = None,
+    validar: Callable[[Path], list[str]] | None = None,
 ) -> Path:
     """Convierte un CSV plano normalizado al catálogo canónico JSONL.
 
@@ -271,6 +448,9 @@ def escribir_desde_csv(
     ``id_evento`` e ``id_origen`` mediante la columna 0 del CSV normalizado, que
     conserva el índice de la fila cruda. Si falta, el evento se escribe igual
     con esos campos vacíos.
+
+    El archivo se escribe en un temporal y solo se reemplaza si ``validar`` no
+    devuelve errores. Así una validación fallida no deja un canónico incompleto.
     """
     if es_referencia is None:
         from .registry import formato as _formato
@@ -278,61 +458,78 @@ def escribir_desde_csv(
         es_referencia = _formato(formato).rol == "referencia"
     destino = ruta_canonica(workspace, source_id)
     destino.parent.mkdir(parents=True, exist_ok=True)
+    temporal = destino.with_name(f"{destino.name}.{uuid4().hex}.tmp")
     crudas = _leer_crudo(ruta_cruda)
-    with ruta_csv.open(encoding="utf-8-sig", newline="") as archivo:
-        lector = csv.DictReader(archivo)
-        with destino.open("w", encoding="utf-8") as salida:
-            for posicion, fila in enumerate(lector):
-                indice = _indice_crudo(fila)
-                if indice is None:
-                    indice = posicion
-                original = crudas[indice] if 0 <= indice < len(crudas) else {}
-                publicado = _boleano(fila.get("Publicado"))
-                if publicado is None:
-                    publicado = _boleano(fila.get("publicado"))
-                if publicado is None:
-                    publicado = es_referencia
-                revision = (
-                    _texto(fila.get("Revisión"))
-                    or _texto(fila.get("Revision"))
-                    or _texto(fila.get("revision"))
+    try:
+        with ruta_csv.open(encoding="utf-8-sig", newline="") as archivo:
+            lector = csv.DictReader(archivo)
+            with temporal.open("w", encoding="utf-8") as salida:
+                for posicion, fila in enumerate(lector):
+                    indice = _indice_crudo(fila)
+                    if indice is None:
+                        indice = posicion
+                    original = (
+                        crudas[indice] if 0 <= indice < len(crudas) else {}
+                    )
+                    publicado = _boleano(fila.get("Publicado"))
+                    if publicado is None:
+                        publicado = _boleano(fila.get("publicado"))
+                    if publicado is None:
+                        publicado = es_referencia
+                    revision = (
+                        _texto(fila.get("Revisión"))
+                        or _texto(fila.get("Revision"))
+                        or _texto(fila.get("revision"))
+                    )
+                    bloques = _bloques_calidad(fila, source_id)
+                    evento = EventoCanonico(
+                        source_id=source_id,
+                        event_id=f"{source_id}:{indice:06d}",
+                        event_time=fila.get("Fecha_Hora") or None,
+                        latitude=_numero(fila.get("Latitud")),
+                        longitude=_numero(fila.get("Longitud")),
+                        depth_km=_numero(fila.get("Prof.")),
+                        magnitude=_numero(fila.get("Mag.")),
+                        magnitude_type=fila.get("Tipo_mag.", "") or "",
+                        agency=source_id,
+                        analyst=fila.get("Analista", "") or "",
+                        status="published" if publicado else "reported",
+                        revision=revision,
+                        is_preferred=True,
+                        is_published=publicado,
+                        source_event_id=(
+                            _texto(fila.get("id_evento"))
+                            or _texto(original.get("id_evento"))
+                        ),
+                        origin_id=(
+                            _texto(fila.get("id_origen"))
+                            or _texto(original.get("id_origen"))
+                        ),
+                        database=(
+                            _texto(fila.get("base_datos"))
+                            or _texto(original.get("base_datos"))
+                        ),
+                        raw_index=indice,
+                        origin_quality=bloques["origin_quality"],
+                        origin_uncertainty=bloques["origin_uncertainty"],
+                        origin_metadata=bloques["origin_metadata"],
+                        magnitude_metadata=bloques["magnitude_metadata"],
+                        raw=dict(fila),
+                    )
+                    salida.write(
+                        json.dumps(evento.to_dict(), ensure_ascii=False)
+                        + "\n"
+                    )
+        if validar is not None:
+            errores = validar(temporal)
+            if errores:
+                raise CanonicoInvalidoError(
+                    "El catálogo canónico no es válido: "
+                    + " ".join(errores)
                 )
-                bloques = _bloques_calidad(fila, source_id)
-                evento = EventoCanonico(
-                    source_id=source_id,
-                    event_id=f"{source_id}:{indice:06d}",
-                    event_time=fila.get("Fecha_Hora") or None,
-                    latitude=_numero(fila.get("Latitud")),
-                    longitude=_numero(fila.get("Longitud")),
-                    depth_km=_numero(fila.get("Prof.")),
-                    magnitude=_numero(fila.get("Mag.")),
-                    magnitude_type=fila.get("Tipo_mag.", "") or "",
-                    agency=source_id,
-                    analyst=fila.get("Analista", "") or "",
-                    status="published" if publicado else "reported",
-                    revision=revision,
-                    is_preferred=True,
-                    is_published=publicado,
-                    source_event_id=(
-                        _texto(fila.get("id_evento"))
-                        or _texto(original.get("id_evento"))
-                    ),
-                    origin_id=(
-                        _texto(fila.get("id_origen"))
-                        or _texto(original.get("id_origen"))
-                    ),
-                    database=(
-                        _texto(fila.get("base_datos"))
-                        or _texto(original.get("base_datos"))
-                    ),
-                    raw_index=indice,
-                    origin_quality=bloques["origin_quality"],
-                    origin_uncertainty=bloques["origin_uncertainty"],
-                    origin_metadata=bloques["origin_metadata"],
-                    magnitude_metadata=bloques["magnitude_metadata"],
-                    raw=dict(fila),
-                )
-                salida.write(json.dumps(evento.to_dict(), ensure_ascii=False) + "\n")
+        os.replace(temporal, destino)
+    finally:
+        temporal.unlink(missing_ok=True)
     return destino
 
 
@@ -711,6 +908,7 @@ def escribir_extensiones(
         "capabilities": capacidades,
         "extensions": estado,
         "station_radius_km": radio_km,
+        "quality_blocks": resumen_bloques_calidad(eventos),
     }
     ruta_meta(workspace, source_id).write_text(
         json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"

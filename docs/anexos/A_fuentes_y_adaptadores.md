@@ -147,6 +147,28 @@ CONSULTA_SQL
   `median_distance_deg` en grados, como los entrega SeisComp.
 - El bloque `raw` del evento conserva la fila normalizada completa.
 
+##### Validación de los bloques
+
+La conversión al canónico escribe primero en un archivo temporal y valida que
+los bloques requeridos por el formato tengan datos antes de reemplazar
+`eventos.jsonl`. Si la validación falla, el trabajo queda fallido con un
+mensaje que indica el bloque faltante y el canónico anterior no se modifica.
+
+Los formatos locales declaran qué bloques requieren:
+
+- SeisComp y Central: los cuatro bloques.
+- Seisan: calidad, incertidumbre y metadatos de origen. La magnitud queda
+  opcional porque la fuente no siempre aporta su incertidumbre.
+
+`meta.json` guarda un resumen `quality_blocks` con el número de eventos que
+tienen datos en cada bloque. La vista **Eventos y arribos descargados** muestra
+un aviso si un trabajo viejo no tiene ese resumen; en ese caso conviene
+eliminarlo y regenerarlo.
+
+El worker de Celery no recarga código automáticamente. Después de actualizar la
+aplicación hay que reiniciar `web` y `worker`; de lo contrario los trabajos
+nuevos se generan con el código anterior.
+
 #### A.3.2 Descarga del catálogo completo desde Catálogos
 
 La descarga vive en la página **Catálogos**, no en el detalle del trabajo.

@@ -34,6 +34,7 @@ from tasks.celery_app import celery
 
 from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
+from ..domain.catalogs.registry import formato as formato_info
 from ..extensions import db
 from ..models import Job, utcnow
 from ..security import (
@@ -1488,6 +1489,32 @@ def _datos_catalogo(job: Job, opcion: str) -> tuple[str, str, dict, dict]:
     }
 
 
+def _trabajo_canonico_desactualizado(job: Job, opcion: str) -> bool:
+    """True si el trabajo no tiene los bloques normalizados esperados."""
+    fuente = next(
+        (source for source in job.sources if source.kind == opcion),
+        None,
+    )
+    if fuente is None:
+        return False
+    try:
+        formato = formato_info(fuente.format_efectivo)
+    except ValueError:
+        return False
+    if not formato.requiere_calidad_extendida:
+        return False
+    meta = canonical.leer_meta(ruta_workspace(job.id), opcion)
+    resumen = (meta or {}).get("quality_blocks")
+    if not resumen:
+        return True
+    if resumen.get("events", 0) <= 0:
+        return False
+    return any(
+        resumen.get(f"with_{bloque}", 0) == 0
+        for bloque in formato.bloques_calidad_requeridos
+    )
+
+
 def _planta_catalogo(datos: dict, clave: str | None = None):
     plantas = datos.get("plantas", [])
     if clave:
@@ -1653,6 +1680,7 @@ def catalogo_eventos_arribos(job_id: str, opcion: str):
         abort(403)
     job = _job(job_id)
     _archivo, titulo, datos, extra = _datos_catalogo(job, opcion)
+    trabajo_desactualizado = _trabajo_canonico_desactualizado(job, opcion)
     ids = set(datos.get("ids_filtrados") or [])
     if not ids:
         abort(404)
@@ -1786,6 +1814,7 @@ def catalogo_eventos_arribos(job_id: str, opcion: str):
         job=job,
         opcion=opcion,
         titulo=titulo,
+        trabajo_desactualizado=trabajo_desactualizado,
         tab=tab,
         totales=totales,
         filtros_texto=extra.get("filtros_texto", ""),
@@ -1843,6 +1872,7 @@ def catalogo_evento_ficha(job_id: str, opcion: str, event_id: str):
         abort(403)
     job = _job(job_id)
     _archivo, titulo, datos, _extra = _datos_catalogo(job, opcion)
+    trabajo_desactualizado = _trabajo_canonico_desactualizado(job, opcion)
     ids = set(datos.get("ids_filtrados") or [])
     if event_id not in ids:
         abort(404)
@@ -1895,6 +1925,7 @@ def catalogo_evento_ficha(job_id: str, opcion: str, event_id: str):
         job=job,
         opcion=opcion,
         titulo=titulo,
+        trabajo_desactualizado=trabajo_desactualizado,
         evento=evento,
         fila=fila,
         fecha_evento=catalogo_completo_service.fecha_texto(

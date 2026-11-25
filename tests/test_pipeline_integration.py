@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from app.domain.catalogs import canonical
 from app.domain.catalogs.canonical import leer_canonico
 from app.extensions import db
 from app.models import Job, JobFile, JobSource, nuevo_uuid
@@ -113,6 +114,26 @@ def test_pipeline_completo_con_muestra(app, tmp_path):
         assert len(leer_canonico(workspace, "eventquery")) == 4
         assert len(leer_canonico(workspace, "seisan")) == 3
         assert len(leer_canonico(workspace, "seiscomp")) == 4
+
+        eventos_seiscomp = leer_canonico(workspace, "seiscomp")
+        assert all(
+            all(canonical.bloques_con_datos(evento).values())
+            for evento in eventos_seiscomp
+        )
+        meta_seiscomp = canonical.leer_meta(workspace, "seiscomp")
+        assert meta_seiscomp["quality_blocks"]["events"] == 4
+        assert meta_seiscomp["quality_blocks"]["with_origin_quality"] == 4
+        assert meta_seiscomp["quality_blocks"]["with_origin_uncertainty"] == 4
+        assert meta_seiscomp["quality_blocks"]["with_origin_metadata"] == 4
+        assert meta_seiscomp["quality_blocks"]["with_magnitude_metadata"] == 4
+
+        eventos_seisan = leer_canonico(workspace, "seisan")
+        assert all(
+            canonical.bloques_con_datos(evento)["origin_quality"]
+            and canonical.bloques_con_datos(evento)["origin_uncertainty"]
+            and canonical.bloques_con_datos(evento)["origin_metadata"]
+            for evento in eventos_seisan
+        )
 
         no_act = leer_tabla(workspace, "no_actualizados_seisan.csv")
         assert "revision" in no_act["columnas"]
@@ -215,5 +236,15 @@ def test_pipeline_solo_seiscomp(app, tmp_path):
         assert len(leer_canonico(workspace, "eventquery")) == 4
         assert len(leer_canonico(workspace, "seiscomp")) == 4
         assert leer_canonico(workspace, "seisan") == []
+
+        eventos_seiscomp = leer_canonico(workspace, "seiscomp")
+        assert all(
+            all(canonical.bloques_con_datos(evento).values())
+            for evento in eventos_seiscomp
+        )
+        meta_seiscomp = canonical.leer_meta(workspace, "seiscomp")
+        assert meta_seiscomp["quality_blocks"]["events"] == 4
+        assert meta_seiscomp["quality_blocks"]["with_magnitude_metadata"] == 4
+
         assert (workspace / "resultados/repetidos_seiscomp_estricto.csv").is_file()
         assert not (workspace / "informes/rep_seisan_estricto.txt").exists()

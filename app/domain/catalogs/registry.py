@@ -33,6 +33,8 @@ class Formato:
     permite_local: bool = True
     permite_ssh: bool = True
     disponible: bool = True
+    requiere_calidad_extendida: bool = False
+    bloques_calidad_requeridos: tuple[str, ...] = ()
 
     @property
     def es_local(self) -> bool:
@@ -72,6 +74,13 @@ FORMATOS: dict[str, Formato] = {
         extensiones=("csv",),
         prefijo_compara="seiscomp_",
         tipo="export",
+        requiere_calidad_extendida=True,
+        bloques_calidad_requeridos=(
+            "origin_quality",
+            "origin_uncertainty",
+            "origin_metadata",
+            "magnitude_metadata",
+        ),
     ),
     "local_select": Formato(
         codigo="local_select",
@@ -84,6 +93,12 @@ FORMATOS: dict[str, Formato] = {
         archivo="select.out",
         extensiones=("out", "txt", "dat"),
         tipo="select",
+        requiere_calidad_extendida=True,
+        bloques_calidad_requeridos=(
+            "origin_quality",
+            "origin_uncertainty",
+            "origin_metadata",
+        ),
     ),
     "local_db": Formato(
         codigo="local_db",
@@ -96,6 +111,13 @@ FORMATOS: dict[str, Formato] = {
         archivo="",
         extensiones=("csv",),
         tipo="db",
+        requiere_calidad_extendida=True,
+        bloques_calidad_requeridos=(
+            "origin_quality",
+            "origin_uncertainty",
+            "origin_metadata",
+            "magnitude_metadata",
+        ),
     ),
 }
 

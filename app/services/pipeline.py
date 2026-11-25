@@ -33,6 +33,8 @@ from ..domain.catalogs.canonical import (
     escribir_desde_csv,
     escribir_extensiones,
     leer_canonico,
+    leer_eventos,
+    validar_bloques_calidad,
 )
 from ..domain.catalogs.registry import adaptador as obtener_adaptador
 from ..domain.catalogs.registry import formato as formato_info
@@ -365,12 +367,23 @@ def _planes_a_pasos(
                     _post(workspace)
                 raiz = Path(workspace)
                 ruta = raiz / _adapter.catalogo(job, eventquery)
+                formato = formato_info(_formato)
                 try:
-                    crudo = formato_info(_formato).archivo.format(
+                    crudo = formato.archivo.format(
                         inicio=job.inicio14, fin=job.fin14
                     )
                 except (KeyError, ValueError):
                     crudo = ""
+                requeridos = formato.bloques_calidad_requeridos
+
+                def _validar(
+                    ruta_temporal,
+                    _requeridos=requeridos,
+                ):
+                    return validar_bloques_calidad(
+                        leer_eventos(ruta_temporal), _requeridos
+                    )
+
                 escribir_desde_csv(
                     raiz,
                     _source_id,
@@ -378,19 +391,19 @@ def _planes_a_pasos(
                     ruta,
                     es_referencia=_es_referencia,
                     ruta_cruda=(raiz / crudo) if crudo else None,
+                    validar=_validar if requeridos else None,
                 )
                 try:
                     extensiones = _adapter.extensiones(job, eventquery, raiz)
                 except (AttributeError, ValueError):
                     extensiones = {}
-                if extensiones:
-                    escribir_extensiones(
-                        raiz,
-                        _source_id,
-                        _formato,
-                        extensiones,
-                        radio_km=getattr(job, "station_radius_km", None),
-                    )
+                escribir_extensiones(
+                    raiz,
+                    _source_id,
+                    _formato,
+                    extensiones,
+                    radio_km=getattr(job, "station_radius_km", None),
+                )
 
             post = _post
 

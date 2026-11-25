@@ -676,6 +676,62 @@ def test_ficha_evento_sin_epicentro(app, client, login, monkeypatch):
     assert "Arribos del evento" in html
 
 
+def test_vista_avisa_trabajo_desactualizado(
+    app, client, login, monkeypatch
+):
+    job = _preparar(app)
+    monkeypatch.setattr(
+        "app.blueprints.results._datos_catalogo",
+        _datos_catalogo_filtrados,
+    )
+    login()
+    url = _url_vista(job)
+    html = client.get(url).get_data(as_text=True)
+    assert "Trabajo generado con una versión anterior" in html
+    ficha = client.get(url + "/evento/seiscomp:000001")
+    assert ficha.status_code == 200
+    assert (
+        "Trabajo generado con una versión anterior"
+        in ficha.get_data(as_text=True)
+    )
+
+
+def test_vista_no_avisa_trabajo_actualizado(
+    app, client, login, monkeypatch
+):
+    job = _preparar(app)
+    meta = {
+        "schema_version": "1.3",
+        "source_id": "seiscomp",
+        "format": "local_export",
+        "quality_blocks": {
+            "events": 1,
+            "with_origin_quality": 1,
+            "with_origin_uncertainty": 1,
+            "with_origin_metadata": 1,
+            "with_magnitude_metadata": 1,
+        },
+    }
+    ruta = (
+        ruta_workspace(job.id)
+        / "catalogo"
+        / "seiscomp"
+        / "meta.json"
+    )
+    ruta.write_text(
+        json.dumps(meta, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "app.blueprints.results._datos_catalogo",
+        _datos_catalogo_filtrados,
+    )
+    login()
+    url = _url_vista(job)
+    html = client.get(url).get_data(as_text=True)
+    assert "Trabajo generado con una versión anterior" not in html
+
+
 def test_vista_eventos_arribos_permisos_y_flag(
     app, client, login, monkeypatch
 ):
