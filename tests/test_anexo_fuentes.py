@@ -65,6 +65,7 @@ def test_anexo_documenta_el_catalogo_extendido_y_su_descarga():
         "origin_uncertainty",
         "origin_metadata",
         "magnitude_metadata",
+        "eventos.json",
         "estaciones_resumen.csv",
         "RCS_CATALOGO_COMPLETO_ACTIVO",
         "distance_km_calc",

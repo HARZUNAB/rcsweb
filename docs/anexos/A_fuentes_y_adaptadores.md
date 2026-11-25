@@ -185,12 +185,16 @@ El catálogo completo se descarga como:
 ```text
 catalogo_completo_<fuente>_<inicio>_<fin>.zip
   eventos.csv
+  eventos.json
   arribos.csv
   estaciones_resumen.csv
   LEEME.txt
 ```
 
 - `eventos.csv`: eventos con los bloques aplanados.
+- `eventos.json`: eventos completos indexados por fecha y hora UTC. La clave
+  es `YYYY-MM-DD HH:MM:SS`; si hay colisión, agrega `#<event_id>`. El valor
+  conserva los cuatro bloques y `raw`.
 - `arribos.csv`: los arribos **de los eventos filtrados**.
 - `estaciones_resumen.csv`: RMS, conteos, distancias y azimut por estación.
   Se calcula al exportar y siempre lleva `derived=true`.

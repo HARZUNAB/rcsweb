@@ -314,10 +314,22 @@ def test_generar_zip_con_tres_csv_y_leeme(app):
         nombres = set(zf.namelist())
         assert nombres == {
             "eventos.csv",
+            "eventos.json",
             "arribos.csv",
             "estaciones_resumen.csv",
             "LEEME.txt",
         }
+        with zf.open("eventos.json") as bruto:
+            eventos_json = json.load(bruto)
+        assert eventos_json["2026-01-01 00:00:00"]["event_id"] == (
+            "seiscomp:000001"
+        )
+        assert (
+            eventos_json["2026-01-01 00:00:00"]["origin_quality"][
+                "used_phase_count"
+            ]
+            == 12
+        )
         with zf.open("eventos.csv") as bruto:
             filas = list(
                 csv.DictReader(io.TextIOWrapper(bruto, encoding="utf-8"))
@@ -335,6 +347,37 @@ def test_generar_zip_con_tres_csv_y_leeme(app):
         assert "Esquema canónico: 1.3" in leeme
         assert "microsegundos" in leeme
         assert "La vista web muestra un mapa" in leeme
+        assert "eventos.json" in leeme
+        assert "YYYY-MM-DD HH:MM:SS" in leeme
+
+
+def test_json_eventos_indexa_por_fecha_y_colision():
+    primero = _evento()
+    segundo = _evento()
+    segundo["event_id"] = "seiscomp:000002"
+    sin_fecha = _evento()
+    sin_fecha["event_id"] = "seiscomp:000003"
+    sin_fecha["event_time"] = None
+    fecha_invalida = _evento()
+    fecha_invalida["event_id"] = "seiscomp:000004"
+    fecha_invalida["event_time"] = "no-es-fecha"
+
+    datos = json.loads(
+        servicio._json_eventos(
+            [segundo, sin_fecha, fecha_invalida, primero]
+        )
+    )
+    assert datos["2026-01-01 00:00:00"]["event_id"] == "seiscomp:000001"
+    assert (
+        datos["2026-01-01 00:00:00#seiscomp:000002"]["event_id"]
+        == "seiscomp:000002"
+    )
+    assert datos["sin-fecha#seiscomp:000003"]["event_id"] == (
+        "seiscomp:000003"
+    )
+    assert datos["sin-fecha#seiscomp:000004"]["event_id"] == (
+        "seiscomp:000004"
+    )
 
 
 def test_generar_rechaza_fuente_no_habilitada(app):
@@ -416,6 +459,7 @@ def test_catalogo_completo_desde_pagina_de_catalogos(
     with zipfile.ZipFile(io.BytesIO(respuesta.data)) as zf:
         assert {
             "eventos.csv",
+            "eventos.json",
             "arribos.csv",
             "estaciones_resumen.csv",
             "LEEME.txt",

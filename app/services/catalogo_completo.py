@@ -3,6 +3,7 @@
 Genera un ZIP con:
 
 - ``eventos.csv``: eventos canónicos con los bloques de calidad aplanados.
+- ``eventos.json``: eventos completos indexados por fecha y hora UTC.
 - ``arribos.csv``: todos los arribos de la fuente.
 - ``estaciones_resumen.csv``: RMS, conteos, distancias y azimut por estación.
 - ``LEEME.txt``: unidades, procedencia y versión del esquema.
@@ -818,9 +819,20 @@ def _leeme(
             "",
             "Archivos:",
             "- eventos.csv: eventos con calidad, incertidumbres y metadatos.",
+            "- eventos.json: eventos completos indexados por fecha y hora UTC.",
             "- arribos.csv: todos los arribos de la fuente.",
             "- estaciones_resumen.csv: RMS, conteos, distancias y azimut por estación.",
             "- La vista web muestra un mapa de epicentro y estaciones; el ZIP no incluye mapas.",
+            "",
+            "Estructura de eventos.json:",
+            "- La clave es la fecha y hora UTC del evento (YYYY-MM-DD HH:MM:SS).",
+            "- El valor es el evento canónico completo, con los bloques",
+            "  origin_quality, origin_uncertainty, origin_metadata y",
+            "  magnitude_metadata, además de raw.",
+            "- Si dos eventos comparten la misma fecha y hora, la clave agrega",
+            "  #<event_id>.",
+            "- Si un evento no tiene fecha válida, la clave es",
+            "  sin-fecha#<event_id>.",
             "",
             "Unidades:",
             "- event_time: UTC.",
@@ -934,6 +946,38 @@ def fecha_texto(valor) -> str:
     if instante is None:
         return str(valor or "")
     return instante.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _json_eventos(eventos: list[dict]) -> str:
+    """JSON completo de los eventos, indexado por fecha y hora UTC."""
+
+    def clave_base(evento: dict) -> str:
+        valor = evento.get("event_time")
+        if not valor or _instante(valor) is None:
+            return ""
+        return fecha_texto(valor)
+
+    ordenados = sorted(
+        eventos,
+        key=lambda evento: (
+            clave_base(evento) == "",
+            clave_base(evento),
+            str(evento.get("event_id") or ""),
+        ),
+    )
+    salida: dict[str, dict] = {}
+    for evento in ordenados:
+        base = clave_base(evento)
+        if base:
+            clave = base
+            if clave in salida:
+                clave = f"{base}#{evento.get('event_id') or 'sin-id'}"
+        else:
+            clave = f"sin-fecha#{evento.get('event_id') or 'sin-id'}"
+        while clave in salida:
+            clave = f"{clave}*"
+        salida[clave] = evento
+    return json.dumps(salida, ensure_ascii=False, indent=2)
 
 
 def _instante(valor) -> datetime | None:
@@ -1326,6 +1370,7 @@ def generar(
                 CABECERA_EVENTOS,
                 (_aplanar_evento(evento) for evento in eventos),
             )
+            zf.writestr("eventos.json", _json_eventos(eventos))
             totales["arribos"] = _escribir_csv(
                 zf,
                 "arribos.csv",
