@@ -1065,6 +1065,18 @@ catálogo, con pestañas:
 La vista usa los mismos `ids_filtrados` y las mismas funciones que el ZIP, así
 que los totales coinciden con la descarga.
 
+Cada evento tiene una ficha propia con:
+
+- mapa de epicentro y estaciones construido desde los arribos descargados;
+- tabla de arribos del evento, agrupada por estación;
+- resumen derivado de las estaciones del evento;
+- parámetros completos y JSON canónico.
+
+El mapa respeta el modo online/offline y no se incluye en el ZIP. Cuando el
+evento tiene `raw_index`, la ficha ofrece **Mapa completo (perfil)** para abrir
+el detalle del catálogo con el perfil de subducción y la revisión de
+estaciones. Las celdas vacías indican que la fuente no aporta ese dato.
+
 En Central no hay un residual de tiempo separado: `pick_uncertainty` conserva
 la incertidumbre del pick y el resumen usa `uncertainty_*`. En SeisComp y
 Seisan, el residual está en `residual` y el resumen usa `residual_*`.

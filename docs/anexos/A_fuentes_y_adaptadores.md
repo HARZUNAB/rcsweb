@@ -201,6 +201,19 @@ catálogo, con cuatro pestañas:
 La vista usa las mismas funciones y los mismos `ids_filtrados` que el ZIP, de
 modo que los totales coinciden con la descarga.
 
+Cada evento tiene una ficha propia con:
+
+- mapa de epicentro y estaciones construido desde los arribos descargados;
+- tabla de arribos del evento, agrupada por estación;
+- resumen derivado de las estaciones del evento;
+- parámetros completos y JSON canónico.
+
+El mapa respeta el modo online/offline y usa solo datos del catálogo; no se
+incluye en el ZIP. Cuando el evento tiene `raw_index`, la ficha ofrece
+**Mapa completo (perfil)** para abrir el detalle del catálogo con el perfil de
+subducción y la revisión de estaciones. Las celdas vacías indican que la
+fuente no aporta ese dato; no se rellenan.
+
 Errores frecuentes:
 
 - base o credenciales no configuradas;

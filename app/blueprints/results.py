@@ -1676,6 +1676,9 @@ def catalogo_eventos_arribos(job_id: str, opcion: str):
         page_estaciones = 1
 
     eventos = catalogo_completo_service.cargar_eventos(job, opcion, ids)
+    por_evento = {
+        evento.get("event_id"): evento for evento in eventos
+    }
     filas_eventos = [
         catalogo_completo_service._aplanar_evento(evento)
         for evento in eventos
@@ -1710,6 +1713,7 @@ def catalogo_eventos_arribos(job_id: str, opcion: str):
             page=page_arribos,
             per_page=100,
             filtros=filtros_arribos,
+            eventos=por_evento,
         )
     )
     total_pag_arribos = max(1, (total_arribos + 99) // 100)
@@ -1849,7 +1853,43 @@ def catalogo_evento_ficha(job_id: str, opcion: str, event_id: str):
         abort(404)
     evento = eventos[0]
     fila = catalogo_completo_service._aplanar_evento(evento)
+    datos_evento = catalogo_completo_service.datos_evento(
+        job, opcion, evento, titulo
+    )
     params_base = _params_catalogo(job.id, opcion)
+    url_ficha = url_for(
+        "results.catalogo_evento_ficha",
+        event_id=event_id,
+        **params_base,
+    )
+    url_mapa_offline = url_for(
+        "results.catalogo_evento_ficha",
+        event_id=event_id,
+        mapa="offline",
+        **params_base,
+    )
+    url_mapa_online = url_for(
+        "results.catalogo_evento_ficha",
+        event_id=event_id,
+        mapa="online",
+        **params_base,
+    )
+    raw_index = fila.get("raw_index")
+    try:
+        raw_index = int(raw_index)
+    except (TypeError, ValueError):
+        raw_index = None
+    url_detalle_completo = None
+    if raw_index is not None:
+        url_detalle_completo = url_for(
+            "results.detalle",
+            job_id=job.id,
+            tabla="catalogos",
+            opcion=opcion,
+            fila=raw_index,
+            volver=url_ficha,
+            volver_etiqueta="Volver a la ficha",
+        )
     return render_template(
         "results/evento_catalogo.html",
         job=job,
@@ -1857,9 +1897,28 @@ def catalogo_evento_ficha(job_id: str, opcion: str, event_id: str):
         titulo=titulo,
         evento=evento,
         fila=fila,
+        fecha_evento=catalogo_completo_service.fecha_texto(
+            evento.get("event_time")
+        ),
         json_texto=json.dumps(evento, ensure_ascii=False, indent=2),
         grupos_evento=catalogo_completo_service.GRUPOS_EVENTO_FICHA,
         etiqueta_evento=catalogo_completo_service.etiqueta_evento,
+        grupos_arribos=datos_evento["grupos"],
+        columnas_arribos_evento=(
+            catalogo_completo_service.COLUMNAS_ARRIBOS_EVENTO
+        ),
+        estaciones_evento=datos_evento["estaciones"],
+        columnas_estaciones_evento=(
+            catalogo_completo_service.COLUMNAS_ESTACIONES_EVENTO
+        ),
+        totales_evento=datos_evento["totales"],
+        puntos_mapa=datos_evento["puntos_mapa"],
+        estaciones_mapa=datos_evento["estaciones_mapa"],
+        tiene_epicentro=datos_evento["tiene_epicentro"],
+        mapa_modo=modo_mapa(request.args.get("mapa")),
+        url_mapa_offline=url_mapa_offline,
+        url_mapa_online=url_mapa_online,
+        url_detalle_completo=url_detalle_completo,
         url_volver=url_for(
             "results.catalogo_eventos_arribos",
             **{**params_base, "tab": "eventos"},

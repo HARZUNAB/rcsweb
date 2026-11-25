@@ -25,6 +25,7 @@ from pathlib import Path
 from app.domain.catalogs import canonical
 from app.domain.catalogs.schema import SCHEMA_VERSION
 from app.domain.catalogs.stations import distancia_km
+from app.services import formatting
 from app.services.workspace import ruta_workspace
 
 
@@ -189,6 +190,38 @@ CABECERA_ESTACIONES = (
     "used_in_solution",
     "pick_authors",
     "derived",
+)
+
+# Columnas compactas de la ficha por evento. El detalle completo sigue
+# disponible en las pestañas globales y en el CSV.
+COLUMNAS_ARRIBOS_EVENTO = (
+    ("network", "Red"),
+    ("station", "Estación"),
+    ("channel", "Canal"),
+    ("phase", "Fase"),
+    ("hora", "Hora"),
+    ("segundos_evento_texto", "t - t0 (s)"),
+    ("is_used_in_solution", "Usada"),
+    ("weight_texto", "Peso"),
+    ("residual_texto", "Residual (s)"),
+    ("distancia_texto", "Distancia (km)"),
+    ("azimut_texto", "Azimut (°)"),
+    ("pick_author", "Autor del pick"),
+    ("snr_texto", "SNR"),
+    ("qc", "QC"),
+)
+
+COLUMNAS_ESTACIONES_EVENTO = (
+    ("network", "Red"),
+    ("station", "Estación"),
+    ("channel", "Canal"),
+    ("used_phases", "Usadas"),
+    ("associated_phases", "Asociadas"),
+    ("residual_rms_texto", "RMS residual (s)"),
+    ("residual_max_texto", "Residual máx. (s)"),
+    ("distancia_texto", "Distancia (km)"),
+    ("azimut_texto", "Azimut medio (°)"),
+    ("pick_authors", "Autores"),
 )
 
 ETIQUETAS_EVENTO = {
@@ -787,6 +820,7 @@ def _leeme(
             "- eventos.csv: eventos con calidad, incertidumbres y metadatos.",
             "- arribos.csv: todos los arribos de la fuente.",
             "- estaciones_resumen.csv: RMS, conteos, distancias y azimut por estación.",
+            "- La vista web muestra un mapa de epicentro y estaciones; el ZIP no incluye mapas.",
             "",
             "Unidades:",
             "- event_time: UTC.",
@@ -857,19 +891,31 @@ def pagina_arribos(
     page: int = 1,
     per_page: int = 100,
     filtros: dict | None = None,
+    eventos: dict[str, dict] | None = None,
 ) -> tuple[int, list[dict]]:
-    """Total filtrado y la página pedida, en una sola pasada."""
+    """Total filtrado y la página pedida, en una sola pasada.
+
+    Las filas salen aplanadas para que ``distance_km_calc`` coincida con
+    ``arribos.csv``. ``eventos`` aporta las coordenadas necesarias para
+    calcularla.
+    """
     inicio = max(0, (page - 1) * per_page)
     fin = inicio + per_page
     total = 0
     filas: list[dict] = []
+    por_evento = eventos or {}
     ruta = canonical.ruta_arribos(ruta_workspace(job.id), fuente)
     for arribo in _iter_arribos(ruta, ids):
         if not _pasa_filtro_arribo(arribo, filtros):
             continue
         total += 1
         if inicio < total <= fin:
-            filas.append(arribo)
+            filas.append(
+                _aplanar_arribo(
+                    arribo,
+                    por_evento.get(arribo.get("event_id") or ""),
+                )
+            )
     return total, filas
 
 
@@ -880,6 +926,325 @@ def resumen_estaciones(
     por_evento = {evento.get("event_id"): evento for evento in eventos}
     ruta = canonical.ruta_arribos(ruta_workspace(job.id), fuente)
     return _resumen_estaciones(_iter_arribos(ruta, ids), por_evento)
+
+
+def fecha_texto(valor) -> str:
+    """Fecha legible en UTC, sin depender del formato de la fuente."""
+    instante = _instante(valor)
+    if instante is None:
+        return str(valor or "")
+    return instante.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _instante(valor) -> datetime | None:
+    if not valor:
+        return None
+    limpio = " ".join(str(valor).strip().split())
+    if len(limpio) >= 2 and limpio[-2:] == "60":
+        limpio = limpio[:-2] + "59"
+    limpio = limpio.replace("Z", "+00:00")
+    try:
+        instante = datetime.fromisoformat(limpio)
+    except ValueError:
+        return None
+    if instante.tzinfo is not None:
+        instante = instante.astimezone(UTC).replace(tzinfo=None)
+    return instante
+
+
+def _hora_texto(valor) -> str:
+    instante = _instante(valor)
+    if instante is None:
+        return str(valor or "")
+    return instante.strftime("%H:%M:%S")
+
+
+def _segundos_evento(evento: dict, arribo: dict) -> float | None:
+    origen = _instante(evento.get("event_time"))
+    llegada = _instante(arribo.get("pick_time"))
+    if origen is None or llegada is None:
+        return None
+    return (llegada - origen).total_seconds()
+
+
+def _rango_texto(minimo, maximo) -> str:
+    if minimo is None and maximo is None:
+        return ""
+    if minimo is None:
+        return formatting.numero(maximo, 1)
+    if maximo is None:
+        return formatting.numero(minimo, 1)
+    if abs(maximo - minimo) < 0.05:
+        return formatting.numero(minimo, 1)
+    return (
+        f"{formatting.numero(minimo, 1)}"
+        f"–{formatting.numero(maximo, 1)}"
+    )
+
+
+def _fila_arribo_evento(arribo: dict, evento: dict) -> dict:
+    fila = _aplanar_arribo(arribo, evento)
+    segundos = _segundos_evento(evento, arribo)
+    fila.update(
+        {
+            "hora": _hora_texto(arribo.get("pick_time")),
+            "segundos_evento": segundos,
+            "segundos_evento_texto": (
+                formatting.numero(segundos, 1, signo=True)
+                if segundos is not None
+                else ""
+            ),
+            "weight_texto": formatting.numero(arribo.get("weight"), 2),
+            "residual_texto": formatting.numero(
+                arribo.get("residual"), 2, signo=True
+            ),
+            "distancia_texto": formatting.numero(
+                fila.get("distance_km_calc"), 1
+            ),
+            "azimut_texto": formatting.numero(arribo.get("azimuth"), 1),
+            "snr_texto": formatting.numero(arribo.get("snr"), 1),
+        }
+    )
+    return fila
+
+
+def _grupo_arribos_evento(filas: list[dict]) -> list[dict]:
+    grupos: dict[tuple[str, str], list[dict]] = {}
+    for fila in filas:
+        clave = (
+            str(fila.get("network") or ""),
+            str(fila.get("station") or ""),
+        )
+        grupos.setdefault(clave, []).append(fila)
+
+    salida = []
+    for clave, integrantes in grupos.items():
+        integrantes.sort(
+            key=lambda fila: (
+                _instante(fila.get("pick_time")) is None,
+                _instante(fila.get("pick_time")) or datetime.max,
+                str(fila.get("phase") or ""),
+            )
+        )
+        usadas = sum(
+            1 for fila in integrantes if fila.get("is_used_in_solution")
+        )
+        primera = next(
+            (
+                fila.get("hora")
+                for fila in integrantes
+                if fila.get("hora")
+            ),
+            "",
+        )
+        salida.append(
+            {
+                "red": clave[0],
+                "estacion": clave[1],
+                "etiqueta": " ".join(
+                    parte for parte in clave if parte
+                ),
+                "total": len(integrantes),
+                "usadas": usadas,
+                "no_usadas": len(integrantes) - usadas,
+                "llegada": primera,
+                "filas": integrantes,
+            }
+        )
+
+    salida.sort(
+        key=lambda grupo: (
+            _instante(grupo["filas"][0].get("pick_time")) is None,
+            _instante(grupo["filas"][0].get("pick_time"))
+            or datetime.max,
+            grupo["etiqueta"],
+        )
+    )
+    return salida
+
+
+def _filas_estaciones_evento(resumen: list[dict]) -> list[dict]:
+    filas = []
+    for fila in resumen:
+        filas.append(
+            {
+                **fila,
+                "residual_rms_texto": formatting.numero(
+                    fila.get("residual_rms_s"), 2
+                ),
+                "residual_max_texto": formatting.numero(
+                    fila.get("residual_max_abs_s"), 2
+                ),
+                "distancia_texto": _rango_texto(
+                    fila.get("distance_min_km"),
+                    fila.get("distance_max_km"),
+                ),
+                "azimut_texto": formatting.numero(
+                    fila.get("azimuth_mean_deg"), 1
+                ),
+            }
+        )
+    filas.sort(
+        key=lambda fila: (
+            -(fila.get("used_phases") or 0),
+            str(fila.get("network") or ""),
+            str(fila.get("station") or ""),
+            str(fila.get("channel") or ""),
+        )
+    )
+    return filas
+
+
+def _punto_epicentro(
+    evento: dict, etiqueta_fuente: str = ""
+) -> dict | None:
+    lat = _numero(evento.get("latitude"))
+    lon = _numero(evento.get("longitude"))
+    if lat is None or lon is None:
+        return None
+    return {
+        "lat": lat,
+        "lon": lon,
+        "prof": _numero(evento.get("depth_km")),
+        "fecha": fecha_texto(evento.get("event_time")),
+        "etiqueta": etiqueta_fuente or evento.get("source_id") or "",
+        "fuente": evento.get("source_id") or "",
+        "mag": evento.get("magnitude"),
+        "tipo": evento.get("magnitude_type") or "",
+        "analista": evento.get("analyst") or "",
+        "estado": evento.get("status") or "",
+        "rol": "local",
+        "color": "#d62728",
+        "radio": 10,
+        "clave": evento.get("event_id") or "",
+        "evento": evento.get("event_id") or "",
+    }
+
+
+def _estaciones_mapa_evento(filas: list[dict]) -> list[dict]:
+    grupos: dict[tuple[str, str], dict] = {}
+    for fila in filas:
+        lat = _numero(fila.get("station_latitude"))
+        lon = _numero(fila.get("station_longitude"))
+        if lat is None or lon is None:
+            continue
+        clave = (
+            str(fila.get("network") or ""),
+            str(fila.get("station") or ""),
+        )
+        punto = grupos.get(clave)
+        if punto is None:
+            usada = bool(fila.get("is_used_in_solution"))
+            punto = {
+                "tipo": "arribo",
+                "red": clave[0],
+                "estacion": clave[1],
+                "lat": lat,
+                "lon": lon,
+                "distancia_km": fila.get("distance_km_calc"),
+                "categoria": "arribo",
+                "fase": str(fila.get("phase") or ""),
+                "fases": [],
+                "estado_ondas": "observada",
+                "estado": "observada",
+                "relleno": "#0b7285" if usada else "#ffffff",
+                "borde": "#0b7285" if usada else "#f08c00",
+                "usada": usada,
+            }
+            grupos[clave] = punto
+        else:
+            if fila.get("is_used_in_solution"):
+                punto["usada"] = True
+                punto["relleno"] = "#0b7285"
+                punto["borde"] = "#0b7285"
+            if (
+                punto.get("distancia_km") is None
+                and fila.get("distance_km_calc") is not None
+            ):
+                punto["distancia_km"] = fila.get("distance_km_calc")
+        punto["fases"].append(
+            {
+                "fase": str(fila.get("phase") or ""),
+                "llegada": str(fila.get("hora") or ""),
+                "segundos": fila.get("segundos_evento"),
+                "modo": str(fila.get("pick_status") or ""),
+                "usada": (
+                    "Sí" if fila.get("is_used_in_solution") else "No"
+                ),
+            }
+        )
+
+    for punto in grupos.values():
+        con_tiempo = [
+            fase
+            for fase in punto["fases"]
+            if fase.get("segundos") is not None
+        ]
+        if con_tiempo:
+            punto["fase"] = min(
+                con_tiempo, key=lambda fase: fase["segundos"]
+            )["fase"]
+        if punto.get("distancia_km") is not None:
+            punto["distancia_km"] = round(punto["distancia_km"], 1)
+
+    return sorted(
+        grupos.values(),
+        key=lambda punto: (
+            punto.get("distancia_km") is None,
+            punto.get("distancia_km") or 0.0,
+            punto.get("estacion") or "",
+            punto.get("red") or "",
+        ),
+    )
+
+
+def datos_evento(
+    job, fuente: str, evento: dict, etiqueta_fuente: str = ""
+) -> dict:
+    """Arribos, estaciones y mapa de un evento, solo con datos canónicos."""
+    ruta = canonical.ruta_arribos(ruta_workspace(job.id), fuente)
+    arribos = list(
+        _iter_arribos(ruta, {evento.get("event_id")})
+    )
+    filas = [_fila_arribo_evento(arribo, evento) for arribo in arribos]
+    grupos = _grupo_arribos_evento(filas)
+    resumen = _resumen_estaciones(
+        arribos, {evento.get("event_id"): evento}
+    )
+    estaciones = _filas_estaciones_evento(resumen)
+    punto = _punto_epicentro(evento, etiqueta_fuente)
+    estaciones_mapa = _estaciones_mapa_evento(filas)
+    claves_sin_coordenadas = {
+        (
+            str(fila.get("network") or ""),
+            str(fila.get("station") or ""),
+        )
+        for fila in filas
+        if _numero(fila.get("station_latitude")) is None
+        or _numero(fila.get("station_longitude")) is None
+    }
+    usadas = sum(
+        1 for fila in filas if fila.get("is_used_in_solution")
+    )
+    return {
+        "arribos": filas,
+        "grupos": grupos,
+        "estaciones": estaciones,
+        "puntos_mapa": [punto] if punto else [],
+        "estaciones_mapa": estaciones_mapa,
+        "totales": {
+            "arribos": len(filas),
+            "usadas": usadas,
+            "no_usadas": len(filas) - usadas,
+            "estaciones": len(estaciones),
+            "estaciones_mapa": len(estaciones_mapa),
+            "estaciones_sin_coordenadas": len(
+                claves_sin_coordenadas
+            ),
+        },
+        "tiene_epicentro": punto is not None,
+        "tiene_estaciones_mapa": bool(estaciones_mapa),
+    }
 
 
 def texto_leeme(

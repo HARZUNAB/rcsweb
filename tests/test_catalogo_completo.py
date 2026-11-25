@@ -15,7 +15,7 @@ from app.domain.catalogs import canonical
 from app.extensions import db
 from app.models import Job, JobSource, User, nuevo_uuid
 from app.services import catalogo_completo as servicio
-from app.services.workspace import crear_workspace
+from app.services.workspace import crear_workspace, ruta_workspace
 
 
 def _evento() -> dict:
@@ -230,6 +230,80 @@ def test_resumen_estaciones_calcula_rms_y_distancia():
     assert fila["derived"] is True
 
 
+def test_fecha_texto_acepta_formatos_iso():
+    assert (
+        servicio.fecha_texto("2026-01-01T00:00:10Z")
+        == "2026-01-01 00:00:10"
+    )
+    assert (
+        servicio.fecha_texto("2026-01-01T00:00:10+00:00")
+        == "2026-01-01 00:00:10"
+    )
+    assert servicio.fecha_texto("") == ""
+
+
+def test_datos_evento_arma_arribos_mapa_y_estaciones(app):
+    job = _preparar(app)
+    datos = servicio.datos_evento(
+        job, "seiscomp", _evento(), "SeisComp"
+    )
+    assert datos["totales"]["arribos"] == 2
+    assert datos["totales"]["usadas"] == 2
+    assert datos["totales"]["no_usadas"] == 0
+    assert datos["totales"]["estaciones"] == 1
+    assert datos["totales"]["estaciones_mapa"] == 1
+    assert datos["totales"]["estaciones_sin_coordenadas"] == 0
+
+    assert datos["puntos_mapa"][0]["lat"] == -30.0
+    assert datos["puntos_mapa"][0]["lon"] == -71.0
+    assert datos["puntos_mapa"][0]["clave"] == "seiscomp:000001"
+
+    estacion = datos["estaciones_mapa"][0]
+    assert estacion["red"] == "C1"
+    assert estacion["estacion"] == "ABC"
+    assert estacion["usada"] is True
+    assert len(estacion["fases"]) == 2
+    assert estacion["fases"][0]["usada"] == "Sí"
+
+    grupo = datos["grupos"][0]
+    assert grupo["etiqueta"] == "C1 ABC"
+    assert grupo["total"] == 2
+    assert grupo["usadas"] == 2
+    assert grupo["filas"][0]["hora"] == "00:00:10"
+    assert grupo["filas"][0]["distancia_texto"] == "55.6"
+
+    resumen = datos["estaciones"][0]
+    assert resumen["used_phases"] == 2
+    assert resumen["residual_rms_texto"] == "0.32"
+    assert resumen["distancia_texto"] == "55.6"
+
+
+def test_datos_evento_avisa_estaciones_sin_coordenadas(app):
+    job = _preparar(app)
+    ruta = (
+        ruta_workspace(job.id)
+        / "catalogo"
+        / "seiscomp"
+        / "arribos.jsonl"
+    )
+    arribo = _arribo(-0.2, 90.0)
+    arribo["station_latitude"] = None
+    arribo["station_longitude"] = None
+    ruta.write_text(
+        json.dumps(arribo, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    datos = servicio.datos_evento(
+        job, "seiscomp", _evento(), "SeisComp"
+    )
+    assert datos["totales"]["estaciones_sin_coordenadas"] == 1
+    assert datos["estaciones_mapa"] == []
+    assert datos["puntos_mapa"][0]["lat"] == -30.0
+    assert datos["tiene_epicentro"] is True
+    assert datos["tiene_estaciones_mapa"] is False
+
+
 def test_generar_zip_con_tres_csv_y_leeme(app):
     job = _preparar(app)
     ruta, totales = servicio.generar(job, "seiscomp")
@@ -260,6 +334,7 @@ def test_generar_zip_con_tres_csv_y_leeme(app):
         leeme = zf.read("LEEME.txt").decode("utf-8")
         assert "Esquema canónico: 1.3" in leeme
         assert "microsegundos" in leeme
+        assert "La vista web muestra un mapa" in leeme
 
 
 def test_generar_rechaza_fuente_no_habilitada(app):
@@ -513,7 +588,11 @@ def test_vista_eventos_arribos_y_ficha(app, client, login, monkeypatch):
         url, query_string={"tab": "arribos", "estacion": "ABC"}
     )
     assert arribos.status_code == 200
-    assert "ABC" in arribos.get_data(as_text=True)
+    texto_arribos = arribos.get_data(as_text=True)
+    assert "ABC" in texto_arribos
+    assert "distance_km_calc" in texto_arribos
+    assert "55.597" in texto_arribos
+    assert "evento/seiscomp:000001" in texto_arribos
 
     leeme = client.get(url, query_string={"tab": "leeme"})
     assert "Esquema canónico" in leeme.get_data(as_text=True)
@@ -524,10 +603,77 @@ def test_vista_eventos_arribos_y_ficha(app, client, login, monkeypatch):
     texto_ficha = ficha.get_data(as_text=True)
     assert "Calidad" in texto_ficha
     assert "Incertidumbre" in texto_ficha
+    assert "mapa-datos" in texto_ficha
+    assert "mapa-estaciones-iniciales" in texto_ficha
+    assert "Arribos del evento" in texto_ficha
+    assert "Estaciones del evento" in texto_ficha
+    assert "Mapa completo (perfil)" in texto_ficha
+    assert "C1 ABC" in texto_ficha
+    assert "00:00:10" in texto_ficha
+    assert "55.6" in texto_ficha
     assert "JSON completo" in texto_ficha
+
+    ficha_offline = client.get(
+        url + "/evento/seiscomp:000001",
+        query_string={"mapa": "offline"},
+    )
+    assert ficha_offline.status_code == 200
+    assert "Offline" in ficha_offline.get_data(as_text=True)
 
     fuera = client.get(url + "/evento/seiscomp:999999")
     assert fuera.status_code == 404
+
+
+def test_ficha_evento_sin_arribos(app, client, login, monkeypatch):
+    job = _preparar(app)
+    ruta = (
+        ruta_workspace(job.id)
+        / "catalogo"
+        / "seiscomp"
+        / "arribos.jsonl"
+    )
+    ruta.write_text("", encoding="utf-8")
+    monkeypatch.setattr(
+        "app.blueprints.results._datos_catalogo",
+        _datos_catalogo_filtrados,
+    )
+    login()
+    url = _url_vista(job) + "/evento/seiscomp:000001"
+    respuesta = client.get(url)
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    assert "Este evento no tiene arribos" in html
+    assert "mapa-datos" in html
+    assert "mapa-estaciones-iniciales" not in html
+
+
+def test_ficha_evento_sin_epicentro(app, client, login, monkeypatch):
+    job = _preparar(app)
+    evento = _evento()
+    evento["latitude"] = None
+    evento["longitude"] = None
+    ruta = (
+        ruta_workspace(job.id)
+        / "catalogo"
+        / "seiscomp"
+        / "eventos.jsonl"
+    )
+    ruta.write_text(
+        json.dumps(evento, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "app.blueprints.results._datos_catalogo",
+        _datos_catalogo_filtrados,
+    )
+    login()
+    url = _url_vista(job) + "/evento/seiscomp:000001"
+    respuesta = client.get(url)
+    assert respuesta.status_code == 200
+    html = respuesta.get_data(as_text=True)
+    assert "no tiene coordenadas de epicentro" in html
+    assert "mapa-datos" not in html
+    assert "Arribos del evento" in html
 
 
 def test_vista_eventos_arribos_permisos_y_flag(

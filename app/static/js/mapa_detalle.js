@@ -5,6 +5,17 @@
   const datos = document.getElementById("mapa-datos");
   const contenedor = document.getElementById("mapa-detalle");
   const perfil = document.getElementById("perfil-detalle");
+  const estacionesInicialesEl = document.getElementById(
+    "mapa-estaciones-iniciales"
+  );
+  let estacionesIniciales = [];
+  try {
+    estacionesIniciales = estacionesInicialesEl
+      ? JSON.parse(estacionesInicialesEl.textContent || "[]")
+      : [];
+  } catch (error) {
+    estacionesIniciales = [];
+  }
   const panelContenido = document.getElementById("detalle-evento-contenido");
   const cerrarDetalle = document.getElementById("cerrar-detalle-evento");
   if (!datos || !contenedor) {
@@ -2178,7 +2189,9 @@
       }),
       customdata: puntos,
       marker: {
-        size: 11,
+        size: puntos.map(function (punto) {
+          return punto.radio ? punto.radio + 3 : 11;
+        }),
         color: puntos.map(colorPunto),
         line: {
           color: puntos.map(function (punto) {
@@ -2196,8 +2209,9 @@
     if (superpuestosMapa) {
       trazas.push(superpuestosMapa);
     }
-    const latitudes = puntos.map(function (punto) { return punto.lat; });
-    const longitudes = puntos.map(function (punto) { return punto.lon; });
+    const puntosVista = puntos.concat(estacionesInicialesValidas());
+    const latitudes = puntosVista.map(function (punto) { return punto.lat; });
+    const longitudes = puntosVista.map(function (punto) { return punto.lon; });
     const latMin = Math.min.apply(null, latitudes);
     const latMax = Math.max.apply(null, latitudes);
     const lonMin = Math.min.apply(null, longitudes);
@@ -2289,11 +2303,17 @@
         }),
         text: validas.map(textoEstacionPropagacion),
         color: validas.map(function (punto) {
-          return estadoOndasDePunto(punto) === "observada"
-            ? COLOR_PROPAGACION
-            : "#ffffff";
+          return (
+            punto.relleno ||
+            (estadoOndasDePunto(punto) === "observada"
+              ? COLOR_PROPAGACION
+              : "#ffffff")
+          );
         }),
         borde: validas.map(function (punto) {
+          if (punto.borde) {
+            return punto.borde;
+          }
           const estado = estadoOndasDePunto(punto);
           if (estado === "sin_datos") {
             return "#6c757d";
@@ -2641,6 +2661,9 @@
               if (listado) {
                 lineas.push(listado);
               }
+              if (punto.usada !== undefined) {
+                lineas.push("Usada: " + (punto.usada ? "Sí" : "No"));
+              }
               if (fases.length) {
                 lineas.push(fases.join("<br>"));
               }
@@ -2649,8 +2672,15 @@
             marker: {
               symbol: "triangle-up",
               size: 10,
-              color: COLOR_PROPAGACION,
-              line: { color: "#ffffff", width: 0.5 },
+              color: arribos.map(function (punto) {
+                return punto.relleno || COLOR_PROPAGACION;
+              }),
+              line: {
+                color: arribos.map(function (punto) {
+                  return punto.borde || "#ffffff";
+                }),
+                width: 0.8,
+              },
             },
             hoverinfo: "text",
             showlegend: true,
@@ -2984,6 +3014,15 @@
         }
       },
     };
+    if (estacionesIniciales.length) {
+      window.RCSMapaDetalle.mostrarEstaciones(estacionesIniciales);
+    }
+  }
+
+  function estacionesInicialesValidas() {
+    return (estacionesIniciales || []).filter(function (punto) {
+      return Number.isFinite(punto.lat) && Number.isFinite(punto.lon);
+    });
   }
 
   function limitesIniciales(coordenadas) {
@@ -3050,7 +3089,7 @@
     puntos.forEach(function (punto) {
       const borde = bordePunto(punto);
       const marcador = window.L.circleMarker([punto.lat, punto.lon], {
-        radius: 8,
+        radius: punto.radio || 8,
         color: borde.color,
         fillColor: colorPunto(punto),
         fillOpacity: 0.85,
@@ -3073,6 +3112,9 @@
         seleccionar(punto, ancla);
       });
       marcadoresLeaflet.push(marcador);
+      coordenadas.push([punto.lat, punto.lon]);
+    });
+    estacionesInicialesValidas().forEach(function (punto) {
       coordenadas.push([punto.lat, punto.lon]);
     });
     const limites = limitesIniciales(coordenadas);
@@ -3167,12 +3209,15 @@
           }
           const estado = estadoOndasDe(punto);
           const relleno =
-            estado === "observada" ? COLOR_PROPAGACION : "#ffffff";
-          let borde = COLOR_PROPAGACION;
-          if (estado === "sin_datos") {
-            borde = "#6c757d";
-          } else if (estado === "sin_consultar") {
-            borde = "#ced4da";
+            punto.relleno ||
+            (estado === "observada" ? COLOR_PROPAGACION : "#ffffff");
+          let borde = punto.borde || COLOR_PROPAGACION;
+          if (!punto.borde) {
+            if (estado === "sin_datos") {
+              borde = "#6c757d";
+            } else if (estado === "sin_consultar") {
+              borde = "#ced4da";
+            }
           }
           const marcador = window.L.marker([punto.lat, punto.lon], {
             icon: iconoEstacionPropagacion(relleno, borde),
@@ -3399,6 +3444,9 @@
         circulosFrenteS = [];
       },
     };
+    if (estacionesIniciales.length) {
+      window.RCSMapaDetalle.mostrarEstaciones(estacionesIniciales);
+    }
   }
 
   if (historicoCheck) {

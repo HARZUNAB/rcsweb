@@ -1,0 +1,80 @@
+{% set url_offline = url_mapa_offline %}
+{% set url_online = url_mapa_online %}
+<div class="card border-0 shadow-sm mb-3" id="mapa-evento-catalogo">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <div>
+        <h2 class="h6 text-uppercase text-secondary mb-0">
+          Mapa del evento
+        </h2>
+        <div class="small text-secondary">
+          Epicentro y estaciones de los arribos descargados.
+        </div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        {% if mapa_modo == 'online' %}
+        <span class="badge text-bg-success" id="mapa-modo-badge">
+          Online
+        </span>
+        <a class="btn btn-sm btn-outline-secondary" id="enlace-mapa-modo"
+           href="{{ url_offline }}">Usar offline</a>
+        {% else %}
+        <span class="badge text-bg-secondary" id="mapa-modo-badge">
+          Offline
+        </span>
+        <a class="btn btn-sm btn-outline-secondary" id="enlace-mapa-modo"
+           href="{{ url_online }}">Intentar online</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-3 small mb-2" id="leyenda-mapa">
+      <span>
+        <span class="text-danger me-1">●</span>Epicentro
+      </span>
+      <span>
+        <span style="color: #0b7285;" class="me-1">▲</span>Estación usada
+      </span>
+      <span>
+        <span style="color: #f08c00;" class="me-1">△</span>Estación no usada
+      </span>
+    </div>
+
+    <div id="mapa-aviso" class="alert alert-warning small d-none"
+         role="status">
+      <span id="mapa-aviso-texto">
+        Sin conexión: se muestra el mapa local.
+      </span>
+    </div>
+
+    <div id="mapa-detalle" class="rounded border"
+         style="height: 430px;"
+         data-modo="{{ mapa_modo }}"
+         data-clave-inicial=""
+         data-offline-url="{{ url_offline }}"
+         data-online-url="{{ url_online }}"
+         data-url-regiones="{{ url_for('static', filename='data/chile_regiones.json') }}"
+         data-url-historico=""
+         data-topojson-url="{{ url_for('static', filename='vendor/plotly/topojson/') }}"></div>
+
+    <div class="small text-secondary mt-2"
+         id="detalle-evento-contenido">
+      Pase el cursor por el epicentro para ver sus datos.
+    </div>
+
+    {% if totales_evento.estaciones_sin_coordenadas %}
+    <div class="alert alert-light border small py-2 mt-2 mb-0">
+      {{ totales_evento.estaciones_sin_coordenadas }}
+      estación{{ '' if totales_evento.estaciones_sin_coordenadas == 1 else 'es' }}
+      sin coordenadas no se muestra{{ '' if totales_evento.estaciones_sin_coordenadas == 1 else 'n' }}
+      en el mapa. Sus arribos sí están en la tabla.
+    </div>
+    {% endif %}
+  </div>
+  <script type="application/json"
+          id="mapa-datos">{{ puntos_mapa|tojson }}</script>
+  {% if estaciones_mapa %}
+  <script type="application/json"
+          id="mapa-estaciones-iniciales">{{ estaciones_mapa|tojson }}</script>
+  {% endif %}
+</div>

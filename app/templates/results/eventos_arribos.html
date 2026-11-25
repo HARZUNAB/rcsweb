@@ -93,7 +93,9 @@
       <div>
         <h2 class="h6 text-uppercase text-secondary mb-1">Eventos</h2>
         <p class="small text-secondary mb-0">
-          Tabla agrupada. La ficha muestra todos los parámetros del evento.
+          Tabla agrupada. La ficha muestra el mapa, los arribos y todos los
+          parámetros del evento. Las celdas vacías indican que la fuente no
+          aporta ese dato.
         </p>
       </div>
       <span class="small text-secondary">{{ totales.eventos }} eventos</span>
@@ -185,6 +187,11 @@
         </a>
       </div>
     </form>
+    <p class="small text-secondary mb-3">
+      Una fila por arribo. Las celdas vacías indican que la fuente no aporta
+      ese dato. <code>distance_km_calc</code> se calcula desde las
+      coordenadas del evento y de la estación.
+    </p>
     <div class="table-responsive">
       <table class="table table-sm table-bordered table-hover align-middle mb-0">
         <thead class="table-light">
@@ -200,7 +207,15 @@
           {% for fila in arribos %}
           <tr>
             {% for clave in cabecera_arribos %}
-            <td class="small text-nowrap">{{ valor(fila.get(clave)) }}</td>
+            <td class="small text-nowrap">
+              {% if clave == 'event_id' and fila.get('event_id') %}
+              <a href="{{ url_ficha(fila.get('event_id')) }}">
+                {{ valor(fila.get(clave)) }}
+              </a>
+              {% else %}
+              {{ valor(fila.get(clave)) }}
+              {% endif %}
+            </td>
             {% endfor %}
           </tr>
           {% endfor %}
@@ -217,8 +232,12 @@
   <div class="card-body">
     <h2 class="h6 text-uppercase text-secondary mb-1">Estaciones</h2>
     <p class="small text-secondary mb-3">
-      Resumen derivado de los arribos filtrados. Siempre lleva
-      <code>derived=True</code>.
+      Resumen derivado de los arribos filtrados. Sirve para detectar
+      estaciones con residuales altos, ver cuántas fases aportaron a la
+      solución y revisar la cobertura (distancias y azimut). Siempre lleva
+      <code>derived=True</code>. Las celdas vacías indican que la fuente no
+      aporta ese dato.
+      <a href="{{ url_tab('leeme') }}">Ver definiciones en el LEEME</a>.
     </p>
     <div class="table-responsive">
       <table class="table table-sm table-bordered table-hover align-middle mb-0">

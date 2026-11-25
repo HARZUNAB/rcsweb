@@ -21,7 +21,10 @@
     </div>
     <h1 class="h3 mb-1">{{ evento.event_id }}</h1>
     <p class="text-secondary mb-0">
-      Ficha completa del evento extraído.
+      {{ fecha_evento }} UTC ·
+      M {{ valor(fila.get("magnitude")) }}
+      {{ fila.get("magnitude_type") or "" }} ·
+      {{ valor(fila.get("depth_km")) }} km
     </p>
   </div>
   <div class="d-flex flex-wrap gap-2">
@@ -29,80 +32,265 @@
       Volver a eventos
     </a>
     <a class="btn btn-outline-primary" href="{{ url_arribos }}">
-      Ver arribos de este evento
+      Ver en Arribos
     </a>
+    {% if url_detalle_completo %}
+    <a class="btn btn-outline-secondary" href="{{ url_detalle_completo }}">
+      Mapa completo (perfil)
+    </a>
+    {% endif %}
   </div>
 </div>
 
 <div class="row g-3 mb-3">
-  <div class="col-12 col-lg-6">
+  <div class="col-12 col-lg-7">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
         <div class="text-secondary small text-uppercase mb-1">Evento</div>
         <div class="fs-5">{{ evento.event_id }}</div>
-        <div class="text-secondary small">
-          {{ evento.event_time }} ·
-          {{ etiqueta_evento("magnitude") }} {{ valor(fila.get("magnitude")) }}
-          {{ fila.get("magnitude_type") or "" }}
+        <div class="text-secondary small mb-2">
+          {{ fecha_evento }} UTC
+        </div>
+        <div class="row g-2 small">
+          <div class="col-6 col-md-4">
+            <div class="text-secondary">Magnitud</div>
+            <div>
+              {{ valor(fila.get("magnitude")) }}
+              {{ fila.get("magnitude_type") or "" }}
+            </div>
+          </div>
+          <div class="col-6 col-md-4">
+            <div class="text-secondary">Profundidad</div>
+            <div>{{ valor(fila.get("depth_km")) }} km</div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="text-secondary">Coordenadas</div>
+            <div class="text-break">
+              {{ valor(fila.get("latitude")) }},
+              {{ valor(fila.get("longitude")) }}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
-  <div class="col-12 col-lg-6">
+  <div class="col-12 col-lg-5">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body small">
-        <div class="d-flex justify-content-between">
+        <div class="d-flex justify-content-between gap-2">
           <span class="text-secondary">Fuente</span>
-          <span>{{ valor(fila.get("source_id")) }}</span>
+          <span class="text-end">{{ valor(fila.get("source_id")) }}</span>
         </div>
-        <div class="d-flex justify-content-between">
+        <div class="d-flex justify-content-between gap-2">
+          <span class="text-secondary">ID en la fuente</span>
+          <span class="text-end">
+            {{ valor(fila.get("source_event_id")) }}
+          </span>
+        </div>
+        <div class="d-flex justify-content-between gap-2">
           <span class="text-secondary">Origen</span>
-          <span>{{ valor(fila.get("origin_id")) }}</span>
+          <span class="text-end">{{ valor(fila.get("origin_id")) }}</span>
         </div>
-        <div class="d-flex justify-content-between">
+        <div class="d-flex justify-content-between gap-2">
           <span class="text-secondary">Base de datos</span>
-          <span>{{ valor(fila.get("database")) }}</span>
+          <span class="text-end">{{ valor(fila.get("database")) }}</span>
         </div>
-        <div class="d-flex justify-content-between">
-          <span class="text-secondary">Estado</span>
-          <span>{{ valor(fila.get("status")) }}</span>
+        <div class="d-flex justify-content-between gap-2">
+          <span class="text-secondary">Agencia</span>
+          <span class="text-end">{{ valor(fila.get("agency")) }}</span>
         </div>
-        <div class="d-flex justify-content-between">
+        <div class="d-flex justify-content-between gap-2">
           <span class="text-secondary">Analista</span>
-          <span>{{ valor(fila.get("analyst")) }}</span>
+          <span class="text-end">{{ valor(fila.get("analyst")) }}</span>
+        </div>
+        <div class="d-flex justify-content-between gap-2">
+          <span class="text-secondary">Estado</span>
+          <span class="text-end">{{ valor(fila.get("status")) }}</span>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-{% for grupo, claves in grupos_evento %}
+{% if tiene_epicentro %}
+{% include "results/_mapa_evento.html" %}
+{% else %}
+<div class="alert alert-warning">
+  El evento no tiene coordenadas de epicentro. No se puede dibujar el mapa,
+  pero sus arribos sí están disponibles en la tabla.
+</div>
+{% endif %}
+
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body">
-    <h2 class="h6 text-uppercase text-secondary mb-3">{{ grupo }}</h2>
-    <div class="row g-2">
-      {% for clave in claves %}
-      <div class="col-12 col-md-6 col-xl-4">
-        <div class="border rounded p-2 h-100">
-          <div class="small text-secondary">{{ etiqueta_evento(clave) }}</div>
-          <div class="small text-break" title="{{ clave }}">
-            {{ valor(fila.get(clave)) }}
-          </div>
-        </div>
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+      <div>
+        <h2 class="h6 text-uppercase text-secondary mb-1">
+          Arribos del evento
+        </h2>
+        <p class="small text-secondary mb-0">
+          {{ totales_evento.arribos }} arribos ·
+          {{ totales_evento.usadas }} usadas ·
+          {{ totales_evento.no_usadas }} no usadas ·
+          {{ totales_evento.estaciones }} estaciones.
+          Las celdas vacías indican que la fuente no aporta ese dato.
+        </p>
       </div>
-      {% endfor %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_arribos }}">
+        Ver tabla completa
+      </a>
     </div>
+    {% if grupos_arribos %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            {% for clave, titulo in columnas_arribos_evento %}
+            <th class="small text-nowrap" title="{{ clave }}">
+              {{ titulo }}
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for grupo in grupos_arribos %}
+          <tr class="table-light">
+            <td colspan="{{ columnas_arribos_evento|length }}">
+              <strong>{{ grupo.etiqueta }}</strong>
+              <span class="text-secondary small">
+                {{ grupo.total }} arribo{{ '' if grupo.total == 1 else 's' }}
+                · {{ grupo.usadas }} usada{{ '' if grupo.usadas == 1 else 's' }}
+                {% if grupo.no_usadas %}
+                · {{ grupo.no_usadas }} sin usar
+                {% endif %}
+                {% if grupo.llegada %}
+                · primera llegada {{ grupo.llegada }}
+                {% endif %}
+              </span>
+            </td>
+          </tr>
+          {% for item in grupo.filas %}
+          <tr>
+            {% for clave, titulo in columnas_arribos_evento %}
+            <td class="small text-nowrap">
+              {{ valor(item.get(clave)) }}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-secondary small">
+      Este evento no tiene arribos en el catálogo extraído.
+    </div>
+    {% endif %}
   </div>
 </div>
-{% endfor %}
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <details open>
+      <summary class="h6 text-uppercase text-secondary mb-2">
+        Estaciones del evento ({{ totales_evento.estaciones }})
+        <span class="text-secondary small fw-normal">
+          · resumen derivado de los arribos
+        </span>
+      </summary>
+      <p class="small text-secondary">
+        Sirve para detectar estaciones con residuales altos, ver cuántas fases
+        aportaron a la solución y revisar la cobertura (distancias y azimut).
+        No es un dato de la fuente: siempre es
+        <code>derived=True</code>. Las celdas vacías indican que la fuente no
+        aporta ese dato.
+      </p>
+      {% if estaciones_evento %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              {% for clave, titulo in columnas_estaciones_evento %}
+              <th class="small text-nowrap" title="{{ clave }}">
+                {{ titulo }}
+              </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in estaciones_evento %}
+            <tr>
+              {% for clave, titulo in columnas_estaciones_evento %}
+              <td class="small text-nowrap">
+                {{ valor(item.get(clave)) }}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-secondary small">
+        Este evento no tiene estaciones con arribos.
+      </div>
+      {% endif %}
+    </details>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-1">
+      Parámetros completos
+    </h2>
+    <p class="small text-secondary">
+      Los campos vacíos indican que la fuente no aporta ese dato.
+    </p>
+    {% for grupo, claves in grupos_evento %}
+    <details class="border rounded p-2 mb-2" {% if loop.first %}open{% endif %}>
+      <summary class="fw-semibold small">{{ grupo }}</summary>
+      <div class="row g-2 mt-2">
+        {% for clave in claves %}
+        <div class="col-12 col-md-6 col-xl-4">
+          <div class="border rounded p-2 h-100">
+            <div class="small text-secondary">
+              {{ etiqueta_evento(clave) }}
+            </div>
+            <div class="small text-break" title="{{ clave }}">
+              {{ valor(fila.get(clave)) }}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+</div>
 
 <div class="card border-0 shadow-sm">
   <div class="card-body">
     <h2 class="h6 text-uppercase text-secondary mb-3">JSON completo</h2>
     <details>
-      <summary class="small text-secondary">Mostrar el evento canónico completo</summary>
+      <summary class="small text-secondary">
+        Mostrar el evento canónico completo
+      </summary>
       <pre class="small bg-light border rounded p-3 mt-2 mb-0">{{ json_texto }}</pre>
     </details>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if puntos_mapa %}
+{% if mapa_modo == 'online' %}
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+{% endif %}
+<script src="{{ url_for('static', filename='vendor/plotly/plotly.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vineta.js') }}"></script>
+<script src="{{ url_for('static', filename='js/regiones_mapa.js') }}"></script>
+<script src="{{ url_for('static', filename='js/mapa_detalle.js') }}"></script>
+{% endif %}
 {% endblock %}
