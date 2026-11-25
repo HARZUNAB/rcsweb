@@ -147,16 +147,21 @@ CONSULTA_SQL
   `median_distance_deg` en grados, como los entrega SeisComp.
 - El bloque `raw` del evento conserva la fila normalizada completa.
 
-#### A.3.2 Descarga del catálogo completo
+#### A.3.2 Descarga del catálogo completo desde Catálogos
 
-El detalle de un trabajo terminado muestra **Catálogo completo** solo para
-administradores y supervisores, con el permiso `trabajos.descargar`. La fuente
-se elige entre **SeisComp**, **Central** y **Seisan**.
+La descarga vive en la página **Catálogos**, no en el detalle del trabajo.
+Para una fuente ya seleccionada hay tres opciones:
 
-Genera:
+| Opción | Contenido | Arribos | Mapas |
+|---|---|---|---|
+| **Descargar CSV** | Tabla de eventos filtrada, como la vista del catálogo | No | No |
+| **Descargar ZIP** | Tabla de eventos + mapas de planta y perfiles | No | Sí |
+| **Descargar catálogo completo** | Eventos + arribos + resumen por estación + LEEME | Sí | No |
+
+El catálogo completo se descarga como:
 
 ```text
-workspace/<job>/descargas/catalogo_completo_<fuente>_<inicio>_<fin>.zip
+catalogo_completo_<fuente>_<inicio>_<fin>.zip
   eventos.csv
   arribos.csv
   estaciones_resumen.csv
@@ -164,17 +169,23 @@ workspace/<job>/descargas/catalogo_completo_<fuente>_<inicio>_<fin>.zip
 ```
 
 - `eventos.csv`: eventos con los bloques aplanados.
-- `arribos.csv`: todos los arribos de la fuente.
+- `arribos.csv`: los arribos **de los eventos filtrados**.
 - `estaciones_resumen.csv`: RMS, conteos, distancias y azimut por estación.
   Se calcula al exportar y siempre lleva `derived=true`.
-- `LEEME.txt`: unidades, procedencia y versión del esquema.
+- `LEEME.txt`: unidades, procedencia, filtros aplicados y versión del esquema.
 
 En `arribos.csv`, `distance_km` conserva el valor nativo de la fuente y
 `distance_km_calc` es la distancia en km calculada desde coordenadas.
 
-La opción se controla con `RCS_CATALOGO_COMPLETO_ACTIVO` (activa por defecto).
-Si se pone en `0`, el botón desaparece y la ruta responde 404. El canónico sigue
-guardando los bloques extendidos aunque la exportación esté desactivada.
+La descarga respeta los **filtros actuales** de la página. Para bajar todo el
+catálogo, se limpian los filtros. En la página se muestra el número de eventos
+y la nota correspondiente.
+
+Solo está disponible para **admin/supervisor**, con `catalogos.ver` y
+`trabajos.descargar`. Se controla con `RCS_CATALOGO_COMPLETO_ACTIVO` (activa por
+defecto). Si se pone en `0`, el botón desaparece y la ruta responde 404. El
+canónico sigue guardando los bloques extendidos aunque la exportación esté
+desactivada.
 
 Errores frecuentes:
 
@@ -349,8 +360,8 @@ genéricas que usan las otras fuentes:
 Los campos calculados se listan en `quality_derived_fields`. Las ocho columnas
 históricas de `salida_collect.csv` no cambian; las nuevas van al final.
 
-La exportación del catálogo completo permite elegir **Seisan** y genera el
-mismo ZIP de tres CSV más el LEEME.
+La página **Catálogos** ofrece la descarga del catálogo completo de **Seisan**
+con el mismo ZIP de tres CSV más el LEEME.
 
 #### A.4.10 Salidas canónicas
 
@@ -417,8 +428,8 @@ Central llena los mismos bloques que SeisComp:
 - `quality_derived_fields` lista los campos calculados.
 - `pick_uncertainty` conserva `pick.uncertainty`. `residual` queda vacío porque
   Central no trae un residual de tiempo separado.
-- La exportación del catálogo completo permite elegir **Central**, junto con
-  SeisComp y Seisan.
+- La descarga del catálogo completo está disponible desde **Catálogos**,
+  igual que SeisComp y Seisan.
 
 Errores frecuentes:
 

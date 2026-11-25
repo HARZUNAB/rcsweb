@@ -23,9 +23,6 @@
     <a class="btn btn-outline-secondary" href="{{ url_volver }}">
       Volver a Catálogos
     </a>
-    <a class="btn btn-outline-primary" href="{{ url_csv }}">
-      Descargar CSV
-    </a>
   </div>
 </div>
 
@@ -34,6 +31,45 @@
   No hay eventos para los filtros actuales.
 </div>
 {% else %}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h6 text-uppercase text-secondary mb-3">Descargas</h2>
+    <div class="row g-3">
+      <div class="col-12 col-lg-4">
+        <a class="btn btn-outline-primary w-100" href="{{ url_csv }}">
+          Descargar CSV
+        </a>
+        <p class="small text-secondary mt-2 mb-0">
+          Solo la tabla de eventos filtrada. No incluye arribos.
+        </p>
+      </div>
+      <div class="col-12 col-lg-4">
+        <a class="btn btn-outline-primary w-100" href="#catalogo-zip">
+          Descargar ZIP
+        </a>
+        <p class="small text-secondary mt-2 mb-0">
+          Tabla de eventos + mapas de planta y perfiles. No incluye arribos.
+        </p>
+      </div>
+      {% if puede_catalogo_completo and catalogo_completo_activo %}
+      <div class="col-12 col-lg-4">
+        <a class="btn btn-outline-primary w-100" href="{{ url_completo }}">
+          Descargar catálogo completo ({{ datos.total }})
+        </a>
+        <p class="small text-secondary mt-2 mb-0">
+          Eventos + todos los arribos + resumen por estación + LEEME.
+          Sin mapas. Solo admin/supervisor.
+        </p>
+      </div>
+      {% endif %}
+    </div>
+    <p class="small text-secondary mb-0 mt-3">
+      Se aplican los filtros actuales. Para descargar todo el catálogo,
+      limpie los filtros.
+    </p>
+  </div>
+</div>
+
 <div id="catalogo-actividad" class="alert alert-info d-none d-flex align-items-center gap-2 sticky-top shadow-sm"
      role="status" aria-live="polite">
   <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>

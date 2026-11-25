@@ -9,7 +9,6 @@ from pathlib import Path
 from flask import (
     Blueprint,
     abort,
-    current_app,
     flash,
     redirect,
     render_template,
@@ -25,13 +24,7 @@ from ..domain.catalogs.registry import adaptador as obtener_adaptador
 from ..extensions import db
 from ..forms import JobForm
 from ..models import Job, JobArtifact, JobFile, JobSource, nuevo_uuid
-from ..security import (
-    permiso_requerido,
-    puede_ver_trabajo,
-    tiene_permiso,
-    tiene_rol,
-)
-from ..services import catalogo_completo as catalogo_completo_service
+from ..security import permiso_requerido, puede_ver_trabajo, tiene_permiso
 from ..services import indicios
 from ..services.audit import registrar
 from ..services.jobs import JobNoEliminable, eliminar_trabajo, puede_eliminar
@@ -125,18 +118,6 @@ def _contexto_detalle(job: Job) -> dict:
         "aliases": {source.kind: source.alias_mostrado for source in job.sources},
         "fuentes": fuentes,
         "paneles": datasets_disponibles(workspace),
-        "catalogo_completo_activo": bool(
-            current_app.config.get("RCS_CATALOGO_COMPLETO_ACTIVO", True)
-        ),
-        "puede_catalogo_completo": tiene_rol(
-            current_user, "admin", "supervisor"
-        ),
-        # Fuentes con bloques de calidad habilitados en esta etapa.
-        "fuentes_catalogo_completo": [
-            source.kind
-            for source in job.sources
-            if source.kind in catalogo_completo_service.FUENTES_HABILITADAS
-        ],
     }
 
 
@@ -584,59 +565,6 @@ def eliminar(job_id: str):
     return redirect(url_for("dashboard.index"))
 
 
-@jobs_bp.post("/<job_id>/catalogo-completo")
-@login_required
-@permiso_requerido("trabajos.descargar")
-def catalogo_completo(job_id: str):
-    """Genera el ZIP del catálogo completo de una fuente local."""
-    if not current_app.config.get("RCS_CATALOGO_COMPLETO_ACTIVO", True):
-        abort(404)
-    if not tiene_rol(current_user, "admin", "supervisor"):
-        abort(403)
-    job = _job(job_id)
-    fuente = str(request.form.get("fuente") or "seiscomp").strip()
-    try:
-        ruta, totales = catalogo_completo_service.generar(job, fuente)
-    except catalogo_completo_service.CatalogoCompletoError as exc:
-        flash(str(exc), "warning")
-        return redirect(url_for("jobs.detalle", job_id=job.id))
-
-    workspace = ruta_workspace(job.id)
-    relativa = str(ruta.relative_to(workspace))
-    artefacto = next(
-        (item for item in job.artifacts if item.ruta == relativa), None
-    )
-    if artefacto is None:
-        artefacto = JobArtifact(
-            job_id=job.id,
-            tipo="catalogo_completo",
-            ruta=relativa,
-            mime="application/zip",
-            size=ruta.stat().st_size,
-        )
-        db.session.add(artefacto)
-    else:
-        artefacto.size = ruta.stat().st_size
-    db.session.commit()
-    registrar(
-        "catalogo.completo",
-        entity=job.id,
-        meta={
-            "fuente": fuente,
-            "eventos": totales.get("eventos", 0),
-            "arribos": totales.get("arribos", 0),
-            "estaciones": totales.get("estaciones", 0),
-        },
-    )
-    flash(
-        f"Catálogo completo generado: {totales.get('eventos', 0)} eventos, "
-        f"{totales.get('arribos', 0)} arribos y "
-        f"{totales.get('estaciones', 0)} estaciones.",
-        "success",
-    )
-    return redirect(url_for("jobs.descargas", job_id=job.id))
-
-
 @jobs_bp.get("/<job_id>/descargas")
 @login_required
 @permiso_requerido("trabajos.descargar")
@@ -646,9 +574,6 @@ def descargas(job_id: str):
         "resultado": [a for a in job.artifacts if a.tipo == "resultado"],
         "entregable": [a for a in job.artifacts if a.tipo == "entregable"],
         "catalogo": [a for a in job.artifacts if a.tipo == "catalogo"],
-        "catalogo_completo": [
-            a for a in job.artifacts if a.tipo == "catalogo_completo"
-        ],
     }
     return render_template(
         "jobs/downloads.html",

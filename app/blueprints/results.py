@@ -7,14 +7,17 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 import zipfile
 from datetime import datetime
 from io import BytesIO, StringIO
+from pathlib import Path
 from uuid import uuid4
 
 from flask import (
     Blueprint,
     abort,
+    after_this_request,
     current_app,
     jsonify,
     redirect,
@@ -33,7 +36,12 @@ from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
 from ..extensions import db
 from ..models import Job, utcnow
-from ..security import permiso_requerido, puede_ver_trabajo, tiene_permiso
+from ..security import (
+    permiso_requerido,
+    puede_ver_trabajo,
+    tiene_permiso,
+    tiene_rol,
+)
 from ..services import (
     amplification,
     availability,
@@ -46,6 +54,9 @@ from ..services import (
     review,
     review_drafts,
     review_reports,
+)
+from ..services import (
+    catalogo_completo as catalogo_completo_service,
 )
 from ..services import (
     no_publicados as no_publicados_service,
@@ -1521,6 +1532,14 @@ def catalogo(job_id: str, opcion: str):
             **params,
         ),
         url_zip=url_for("results.catalogo_zip", **params),
+        url_completo=url_for("results.catalogo_completo_zip", **params),
+        puede_catalogo_completo=(
+            tiene_rol(current_user, "admin", "supervisor")
+            and tiene_permiso(current_user, "trabajos.descargar")
+        ),
+        catalogo_completo_activo=bool(
+            current_app.config.get("RCS_CATALOGO_COMPLETO_ACTIVO", True)
+        ),
         url_volver=url_for(
             "results.catalogos", **_params_lista_catalogo(job.id, opcion)
         ),
@@ -1549,6 +1568,72 @@ def catalogo_csv(job_id: str, opcion: str):
     return send_file(
         BytesIO(datos_csv),
         mimetype="text/csv",
+        as_attachment=True,
+        download_name=nombre,
+    )
+
+
+@results_bp.get(
+    "/jobs/<job_id>/resultados/catalogos/<opcion>/catalogo-completo.zip"
+)
+@login_required
+@permiso_requerido("catalogos.ver")
+def catalogo_completo_zip(job_id: str, opcion: str):
+    """Descarga eventos, arribos y resumen por estación del catálogo filtrado."""
+    if not current_app.config.get("RCS_CATALOGO_COMPLETO_ACTIVO", True):
+        abort(404)
+    if not tiene_rol(current_user, "admin", "supervisor"):
+        abort(403)
+    if not tiene_permiso(current_user, "trabajos.descargar"):
+        abort(403)
+    job = _job(job_id)
+    _archivo, _titulo, datos, extra = _datos_catalogo(job, opcion)
+    ids = set(datos.get("ids_filtrados") or [])
+    if not ids:
+        abort(404)
+
+    with tempfile.NamedTemporaryFile(
+        suffix=".zip", delete=False
+    ) as temporal:
+        destino = Path(temporal.name)
+    try:
+        ruta, totales = catalogo_completo_service.generar(
+            job,
+            opcion,
+            ids=ids,
+            filtros_texto=extra.get("filtros_texto", ""),
+            destino=destino,
+        )
+    except catalogo_completo_service.CatalogoCompletoError as exc:
+        destino.unlink(missing_ok=True)
+        abort(400, description=str(exc))
+
+    nombre = (
+        f"catalogo_completo_{opcion}_"
+        f"{job.inicio14[:8]}_{job.fin14[:8]}.zip"
+    )
+    registrar(
+        "download",
+        entity=nombre,
+        meta={
+            "catalogo": opcion,
+            "eventos": totales["eventos"],
+            "arribos": totales["arribos"],
+            "estaciones": totales["estaciones"],
+        },
+    )
+
+    @after_this_request
+    def _limpiar_temporal(respuesta):
+        try:
+            ruta.unlink()
+        except OSError:
+            pass
+        return respuesta
+
+    return send_file(
+        ruta,
+        mimetype="application/zip",
         as_attachment=True,
         download_name=nombre,
     )

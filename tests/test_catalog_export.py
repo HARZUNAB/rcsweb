@@ -93,6 +93,7 @@ def test_preparar_catalogo_separa_plantas_por_territorio(monkeypatch, tmp_path):
         "otros",
     ]
     assert [planta["total"] for planta in datos["plantas"]] == [1, 1, 1]
+    assert datos["ids_filtrados"] == ["seisan:000000"]
 
 
 def test_evento_insular_conserva_su_territorio(monkeypatch):

@@ -204,6 +204,12 @@ def _iter_jsonl(ruta: Path):
                     continue
 
 
+def _iter_arribos(ruta: Path, ids: set[str] | None):
+    for arribo in _iter_jsonl(ruta):
+        if ids is None or arribo.get("event_id") in ids:
+            yield arribo
+
+
 def _celda(valor) -> str:
     if valor is None:
         return ""
@@ -508,7 +514,9 @@ def _escribir_csv(zf: zipfile.ZipFile, nombre: str, cabecera, filas) -> int:
     return total
 
 
-def _leeme(fuente: str, job, totales: dict) -> str:
+def _leeme(
+    fuente: str, job, totales: dict, filtros_texto: str = ""
+) -> str:
     return "\n".join(
         [
             "Catálogo completo extraído de RCS Web",
@@ -518,6 +526,7 @@ def _leeme(fuente: str, job, totales: dict) -> str:
             f"Período: {job.inicio14} → {job.fin14}",
             f"Generado: {datetime.now(UTC).isoformat()}",
             f"Esquema canónico: {SCHEMA_VERSION}",
+            f"Filtros: {filtros_texto or 'Sin filtros'}",
             "",
             "Archivos:",
             "- eventos.csv: eventos con calidad, incertidumbres y metadatos.",
@@ -549,8 +558,19 @@ def _leeme(fuente: str, job, totales: dict) -> str:
     ) + "\n"
 
 
-def generar(job, fuente: str = "seiscomp") -> tuple[Path, dict]:
-    """Genera el ZIP y devuelve (ruta, totales)."""
+def generar(
+    job,
+    fuente: str = "seiscomp",
+    *,
+    ids: set[str] | None = None,
+    filtros_texto: str = "",
+    destino: Path | None = None,
+) -> tuple[Path, dict]:
+    """Genera el ZIP y devuelve (ruta, totales).
+
+    ``ids`` limita la exportación a los eventos canónicos indicados. Es lo que
+    usa la página de Catálogos para respetar los filtros actuales.
+    """
     fuente = str(fuente or "").strip()
     if fuente not in FUENTES_HABILITADAS:
         raise CatalogoCompletoError(
@@ -571,22 +591,27 @@ def generar(job, fuente: str = "seiscomp") -> tuple[Path, dict]:
         )
 
     eventos = list(_iter_jsonl(eventos_ruta))
+    if ids is not None:
+        eventos = [
+            evento for evento in eventos if evento.get("event_id") in ids
+        ]
     por_evento = {evento.get("event_id"): evento for evento in eventos}
     if not eventos:
         raise CatalogoCompletoError(
-            "El catálogo canónico de la fuente está vacío."
+            "No hay eventos para los filtros actuales."
         )
 
-    destino = (
-        workspace
-        / "descargas"
-        / f"catalogo_completo_{fuente}_{job.inicio14}_{job.fin14}.zip"
-    )
+    if destino is None:
+        destino = (
+            workspace
+            / "descargas"
+            / f"catalogo_completo_{fuente}_{job.inicio14}_{job.fin14}.zip"
+        )
     destino.parent.mkdir(parents=True, exist_ok=True)
     temporal = destino.with_name(destino.name + ".tmp")
 
     resumen = _resumen_estaciones(
-        _iter_jsonl(arribos_ruta), por_evento
+        _iter_arribos(arribos_ruta, ids), por_evento
     )
     totales = {
         "eventos": len(eventos),
@@ -612,7 +637,7 @@ def generar(job, fuente: str = "seiscomp") -> tuple[Path, dict]:
                         arribo,
                         por_evento.get(arribo.get("event_id") or ""),
                     )
-                    for arribo in _iter_jsonl(arribos_ruta)
+                    for arribo in _iter_arribos(arribos_ruta, ids)
                 ),
             )
             _escribir_csv(
@@ -621,7 +646,10 @@ def generar(job, fuente: str = "seiscomp") -> tuple[Path, dict]:
                 CABECERA_ESTACIONES,
                 resumen,
             )
-            zf.writestr("LEEME.txt", _leeme(fuente, job, totales))
+            zf.writestr(
+                "LEEME.txt",
+                _leeme(fuente, job, totales, filtros_texto),
+            )
         os.replace(temporal, destino)
     finally:
         if temporal.exists():

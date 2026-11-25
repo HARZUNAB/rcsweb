@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from app.domain.catalogs import canonical
 from app.extensions import db
-from app.models import Job, JobArtifact, JobSource, User, nuevo_uuid
+from app.models import Job, JobSource, User, nuevo_uuid
 from app.services import catalogo_completo as servicio
 from app.services.workspace import crear_workspace
 
@@ -314,64 +314,87 @@ def test_canonico_guarda_bloques_para_seiscomp(tmp_path):
     assert evento["magnitude_metadata"]["uncertainty"] == 0.2
 
 
-def test_ruta_genera_zip_y_artefacto(app, client, login):
+def _datos_catalogo_filtrados(job=None, opcion="seiscomp"):
+    return (
+        None,
+        "SeisComp",
+        {"total": 1, "ids_filtrados": ["seiscomp:000001"]},
+        {"filtros_texto": "Sin filtros"},
+    )
+
+
+def test_catalogo_completo_desde_pagina_de_catalogos(
+    app, client, login, monkeypatch
+):
     job = _preparar(app)
+    monkeypatch.setattr(
+        "app.blueprints.results._datos_catalogo",
+        _datos_catalogo_filtrados,
+    )
     login()
-    respuesta = client.post(
-        f"/jobs/{job.id}/catalogo-completo",
-        data={"fuente": "seiscomp"},
+    respuesta = client.get(
+        f"/jobs/{job.id}/resultados/catalogos/seiscomp/"
+        "catalogo-completo.zip"
     )
-    assert respuesta.status_code == 302
-    assert f"/jobs/{job.id}/descargas" in respuesta.headers["Location"]
-    artefacto = db.session.scalar(
-        select(JobArtifact).where(
-            JobArtifact.job_id == job.id,
-            JobArtifact.tipo == "catalogo_completo",
-        )
-    )
-    assert artefacto is not None
-    assert artefacto.ruta.startswith("descargas/")
-    assert artefacto.size > 0
+    assert respuesta.status_code == 200
+    assert respuesta.mimetype == "application/zip"
+    with zipfile.ZipFile(io.BytesIO(respuesta.data)) as zf:
+        assert {
+            "eventos.csv",
+            "arribos.csv",
+            "estaciones_resumen.csv",
+            "LEEME.txt",
+        } <= set(zf.namelist())
+        with zf.open("eventos.csv") as bruto:
+            filas = list(
+                csv.DictReader(io.TextIOWrapper(bruto, encoding="utf-8"))
+            )
+        assert len(filas) == 1
+        assert filas[0]["event_id"] == "seiscomp:000001"
 
 
-def test_ruta_respeta_flag_desactivado(app, client, login):
+def test_catalogo_completo_respeta_flag(app, client, login):
     job = _preparar(app)
     app.config["RCS_CATALOGO_COMPLETO_ACTIVO"] = False
     login()
-    respuesta = client.post(
-        f"/jobs/{job.id}/catalogo-completo",
-        data={"fuente": "seiscomp"},
+    respuesta = client.get(
+        f"/jobs/{job.id}/resultados/catalogos/seiscomp/"
+        "catalogo-completo.zip"
     )
     assert respuesta.status_code == 404
 
 
-def test_ruta_solo_admin_o_supervisor(app, client, login):
+def test_catalogo_completo_solo_admin_o_supervisor(
+    app, client, login, monkeypatch
+):
     job = _preparar(app)
+    monkeypatch.setattr(
+        "app.blueprints.results._datos_catalogo",
+        _datos_catalogo_filtrados,
+    )
     usuario = db.session.scalar(select(User).limit(1))
     usuario.role = "analista"
     db.session.commit()
     login()
-    respuesta = client.post(
-        f"/jobs/{job.id}/catalogo-completo",
-        data={"fuente": "seiscomp"},
+    respuesta = client.get(
+        f"/jobs/{job.id}/resultados/catalogos/seiscomp/"
+        "catalogo-completo.zip"
     )
     assert respuesta.status_code == 403
 
 
-def test_detalle_muestra_boton_y_descarga_el_zip(app, client, login):
+def test_detalle_y_descargas_ya_no_ofrecen_catalogo_completo(
+    app, client, login
+):
     job = _preparar(app)
     login()
     detalle = client.get(f"/jobs/{job.id}")
     assert detalle.status_code == 200
-    assert "Catálogo completo" in detalle.get_data(as_text=True)
+    assert "Catálogo completo" not in detalle.get_data(as_text=True)
 
-    client.post(
-        f"/jobs/{job.id}/catalogo-completo",
-        data={"fuente": "seiscomp"},
-    )
     descargas = client.get(f"/jobs/{job.id}/descargas")
     assert descargas.status_code == 200
-    assert "Catálogo completo" in descargas.get_data(as_text=True)
+    assert "Catálogo completo" not in descargas.get_data(as_text=True)
 
 
 def test_canonico_deja_bloques_vacios_sin_columnas(tmp_path):

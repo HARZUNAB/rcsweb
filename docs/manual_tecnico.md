@@ -1019,26 +1019,37 @@ Las distancias de calidad se guardan en **km**. SeisComp entrega
 `OriginQuality.minimumDistance`, `maximumDistance` y `medianDistance` en grados;
 el conversor las pasa a km y conserva el valor original en el CSV crudo.
 
-#### Catálogo completo por fuente
+#### Descarga del catálogo completo
 
-El detalle de un trabajo terminado ofrece **Catálogo completo** para
-administradores y supervisores, con el permiso `trabajos.descargar`. La fuente
-se elige entre **SeisComp**, **Central** y **Seisan**. El botón genera un ZIP en
-`workspace/<job_id>/descargas/`:
+La descarga vive en la página **Catálogos**, no en el detalle del trabajo.
+Para la fuente ya seleccionada hay tres opciones:
+
+| Opción | Contenido | Arribos | Mapas |
+|---|---|---|---|
+| **Descargar CSV** | Tabla de eventos filtrada, como la vista del catálogo | No | No |
+| **Descargar ZIP** | Tabla de eventos + mapas de planta y perfiles | No | Sí |
+| **Descargar catálogo completo** | Eventos + arribos + resumen por estación + LEEME | Sí | No |
+
+El catálogo completo se descarga como
+`catalogo_completo_<fuente>_<inicio>_<fin>.zip` y contiene:
 
 ```text
-catalogo_completo_<fuente>_<inicio>_<fin>.zip
-  eventos.csv
-  arribos.csv
-  estaciones_resumen.csv
-  LEEME.txt
+eventos.csv
+arribos.csv
+estaciones_resumen.csv
+LEEME.txt
 ```
 
 - `eventos.csv`: eventos con los bloques de calidad aplanados.
-- `arribos.csv`: todos los arribos de la fuente.
+- `arribos.csv`: los arribos de los eventos filtrados.
 - `estaciones_resumen.csv`: RMS de residuales y de incertidumbres, conteos,
   distancias y azimut por estación.
-- `LEEME.txt`: unidades, procedencia y versión del esquema.
+- `LEEME.txt`: unidades, procedencia, filtros aplicados y versión del esquema.
+
+La descarga respeta los filtros actuales de la página. Para bajar todo el
+catálogo, se limpian los filtros. El botón muestra el número de eventos
+filtrados. Solo está disponible para **admin/supervisor**, con `catalogos.ver`
+y `trabajos.descargar`.
 
 En Central no hay un residual de tiempo separado: `pick_uncertainty` conserva
 la incertidumbre del pick y el resumen usa `uncertainty_*`. En SeisComp y

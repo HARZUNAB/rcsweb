@@ -230,6 +230,13 @@ def _preparar_catalogo(
                     "total": len(eventos_planta),
                 }
             )
+    ids_filtrados = []
+    for fila in filas:
+        indice = fila.get("_fila")
+        try:
+            ids_filtrados.append(f"{opcion}:{int(indice):06d}")
+        except (TypeError, ValueError):
+            continue
     return {
         "campos": [titulo for _clave, titulo in campos],
         "filas": salida,
@@ -238,6 +245,7 @@ def _preparar_catalogo(
         "perfiles_total": perfiles_total,
         "plantas": plantas,
         "total": len(salida),
+        "ids_filtrados": ids_filtrados,
     }
 
 
