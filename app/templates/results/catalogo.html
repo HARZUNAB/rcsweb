@@ -53,12 +53,21 @@
       </div>
       {% if puede_catalogo_completo and catalogo_completo_activo %}
       <div class="col-12 col-lg-4">
-        <a class="btn btn-outline-primary w-100" href="{{ url_completo }}">
+        <a class="btn btn-outline-primary w-100 js-catalogo-completo"
+           href="{{ url_completo }}"
+           download
+           data-url="{{ url_completo }}"
+           data-nombre="catalogo_completo_{{ opcion }}_{{ job.inicio14[:8] }}_{{ job.fin14[:8] }}.zip"
+           data-eventos="{{ datos.total }}">
           Descargar catálogo completo ({{ datos.total }})
         </a>
         <p class="small text-secondary mt-2 mb-0">
           Eventos + todos los arribos + resumen por estación + LEEME.
           Sin mapas. Solo admin/supervisor.
+        </p>
+        <p class="small text-warning mb-0">
+          En catálogos grandes puede tardar varios minutos.
+          Para acotar, use filtros.
         </p>
       </div>
       {% endif %}

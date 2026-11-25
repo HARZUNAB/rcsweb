@@ -179,7 +179,8 @@ En `arribos.csv`, `distance_km` conserva el valor nativo de la fuente y
 
 La descarga respeta los **filtros actuales** de la página. Para bajar todo el
 catálogo, se limpian los filtros. En la página se muestra el número de eventos
-y la nota correspondiente.
+y la nota correspondiente. El botón muestra un aviso de progreso; en catálogos
+grandes la generación puede tardar varios minutos, por eso conviene filtrar.
 
 Solo está disponible para **admin/supervisor**, con `catalogos.ver` y
 `trabajos.descargar`. Se controla con `RCS_CATALOGO_COMPLETO_ACTIVO` (activa por

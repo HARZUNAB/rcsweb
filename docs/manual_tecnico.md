@@ -1048,8 +1048,9 @@ LEEME.txt
 
 La descarga respeta los filtros actuales de la página. Para bajar todo el
 catálogo, se limpian los filtros. El botón muestra el número de eventos
-filtrados. Solo está disponible para **admin/supervisor**, con `catalogos.ver`
-y `trabajos.descargar`.
+filtrados y un aviso de progreso mientras se genera. En catálogos grandes
+puede tardar varios minutos; conviene filtrar. Solo está disponible para
+**admin/supervisor**, con `catalogos.ver` y `trabajos.descargar`.
 
 En Central no hay un residual de tiempo separado: `pick_uncertainty` conserva
 la incertidumbre del pick y el resumen usa `uncertainty_*`. En SeisComp y

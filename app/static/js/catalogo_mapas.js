@@ -168,7 +168,42 @@
     }
   }
 
+  async function descargarCompleto(enlace) {
+    if (enlace.getAttribute("aria-busy") === "true") {
+      return;
+    }
+    const url = enlace.dataset.url || enlace.getAttribute("href");
+    const nombre = enlace.dataset.nombre || "catalogo_completo.zip";
+    const eventos = enlace.dataset.eventos || "";
+    enlace.setAttribute("aria-busy", "true");
+    enlace.classList.add("disabled");
+    iniciarActividad(
+      "Generando catálogo completo" +
+        (eventos ? " (" + eventos + " eventos)" : "") +
+        "… puede tardar varios minutos."
+    );
+    try {
+      const blob = await pedir(url, "application/zip");
+      descargar(blob, nombre);
+      terminarActividad();
+    } catch (error) {
+      fallarActividad(
+        "No se pudo generar el catálogo completo. " +
+          (error.message || "Intente nuevamente.")
+      );
+    } finally {
+      enlace.classList.remove("disabled");
+      enlace.removeAttribute("aria-busy");
+    }
+  }
+
   document.addEventListener("click", function (evento) {
+    const completo = evento.target.closest(".js-catalogo-completo");
+    if (completo) {
+      evento.preventDefault();
+      descargarCompleto(completo);
+      return;
+    }
     const ver = evento.target.closest(".js-mapa-ver");
     if (ver) {
       evento.preventDefault();
