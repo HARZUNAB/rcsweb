@@ -122,6 +122,20 @@ def test_crear_corrida_omite_terminales_y_respeta_seleccion(app):
     assert run.items[0].event_id == "seiscomp:C"
 
 
+def test_crear_corrida_incluye_terminales_si_se_pide(app):
+    job = _job()
+    run = picks_signal_runs.crear_corrida(
+        job.id,
+        "seiscomp",
+        [{"evento": "seiscomp:A", "senal_pendiente": False}],
+        incluir_terminales=True,
+        alcance="reanalisis_sin_datos",
+    )
+    assert run is not None
+    assert run.total == 1
+    assert run.items[0].event_id == "seiscomp:A"
+
+
 def test_procesar_lote_completa_y_guarda(app, monkeypatch):
     job = _job()
     _reporte(job)

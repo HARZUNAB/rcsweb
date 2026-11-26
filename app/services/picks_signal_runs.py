@@ -88,12 +88,13 @@ def crear_corrida(
     alcance: str = "todos",
     batch_size: int = LOTE_DEFECTO,
     created_by_id: int | None = None,
+    incluir_terminales: bool = False,
 ) -> PicksSignalRun | None:
     """Crea la corrida con los eventos pendientes en el orden recibido."""
     seleccionados = []
     vistos: set[str] = set()
     for fila in filas:
-        if not fila.get("senal_pendiente"):
+        if not incluir_terminales and not fila.get("senal_pendiente"):
             continue
         event_id = str(fila.get("evento") or "").strip()
         if not event_id or event_id in vistos:

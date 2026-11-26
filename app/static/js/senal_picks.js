@@ -11,6 +11,12 @@
   var estado = document.getElementById("senal-picks-estado");
   var botonSeleccionados = document.getElementById("btn-senal-seleccionados");
   var botonCorrida = document.getElementById("btn-senal-corrida");
+  var botonReanalizarSinDatos = document.getElementById(
+    "btn-senal-reanalizar-sin-datos"
+  );
+  var botonReanalizarTodo = document.getElementById(
+    "btn-senal-reanalizar-todo"
+  );
   var botonPausar = document.getElementById("btn-senal-pausar");
   var botonReanudar = document.getElementById("btn-senal-reanudar");
   var botonCancelar = document.getElementById("btn-senal-cancelar");
@@ -54,9 +60,13 @@
       .forEach(function (boton) {
         boton.disabled = bloqueado;
       });
-    if (botonCorrida) {
-      botonCorrida.disabled = bloqueado;
-    }
+    [botonCorrida, botonReanalizarSinDatos, botonReanalizarTodo].forEach(
+      function (boton) {
+        if (boton) {
+          boton.disabled = bloqueado;
+        }
+      }
+    );
     if (bloqueado && botonSeleccionados) {
       botonSeleccionados.disabled = true;
     } else {
@@ -343,7 +353,7 @@
     }, 2000);
   }
 
-  function crearCorrida() {
+  function crearCorrida(modo) {
     if (enCurso) {
       return;
     }
@@ -355,6 +365,7 @@
     datos.append("csrf_token", csrfToken());
     datos.append("fuente", raiz.dataset.fuente || "");
     datos.append("orden", parametros.get("orden") || "recomendado");
+    datos.append("modo", modo || "pendientes");
     fetch(raiz.dataset.runUrl, {
       method: "POST",
       body: datos,
@@ -471,7 +482,24 @@
   }
 
   if (botonCorrida) {
-    botonCorrida.addEventListener("click", crearCorrida);
+    botonCorrida.addEventListener("click", function () {
+      crearCorrida("pendientes");
+    });
+  }
+  if (botonReanalizarSinDatos) {
+    botonReanalizarSinDatos.addEventListener("click", function () {
+      crearCorrida("sin_datos");
+    });
+  }
+  if (botonReanalizarTodo) {
+    botonReanalizarTodo.addEventListener("click", function () {
+      var textoConfirmacion =
+        "Se analizarán de nuevo todos los eventos con cobertura de picks. " +
+        "Esto puede tardar mucho. ¿Continuar?";
+      if (window.confirm(textoConfirmacion)) {
+        crearCorrida("todo");
+      }
+    });
   }
   if (botonPausar) {
     botonPausar.addEventListener("click", function () {

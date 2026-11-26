@@ -43,6 +43,7 @@ def analizar_senal_picks(
     fuente: str,
     max_eventos: int = 50,
     event_ids: list[str] | None = None,
+    forzar: bool = False,
 ) -> dict:
     """Analiza las formas de onda de las candidatas pendientes.
 
@@ -56,11 +57,13 @@ def analizar_senal_picks(
     aplicacion = create_app()
     with aplicacion.app_context():
         log.info(
-            "analizar_senal_picks job=%s fuente=%s max_eventos=%s eventos=%s",
+            "analizar_senal_picks job=%s fuente=%s max_eventos=%s "
+            "eventos=%s forzar=%s",
             job_id,
             fuente,
             max_eventos,
             len(event_ids or []),
+            forzar,
         )
         self.update_state(
             state="PROGRESS",
@@ -84,6 +87,7 @@ def analizar_senal_picks(
                 fuente,
                 max_eventos=max_eventos,
                 event_ids=event_ids,
+                forzar=forzar,
                 progreso=progreso,
             )
         except availability.AvailabilityError as exc:

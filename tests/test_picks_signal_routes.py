@@ -151,6 +151,93 @@ def test_crear_corrida_encola_y_guarda_items(app, client, login, monkeypatch):
     assert llamadas == [run.id]
 
 
+def test_crear_corrida_reanalizar_sin_datos(
+    app, client, login, monkeypatch
+):
+    job = _job()
+    _reporte(job)
+    app.config["RCS_DISPONIBILIDAD_URL"] = "http://sidecar:8010"
+    picks_coverage.actualizar_senal(
+        ruta_workspace(job.id),
+        "seiscomp",
+        "seiscomp:000001",
+        senal_n=0,
+        senal_estaciones="",
+        senal_estado="sin_datos",
+    )
+    monkeypatch.setattr(
+        "app.blueprints.results.procesar_corrida_senal.delay",
+        lambda _run_id: None,
+    )
+    login()
+    respuesta = client.post(
+        f"/jobs/{job.id}/indicios/senal/corrida",
+        data={"fuente": "seiscomp", "modo": "sin_datos"},
+    )
+    assert respuesta.status_code == 202
+    datos = respuesta.get_json()
+    assert datos["total"] == 1
+
+
+def test_post_analizar_senal_forzar(app, client, login, monkeypatch):
+    job = _job()
+    _reporte(job)
+    app.config["RCS_DISPONIBILIDAD_URL"] = "http://sidecar:8010"
+    picks_coverage.actualizar_senal(
+        ruta_workspace(job.id),
+        "seiscomp",
+        "seiscomp:000001",
+        senal_n=1,
+        senal_estaciones="C1.A",
+        senal_estado="analizado",
+    )
+    llamadas = []
+
+    class Tarea:
+        id = "tarea-reanalizar"
+
+    def encolar(*argumentos, **opciones):
+        llamadas.append((argumentos, opciones))
+        return Tarea()
+
+    monkeypatch.setattr(
+        "app.blueprints.results.analizar_senal_picks_task.delay", encolar
+    )
+    login()
+    respuesta = client.post(
+        f"/jobs/{job.id}/indicios/senal",
+        data={
+            "fuente": "seiscomp",
+            "eventos": "seiscomp:000001",
+            "forzar": "1",
+        },
+    )
+    assert respuesta.status_code == 202
+    assert respuesta.get_json()["forzar"] is True
+    assert llamadas[0][1]["forzar"] is True
+
+
+def test_revision_muestra_reanalizar(app, client, login):
+    job = _job()
+    _reporte(job)
+    picks_coverage.actualizar_senal(
+        ruta_workspace(job.id),
+        "seiscomp",
+        "seiscomp:000001",
+        senal_n=0,
+        senal_estaciones="",
+        senal_estado="sin_datos",
+    )
+    login()
+    html = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp", "alcance": "picks"},
+    ).get_data(as_text=True)
+    assert "Reanalizar sin datos (1)" in html
+    assert "Reanalizar todo" in html
+    assert 'name="forzar" value="1"' in html
+
+
 def test_estado_pausa_reanudar_y_cancelar_corrida(
     app, client, login, monkeypatch
 ):

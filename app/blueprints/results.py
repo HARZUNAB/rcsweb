@@ -1080,6 +1080,23 @@ def indicios_eventos(job_id: str):
             if _coincide_senal(fila, filtro_senal)
         ]
     info_fuente["senal_pendientes"] = senal_pendientes
+    info_fuente["senal_con_senal"] = sum(
+        1
+        for fila in filas_alcance
+        if fila.get("picks_senal_estado") == "analizado"
+        and int(fila.get("picks_senal_n") or 0) > 0
+    )
+    info_fuente["senal_sin_senal"] = sum(
+        1
+        for fila in filas_alcance
+        if fila.get("picks_senal_estado") == "analizado"
+        and int(fila.get("picks_senal_n") or 0) == 0
+    )
+    info_fuente["senal_sin_datos"] = sum(
+        1
+        for fila in filas_alcance
+        if fila.get("picks_senal_estado") == "sin_datos"
+    )
     resumen_senal = picks_signal.leer_resumen(workspace, fuente)
     corrida = picks_signal_runs.corrida_activa(job.id, fuente)
     corrida_actual = (
@@ -1158,6 +1175,13 @@ def analizar_senal_picks(job_id: str):
         datos = request.form
         eventos = datos.getlist("eventos")
     fuente = str(datos.get("fuente") or "").strip()
+    forzar = str(datos.get("forzar") or "").strip().lower() in (
+        "1",
+        "true",
+        "si",
+        "sí",
+        "yes",
+    )
     event_ids = [
         str(evento).strip()
         for evento in eventos
@@ -1184,7 +1208,11 @@ def analizar_senal_picks(job_id: str):
         fila
         for fila in picks_coverage.leer(workspace, fuente)
         if int(fila.get("total_n") or 0) > 0
-        and fila.get("senal_estado") not in picks_signal.ESTADOS_TERMINALES
+        and (
+            forzar
+            or fila.get("senal_estado")
+            not in picks_signal.ESTADOS_TERMINALES
+        )
     ]
     if event_ids:
         seleccionados = set(event_ids)
@@ -1195,7 +1223,9 @@ def analizar_senal_picks(job_id: str):
         ]
     if not pendientes:
         mensaje = (
-            "Los eventos seleccionados ya no están pendientes."
+            "Los eventos seleccionados no están disponibles para reanalizar."
+            if forzar and event_ids
+            else "Los eventos seleccionados ya no están pendientes."
             if event_ids
             else "No hay eventos con señal pendiente para analizar."
         )
@@ -1208,6 +1238,7 @@ def analizar_senal_picks(job_id: str):
             fuente,
             max_eventos=max_eventos,
             event_ids=event_ids or None,
+            forzar=forzar,
         )
     except Exception:  # noqa: BLE001 - el usuario necesita un mensaje claro
         return jsonify(
@@ -1228,6 +1259,7 @@ def analizar_senal_picks(job_id: str):
             "pendientes": len(pendientes),
             "max_eventos": max_eventos,
             "seleccionados": bool(event_ids),
+            "forzar": forzar,
         },
     )
     return jsonify(
@@ -1236,6 +1268,7 @@ def analizar_senal_picks(job_id: str):
             "task_id": tarea.id,
             "eventos": min(len(pendientes), max_eventos),
             "seleccionados": bool(event_ids),
+            "forzar": forzar,
         }
     ), 202
 
@@ -1313,6 +1346,9 @@ def crear_corrida_senal(job_id: str):
     orden = str(datos.get("orden") or "recomendado").strip()
     if orden not in ORDENES_REVISION:
         orden = "recomendado"
+    modo = str(datos.get("modo") or "pendientes").strip()
+    if modo not in ("pendientes", "sin_datos", "todo"):
+        modo = "pendientes"
     event_ids = {
         str(evento).strip()
         for evento in eventos
@@ -1321,20 +1357,37 @@ def crear_corrida_senal(job_id: str):
     workspace = ruta_workspace(job.id)
     filas = _filas_revision(workspace, fuente, current_user)
     _ordenar_revision(filas, orden)
+    incluir_terminales = modo != "pendientes"
+    if modo == "sin_datos":
+        filas = [
+            fila
+            for fila in filas
+            if str(fila.get("picks_senal_estado") or "") == "sin_datos"
+        ]
+        alcance = "reanalisis_sin_datos"
+    elif modo == "todo":
+        filas = [fila for fila in filas if fila.get("picks_total")]
+        alcance = "reanalisis_todo"
+    else:
+        alcance = "seleccionados" if event_ids else "todos"
     run = picks_signal_runs.crear_corrida(
         job.id,
         fuente,
         filas,
         evento_ids=event_ids or None,
-        alcance="seleccionados" if event_ids else "todos",
+        alcance=alcance,
         created_by_id=current_user.id,
+        incluir_terminales=incluir_terminales,
     )
     if run is None:
-        mensaje = (
-            "Los eventos seleccionados ya no están pendientes."
-            if event_ids
-            else "No hay eventos pendientes de señal."
-        )
+        if modo == "sin_datos":
+            mensaje = "No hay eventos sin datos para reanalizar."
+        elif modo == "todo":
+            mensaje = "No hay eventos con cobertura de picks para reanalizar."
+        elif event_ids:
+            mensaje = "Los eventos seleccionados ya no están pendientes."
+        else:
+            mensaje = "No hay eventos pendientes de señal."
         return jsonify({"estado": "error", "mensaje": mensaje}), 400
 
     try:
@@ -1356,6 +1409,7 @@ def crear_corrida_senal(job_id: str):
             "corrida": run.id,
             "total": run.total,
             "alcance": run.scope,
+            "modo": modo,
         },
     )
     return jsonify(

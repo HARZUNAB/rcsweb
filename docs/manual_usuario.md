@@ -856,6 +856,11 @@ El selector **Orden** permite cambiar el criterio de la lista y de la cola:
 recomendado, fecha, estaciones sin aportar, distancia o cobertura. El selector
 **Señal** filtra por pendientes, con señal, sin señal clara o sin datos.
 
+**Reanalizar sin datos** vuelve a procesar solo los eventos que quedaron sin
+formas de onda. **Reanalizar todo** fuerza el análisis de todos los eventos con
+cobertura de picks, incluidos los ya analizados. Cada fila con resultado
+terminado tiene además un enlace **Reanalizar** para repetir un evento puntual.
+
 **Analizar todos los pendientes** crea una corrida en segundo plano para todos
 los eventos que falten. La corrida se procesa por lotes y se puede:
 

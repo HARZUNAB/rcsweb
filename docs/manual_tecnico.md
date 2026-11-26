@@ -1530,6 +1530,17 @@ POST /jobs/<job_id>/indicios/senal/corrida/<run_id>/reanudar
 POST /jobs/<job_id>/indicios/senal/corrida/<run_id>/cancelar
 ```
 
+El POST de creación acepta `modo`:
+
+- `pendientes`: solo eventos sin resultado terminal;
+- `sin_datos`: solo eventos con estado `sin_datos`;
+- `todo`: todos los eventos con cobertura de picks, incluidos los ya analizados.
+
+Los modos de reanálisis usan `incluir_terminales=True` al crear la cola. El
+endpoint corto `POST /jobs/<job_id>/indicios/senal` acepta `forzar=1` para
+reanalizar un evento terminal concreto; sin ese campo mantiene el
+comportamiento normal de solo pendientes.
+
 Cada evento de la cola pasa por `pending`, `running`, `done` o `error`. Si el
 servicio de correlación no responde, la corrida queda `paused`, el evento vuelve
 a `pending` y se puede reanudar. Los resultados ya calculados se guardan en

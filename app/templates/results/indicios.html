@@ -239,6 +239,11 @@
         <div class="small text-secondary">
           Orden: {{ ordenes.get(orden, orden) }}
         </div>
+        <div class="small text-secondary">
+          {{ info_fuente.senal_con_senal or 0 }} con señal ·
+          {{ info_fuente.senal_sin_senal or 0 }} sin señal clara ·
+          {{ info_fuente.senal_sin_datos or 0 }} sin datos
+        </div>
       </div>
       <div class="d-flex flex-wrap gap-2">
         {% if cola_senal %}
@@ -259,6 +264,22 @@
                 {% if corrida_actual and corrida_actual.get('puede_cancelar') %}disabled{% endif %}>
           Analizar todos los pendientes
         </button>
+        {% if info_fuente.senal_sin_datos %}
+        <button type="button" class="btn btn-sm btn-outline-warning"
+                id="btn-senal-reanalizar-sin-datos"
+                data-modo="sin_datos"
+                {% if corrida_actual and corrida_actual.get('puede_cancelar') %}disabled{% endif %}>
+          Reanalizar sin datos ({{ info_fuente.senal_sin_datos }})
+        </button>
+        {% endif %}
+        {% if info_fuente.picks_eventos %}
+        <button type="button" class="btn btn-sm btn-outline-danger"
+                id="btn-senal-reanalizar-todo"
+                data-modo="todo"
+                {% if corrida_actual and corrida_actual.get('puede_cancelar') %}disabled{% endif %}>
+          Reanalizar todo
+        </button>
+        {% endif %}
         <button type="button" class="btn btn-sm btn-outline-primary"
                 id="btn-senal-seleccionados" disabled>
           Analizar seleccionados
@@ -607,6 +628,18 @@
               <div class="small text-secondary">sin datos</div>
               {% elif fila.picks_senal_estado == 'sin_candidatas' %}
               <div class="small text-secondary">sin candidatas</div>
+              {% endif %}
+              {% if alcance == 'picks' and puede_analizar_senal and fila.picks_senal_estado in ('analizado', 'sin_datos') %}
+              <form class="senal-picks-form d-inline m-0" method="post"
+                    action="{{ url_for('results.analizar_senal_picks', job_id=job.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="fuente" value="{{ fuente }}">
+                <input type="hidden" name="eventos" value="{{ fila.evento }}">
+                <input type="hidden" name="forzar" value="1">
+                <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">
+                  Reanalizar
+                </button>
+              </form>
               {% endif %}
               {% else %}
               —
