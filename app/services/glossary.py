@@ -10,6 +10,7 @@ GRUPOS = (
     ("publicacion", "Publicación y cruce Eventquery"),
     ("fases", "Fases y patrones"),
     ("cobertura", "Cobertura y estaciones"),
+    ("picks", "Cobertura de picks"),
     ("residuales", "Residuales y peso"),
     ("prioridad", "Prioridad"),
     ("resultados", "Resultados y cruces"),
@@ -398,6 +399,86 @@ TERMINOS = {
             "Hay formas de onda disponibles, pero la estación no tiene un pick "
             "usado en la solución."
         ),
+    },
+    "picks_faltantes": {
+        "titulo": "Estaciones cercanas sin aportar",
+        "texto": (
+            "Estaciones con registro disponible, dentro del radio de búsqueda, "
+            "que no contribuyeron a la solución: no tienen arribo o tienen un "
+            "pick que no se usó. Se muestran como sin picar + picadas no usadas."
+        ),
+        "grupo": "picks",
+    },
+    "sin_picar": {
+        "titulo": "Sin picar",
+        "texto": (
+            "Estación con registro disponible y sin arribo para el evento. Es "
+            "una candidata a pick faltante; no confirma por sí sola que la "
+            "señal sea clara."
+        ),
+        "grupo": "picks",
+    },
+    "picada_no_usada": {
+        "titulo": "Picada no usada",
+        "texto": (
+            "Estación con un pick que no influyó en la solución: peso 0, fase "
+            "descartada o componente horizontal. Es distinto de una estación "
+            "sin pick."
+        ),
+        "grupo": "picks",
+    },
+    "senal_pendiente": {
+        "titulo": "Señal pendiente",
+        "texto": (
+            "El evento tiene candidatas, pero todavía no se analizaron las "
+            "formas de onda. El conteo es de inventario; falta confirmar si "
+            "hay señal clara."
+        ),
+        "grupo": "picks",
+    },
+    "senal_clara": {
+        "titulo": "Señal clara",
+        "texto": (
+            "Regla prevista: al menos 2 de las bandas 1–5, 1–10 y 2–15 Hz con "
+            "STA/LTA ≥3 y racha ≥0.7 s en el canal vertical. La correlación es "
+            "informativa. Esta confirmación todavía no está activa."
+        ),
+        "grupo": "picks",
+    },
+    "sin_senal_clara": {
+        "titulo": "Sin señal clara",
+        "texto": (
+            "La estación fue analizada y no alcanzó la regla de señal; no se "
+            "cuenta como pick faltante claro."
+        ),
+        "grupo": "picks",
+    },
+    "cobertura_picks": {
+        "titulo": "Cobertura de picks",
+        "texto": (
+            "Indicador de revisión que cuenta estaciones cercanas con registro "
+            "disponible que no aportaron a la solución. Se calcula al terminar "
+            "el trabajo; la confirmación con formas de onda es una segunda "
+            "etapa."
+        ),
+        "grupo": "picks",
+    },
+    "prioridad_picks": {
+        "titulo": "Prioridad por cobertura de picks",
+        "texto": (
+            "Prioridad preliminar según el número de estaciones sin aportar y "
+            "la distancia mínima. Alta con ≥3 o una a <100 km; Media con 1–2. "
+            "La señal confirmada puede ajustarla."
+        ),
+        "grupo": "picks",
+    },
+    "radio_picks": {
+        "titulo": "Radio de búsqueda de picks",
+        "texto": (
+            "Distancia máxima para considerar una estación cercana. Se "
+            "configura con RCS_PICKS_RADIO_KM; por defecto 250 km."
+        ),
+        "grupo": "picks",
     },
     "miniaturas_perfil_planta": {
         "titulo": "Miniaturas de perfil y planta",

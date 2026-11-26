@@ -18,6 +18,15 @@ def test_glosario_tiene_los_terminos_clave():
         "residual_temporal",
         "parametros_actualizados",
         "wadati",
+        "picks_faltantes",
+        "sin_picar",
+        "picada_no_usada",
+        "senal_pendiente",
+        "senal_clara",
+        "sin_senal_clara",
+        "cobertura_picks",
+        "prioridad_picks",
+        "radio_picks",
     }
     for clave in claves:
         dato = glossary.definicion(clave)
@@ -56,6 +65,9 @@ def test_pagina_ayuda_lista_el_glosario(client, login):
     assert "Parámetros actualizados" in html
     assert "Wadati" in html
     assert "Vp/Vs" in html
+    assert "Estaciones cercanas sin aportar" in html
+    assert "Señal pendiente" in html
+    assert "Cobertura de picks" in html
 
 
 def test_estados_de_estacion_estan_en_cobertura():
@@ -70,6 +82,25 @@ def test_estados_de_estacion_estan_en_cobertura():
     }
     assert estados <= cobertura
     assert not estados & usuarios
+
+
+def test_glosario_cobertura_de_picks_agrupada():
+    grupos = {grupo["clave"]: grupo for grupo in glossary.grupos()}
+    assert "picks" in grupos
+    claves = {
+        termino["clave"] for termino in grupos["picks"]["terminos"]
+    }
+    assert {
+        "picks_faltantes",
+        "sin_picar",
+        "picada_no_usada",
+        "senal_pendiente",
+        "senal_clara",
+        "sin_senal_clara",
+        "cobertura_picks",
+        "prioridad_picks",
+        "radio_picks",
+    } <= claves
 
 
 def test_pagina_ayuda_vuelve_al_origen(client, login):
