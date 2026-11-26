@@ -195,6 +195,35 @@
     });
   }
 
+  // Vista compacta de la revisión: conserva el modo completo en un interruptor.
+  const tablaRevision = document.querySelector("[data-revision-tabla]");
+  const interruptorCompacta = document.querySelector("[data-toggle-compacta]");
+  if (tablaRevision && interruptorCompacta) {
+    let compacta = false;
+    try {
+      compacta = window.localStorage.getItem("rcs.revision.compacta") === "1";
+    } catch (error) {
+      compacta = false;
+    }
+    const aplicarCompacta = function (activo) {
+      tablaRevision.classList.toggle("compacta", activo);
+      interruptorCompacta.checked = activo;
+    };
+    aplicarCompacta(compacta);
+    interruptorCompacta.addEventListener("change", function () {
+      compacta = interruptorCompacta.checked;
+      try {
+        window.localStorage.setItem(
+          "rcs.revision.compacta",
+          compacta ? "1" : "0"
+        );
+      } catch (error) {
+        // Sin localStorage se mantiene solo durante esta página.
+      }
+      aplicarCompacta(compacta);
+    });
+  }
+
   document.querySelectorAll("[data-toggle-miniaturas-fila]").forEach(function (boton) {
     boton.addEventListener("click", function () {
       const celda = boton.closest("td");

@@ -828,6 +828,11 @@ Cada evento combina dos lecturas:
 La vista ya no tiene una columna **Motivo** separada: esa información se deduce
 de **Solución** y **Señales de fase**.
 
+La opción **Vista compacta** oculta columnas secundarias para reducir el
+desplazamiento horizontal; la preferencia se conserva en el navegador. La
+columna **Evento** queda fija al desplazarse en horizontal para no perder el
+contexto de la fila.
+
 La columna **Sin aportar** muestra las estaciones cercanas con registro
 disponible que no contribuyeron a la solución:
 

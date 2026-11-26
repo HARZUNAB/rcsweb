@@ -457,9 +457,16 @@
         Mostrar miniaturas de perfil y planta
       </label>
     </div>
+    <div class="form-check form-switch small mb-2">
+      <input class="form-check-input" type="checkbox" id="toggle-compacta"
+             data-toggle-compacta>
+      <label class="form-check-label" for="toggle-compacta">
+        Vista compacta
+      </label>
+    </div>
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle mb-0 tabla-revision tabla-miniaturas tabla-revision-fija{% if puede_crear_revision %} con-seleccion{% endif %}"
-             data-miniaturas-tabla data-sortable>
+             data-miniaturas-tabla data-revision-tabla data-sortable>
         <thead class="table-light">
           <tr>
             {% if puede_crear_revision %}
@@ -473,12 +480,14 @@
             <th data-sort-key="fecha" data-sort-type="text">Fecha y hora</th>
             <th data-sort-key="evento" data-sort-type="text">Evento</th>
             <th data-sort-key="magnitud" data-sort-type="number" class="text-end">Mag.</th>
-            <th data-sort-key="cruce_eventquery" data-sort-type="order">Cruce Eventquery</th>
+            <th data-sort-key="cruce_eventquery" data-sort-type="order"
+                class="col-secundaria">Cruce Eventquery</th>
             <th data-sort-key="solucion" data-sort-type="order">Solución</th>
             <th data-sort-key="prioridad" data-sort-type="order">
               Prioridad
             </th>
-            <th data-sort-key="disponibles" data-sort-type="number" class="text-end"
+            <th data-sort-key="disponibles" data-sort-type="number"
+                class="text-end col-secundaria"
                 title="Estaciones disponibles: usadas en la solución más inventario sin arribos">
               Estaciones
             </th>
@@ -490,21 +499,27 @@
                 title="Estaciones cercanas con registro disponible que no aportaron: sin picar + picadas no usadas">
               Sin aportar
             </th>
-            <th data-sort-key="residual" data-sort-type="number" class="text-end">Máx. residual</th>
-            <th data-sort-key="patron" data-sort-type="text">Patrón</th>
+            <th data-sort-key="residual" data-sort-type="number"
+                class="text-end col-secundaria">Máx. residual</th>
+            <th data-sort-key="patron" data-sort-type="text"
+                class="col-secundaria">Patrón</th>
             <th data-sort-key="contexto" data-sort-type="order"
+                class="col-secundaria"
                 title="Cobertura suficiente: al menos 5 estaciones, azimutal gap ≤ 180° y perfil asignado. Cobertura débil: pocas estaciones, azimutal gap > 180° o sin perfil asignado.">
               Cobertura
             </th>
             <th data-sort-key="wadati" data-sort-type="order"
+                class="col-secundaria"
                 title="Relación Vp/Vs y coherencia de los tiempos P/S. Es informativo: no cambia la prioridad ni la revisión prioritaria.">
               Fases P/S
             </th>
             {% if puede_crear_revision %}
-            <th data-sort-key="analista" data-sort-type="text">Analista</th>
+            <th data-sort-key="analista" data-sort-type="text"
+                class="col-secundaria">Analista</th>
             {% endif %}
             {% if puede_ver_revisiones %}
-            <th data-sort-key="revision" data-sort-type="text">Revisión</th>
+            <th data-sort-key="revision" data-sort-type="text"
+                class="col-secundaria">Revisión</th>
             {% endif %}
             <th data-sort-key="indicios" data-sort-type="text">Señales de fase</th>
           </tr>
@@ -541,7 +556,7 @@
               ) }}
             </td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.magnitud or '' }}">{{ fila.magnitud or '' }}</td>
-            <td class="text-nowrap" data-sort-value="{% if fila.cruce_eventquery == 'con_cruce' %}2{% elif fila.cruce_eventquery == 'sin_cruce' %}1{% else %}0{% endif %}">
+            <td class="text-nowrap col-secundaria" data-sort-value="{% if fila.cruce_eventquery == 'con_cruce' %}2{% elif fila.cruce_eventquery == 'sin_cruce' %}1{% else %}0{% endif %}">
               {% if fila.solo_picks %}
               <span class="badge text-bg-light text-dark"
                     title="Evento agregado por cobertura de picks. No se evaluó el cruce con Eventquery.">
@@ -592,7 +607,7 @@
               </div>
               {% endif %}
             </td>
-            <td class="text-end text-nowrap" data-sort-value="{{ fila.n_disponibles or '' }}">{{ fila.n_disponibles if fila.n_disponibles not in (none, '') else '—' }}</td>
+            <td class="text-end text-nowrap col-secundaria" data-sort-value="{{ fila.n_disponibles or '' }}">{{ fila.n_disponibles if fila.n_disponibles not in (none, '') else '—' }}</td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.n_usadas }}">{{ fila.n_usadas if fila.n_usadas not in (none, '') else '—' }}</td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.picks_total or 0 }}">
               {% if fila.picks_total %}
@@ -645,8 +660,8 @@
               —
               {% endif %}
             </td>
-            <td class="text-end text-nowrap" data-sort-value="{{ fila.max_residual_usado or '' }}">{{ fila.max_residual_usado or '—' }}</td>
-            <td data-sort-value="{{ fila.patron }}">
+            <td class="text-end text-nowrap col-secundaria" data-sort-value="{{ fila.max_residual_usado or '' }}">{{ fila.max_residual_usado or '—' }}</td>
+            <td class="col-secundaria" data-sort-value="{{ fila.patron }}">
               <span class="badge text-bg-light text-dark"
                     title="{{ fila.patron|patron_descripcion }}">{{ fila.patron|patron_corto }}</span>
               {% if fila.fuerza == 'débil' %}
@@ -657,7 +672,7 @@
                     title="Residual extremo: supera 60 s o 10 veces la mediana del evento.">extremo</span>
               {% endif %}
             </td>
-            <td class="text-nowrap" data-sort-value="{% if fila.contexto == 'fuerte' %}1{% else %}0{% endif %}">
+            <td class="text-nowrap col-secundaria" data-sort-value="{% if fila.contexto == 'fuerte' %}1{% else %}0{% endif %}">
               {% if fila.contexto %}
               <span class="badge {% if fila.contexto == 'fuerte' %}text-bg-success{% else %}text-bg-warning text-dark{% endif %}"
                     title="{% if fila.contexto == 'fuerte' %}Cobertura suficiente: al menos 5 estaciones, azimutal gap ≤ 180° y perfil asignado.{% else %}Cobertura débil: pocas estaciones, azimutal gap > 180° o sin perfil asignado.{% endif %}">
@@ -667,7 +682,7 @@
               —
               {% endif %}
             </td>
-            <td class="text-nowrap" data-sort-value="{{ fila.wadati_orden }}">
+            <td class="text-nowrap col-secundaria" data-sort-value="{{ fila.wadati_orden }}">
               {% if fila.wadati_calidad and fila.wadati_calidad != 'insuficiente' %}
               <span class="small"
                     title="Wadati: N {{ fila.wadati_n }} · Vp/Vs {{ fila.wadati_vp_vs }} · R² {{ fila.wadati_r2 }} · dispersión {{ fila.wadati_dispersion }} s">
@@ -682,7 +697,7 @@
               {% endif %}
             </td>
             {% if puede_crear_revision %}
-            <td class="text-nowrap" data-sort-value="{{ fila.analista or '' }}">
+            <td class="text-nowrap col-secundaria" data-sort-value="{{ fila.analista or '' }}">
               {% if fila.analista %}
               {{ fila.analista }}
               {% if not fila.analista_usuario_id %}
@@ -694,7 +709,7 @@
             </td>
             {% endif %}
             {% if puede_ver_revisiones %}
-            <td class="text-nowrap" data-sort-value="{% if fila.solicitud_info %}{{ fila.solicitud_info.estado }}{% endif %}">
+            <td class="text-nowrap col-secundaria" data-sort-value="{% if fila.solicitud_info %}{{ fila.solicitud_info.estado }}{% endif %}">
               {% if fila.solicitud_info %}
               {% set info = fila.solicitud_info %}
               <a class="text-decoration-none"

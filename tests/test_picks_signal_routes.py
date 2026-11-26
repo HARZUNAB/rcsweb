@@ -424,6 +424,20 @@ def test_evento_con_fase_y_picks_sigue_en_revision_prioritaria(app):
     assert filas[0]["revision_prioritaria"] == "Sí"
 
 
+def test_revision_muestra_vista_compacta(app, client, login):
+    job = _job()
+    _reporte(job)
+    login()
+    html = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp", "alcance": "picks"},
+    ).get_data(as_text=True)
+    assert "Vista compacta" in html
+    assert "data-toggle-compacta" in html
+    assert "data-revision-tabla" in html
+    assert "col-secundaria" in html
+
+
 def test_revision_muestra_boton_y_estado_pendiente(app, client, login):
     job = _job()
     _reporte(job)

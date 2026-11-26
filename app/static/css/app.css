@@ -123,6 +123,42 @@ footer {
   background: #eef4fa;
 }
 
+/* La columna Evento también queda fija para no perder el contexto al
+   desplazarse en horizontal. */
+.tabla-revision-fija.con-seleccion thead th:nth-child(3),
+.tabla-revision-fija.con-seleccion tbody td:nth-child(3),
+.tabla-revision-fija:not(.con-seleccion) thead th:nth-child(2),
+.tabla-revision-fija:not(.con-seleccion) tbody td:nth-child(2) {
+  position: sticky;
+  z-index: 2;
+  background-color: #fff;
+  background-clip: padding-box;
+  isolation: isolate;
+  box-shadow: 6px 0 6px -6px rgba(0, 0, 0, 0.18);
+}
+
+.tabla-revision-fija.con-seleccion thead th:nth-child(3),
+.tabla-revision-fija.con-seleccion tbody td:nth-child(3) {
+  left: var(--seleccion-ancho);
+}
+
+.tabla-revision-fija:not(.con-seleccion) thead th:nth-child(2),
+.tabla-revision-fija:not(.con-seleccion) tbody td:nth-child(2) {
+  left: 0;
+}
+
+.tabla-revision-fija.con-seleccion thead th:nth-child(3),
+.tabla-revision-fija:not(.con-seleccion) thead th:nth-child(2) {
+  z-index: 3;
+  background: #eef4fa;
+}
+
+/* Vista compacta: oculta las columnas secundarias sin perder el modo
+   completo, que se recupera con el mismo interruptor. */
+.tabla-revision.compacta .col-secundaria {
+  display: none;
+}
+
 /* Las filas activas o en hover no deben usar alfa: con columnas fijas el
    contenido que se desplaza por debajo se transparenta en la columna de
    acciones. */
