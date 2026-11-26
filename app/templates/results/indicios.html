@@ -59,7 +59,7 @@
       <div class="card-body">
         <div class="text-secondary small text-uppercase">Revisión prioritaria</div>
         <div class="fs-3 fw-semibold">{{ info_fuente.revision_prioritaria or 0 }}</div>
-        <div class="small text-secondary">con cruce Eventquery y solución sospechosa</div>
+        <div class="small text-secondary">por cruce, fases o solución</div>
       </div>
     </div>
   </div>
@@ -378,7 +378,12 @@
             </td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.magnitud or '' }}">{{ fila.magnitud or '' }}</td>
             <td class="text-nowrap" data-sort-value="{% if fila.cruce_eventquery == 'con_cruce' %}2{% elif fila.cruce_eventquery == 'sin_cruce' %}1{% else %}0{% endif %}">
-              {% if fila.cruce_eventquery == 'con_cruce' %}
+              {% if fila.solo_picks %}
+              <span class="badge text-bg-light text-dark"
+                    title="Evento agregado por cobertura de picks. No se evaluó el cruce con Eventquery.">
+                No aplica
+              </span>
+              {% elif fila.cruce_eventquery == 'con_cruce' %}
               <span class="badge text-bg-primary">Con cruce</span>
               {% elif fila.cruce_eventquery == 'sin_cruce' %}
               <span class="badge text-bg-secondary">Sin cruce</span>
@@ -387,7 +392,12 @@
               {% endif %}
             </td>
             <td class="text-nowrap" data-sort-value="{% if fila.sospechoso == 'Sí' %}2{% elif fila.sospechoso == 'No' %}1{% else %}0{% endif %}">
-              {% if fila.sospechoso == 'Sí' %}
+              {% if fila.solo_picks %}
+              <span class="badge text-bg-light text-dark"
+                    title="Evento agregado por cobertura de picks. No se evaluó la solución.">
+                No aplica
+              </span>
+              {% elif fila.sospechoso == 'Sí' %}
               <span class="badge text-bg-danger">Sospechosa</span>
               {% elif fila.sospechoso == 'No' %}
               <span class="badge text-bg-success">Normal</span>
@@ -412,7 +422,10 @@
               <span class="badge text-bg-light text-dark">{{ fila.prioridad }}</span>
               {% endif %}
               {% if fila.motivo_prioridad %}
-              <div class="small text-secondary">{{ fila.motivo_prioridad }}</div>
+              <div class="small text-secondary"
+                   {% if fila.solo_picks %}title="El evento entró a la revisión solo por estaciones cercanas sin aportar; no se evaluaron cruce ni solución."{% endif %}>
+                {{ fila.motivo_prioridad }}
+              </div>
               {% endif %}
             </td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.n_disponibles or '' }}">{{ fila.n_disponibles if fila.n_disponibles not in (none, '') else '—' }}</td>

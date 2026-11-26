@@ -715,6 +715,8 @@ def _filas_revision(workspace, fuente, usuario) -> list[dict]:
     _combinar_picks(filas, workspace, fuente)
 
     for fila in filas:
+        solo_picks = fila.get("motivo") == "picks"
+        fila["solo_picks"] = solo_picks
         con_cruce = _estado_cruce_desde_texto(
             fila.get("cruce_eventquery")
         )
@@ -727,7 +729,11 @@ def _filas_revision(workspace, fuente, usuario) -> list[dict]:
         if picks_orden > orden_base:
             prioridad = fila.get("picks_prioridad") or "Informativa"
             fila["prioridad_orden"] = picks_orden
-            fila["motivo_prioridad"] = "Cobertura de picks"
+            fila["motivo_prioridad"] = (
+                "Solo cobertura de picks"
+                if solo_picks
+                else "Cobertura de picks"
+            )
         else:
             prioridad = prioridad_base
             fila["prioridad_orden"] = orden_base
@@ -751,7 +757,9 @@ def _filas_revision(workspace, fuente, usuario) -> list[dict]:
             "insuficiente": 0,
         }.get(str(fila.get("wadati_calidad") or "").lower(), 0)
         fila["revision_prioritaria"] = (
-            "Sí" if prioridad in ("Alta", "Media") else "No"
+            "Sí"
+            if prioridad in ("Alta", "Media") and not solo_picks
+            else "No"
         )
         fila["_sospechoso_orden"] = {
             "Sí": 2,

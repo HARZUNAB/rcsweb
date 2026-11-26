@@ -1409,6 +1409,15 @@ agrega con `tipos_indicio=picks_faltantes` y aparece en la pestaña
 fases/solución y la de picks. La columna **Sin aportar** muestra
 `sin picar + no usadas`.
 
+`_combinar_picks` marca esas filas con `motivo=picks`; `_filas_revision` las
+expone como `solo_picks`. Aunque su prioridad de picks sea Alta o Media, no se
+marcan como `revision_prioritaria`, para que la pestaña **Revisión prioritaria**
+siga significando cruce/solución o fases. En la plantilla, las filas
+`solo_picks` muestran **No aplica** en Cruce Eventquery y Solución, y
+**Solo cobertura de picks** como motivo de prioridad. Si la fila también tiene
+fases o solución, `motivo` pasa a `ambas` y sí puede entrar en la revisión
+prioritaria.
+
 La confirmación de señal es una segunda etapa bajo demanda. El reporte guarda
 `senal_n`, `senal_estaciones`, `senal_estado` y `senal_actualizado`. Los estados
 son `pendiente`, `analizado`, `sin_datos` y `sin_candidatas`.

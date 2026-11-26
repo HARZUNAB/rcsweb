@@ -758,7 +758,9 @@ la página del trabajo abre el listado. Hay cuatro alcances:
 
 - **Revisión prioritaria:** eventos publicados con solución sospechosa
   (prioridad Alta) o con solución normal y fase fuerte (prioridad Media). La
-  duda de localización manda; la fase distingue la calidad de catálogo.
+  duda de localización manda; la fase distingue la calidad de catálogo. No
+  incluye los eventos que solo tienen cobertura de picks; esos quedan en
+  **Todos los indicios** y en **Sin aportar**.
 - **Con cruce Eventquery:** soluciones locales que cruzan con Eventquery, con
   solución sospechosa o con fases inconsistentes.
 - **Todos:** agrega las soluciones sin cruce Eventquery que tienen fases
@@ -855,6 +857,12 @@ La regla usa las bandas 1–5, 1–10 y 2–15 Hz, exige al menos dos bandas con
 STA/LTA ≥3 y una racha ≥0.7 s en el canal vertical. La correlación se muestra
 como información, no como condición. Una estación muy cercana o varias
 estaciones candidatas suben la prioridad.
+
+Los eventos que solo tienen cobertura de picks no se evaluaron contra
+Eventquery ni con la clasificación de solución. Por eso, en **Cruce Eventquery**
+y **Solución** muestran **No aplica**, y bajo la prioridad aparece **Solo
+cobertura de picks**. Esas filas no entran en **Revisión prioritaria**; se
+revisan desde **Todos los indicios** o desde **Sin aportar**.
 
 La columna **Fases P/S** muestra el resultado de Wadati por evento:
 

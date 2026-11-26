@@ -142,6 +142,62 @@ def test_post_analizar_senal_requiere_permiso(app, client, login):
     assert respuesta.status_code == 403
 
 
+def test_solo_picks_no_entra_a_revision_prioritaria(app, client, login):
+    job = _job()
+    _reporte(job)
+    login()
+    por_defecto = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp"},
+    )
+    html_defecto = por_defecto.get_data(as_text=True)
+    assert "No hay eventos para este filtro." in html_defecto
+    assert "seiscomp:000001" not in html_defecto
+
+    todos = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp", "alcance": "todos"},
+    ).get_data(as_text=True)
+    assert "seiscomp:000001" in todos
+    assert "No aplica" in todos
+    assert "Solo cobertura de picks" in todos
+
+
+def test_evento_con_fase_y_picks_sigue_en_revision_prioritaria(app):
+    from app.blueprints.results import _filas_revision
+
+    job = _job()
+    _reporte(job)
+    destino = indicios.ruta_eventos(ruta_workspace(job.id), "seiscomp")
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    fila = {campo: "" for campo in indicios.CAMPOS_EVENTO}
+    fila.update(
+        {
+            "evento": "seiscomp:000001",
+            "fila_catalogo": "0",
+            "cruce_eventquery": "con_cruce",
+            "sospechoso": "Sí",
+            "fuerza": "fuerte",
+            "anomalia": "Sí",
+        }
+    )
+    with destino.open("w", encoding="utf-8", newline="") as archivo:
+        escritor = csv.DictWriter(
+            archivo, fieldnames=indicios.CAMPOS_EVENTO
+        )
+        escritor.writeheader()
+        escritor.writerow(fila)
+
+    usuario = User(username="tester", role="admin")
+    filas = _filas_revision(
+        ruta_workspace(job.id), "seiscomp", usuario
+    )
+    assert len(filas) == 1
+    assert filas[0]["motivo"] == "ambas"
+    assert filas[0]["solo_picks"] is False
+    assert filas[0]["revision_prioritaria"] == "Sí"
+
+
 def test_revision_muestra_boton_y_estado_pendiente(app, client, login):
     job = _job()
     _reporte(job)
