@@ -635,7 +635,7 @@ def _combinar_picks(filas: list[dict], workspace, fuente: str) -> None:
             "picks_detalle": pick.get("detalle") or [],
             "picks_senal_n": int(pick.get("senal_n") or 0),
             "picks_senal_estaciones": pick.get("senal_estaciones") or "",
-            "picks_senal_estado": pick.get("senal_estado") or "",
+            "picks_senal_estado": pick.get("senal_estado") or "pendiente",
             "picks_n_usadas": int(pick.get("n_usadas") or 0),
         }
         resultado_senal = mapa_senal.get(
@@ -714,6 +714,77 @@ def _combinar_picks(filas: list[dict], workspace, fuente: str) -> None:
         fila.update(campos)
 
 
+ORDENES_REVISION = {
+    "recomendado": "Recomendado",
+    "fecha": "Fecha",
+    "sin_aportar": "Estaciones sin aportar",
+    "distancia": "Distancia mínima",
+    "cobertura": "Cobertura",
+}
+
+FILTROS_SENAL = {
+    "": "Todas",
+    "pendiente": "Pendientes",
+    "con_senal": "Con señal",
+    "sin_senal": "Sin señal clara",
+    "sin_datos": "Sin datos",
+}
+
+
+def _coincide_senal(fila: dict, filtro: str) -> bool:
+    estado = fila.get("picks_senal_estado") or "pendiente"
+    if filtro == "pendiente":
+        return bool(fila.get("picks_total")) and (
+            estado not in picks_signal.ESTADOS_TERMINALES
+        )
+    if filtro == "con_senal":
+        return estado == "analizado" and int(
+            fila.get("picks_senal_n") or 0
+        ) > 0
+    if filtro == "sin_senal":
+        return estado == "analizado" and int(
+            fila.get("picks_senal_n") or 0
+        ) == 0
+    if filtro == "sin_datos":
+        return estado in ("sin_datos", "sin_candidatas")
+    return True
+
+
+def _nivel_revision(fila: dict) -> int:
+    """Nivel del orden recomendado: 0 es lo más urgente."""
+    if fila.get("solo_picks"):
+        return 4
+    con_cruce = fila.get("cruce_eventquery") == "con_cruce"
+    sospechoso = fila.get("sospechoso") == "Sí"
+    prioridad = fila.get("prioridad_base") or "Sin evaluar"
+    if con_cruce and sospechoso and prioridad == "Alta":
+        return 0
+    if con_cruce and (sospechoso or prioridad == "Media"):
+        return 1
+    if sospechoso and prioridad in ("Alta", "Media"):
+        return 2
+    if prioridad in ("Alta", "Media"):
+        return 3
+    return 4
+
+
+def _distancia_orden(fila: dict) -> float:
+    valor = _orden_numerico(fila.get("picks_min_distancia"))
+    return valor if valor > 0 else 99999.0
+
+
+def _clave_orden_recomendado(fila: dict) -> tuple:
+    return (
+        _nivel_revision(fila),
+        -int(fila.get("cobertura_fuerte") or 0),
+        -int(fila.get("picks_total") or 0),
+        -float(fila.get("ratio_sin_aportar") or 0.0),
+        _distancia_orden(fila),
+        -fila.get("_fecha_orden", 0),
+        str(fila.get("evento") or ""),
+    )
+
+
 def _filas_revision(workspace, fuente, usuario) -> list[dict]:
     """Filas de revisión: fase, solución, prioridad y visibilidad."""
     filas = indicios.leer_indicios(workspace, fuente) if fuente else []
@@ -740,6 +811,7 @@ def _filas_revision(workspace, fuente, usuario) -> list[dict]:
         prioridad_base = indicios.prioridad_evento(
             con_cruce, fila.get("fuerza") or "", sospechoso
         )
+        fila["prioridad_base"] = prioridad_base
         orden_base = indicios.ORDEN_PRIORIDAD[prioridad_base]
         picks_orden = int(fila.get("picks_orden") or 0)
         if picks_orden > orden_base:
@@ -777,6 +849,23 @@ def _filas_revision(workspace, fuente, usuario) -> list[dict]:
             if prioridad in ("Alta", "Media") and not solo_picks
             else "No"
         )
+        total_picks = int(fila.get("picks_total") or 0)
+        disponibles = int(fila.get("n_disponibles") or 0)
+        fila["ratio_sin_aportar"] = (
+            total_picks / disponibles if disponibles > 0 else 0.0
+        )
+        n_usadas = int(fila.get("n_usadas") or 0)
+        fila["cobertura_fuerte"] = (
+            1
+            if str(fila.get("contexto") or "").lower() == "fuerte"
+            or (not fila.get("contexto") and n_usadas >= 5)
+            else 0
+        )
+        fila["senal_pendiente"] = bool(total_picks) and (
+            fila.get("picks_senal_estado")
+            not in picks_signal.ESTADOS_TERMINALES
+        )
+        fila["nivel_revision"] = _nivel_revision(fila)
         fila["_sospechoso_orden"] = {
             "Sí": 2,
             "No": 1,
@@ -925,6 +1014,13 @@ def indicios_eventos(job_id: str):
         int(fila.get("picks_no_usadas") or 0) for fila in filas
     )
 
+    orden = request.args.get("orden", "recomendado").strip()
+    if orden not in ORDENES_REVISION:
+        orden = "recomendado"
+    filtro_senal = request.args.get("senal", "").strip()
+    if filtro_senal not in FILTROS_SENAL:
+        filtro_senal = ""
+
     if alcance == "prioritarios":
         filas = [
             fila for fila in filas if fila["revision_prioritaria"] == "Sí"
@@ -938,14 +1034,45 @@ def indicios_eventos(job_id: str):
     elif alcance == "picks":
         filas = [fila for fila in filas if fila.get("picks_total")]
 
-    filas.sort(
-        key=lambda fila: (
-            -fila["prioridad_orden"],
-            -fila["_sospechoso_orden"],
-            -_orden_numerico(fila.get("max_residual_usado")),
-            -fila["_fecha_orden"],
-        )
+    def _clave_orden(fila: dict) -> tuple:
+        if orden == "fecha":
+            return (-fila.get("_fecha_orden", 0),)
+        if orden == "sin_aportar":
+            return (
+                -int(fila.get("picks_total") or 0),
+                -float(fila.get("ratio_sin_aportar") or 0.0),
+                -fila.get("_fecha_orden", 0),
+            )
+        if orden == "distancia":
+            return (
+                _distancia_orden(fila),
+                -int(fila.get("picks_total") or 0),
+                -fila.get("_fecha_orden", 0),
+            )
+        if orden == "cobertura":
+            return (
+                -int(fila.get("cobertura_fuerte") or 0),
+                -int(fila.get("picks_total") or 0),
+                -fila.get("_fecha_orden", 0),
+            )
+        return _clave_orden_recomendado(fila)
+
+    filas.sort(key=_clave_orden)
+    filas_alcance = list(filas)
+    senal_pendientes = sum(
+        1 for fila in filas_alcance if fila.get("senal_pendiente")
     )
+    cola_senal = [
+        fila for fila in filas_alcance if fila.get("senal_pendiente")
+    ][:50]
+    if filtro_senal:
+        filas = [
+            fila
+            for fila in filas
+            if _coincide_senal(fila, filtro_senal)
+        ]
+    info_fuente["senal_pendientes"] = senal_pendientes
+    resumen_senal = picks_signal.leer_resumen(workspace, fuente)
 
     volver = request.full_path.rstrip("?")
     archivo_catalogo = _archivo_tabla("catalogos", fuente, job) if fuente else None
@@ -972,13 +1099,6 @@ def indicios_eventos(job_id: str):
             else ""
         )
 
-    senal_pendientes = sum(
-        1
-        for fila in filas
-        if fila.get("picks_total")
-        and fila.get("picks_senal_estado")
-        not in picks_signal.ESTADOS_TERMINALES
-    )
     etiquetas = {codigo: _alias(job, codigo) for codigo in fuentes}
     return render_template(
         "results/indicios.html",
@@ -1000,6 +1120,12 @@ def indicios_eventos(job_id: str):
         info_fuente=info_fuente,
         puede_analizar_senal=tiene_permiso(current_user, "trabajos.crear"),
         senal_pendientes=senal_pendientes,
+        cola_senal=cola_senal,
+        resumen_senal=resumen_senal,
+        orden=orden,
+        ordenes=ORDENES_REVISION,
+        filtro_senal=filtro_senal,
+        filtros_senal=FILTROS_SENAL,
         volver=volver,
     )
 
@@ -1010,8 +1136,20 @@ def indicios_eventos(job_id: str):
 def analizar_senal_picks(job_id: str):
     """Encola el análisis de señal de las candidatas pendientes."""
     job = _job(job_id)
-    datos = request.get_json(silent=True) or request.form
+    if request.is_json:
+        datos = request.get_json(silent=True) or {}
+        eventos = datos.get("eventos") or []
+        if isinstance(eventos, str):
+            eventos = [eventos]
+    else:
+        datos = request.form
+        eventos = datos.getlist("eventos")
     fuente = str(datos.get("fuente") or "").strip()
+    event_ids = [
+        str(evento).strip()
+        for evento in eventos
+        if str(evento).strip()
+    ]
     fuentes = _fuentes_job(job)
     if fuente not in fuentes:
         return jsonify(
@@ -1035,18 +1173,28 @@ def analizar_senal_picks(job_id: str):
         if int(fila.get("total_n") or 0) > 0
         and fila.get("senal_estado") not in picks_signal.ESTADOS_TERMINALES
     ]
+    if event_ids:
+        seleccionados = set(event_ids)
+        pendientes = [
+            fila
+            for fila in pendientes
+            if str(fila.get("evento") or "") in seleccionados
+        ]
     if not pendientes:
-        return jsonify(
-            {
-                "estado": "error",
-                "mensaje": "No hay eventos con señal pendiente para analizar.",
-            }
-        ), 400
+        mensaje = (
+            "Los eventos seleccionados ya no están pendientes."
+            if event_ids
+            else "No hay eventos con señal pendiente para analizar."
+        )
+        return jsonify({"estado": "error", "mensaje": mensaje}), 400
 
     max_eventos = picks_signal.MAX_EVENTOS
     try:
         tarea = analizar_senal_picks_task.delay(
-            job.id, fuente, max_eventos=max_eventos
+            job.id,
+            fuente,
+            max_eventos=max_eventos,
+            event_ids=event_ids or None,
         )
     except Exception:  # noqa: BLE001 - el usuario necesita un mensaje claro
         return jsonify(
@@ -1066,6 +1214,7 @@ def analizar_senal_picks(job_id: str):
             "fuente": fuente,
             "pendientes": len(pendientes),
             "max_eventos": max_eventos,
+            "seleccionados": bool(event_ids),
         },
     )
     return jsonify(
@@ -1073,6 +1222,7 @@ def analizar_senal_picks(job_id: str):
             "estado": "encolada",
             "task_id": tarea.id,
             "eventos": min(len(pendientes), max_eventos),
+            "seleccionados": bool(event_ids),
         }
     ), 202
 
@@ -1087,7 +1237,11 @@ def estado_senal_picks(job_id: str, task_id: str):
     estado = resultado.state
     datos = {"estado": estado}
     if estado == "PROGRESS":
-        datos["fase"] = str((resultado.info or {}).get("fase") or "")
+        info = resultado.info or {}
+        datos["fase"] = str(info.get("fase") or "")
+        datos["procesados"] = int(info.get("procesados") or 0)
+        datos["total"] = int(info.get("total") or 0)
+        datos["evento"] = str(info.get("evento") or "")
     elif estado == "SUCCESS":
         valor = resultado.result or {}
         if isinstance(valor, dict) and valor.get("estado") == "ok":

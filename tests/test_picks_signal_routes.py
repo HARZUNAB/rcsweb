@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 from app.extensions import db
 from app.models import Job, JobSource, User, nuevo_uuid
-from app.services import indicios, picks_coverage
+from app.services import indicios, picks_coverage, picks_signal
 from app.services.workspace import crear_workspace, ruta_workspace
 
 
@@ -96,6 +96,35 @@ def test_post_analizar_senal_encola(app, client, login, monkeypatch):
     assert llamadas and llamadas[0][0][1] == "seiscomp"
 
 
+def test_post_analizar_senal_seleccionados(app, client, login, monkeypatch):
+    job = _job()
+    _reporte(job)
+    app.config["RCS_DISPONIBILIDAD_URL"] = "http://sidecar:8010"
+    llamadas = []
+
+    class Tarea:
+        id = "tarea-senal-2"
+
+    def encolar(*argumentos, **opciones):
+        llamadas.append((argumentos, opciones))
+        return Tarea()
+
+    monkeypatch.setattr(
+        "app.blueprints.results.analizar_senal_picks_task.delay", encolar
+    )
+    login()
+    respuesta = client.post(
+        f"/jobs/{job.id}/indicios/senal",
+        data={
+            "fuente": "seiscomp",
+            "eventos": "seiscomp:000001",
+        },
+    )
+    assert respuesta.status_code == 202
+    assert respuesta.get_json()["seleccionados"] is True
+    assert llamadas[0][1]["event_ids"] == ["seiscomp:000001"]
+
+
 def test_post_analizar_senal_sin_configuracion(app, client, login):
     job = _job()
     _reporte(job)
@@ -140,6 +169,48 @@ def test_post_analizar_senal_requiere_permiso(app, client, login):
         data={"fuente": "seiscomp"},
     )
     assert respuesta.status_code == 403
+
+
+def test_orden_recomendado_prioriza_por_niveles():
+    from app.blueprints.results import _clave_orden_recomendado
+
+    def fila(evento, **datos):
+        base = {
+            "evento": evento,
+            "solo_picks": False,
+            "cruce_eventquery": "con_cruce",
+            "sospechoso": "Sí",
+            "prioridad_base": "Alta",
+            "cobertura_fuerte": 1,
+            "picks_total": 10,
+            "ratio_sin_aportar": 0.5,
+            "picks_min_distancia": 100,
+            "_fecha_orden": 1,
+        }
+        base.update(datos)
+        return base
+
+    nivel_a = fila("A")
+    nivel_b = fila(
+        "B",
+        sospechoso="No",
+        prioridad_base="Media",
+        picks_total=60,
+        ratio_sin_aportar=0.8,
+        picks_min_distancia=50,
+    )
+    solo_picks = fila("C", solo_picks=True, picks_total=60)
+
+    ordenadas = sorted(
+        [solo_picks, nivel_b, nivel_a], key=_clave_orden_recomendado
+    )
+    assert [item["evento"] for item in ordenadas] == ["A", "B", "C"]
+
+    mas_estaciones = fila("D", picks_total=60, ratio_sin_aportar=0.7)
+    ordenadas = sorted(
+        [nivel_a, mas_estaciones], key=_clave_orden_recomendado
+    )
+    assert [item["evento"] for item in ordenadas] == ["D", "A"]
 
 
 def test_solo_picks_no_entra_a_revision_prioritaria(app, client, login):
@@ -206,7 +277,8 @@ def test_revision_muestra_boton_y_estado_pendiente(app, client, login):
         f"/jobs/{job.id}/indicios",
         query_string={"fuente": "seiscomp", "alcance": "picks"},
     ).get_data(as_text=True)
-    assert "Analizar señal" in html
+    assert "Cola de señal" in html
+    assert "Analizar estos 1" in html
     assert "señal pendiente" in html
     assert "Filtro activo: Sin aportar" in html
 
@@ -229,7 +301,63 @@ def test_revision_muestra_conteo_de_senal(app, client, login):
         query_string={"fuente": "seiscomp", "alcance": "picks"},
     ).get_data(as_text=True)
     assert "2 con señal" in html
-    assert "No hay eventos con señal pendiente" in html
+    assert "No hay eventos pendientes de señal en este filtro." in html
+
+
+def test_filtro_senal_pendiente_y_con_senal(app, client, login):
+    job = _job()
+    _reporte(job)
+    picks_coverage.actualizar_senal(
+        ruta_workspace(job.id),
+        "seiscomp",
+        "seiscomp:000001",
+        senal_n=2,
+        senal_estaciones="C1.A; C1.B",
+        senal_estado="analizado",
+    )
+    login()
+    pendientes = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={
+            "fuente": "seiscomp",
+            "alcance": "picks",
+            "senal": "pendiente",
+        },
+    ).get_data(as_text=True)
+    assert "seiscomp:000001" not in pendientes
+
+    con_senal = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={
+            "fuente": "seiscomp",
+            "alcance": "picks",
+            "senal": "con_senal",
+        },
+    ).get_data(as_text=True)
+    assert "seiscomp:000001" in con_senal
+
+
+def test_revision_muestra_ultimo_resumen_de_senal(app, client, login):
+    job = _job()
+    _reporte(job)
+    picks_signal.guardar_resumen(
+        ruta_workspace(job.id),
+        "seiscomp",
+        {
+            "eventos": 50,
+            "con_senal": 38,
+            "sin_datos": 12,
+            "actualizado": "2026-11-26T13:35:00+00:00",
+        },
+    )
+    login()
+    html = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp", "alcance": "picks"},
+    ).get_data(as_text=True)
+    assert "Último análisis" in html
+    assert "38 con señal" in html
+    assert "12 sin datos" in html
 
 
 def test_revision_muestra_sin_senal_clara(app, client, login):

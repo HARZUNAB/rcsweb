@@ -840,10 +840,21 @@ estaciones y sus distancias. La pestaña **Sin aportar** filtra estos
 eventos. El aviso se genera automáticamente al terminar el trabajo, sin leer
 formas de onda.
 
-En la pestaña **Sin aportar** aparece el botón **Analizar señal**. Al pulsarlo
-se confirman hasta 50 eventos pendientes con las formas de onda de sus
-estaciones candidatas. Mientras el trabajo está en curso se muestra el avance;
-al terminar, la página se actualiza sola.
+En la pestaña **Sin aportar** aparece la tarjeta **Cola de señal**. Muestra
+cuántos eventos quedan pendientes, el orden de análisis y los próximos 50.
+
+- **Analizar estos N:** procesa exactamente los eventos de la vista previa.
+- **Analizar seleccionados:** procesa solo los marcados en la vista previa.
+- **Actualizar lista:** recarga la revisión después del análisis.
+- Cada fila pendiente tiene un enlace **Analizar** para ejecutar un solo evento.
+
+Mientras el trabajo está en curso se muestra una barra con
+`procesados de total` y el evento actual. Al terminar queda el resumen del
+último análisis y el número de eventos que siguen pendientes.
+
+El selector **Orden** permite cambiar el criterio de la lista y de la cola:
+recomendado, fecha, estaciones sin aportar, distancia o cobertura. El selector
+**Señal** filtra por pendientes, con señal, sin señal clara o sin datos.
 
 La celda **Sin aportar** cambia según el resultado:
 

@@ -185,27 +185,145 @@
   {% endif %}
 </div>
 
-{% if alcance == 'picks' and puede_analizar_senal and senal_pendientes %}
-<div class="d-flex flex-wrap align-items-center gap-2 mb-3"
+{% set analista_valor = ('fuente:' ~ analista_fuente) if analista_fuente else (analista_id if analista_id else '') %}
+<div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+  <form method="get" class="d-flex flex-wrap align-items-end gap-2"
+        action="{{ url_for('results.indicios_eventos', job_id=job.id) }}">
+    <input type="hidden" name="fuente" value="{{ fuente }}">
+    <input type="hidden" name="alcance" value="{{ alcance }}">
+    {% if analista_valor %}
+    <input type="hidden" name="analista" value="{{ analista_valor }}">
+    {% endif %}
+    <div>
+      <label class="form-label small text-secondary mb-1" for="orden-revision">Orden</label>
+      <select class="form-select form-select-sm" id="orden-revision" name="orden">
+        {% for clave, etiqueta in ordenes.items() %}
+        <option value="{{ clave }}" {% if orden == clave %}selected{% endif %}>{{ etiqueta }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if alcance == 'picks' %}
+    <div>
+      <label class="form-label small text-secondary mb-1" for="filtro-senal">Señal</label>
+      <select class="form-select form-select-sm" id="filtro-senal" name="senal">
+        {% for clave, etiqueta in filtros_senal.items() %}
+        <option value="{{ clave }}" {% if filtro_senal == clave %}selected{% endif %}>{{ etiqueta }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <button class="btn btn-sm btn-outline-primary" type="submit">Aplicar</button>
+  </form>
+</div>
+
+{% if alcance == 'picks' and puede_analizar_senal %}
+<div class="card border-0 shadow-sm mb-3"
      id="senal-picks"
      data-url="{{ url_for('results.analizar_senal_picks', job_id=job.id) }}"
-     data-estado-url="{{ url_for('results.estado_senal_picks', job_id=job.id, task_id='__TASK__') }}">
-  <form method="post" class="m-0"
-        action="{{ url_for('results.analizar_senal_picks', job_id=job.id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="fuente" value="{{ fuente }}">
-    <button type="submit" class="btn btn-sm btn-primary"
-            id="btn-analizar-senal">
-      Analizar señal
-    </button>
-  </form>
-  <span class="small text-secondary" id="senal-picks-estado">
-    Confirma con formas de onda hasta 50 eventos pendientes.
-  </span>
-</div>
-{% elif alcance == 'picks' and puede_analizar_senal %}
-<div class="alert alert-secondary py-2 mb-3" role="status">
-  No hay eventos con señal pendiente en este filtro.
+     data-estado-url="{{ url_for('results.estado_senal_picks', job_id=job.id, task_id='__TASK__') }}"
+     data-fuente="{{ fuente }}">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+      <div>
+        <div class="text-secondary small text-uppercase">Cola de señal</div>
+        <div class="fs-5 fw-semibold">
+          {{ senal_pendientes }} pendientes
+          {% if cola_senal %}· lote de {{ cola_senal|length }}{% endif %}
+        </div>
+        <div class="small text-secondary">
+          Orden: {{ ordenes.get(orden, orden) }}
+        </div>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        {% if cola_senal %}
+        <form class="senal-picks-form m-0" method="post"
+              action="{{ url_for('results.analizar_senal_picks', job_id=job.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="fuente" value="{{ fuente }}">
+          {% for item in cola_senal %}
+          <input type="hidden" name="eventos" value="{{ item.evento }}">
+          {% endfor %}
+          <button type="submit" class="btn btn-sm btn-primary">
+            Analizar estos {{ cola_senal|length }}
+          </button>
+        </form>
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-outline-primary"
+                id="btn-senal-seleccionados" disabled>
+          Analizar seleccionados
+        </button>
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance=alcance, orden=orden, senal=filtro_senal, analista=analista_valor) }}">
+          Actualizar lista
+        </a>
+      </div>
+    </div>
+
+    {% if resumen_senal %}
+    <div class="alert alert-info py-2 mt-3 mb-2 small" role="status">
+      Último análisis: {{ resumen_senal.get('eventos', 0) }} eventos ·
+      {{ resumen_senal.get('con_senal', 0) }} con señal ·
+      {{ resumen_senal.get('sin_datos', 0) }} sin datos.
+      {% set fecha_resumen = resumen_senal.get('actualizado', '') %}
+      {% if fecha_resumen %}
+      <span class="text-secondary">({{ fecha_resumen[:16]|replace('T', ' ') }})</span>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="progress mt-3" style="height: 1.1rem;" role="progressbar"
+         aria-label="Avance del análisis de señal">
+      <div class="progress-bar" id="senal-picks-barra" style="width: 0%">0%</div>
+    </div>
+    <div class="small text-secondary mt-1" id="senal-picks-estado"></div>
+
+    {% if cola_senal %}
+    <div class="table-responsive mt-3" style="max-height: 18rem; overflow-y: auto;">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="text-center">
+              <input type="checkbox" class="form-check-input"
+                     id="senal-seleccionar-todos"
+                     aria-label="Seleccionar todos los próximos eventos">
+            </th>
+            <th>Evento</th>
+            <th>Fecha y hora</th>
+            <th>Prioridad</th>
+            <th class="text-end">Sin aportar</th>
+            <th class="text-end">Dist.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in cola_senal %}
+          <tr>
+            <td class="text-center">
+              <input type="checkbox" class="form-check-input senal-seleccion"
+                     value="{{ item.evento }}"
+                     aria-label="Seleccionar {{ item.id_evento_fuente or item.evento }}">
+            </td>
+            <td>{{ item.id_evento_fuente or item.evento }}</td>
+            <td class="text-nowrap">{{ item.fecha_hora }}</td>
+            <td>
+              <span class="badge {% if item.prioridad == 'Alta' %}text-bg-danger{% elif item.prioridad == 'Media' %}text-bg-warning text-dark{% else %}text-bg-secondary{% endif %}">
+                {{ item.prioridad }}
+              </span>
+            </td>
+            <td class="text-end">{{ item.picks_total }}</td>
+            <td class="text-end text-nowrap">
+              {{ item.picks_min_distancia or '—' }}{% if item.picks_min_distancia %} km{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-secondary small mt-3">
+      No hay eventos pendientes de señal en este filtro.
+    </div>
+    {% endif %}
+  </div>
 </div>
 {% endif %}
 
@@ -310,9 +428,8 @@
             <th data-sort-key="magnitud" data-sort-type="number" class="text-end">Mag.</th>
             <th data-sort-key="cruce_eventquery" data-sort-type="order">Cruce Eventquery</th>
             <th data-sort-key="solucion" data-sort-type="order">Solución</th>
-            <th data-sort-key="prioridad" data-sort-type="order"
-                data-sort-dir="desc" aria-sort="descending">
-              Prioridad <span class="orden-flecha ms-1">↓</span>
+            <th data-sort-key="prioridad" data-sort-type="order">
+              Prioridad
             </th>
             <th data-sort-key="disponibles" data-sort-type="number" class="text-end"
                 title="Estaciones disponibles: usadas en la solución más inventario sin arribos">
@@ -440,7 +557,20 @@
               <div class="small text-secondary">{{ fila.picks_min_distancia }} km</div>
               {% endif %}
               {% if fila.picks_senal_estado == 'pendiente' %}
-              <div class="small text-secondary">señal pendiente</div>
+              <div class="small text-secondary">
+                señal pendiente
+                {% if alcance == 'picks' and puede_analizar_senal %}
+                <form class="senal-picks-form d-inline m-0" method="post"
+                      action="{{ url_for('results.analizar_senal_picks', job_id=job.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="fuente" value="{{ fuente }}">
+                  <input type="hidden" name="eventos" value="{{ fila.evento }}">
+                  <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">
+                    Analizar
+                  </button>
+                </form>
+                {% endif %}
+              </div>
               {% elif fila.picks_senal_estado == 'analizado' %}
                 {% if fila.picks_senal_n %}
                 <div class="small text-success">{{ fila.picks_senal_n }} con señal</div>

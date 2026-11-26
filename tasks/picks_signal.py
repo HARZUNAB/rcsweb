@@ -15,6 +15,7 @@ def analizar_senal_picks(
     job_id: str,
     fuente: str,
     max_eventos: int = 50,
+    event_ids: list[str] | None = None,
 ) -> dict:
     """Analiza las formas de onda de las candidatas pendientes.
 
@@ -28,20 +29,35 @@ def analizar_senal_picks(
     aplicacion = create_app()
     with aplicacion.app_context():
         log.info(
-            "analizar_senal_picks job=%s fuente=%s max_eventos=%s",
+            "analizar_senal_picks job=%s fuente=%s max_eventos=%s eventos=%s",
             job_id,
             fuente,
             max_eventos,
+            len(event_ids or []),
         )
         self.update_state(
             state="PROGRESS",
-            meta={"fase": "Analizando señal de las candidatas…"},
+            meta={"fase": "Preparando el análisis de señal…"},
         )
+
+        def progreso(indice, total, event_id):
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "fase": f"Procesando {indice} de {total}: {event_id}",
+                    "procesados": indice,
+                    "total": total,
+                    "evento": event_id,
+                },
+            )
+
         try:
             resultado = picks_signal.analizar(
                 ruta_workspace(job_id),
                 fuente,
                 max_eventos=max_eventos,
+                event_ids=event_ids,
+                progreso=progreso,
             )
         except availability.AvailabilityError as exc:
             log.warning("Correlación no disponible: %s", exc)
@@ -60,4 +76,15 @@ def analizar_senal_picks(
                     "Los eventos quedaron pendientes."
                 ),
             }
-        return {"estado": "ok", **resultado}
+        resumen = {
+            "job_id": job_id,
+            "fuente": fuente,
+            "solicitados": len(event_ids or []),
+            **resultado,
+        }
+        picks_signal.guardar_resumen(
+            ruta_workspace(job_id),
+            fuente,
+            resumen,
+        )
+        return {"estado": "ok", **resumen}

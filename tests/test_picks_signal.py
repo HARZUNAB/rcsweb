@@ -413,6 +413,20 @@ def test_analizar_guarda_el_resultado_en_la_base(app, tmp_path):
     assert guardados[0].senal_n == 1
 
 
+def test_analizar_informa_el_progreso(tmp_path):
+    workspace = _preparar_reporte(tmp_path)
+    avances = []
+    picks_signal.analizar(
+        workspace,
+        "seiscomp",
+        correlacionar_fn=lambda payload: _respuesta("CAND"),
+        progreso=lambda indice, total, evento: avances.append(
+            (indice, total, evento)
+        ),
+    )
+    assert avances == [(1, 1, "seiscomp:000001")]
+
+
 def test_payload_incluye_tiempo_esperado_por_distancia_hipocentral(tmp_path):
     workspace = _preparar_reporte(tmp_path)
     capturado = {}

@@ -1442,12 +1442,38 @@ La confirmación de señal es una segunda etapa bajo demanda. El reporte guarda
 `senal_n`, `senal_estaciones`, `senal_estado` y `senal_actualizado`. Los estados
 son `pendiente`, `analizado`, `sin_datos` y `sin_candidatas`.
 
-El botón **Analizar señal** de la pestaña **Sin aportar** llama a
+La tarjeta **Cola de señal** de la pestaña **Sin aportar** llama a
 `POST /jobs/<job_id>/indicios/senal`. La ruta exige el permiso
 `trabajos.crear`, valida que el servicio de correlación esté configurado y
 encola `tasks.analizar_senal_picks`. La tarea procesa hasta 50 eventos
 pendientes y omite los que ya tienen un estado terminal. El avance se consulta
 en `GET /jobs/<job_id>/indicios/senal/<task_id>`.
+
+El POST acepta `fuente` y una lista de `eventos`. Si `eventos` viene vacío,
+toma los pendientes en el orden del reporte; si viene con IDs, procesa
+exactamente esos eventos. El mismo endpoint sirve para **Analizar estos N**,
+**Analizar seleccionados** y el enlace **Analizar** de una fila.
+
+La tarea informa `procesados`, `total` y `evento` en el estado `PROGRESS`. Al
+terminar guarda un resumen en `resultados/senal_ultimo_<fuente>.json`, que la
+pantalla muestra como **Último análisis**.
+
+La revisión acepta los parámetros `orden` y `senal`. `orden` puede ser
+`recomendado`, `fecha`, `sin_aportar`, `distancia` o `cobertura`; `senal` puede
+ser `pendiente`, `con_senal`, `sin_senal` o `sin_datos`. El orden recomendado
+usa los niveles A–E descritos abajo y, dentro de cada nivel, cobertura fuerte,
+cantidad y proporción de estaciones sin aportar, distancia mínima y fecha.
+
+El orden recomendado se aplica también a la cola: los próximos 50 que muestra
+la tarjeta son los mismos que se envían al análisis.
+
+Los niveles del orden recomendado son:
+
+- **A:** `con_cruce` + `sospechoso` + prioridad base Alta.
+- **B:** `con_cruce` + (`sospechoso` o prioridad base Media).
+- **C:** `sin_cruce` + `sospechoso` + prioridad base Alta/Media.
+- **D:** fase fuerte sin cruce.
+- **E:** solo cobertura de picks.
 
 `picks_signal.analizar_evento` calcula el tiempo esperado de P con un ajuste
 lineal sobre la distancia hipocentral; si hay menos de tres picks usa

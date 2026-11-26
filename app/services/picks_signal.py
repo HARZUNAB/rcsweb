@@ -346,6 +346,37 @@ def completar_reporte(workspace: Path, fuente: str) -> int:
     return picks_coverage.actualizar_senales(workspace, fuente, cambios)
 
 
+def ruta_resumen(workspace: Path, fuente: str) -> Path:
+    return Path(workspace) / "resultados" / f"senal_ultimo_{fuente}.json"
+
+
+def guardar_resumen(workspace: Path, fuente: str, resumen: dict) -> None:
+    destino = ruta_resumen(workspace, fuente)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    temporal = destino.with_name(destino.name + ".tmp")
+    try:
+        temporal.write_text(
+            json.dumps(resumen, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        temporal.replace(destino)
+    except OSError:
+        LOG.exception("No se pudo guardar el resumen de señal")
+    finally:
+        temporal.unlink(missing_ok=True)
+
+
+def leer_resumen(workspace: Path, fuente: str) -> dict:
+    destino = ruta_resumen(workspace, fuente)
+    if not destino.is_file():
+        return {}
+    try:
+        datos = json.loads(destino.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return datos if isinstance(datos, dict) else {}
+
+
 def _es_vertical(stream: str) -> bool:
     return bool(stream) and stream.split(".")[-1].endswith("Z")
 
@@ -684,9 +715,14 @@ def analizar(
     max_candidatas: int = MAX_CANDIDATAS,
     forzar: bool = False,
     correlacionar_fn=None,
+    progreso=None,
 ) -> dict:
     """Analiza la señal de las candidatas pendientes del reporte."""
     workspace = Path(workspace)
+    if event_ids is not None:
+        event_ids = {
+            _texto(item) for item in event_ids if _texto(item)
+        }
     filas = picks_coverage.leer(workspace, fuente)
     resultados = mapa_resultados(fuente, filas)
     seleccionadas = _seleccionar(
@@ -715,8 +751,11 @@ def analizar(
     sin_datos = 0
     errores = 0
     cambios: dict[str, dict] = {}
-    for fila in seleccionadas:
+    total_seleccionados = len(seleccionadas)
+    for indice, fila in enumerate(seleccionadas, start=1):
         event_id = _texto(fila.get("evento"))
+        if progreso is not None:
+            progreso(indice, total_seleccionados, event_id)
         evento = eventos.get(event_id)
         if evento is None:
             continue
@@ -769,8 +808,11 @@ __all__ = [
     "campos_desde_resultado",
     "completar_reporte",
     "guardar_resultado",
+    "guardar_resumen",
     "huella_fila",
     "huella_regla",
     "importar_reporte",
+    "leer_resumen",
     "mapa_resultados",
+    "ruta_resumen",
 ]
