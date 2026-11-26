@@ -256,6 +256,163 @@ def test_analizar_no_marca_evento_si_falla_el_servicio(tmp_path):
     assert filas[0]["senal_estado"] == "pendiente"
 
 
+def test_huella_cambia_con_el_evento_y_las_candidatas():
+    fila = {
+        "evento": "seiscomp:000001",
+        "fecha_hora": "2026-01-01 00:00:00",
+        "latitud": -30.0,
+        "longitud": -71.0,
+        "profundidad_km": 30.0,
+        "magnitud": 4.0,
+        "detalle": _detalle_candidata(),
+    }
+    base = picks_signal.huella_fila(fila)
+
+    otra_candidata = json.loads(json.dumps(fila))
+    otra_candidata["detalle"][0]["distance_km"] = 99.0
+    assert picks_signal.huella_fila(otra_candidata) != base
+
+    otro_evento = json.loads(json.dumps(fila))
+    otro_evento["fecha_hora"] = "2026-01-01 00:00:01"
+    assert picks_signal.huella_fila(otro_evento) != base
+
+
+def test_guardar_resultado_y_completar_reporte(app, tmp_path):
+    workspace = _preparar_reporte(tmp_path)
+    fila = picks_coverage.leer(workspace, "seiscomp")[0]
+    resultado = {
+        "senal_n": 2,
+        "senal_estaciones": "C1.CAND (1-5,1-10)",
+        "senal_estado": "analizado",
+        "detalle": {"candidatas": 1, "claras": {"C1.CAND": ["1-5", "1-10"]}},
+    }
+    assert picks_signal.guardar_resultado("seiscomp", fila, resultado)
+
+    antes = picks_coverage.leer(workspace, "seiscomp")[0]
+    assert antes["senal_estado"] == "pendiente"
+
+    assert picks_signal.completar_reporte(workspace, "seiscomp") == 1
+    despues = picks_coverage.leer(workspace, "seiscomp")[0]
+    assert despues["senal_estado"] == "analizado"
+    assert int(despues["senal_n"]) == 2
+    assert "C1.CAND" in despues["senal_estaciones"]
+
+
+def test_importar_reporte_preserva_el_resultado_tras_regenerar(app, tmp_path):
+    workspace = _preparar_reporte(tmp_path)
+    picks_coverage.actualizar_senal(
+        workspace,
+        "seiscomp",
+        "seiscomp:000001",
+        senal_n=2,
+        senal_estaciones="C1.CAND (1-5,1-10)",
+        senal_estado="analizado",
+    )
+    assert picks_signal.importar_reporte(workspace, "seiscomp") == 1
+
+    picks_coverage.generar(workspace, "seiscomp")
+    regenerado = picks_coverage.leer(workspace, "seiscomp")[0]
+    assert regenerado["senal_estado"] == "pendiente"
+
+    assert picks_signal.completar_reporte(workspace, "seiscomp") == 1
+    restaurado = picks_coverage.leer(workspace, "seiscomp")[0]
+    assert restaurado["senal_estado"] == "analizado"
+    assert int(restaurado["senal_n"]) == 2
+
+
+def test_mapa_resultados_ignora_una_huella_obsoleta(app, tmp_path):
+    workspace = _preparar_reporte(tmp_path)
+    fila = picks_coverage.leer(workspace, "seiscomp")[0]
+    picks_signal.guardar_resultado(
+        "seiscomp",
+        fila,
+        {
+            "senal_n": 1,
+            "senal_estaciones": "C1.CAND (1-5,1-10)",
+            "senal_estado": "analizado",
+            "detalle": {},
+        },
+    )
+    assert picks_signal.mapa_resultados("seiscomp", [fila])
+
+    obsoleta = json.loads(json.dumps(fila))
+    obsoleta["detalle"][0]["distance_km"] = 99.0
+    assert picks_signal.mapa_resultados("seiscomp", [obsoleta]) == {}
+
+
+def test_combinar_picks_usa_resultado_persistente(app, tmp_path):
+    from app.blueprints.results import _combinar_picks
+
+    workspace = _preparar_reporte(tmp_path)
+    fila = picks_coverage.leer(workspace, "seiscomp")[0]
+    picks_signal.guardar_resultado(
+        "seiscomp",
+        fila,
+        {
+            "senal_n": 2,
+            "senal_estaciones": "C1.CAND (1-5,1-10)",
+            "senal_estado": "analizado",
+            "detalle": {},
+        },
+    )
+
+    filas: list[dict] = []
+    _combinar_picks(filas, workspace, "seiscomp")
+    assert filas[0]["picks_senal_estado"] == "analizado"
+    assert filas[0]["picks_senal_n"] == 2
+
+
+def test_guardar_resultado_actualiza_el_mismo_registro(app, tmp_path):
+    from sqlalchemy import select
+
+    from app.extensions import db
+    from app.models import PicksSignalResult
+
+    workspace = _preparar_reporte(tmp_path)
+    fila = picks_coverage.leer(workspace, "seiscomp")[0]
+    for senal_n in (1, 3):
+        assert picks_signal.guardar_resultado(
+            "seiscomp",
+            fila,
+            {
+                "senal_n": senal_n,
+                "senal_estaciones": "C1.CAND (1-5,1-10)",
+                "senal_estado": "analizado",
+                "detalle": {},
+            },
+        )
+    resultados = db.session.scalars(
+        select(PicksSignalResult).where(
+            PicksSignalResult.event_id == "seiscomp:000001"
+        )
+    ).all()
+    assert len(resultados) == 1
+    assert resultados[0].senal_n == 3
+
+
+def test_analizar_guarda_el_resultado_en_la_base(app, tmp_path):
+    from sqlalchemy import select
+
+    from app.extensions import db
+    from app.models import PicksSignalResult
+
+    workspace = _preparar_reporte(tmp_path)
+    resultado = picks_signal.analizar(
+        workspace,
+        "seiscomp",
+        correlacionar_fn=lambda payload: _respuesta("CAND"),
+    )
+    assert resultado["eventos"] == 1
+    guardados = db.session.scalars(
+        select(PicksSignalResult).where(
+            PicksSignalResult.event_id == "seiscomp:000001"
+        )
+    ).all()
+    assert len(guardados) == 1
+    assert guardados[0].estado == "analizado"
+    assert guardados[0].senal_n == 1
+
+
 def test_payload_incluye_tiempo_esperado_por_distancia_hipocentral(tmp_path):
     workspace = _preparar_reporte(tmp_path)
     capturado = {}

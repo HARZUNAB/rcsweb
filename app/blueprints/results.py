@@ -609,6 +609,7 @@ def _combinar_picks(filas: list[dict], workspace, fuente: str) -> None:
     picks = picks_coverage.leer(workspace, fuente)
     if not picks:
         return
+    mapa_senal = picks_signal.mapa_resultados(fuente, picks)
     por_evento = {
         str(fila.get("evento") or ""): fila for fila in filas
     }
@@ -637,6 +638,21 @@ def _combinar_picks(filas: list[dict], workspace, fuente: str) -> None:
             "picks_senal_estado": pick.get("senal_estado") or "",
             "picks_n_usadas": int(pick.get("n_usadas") or 0),
         }
+        resultado_senal = mapa_senal.get(
+            (event_id, picks_signal.huella_fila(pick))
+        )
+        if resultado_senal is not None:
+            campos.update(
+                {
+                    "picks_senal_n": int(resultado_senal.senal_n or 0),
+                    "picks_senal_estaciones": (
+                        resultado_senal.senal_estaciones or ""
+                    ),
+                    "picks_senal_estado": (
+                        resultado_senal.estado or "pendiente"
+                    ),
+                }
+            )
         fila = por_evento.get(event_id)
         if fila is None:
             n_usadas = campos["picks_n_usadas"]

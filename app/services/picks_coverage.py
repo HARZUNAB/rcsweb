@@ -418,35 +418,36 @@ def generar(
     }
 
 
-def actualizar_senal(
+def actualizar_senales(
     workspace: Path,
     fuente: str,
-    event_id: str,
-    *,
-    senal_n: int,
-    senal_estaciones: str,
-    senal_estado: str,
-    actualizado: str | None = None,
-) -> bool:
-    """Actualiza el estado de señal de un evento en el reporte."""
+    cambios: dict[str, dict],
+) -> int:
+    """Actualiza el estado de señal de varios eventos en una sola escritura."""
+    if not cambios:
+        return 0
     destino = ruta(workspace, fuente)
     if not destino.is_file():
-        return False
+        return 0
     with destino.open(encoding="utf-8", newline="") as archivo:
         filas = list(csv.DictReader(archivo))
-    encontrado = False
+    actualizados = 0
     for fila in filas:
-        if _texto(fila.get("evento")) != event_id:
+        cambio = cambios.get(_texto(fila.get("evento")))
+        if not cambio:
             continue
-        fila["senal_n"] = str(int(senal_n))
-        fila["senal_estaciones"] = senal_estaciones
-        fila["senal_estado"] = senal_estado
-        fila["senal_actualizado"] = (
-            actualizado or datetime.now(UTC).isoformat()
+        fila["senal_n"] = str(int(cambio.get("senal_n") or 0))
+        fila["senal_estaciones"] = _texto(cambio.get("senal_estaciones"))
+        fila["senal_estado"] = (
+            _texto(cambio.get("senal_estado")) or "pendiente"
         )
-        encontrado = True
-    if not encontrado:
-        return False
+        fila["senal_actualizado"] = (
+            _texto(cambio.get("senal_actualizado"))
+            or datetime.now(UTC).isoformat()
+        )
+        actualizados += 1
+    if actualizados == 0:
+        return 0
     temporal = destino.with_name(destino.name + ".tmp")
     try:
         with temporal.open("w", encoding="utf-8", newline="") as archivo:
@@ -458,7 +459,35 @@ def actualizar_senal(
         temporal.replace(destino)
     finally:
         temporal.unlink(missing_ok=True)
-    return True
+    return actualizados
+
+
+def actualizar_senal(
+    workspace: Path,
+    fuente: str,
+    event_id: str,
+    *,
+    senal_n: int,
+    senal_estaciones: str,
+    senal_estado: str,
+    actualizado: str | None = None,
+) -> bool:
+    """Actualiza el estado de señal de un evento en el reporte."""
+    return (
+        actualizar_senales(
+            workspace,
+            fuente,
+            {
+                event_id: {
+                    "senal_n": senal_n,
+                    "senal_estaciones": senal_estaciones,
+                    "senal_estado": senal_estado,
+                    "senal_actualizado": actualizado or "",
+                }
+            },
+        )
+        > 0
+    )
 
 
 def leer(workspace: Path, fuente: str) -> list[dict]:
@@ -496,6 +525,7 @@ def resumen(workspace: Path, fuente: str) -> dict:
 __all__ = [
     "CAMPOS",
     "actualizar_senal",
+    "actualizar_senales",
     "cerca_km",
     "generar",
     "leer",

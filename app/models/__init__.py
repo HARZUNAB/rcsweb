@@ -367,6 +367,46 @@ class WaveformAvailability(db.Model):
     error: Mapped[str | None] = mapped_column(Text)
 
 
+class PicksSignalResult(db.Model):
+    """Resultado persistente del análisis de señal de cobertura de picks.
+
+    Se guarda por evento y huella de entrada. Si el evento, sus candidatas o la
+    regla cambian, la huella cambia y el resultado anterior deja de aplicarse.
+    """
+
+    __tablename__ = "picks_signal_results"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id",
+            "event_id",
+            "fingerprint",
+            "rule_version",
+            name="uq_picks_signal_results_event_fingerprint_rule",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=nuevo_uuid
+    )
+    source_id: Mapped[str] = mapped_column(String(64), index=True)
+    event_id: Mapped[str] = mapped_column(String(160), index=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), index=True)
+    rule_version: Mapped[str] = mapped_column(String(64), index=True)
+    estado: Mapped[str] = mapped_column(
+        String(24), default="pendiente", index=True
+    )
+    senal_n: Mapped[int] = mapped_column(Integer, default=0)
+    senal_estaciones: Mapped[str] = mapped_column(Text, default="")
+    detalle: Mapped[dict | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    analizado_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
 class JobStep(db.Model):
     __tablename__ = "job_steps"
 

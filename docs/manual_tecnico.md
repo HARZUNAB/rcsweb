@@ -158,6 +158,7 @@ Los diagramas se regeneran con:
 | Trabajos | `jobs`, `job_files`, `job_sources`, `job_steps`, `job_artifacts` | Ejecución, insumos, fuentes, pasos y descargas |
 | Revisión | `event_review_requests`, `review_requests`, `review_request_events` | Solicitudes de revisión: histórico por evento y flujo vigente con varios eventos y PDF |
 | Catálogo canónico reservado | `catalog_events`, `stations`, `arrivals`, `waveform_availability` | Esquema futuro; en esta versión los eventos, arribos y estaciones se guardan en archivos JSONL del workspace |
+| Señal de picks | `picks_signal_results` | Resultados persistentes del análisis de señal por evento y huella |
 | Migraciones | `alembic_version` | Revisión aplicada por Alembic |
 
 La relación de propiedad es `jobs.created_by_id → users.id`. Los trabajos
@@ -538,6 +539,23 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `checked_at` | DateTime(tz) | Sí | — | Fecha del chequeo |
 | `error` | Text | Sí | — | Error |
 
+##### `picks_signal_results`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | String(36) | No | PK | Identificador |
+| `source_id` | String(64) | No | IDX | Fuente lógica |
+| `event_id` | String(160) | No | IDX | Evento lógico |
+| `fingerprint` | String(64) | No | IDX | Huella del evento y candidatas |
+| `rule_version` | String(64) | No | IDX | Huella de los parámetros de la regla |
+| `estado` | String(24) | No | IDX | `analizado`, `sin_datos` o `sin_candidatas` |
+| `senal_n` | Integer | No | — | Estaciones con señal clara |
+| `senal_estaciones` | Text | No | — | Estaciones y bandas confirmadas |
+| `detalle` | JSON | Sí | — | Detalle por estación y banda |
+| `error` | Text | Sí | — | Error del análisis |
+| `analizado_en` | DateTime(tz) | Sí | — | Fecha del análisis |
+| `actualizado_en` | DateTime(tz) | No | — | Última actualización |
+
 #### Estados usados
 
 | Campo | Valores |
@@ -570,6 +588,7 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `stations` | `IDX (job_id, source_id)` |
 | `arrivals` | `IDX (job_id, source_id, event_id)` |
 | `waveform_availability` | `IDX (job_id, source_id, event_id)` |
+| `picks_signal_results` | `UNIQUE (source_id, event_id, fingerprint, rule_version)`, `IDX (source_id)`, `IDX (event_id)`, `IDX (fingerprint)`, `IDX (rule_version)`, `IDX (estado)` |
 
 #### Migraciones
 
@@ -589,6 +608,7 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `8f2b6c1d4a7e` | Solicitudes de revisión de eventos con indicios |
 | `a4d2f7c9b1e0` | Revisiones con varios eventos, PDF y estados |
 | `d9f3a2c7b8e1` | Multirrol de usuarios |
+| `a7c4e9b1d2f6` | Resultados persistentes de señal de cobertura de picks |
 
 Para consultar o aplicar migraciones:
 
@@ -1436,6 +1456,20 @@ lineal sobre la distancia hipocentral; si hay menos de tres picks usa
 bandas con `sta_lta_racha_s >= 0.7` y clasificación `podria_picarse` o
 `senal_detectada`. La correlación no es obligatoria: se guarda como contexto.
 La regla se aplica por estación y solo en el canal vertical.
+
+Los resultados se guardan en la tabla `picks_signal_results`, separada del CSV
+de cobertura. Cada fila tiene una huella calculada con los datos del evento,
+las candidatas y una huella de los parámetros de la regla. Al leer la revisión
+se usa el resultado solo si la huella coincide; si el evento o sus candidatas
+cambiaron, la fila vuelve a quedar pendiente. Así una regeneración de
+`revision_picks_<fuente>.csv` no borra el análisis ya hecho. La tabla guarda
+también el detalle por estación y banda, el estado, el error y las fechas de
+análisis.
+
+`picks_coverage.actualizar_senales` actualiza el CSV en una sola escritura y
+`picks_signal.completar_reporte` lo repuebla desde la base después de regenerar
+la cobertura. La base es la fuente de verdad; el CSV queda como reporte y caché
+de lectura.
 
 El esquema 7 agregó el resultado de Wadati por evento, calculado en
 `evaluar_evento` con los arribos que ya están en memoria: `wadati_n`,

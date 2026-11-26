@@ -10,16 +10,23 @@ no lee el SDS directamente.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
 import math
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
+from flask import has_app_context
+from sqlalchemy import select
 
 from app.domain.catalogs import canonical
 from app.domain.catalogs.stations import distancia_km
 from app.services import availability, picks_coverage
+
+LOG = logging.getLogger(__name__)
 
 BANDAS = ((1.0, 5.0), (1.0, 10.0), (2.0, 15.0))
 MIN_BANDAS = 2
@@ -29,6 +36,22 @@ MAX_EVENTOS = 50
 MAX_CANDIDATAS = 20
 ESTADOS_SENAL = {"podria_picarse", "senal_detectada"}
 ESTADOS_TERMINALES = {"analizado", "sin_datos", "sin_candidatas"}
+
+PARAMETROS = {
+    "fs": 100.0,
+    "template_before_s": 1.0,
+    "template_after_s": 7.0,
+    "candidate_before_s": 10.0,
+    "candidate_after_s": 30.0,
+    "max_lag_s": 5.0,
+    "sta_s": 0.5,
+    "lta_s": 10.0,
+    "sta_lta_before_s": 1.5,
+    "sta_lta_after_s": 4.0,
+    "sta_lta_persistencia_s": RACHA_MIN,
+    "cc_min": 0.5,
+    "sta_lta_min": STA_LTA_MIN,
+}
 
 
 def _texto(valor) -> str:
@@ -53,6 +76,252 @@ def _instante(valor) -> datetime | None:
     if instante.tzinfo is not None:
         instante = instante.astimezone(UTC).replace(tzinfo=None)
     return instante
+
+
+def _normalizar(valor) -> str:
+    numero = _numero(valor)
+    if numero is not None:
+        return f"{numero:.6f}"
+    return _texto(valor)
+
+
+def _normalizar_fecha(valor) -> str:
+    instante = _instante(valor)
+    if instante is not None:
+        return instante.isoformat()
+    return _texto(valor)
+
+
+def huella_regla() -> str:
+    """Huella de la regla; cambiarla invalida todos los resultados."""
+    payload = {
+        "bandas": BANDAS,
+        "min_bandas": MIN_BANDAS,
+        **PARAMETROS,
+    }
+    crudo = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(crudo.encode("utf-8")).hexdigest()[:16]
+
+
+def huella_fila(fila: dict) -> str:
+    """Huella del evento y sus candidatas para reutilizar el resultado."""
+    candidatas = []
+    for item in fila.get("detalle") or []:
+        if not isinstance(item, dict):
+            continue
+        candidatas.append(
+            {
+                "tipo": _texto(item.get("tipo")),
+                "network": _texto(item.get("network")),
+                "station": _texto(item.get("station")),
+                "location": _texto(item.get("location")),
+                "channel": _texto(item.get("channel")),
+                "distance_km": _normalizar(item.get("distance_km")),
+                "streams": sorted(
+                    _texto(stream)
+                    for stream in item.get("streams") or []
+                ),
+            }
+        )
+    candidatas.sort(
+        key=lambda item: json.dumps(item, sort_keys=True, ensure_ascii=False)
+    )
+    payload = {
+        "evento": _texto(fila.get("evento")),
+        "fecha_hora": _normalizar_fecha(fila.get("fecha_hora")),
+        "latitud": _normalizar(fila.get("latitud")),
+        "longitud": _normalizar(fila.get("longitud")),
+        "profundidad_km": _normalizar(fila.get("profundidad_km")),
+        "magnitud": _normalizar(fila.get("magnitud")),
+        "candidatas": candidatas,
+        "regla": huella_regla(),
+    }
+    crudo = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(crudo.encode("utf-8")).hexdigest()
+
+
+def _modelo():
+    from app.models import PicksSignalResult
+
+    return PicksSignalResult
+
+
+def _sesion():
+    from app.extensions import db
+
+    return db.session
+
+
+def guardar_resultado(
+    fuente: str,
+    fila: dict,
+    resultado: dict,
+    *,
+    analizado_en: datetime | None = None,
+) -> bool:
+    """Guarda el resultado vigente en la base, fuera del CSV de cobertura."""
+    event_id = _texto(fila.get("evento"))
+    if not event_id or not has_app_context():
+        return False
+    try:
+        modelo = _modelo()
+        sesion = _sesion()
+        from app.models import utcnow
+
+        fingerprint = huella_fila(fila)
+        regla = huella_regla()
+        existente = sesion.scalar(
+            select(modelo).where(
+                modelo.source_id == fuente,
+                modelo.event_id == event_id,
+                modelo.fingerprint == fingerprint,
+                modelo.rule_version == regla,
+            )
+        )
+        if existente is None:
+            existente = modelo(
+                source_id=fuente,
+                event_id=event_id,
+                fingerprint=fingerprint,
+                rule_version=regla,
+            )
+            sesion.add(existente)
+        existente.estado = _texto(resultado.get("senal_estado")) or "pendiente"
+        existente.senal_n = int(resultado.get("senal_n") or 0)
+        existente.senal_estaciones = _texto(
+            resultado.get("senal_estaciones")
+        )
+        existente.detalle = resultado.get("detalle") or None
+        existente.error = _texto(resultado.get("error"))
+        existente.analizado_en = analizado_en or utcnow()
+        sesion.commit()
+        return True
+    except Exception:  # noqa: BLE001 - la caché no debe romper el análisis
+        LOG.exception("No se pudo guardar el resultado de señal")
+        try:
+            _sesion().rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        return False
+
+
+def mapa_resultados(
+    fuente: str,
+    filas: list[dict],
+) -> dict[tuple[str, str], object]:
+    """Resultados vigentes por (evento, huella) para todas las filas."""
+    if not has_app_context():
+        return {}
+    claves = []
+    for fila in filas:
+        event_id = _texto(fila.get("evento"))
+        if not event_id:
+            continue
+        claves.append((event_id, huella_fila(fila)))
+    if not claves:
+        return {}
+    claves_set = set(claves)
+    event_ids = sorted({event_id for event_id, _ in claves})
+    regla = huella_regla()
+    try:
+        modelo = _modelo()
+        sesion = _sesion()
+        resultados = sesion.scalars(
+            select(modelo).where(
+                modelo.source_id == fuente,
+                modelo.rule_version == regla,
+                modelo.event_id.in_(event_ids),
+                modelo.estado.in_(sorted(ESTADOS_TERMINALES)),
+            )
+        ).all()
+    except Exception:  # noqa: BLE001 - sin base se usa el CSV
+        LOG.exception("No se pudieron leer los resultados de señal")
+        try:
+            _sesion().rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        return {}
+    return {
+        (_texto(resultado.event_id), resultado.fingerprint): resultado
+        for resultado in resultados
+        if (_texto(resultado.event_id), resultado.fingerprint) in claves_set
+    }
+
+
+def campos_desde_resultado(resultado) -> dict:
+    actualizado = ""
+    if resultado.analizado_en is not None:
+        actualizado = resultado.analizado_en.isoformat()
+    return {
+        "senal_n": int(resultado.senal_n or 0),
+        "senal_estaciones": resultado.senal_estaciones or "",
+        "senal_estado": resultado.estado or "pendiente",
+        "senal_actualizado": actualizado,
+    }
+
+
+def importar_reporte(workspace: Path, fuente: str) -> int:
+    """Lleva a la base los resultados que solo están en el CSV."""
+    if not has_app_context():
+        return 0
+    filas = picks_coverage.leer(workspace, fuente)
+    if not filas:
+        return 0
+    mapa = mapa_resultados(fuente, filas)
+    importados = 0
+    for fila in filas:
+        if fila.get("senal_estado") not in ESTADOS_TERMINALES:
+            continue
+        event_id = _texto(fila.get("evento"))
+        if not event_id or (event_id, huella_fila(fila)) in mapa:
+            continue
+        resultado = {
+            "senal_n": int(fila.get("senal_n") or 0),
+            "senal_estaciones": _texto(fila.get("senal_estaciones")),
+            "senal_estado": _texto(fila.get("senal_estado")),
+            "detalle": {},
+        }
+        if guardar_resultado(
+            fuente,
+            fila,
+            resultado,
+            analizado_en=_instante(fila.get("senal_actualizado")),
+        ):
+            importados += 1
+    return importados
+
+
+def completar_reporte(workspace: Path, fuente: str) -> int:
+    """Repuebla el CSV con los resultados vigentes de la base."""
+    if not has_app_context():
+        return 0
+    importar_reporte(workspace, fuente)
+    filas = picks_coverage.leer(workspace, fuente)
+    if not filas:
+        return 0
+    mapa = mapa_resultados(fuente, filas)
+    if not mapa:
+        return 0
+    cambios: dict[str, dict] = {}
+    for fila in filas:
+        if int(fila.get("total_n") or 0) <= 0:
+            continue
+        event_id = _texto(fila.get("evento"))
+        resultado = mapa.get((event_id, huella_fila(fila)))
+        if resultado is None:
+            continue
+        campos = campos_desde_resultado(resultado)
+        if (
+            str(fila.get("senal_n") or "0") == str(campos["senal_n"])
+            and _texto(fila.get("senal_estaciones"))
+            == campos["senal_estaciones"]
+            and _texto(fila.get("senal_estado")) == campos["senal_estado"]
+        ):
+            continue
+        cambios[event_id] = campos
+    if not cambios:
+        return 0
+    return picks_coverage.actualizar_senales(workspace, fuente, cambios)
 
 
 def _es_vertical(stream: str) -> bool:
@@ -206,20 +475,8 @@ def _payload(
             }
             for candidato in candidatos
         ],
-        "fs": 100.0,
         "band": [banda[0], banda[1]],
-        "template_before_s": 1.0,
-        "template_after_s": 7.0,
-        "candidate_before_s": 10.0,
-        "candidate_after_s": 30.0,
-        "max_lag_s": 5.0,
-        "sta_s": 0.5,
-        "lta_s": 10.0,
-        "sta_lta_before_s": 1.5,
-        "sta_lta_after_s": 4.0,
-        "sta_lta_persistencia_s": RACHA_MIN,
-        "cc_min": 0.5,
-        "sta_lta_min": STA_LTA_MIN,
+        **PARAMETROS,
     }
 
 
@@ -278,6 +535,13 @@ def _combinar(
             if con_datos
             else ("sin_datos" if candidatos else "sin_candidatas")
         ),
+        "detalle": {
+            "candidatas": len(candidatos),
+            "claras": {
+                etiqueta: valores
+                for etiqueta, valores in sorted(claras.items())
+            },
+        },
     }
 
 
@@ -296,6 +560,7 @@ def analizar_evento(
             "senal_n": 0,
             "senal_estaciones": "",
             "senal_estado": "sin_datos",
+            "detalle": {},
         }
     intercepto, pendiente = _ajuste(evento, picks)
     candidatos = _candidatos(
@@ -306,6 +571,7 @@ def analizar_evento(
             "senal_n": 0,
             "senal_estaciones": "",
             "senal_estado": "sin_candidatas",
+            "detalle": {},
         }
     referencias = sorted(
         (
@@ -352,6 +618,7 @@ def analizar_evento(
         "senal_n": 0,
         "senal_estaciones": "",
         "senal_estado": "sin_datos",
+        "detalle": {},
     }
 
 
@@ -360,17 +627,26 @@ def _seleccionar(
     event_ids: set[str] | None,
     max_eventos: int,
     forzar: bool,
+    resultados: dict[tuple[str, str], object] | None = None,
 ) -> list[dict]:
     if max_eventos <= 0:
         return []
+    resultados = resultados or {}
     seleccionadas = []
     for fila in filas:
         if int(fila.get("total_n") or 0) <= 0:
             continue
         if event_ids is not None and fila.get("evento") not in event_ids:
             continue
-        if not forzar and fila.get("senal_estado") in ESTADOS_TERMINALES:
-            continue
+        if not forzar:
+            if fila.get("senal_estado") in ESTADOS_TERMINALES:
+                continue
+            clave = (
+                _texto(fila.get("evento")),
+                huella_fila(fila),
+            )
+            if clave in resultados:
+                continue
         seleccionadas.append(fila)
         if len(seleccionadas) >= max_eventos:
             break
@@ -390,8 +666,9 @@ def analizar(
     """Analiza la señal de las candidatas pendientes del reporte."""
     workspace = Path(workspace)
     filas = picks_coverage.leer(workspace, fuente)
+    resultados = mapa_resultados(fuente, filas)
     seleccionadas = _seleccionar(
-        filas, event_ids, max_eventos, forzar
+        filas, event_ids, max_eventos, forzar, resultados
     )
     if not seleccionadas:
         return {
@@ -415,6 +692,7 @@ def analizar(
     sin_senal = 0
     sin_datos = 0
     errores = 0
+    cambios: dict[str, dict] = {}
     for fila in seleccionadas:
         event_id = _texto(fila.get("evento"))
         evento = eventos.get(event_id)
@@ -432,14 +710,13 @@ def analizar(
             # No se marca el evento: queda pendiente para reintentar.
             errores += 1
             continue
-        picks_coverage.actualizar_senal(
-            workspace,
-            fuente,
-            event_id,
-            senal_n=resultado["senal_n"],
-            senal_estaciones=resultado["senal_estaciones"],
-            senal_estado=resultado["senal_estado"],
-        )
+        guardar_resultado(fuente, fila, resultado)
+        cambios[event_id] = {
+            "senal_n": resultado["senal_n"],
+            "senal_estaciones": resultado["senal_estaciones"],
+            "senal_estado": resultado["senal_estado"],
+            "senal_actualizado": datetime.now(UTC).isoformat(),
+        }
         procesados += 1
         if resultado["senal_estado"] == "sin_datos":
             sin_datos += 1
@@ -447,6 +724,9 @@ def analizar(
             con_senal += 1
         else:
             sin_senal += 1
+    if cambios:
+        picks_coverage.actualizar_senales(workspace, fuente, cambios)
+    completar_reporte(workspace, fuente)
     return {
         "eventos": procesados,
         "con_senal": con_senal,
@@ -463,4 +743,11 @@ __all__ = [
     "MAX_EVENTOS",
     "analizar",
     "analizar_evento",
+    "campos_desde_resultado",
+    "completar_reporte",
+    "guardar_resultado",
+    "huella_fila",
+    "huella_regla",
+    "importar_reporte",
+    "mapa_resultados",
 ]

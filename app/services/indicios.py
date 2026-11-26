@@ -1162,6 +1162,12 @@ def generar_indicios(
         _escribir_csv(ruta_detalle(workspace, source_id), CAMPOS_DETALLE, detalle)
 
         try:
+            from . import picks_signal
+
+            picks_signal.importar_reporte(workspace, source_id)
+        except Exception:  # noqa: BLE001 - la señal es opcional
+            LOG.exception("No se pudo importar la señal de cobertura de picks")
+        try:
             picks = picks_coverage.generar(
                 workspace,
                 source_id,
@@ -1172,6 +1178,12 @@ def generar_indicios(
         except Exception:  # noqa: BLE001 - no invalida los indicios
             LOG.exception("No se pudo generar cobertura de picks")
             picks = {"eventos": 0, "sin_picar": 0, "no_usadas": 0}
+        try:
+            from . import picks_signal
+
+            picks_signal.completar_reporte(workspace, source_id)
+        except Exception:  # noqa: BLE001 - la señal es opcional
+            LOG.exception("No se pudo completar la señal de cobertura de picks")
 
         info = {
             "eventos": len(evaluados),

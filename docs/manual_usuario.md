@@ -864,6 +864,10 @@ y **Solución** muestran **No aplica**, y bajo la prioridad aparece **Solo
 cobertura de picks**. Esas filas no entran en **Revisión prioritaria**; se
 revisan desde **Todos los indicios** o desde **Sin aportar**.
 
+El resultado del análisis de señal se conserva aunque se vuelva a generar el
+reporte de cobertura. Solo se repite si cambian el evento, sus estaciones
+candidatas o la regla de análisis, o si se solicita manualmente.
+
 La columna **Fases P/S** muestra el resultado de Wadati por evento:
 
 ```text
