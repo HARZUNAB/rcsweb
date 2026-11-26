@@ -220,6 +220,53 @@ def consultar(event_time: str, streams: list[str]) -> dict:
     return resultados
 
 
+def correlacionar(payload: dict) -> dict:
+    """Consulta el análisis de correlación de formas de onda."""
+    if not configurada():
+        raise AvailabilityError(
+            "La correlación de formas de onda no está configurada."
+        )
+    encabezados = {"Content-Type": "application/json"}
+    token = str(_config("RCS_DISPONIBILIDAD_TOKEN", "")).strip()
+    if token:
+        encabezados["X-RCS-Token"] = token
+    try:
+        respuesta = requests.post(
+            f"{_url()}/correlacionar",
+            json=payload,
+            headers=encabezados,
+            timeout=_tiempo_espera(),
+        )
+    except requests.RequestException as exc:
+        raise AvailabilityError(
+            "No se pudo conectar con el servicio de correlación."
+        ) from exc
+    if respuesta.status_code == 429:
+        raise AvailabilityError(
+            "Hay otra correlación en curso. Intente nuevamente."
+        )
+    if respuesta.status_code != 200:
+        detalle = ""
+        try:
+            detalle = str(respuesta.json().get("error") or "")
+        except ValueError:
+            detalle = respuesta.text[:200]
+        raise AvailabilityError(
+            detalle or "El servicio de correlación devolvió un error."
+        )
+    try:
+        datos = respuesta.json()
+    except ValueError as exc:
+        raise AvailabilityError(
+            "El servicio de correlación devolvió una respuesta inválida."
+        ) from exc
+    if not isinstance(datos, dict):
+        raise AvailabilityError(
+            "El servicio de correlación no devolvió un objeto."
+        )
+    return datos
+
+
 def _texto_formas_onda(estado: str, fuente: str) -> str:
     if estado == ESTADO_CON_DATOS:
         if fuente == FUENTE_SDS:

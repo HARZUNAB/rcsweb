@@ -1409,12 +1409,24 @@ agrega con `tipos_indicio=picks_faltantes` y aparece en la pestaña
 fases/solución y la de picks. La columna **Sin aportar** muestra
 `sin picar + no usadas`.
 
-La confirmación de señal con formas de onda queda como segunda etapa, bajo
-demanda: el reporte guarda `senal_n`, `senal_estaciones` y `senal_estado`
-(`pendiente`, `analizado`, `sin_candidatas`). Cuando se implemente, usará las
-bandas 1–5, 1–10 y 2–15 Hz, exigirá ≥2 bandas con STA/LTA ≥3 y racha ≥0.7 s, y
-calculará el tiempo esperado con distancia hipocentral o modelo 1D para no
-fallar en eventos profundos.
+La confirmación de señal es una segunda etapa bajo demanda. El reporte guarda
+`senal_n`, `senal_estaciones`, `senal_estado` y `senal_actualizado`. Los estados
+son `pendiente`, `analizado`, `sin_datos` y `sin_candidatas`.
+
+El botón **Analizar señal** de la pestaña **Sin aportar** llama a
+`POST /jobs/<job_id>/indicios/senal`. La ruta exige el permiso
+`trabajos.crear`, valida que el servicio de correlación esté configurado y
+encola `tasks.analizar_senal_picks`. La tarea procesa hasta 50 eventos
+pendientes y omite los que ya tienen un estado terminal. El avance se consulta
+en `GET /jobs/<job_id>/indicios/senal/<task_id>`.
+
+`picks_signal.analizar_evento` calcula el tiempo esperado de P con un ajuste
+lineal sobre la distancia hipocentral; si hay menos de tres picks usa
+`t ≈ d/6`. Luego consulta el servicio `disponibilidad` con las bandas 1–5,
+1–10 y 2–15 Hz y hasta 20 candidatas por evento. Una estación cuenta como señal clara si aparece en al menos dos
+bandas con `sta_lta_racha_s >= 0.7` y clasificación `podria_picarse` o
+`senal_detectada`. La correlación no es obligatoria: se guarda como contexto.
+La regla se aplica por estación y solo en el canal vertical.
 
 El esquema 7 agregó el resultado de Wadati por evento, calculado en
 `evaluar_evento` con los arribos que ya están en memoria: `wadati_n`,

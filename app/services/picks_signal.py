@@ -1,0 +1,459 @@
+"""Confirmación de señal para estaciones cercanas sin aportar.
+
+Esta es la segunda etapa del indicador: lee las formas de onda de las
+candidatas y aplica la regla de bandas. El resultado actualiza el reporte de
+cobertura de picks y reemplaza ``señal pendiente`` por el conteo confirmado.
+
+La correlación se delega al servicio auxiliar ``disponibilidad``; este módulo
+no lee el SDS directamente.
+"""
+
+from __future__ import annotations
+
+import math
+from collections import defaultdict
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import numpy as np
+
+from app.domain.catalogs import canonical
+from app.domain.catalogs.stations import distancia_km
+from app.services import availability, picks_coverage
+
+BANDAS = ((1.0, 5.0), (1.0, 10.0), (2.0, 15.0))
+MIN_BANDAS = 2
+STA_LTA_MIN = 3.0
+RACHA_MIN = 0.7
+MAX_EVENTOS = 50
+MAX_CANDIDATAS = 20
+ESTADOS_SENAL = {"podria_picarse", "senal_detectada"}
+ESTADOS_TERMINALES = {"analizado", "sin_datos", "sin_candidatas"}
+
+
+def _texto(valor) -> str:
+    return "" if valor is None else str(valor).strip()
+
+
+def _numero(valor) -> float | None:
+    try:
+        return float(str(valor).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _instante(valor) -> datetime | None:
+    limpio = " ".join(str(valor or "").strip().replace("Z", "+00:00").split())
+    if not limpio:
+        return None
+    try:
+        instante = datetime.fromisoformat(limpio)
+    except ValueError:
+        return None
+    if instante.tzinfo is not None:
+        instante = instante.astimezone(UTC).replace(tzinfo=None)
+    return instante
+
+
+def _es_vertical(stream: str) -> bool:
+    return bool(stream) and stream.split(".")[-1].endswith("Z")
+
+
+def _stream_vertical(item: dict) -> str:
+    for stream in item.get("streams") or []:
+        if _es_vertical(str(stream)):
+            return str(stream)
+    network = _texto(item.get("network"))
+    station = _texto(item.get("station"))
+    location = _texto(item.get("location"))
+    channel = _texto(item.get("channel"))
+    if network and station and channel:
+        return f"{network}.{station}.{location}.{channel[:-1]}Z"
+    return ""
+
+
+def _etiqueta(network: str, station: str) -> str:
+    return f"{network}.{station}" if network else station
+
+
+def _picks_evento(evento: dict, arribos: list[dict]) -> list[dict]:
+    instante = _instante(evento.get("event_time"))
+    lat = _numero(evento.get("latitude"))
+    lon = _numero(evento.get("longitude"))
+    if instante is None or lat is None or lon is None:
+        return []
+    picks = []
+    for arribo in arribos:
+        if not _texto(arribo.get("phase")).upper().startswith("P"):
+            continue
+        lat_estacion = _numero(arribo.get("station_latitude"))
+        lon_estacion = _numero(arribo.get("station_longitude"))
+        llegada = _instante(arribo.get("pick_time"))
+        if lat_estacion is None or lon_estacion is None or llegada is None:
+            continue
+        segundos = (llegada - instante).total_seconds()
+        if segundos <= 0:
+            continue
+        stream = "{}.{}.{}.{}".format(
+            _texto(arribo.get("network")),
+            _texto(arribo.get("station")),
+            _texto(arribo.get("location")),
+            _texto(arribo.get("channel")),
+        )
+        picks.append(
+            {
+                "distance_km": distancia_km(
+                    lat, lon, lat_estacion, lon_estacion
+                ),
+                "segundos": segundos,
+                "stream": stream,
+                "station": _etiqueta(
+                    _texto(arribo.get("network")),
+                    _texto(arribo.get("station")),
+                ),
+                "pick_time": _texto(arribo.get("pick_time")),
+                "usada": arribo.get("is_used_in_solution") is True,
+            }
+        )
+    return picks
+
+
+def _ajuste(evento: dict, picks: list[dict]) -> tuple[float, float]:
+    """Ajuste t = a + b * distancia hipocentral."""
+    profundidad = _numero(evento.get("depth_km")) or 0.0
+    usados = [pick for pick in picks if pick["usada"]]
+    base = usados if len(usados) >= 3 else picks
+    puntos = [
+        (
+            math.hypot(pick["distance_km"], profundidad),
+            pick["segundos"],
+        )
+        for pick in base
+        if pick.get("distance_km") is not None
+    ]
+    if len(puntos) < 3:
+        return 0.0, 1.0 / 6.0
+    xs = np.array([punto[0] for punto in puntos])
+    ys = np.array([punto[1] for punto in puntos])
+    pendiente, intercepto = np.polyfit(xs, ys, 1)
+    return float(intercepto), float(pendiente)
+
+
+def _candidatos(
+    evento: dict,
+    detalle: list[dict],
+    intercepto: float,
+    pendiente: float,
+    max_candidatas: int,
+) -> list[dict]:
+    instante = _instante(evento.get("event_time"))
+    profundidad = _numero(evento.get("depth_km")) or 0.0
+    if instante is None:
+        return []
+    salida = []
+    for item in detalle:
+        stream = _stream_vertical(item)
+        distancia = _numero(item.get("distance_km"))
+        if not stream or distancia is None:
+            continue
+        hipo = math.hypot(distancia, profundidad)
+        esperado = instante + timedelta(
+            seconds=intercepto + pendiente * hipo
+        )
+        network = _texto(item.get("network"))
+        station = _texto(item.get("station"))
+        location = _texto(item.get("location"))
+        channel = stream.split(".")[-1]
+        salida.append(
+            {
+                "stream": stream,
+                "station": (
+                    f"AVAIL {network}.{station}.{location}.{channel}"
+                ),
+                "distance_km": round(distancia, 1),
+                "expected_time": esperado.isoformat(),
+                "etiqueta": _etiqueta(network, station),
+            }
+        )
+    salida.sort(key=lambda item: item["distance_km"])
+    return salida[:max_candidatas]
+
+
+def _payload(
+    referencia: dict,
+    candidatos: list[dict],
+    banda: tuple[float, float],
+) -> dict:
+    return {
+        "reference": {
+            "stream": referencia["stream"],
+            "pick_time": referencia["pick_time"],
+            "distance_km": round(referencia["distance_km"], 1),
+        },
+        "candidates": [
+            {
+                "stream": candidato["stream"],
+                "station": candidato["station"],
+                "distance_km": candidato["distance_km"],
+                "expected_time": candidato["expected_time"],
+            }
+            for candidato in candidatos
+        ],
+        "fs": 100.0,
+        "band": [banda[0], banda[1]],
+        "template_before_s": 1.0,
+        "template_after_s": 7.0,
+        "candidate_before_s": 10.0,
+        "candidate_after_s": 30.0,
+        "max_lag_s": 5.0,
+        "sta_s": 0.5,
+        "lta_s": 10.0,
+        "sta_lta_before_s": 1.5,
+        "sta_lta_after_s": 4.0,
+        "sta_lta_persistencia_s": RACHA_MIN,
+        "cc_min": 0.5,
+        "sta_lta_min": STA_LTA_MIN,
+    }
+
+
+def _etiqueta_banda(banda: tuple[float, float]) -> str:
+    return f"{banda[0]:g}-{banda[1]:g}"
+
+
+def _combinar(
+    respuestas: list[tuple[tuple[float, float], dict]],
+    candidatos: list[dict],
+) -> dict:
+    por_estacion = {
+        candidato["station"]: candidato["etiqueta"]
+        for candidato in candidatos
+    }
+    etiquetas = set(por_estacion.values())
+    bandas: dict[str, set[str]] = defaultdict(set)
+    con_datos = False
+    for banda, respuesta in respuestas:
+        for item in respuesta.get("resultados", []):
+            station = _texto(item.get("station"))
+            if not station.startswith("AVAIL") or station.endswith(" NEG"):
+                continue
+            if item.get("status") == "CON_DATOS":
+                con_datos = True
+            etiqueta = por_estacion.get(station)
+            if etiqueta is None:
+                partes = station.replace("AVAIL ", "").split(".")
+                if len(partes) >= 2:
+                    posible = _etiqueta(partes[0], partes[1])
+                    if posible in etiquetas:
+                        etiqueta = posible
+            if etiqueta is None:
+                continue
+            if item.get("status") != "CON_DATOS":
+                continue
+            if item.get("clasificacion") not in ESTADOS_SENAL:
+                continue
+            racha = _numero(item.get("sta_lta_racha_s")) or 0.0
+            if racha < RACHA_MIN:
+                continue
+            bandas[etiqueta].add(_etiqueta_banda(banda))
+    claras = {
+        etiqueta: sorted(valores)
+        for etiqueta, valores in bandas.items()
+        if len(valores) >= MIN_BANDAS
+    }
+    return {
+        "senal_n": len(claras),
+        "senal_estaciones": "; ".join(
+            f"{etiqueta} ({','.join(valores)})"
+            for etiqueta, valores in sorted(claras.items())
+        ),
+        "senal_estado": (
+            "analizado"
+            if con_datos
+            else ("sin_datos" if candidatos else "sin_candidatas")
+        ),
+    }
+
+
+def analizar_evento(
+    evento: dict,
+    detalle: list[dict],
+    arribos: list[dict],
+    *,
+    max_candidatas: int = MAX_CANDIDATAS,
+    correlacionar_fn=None,
+) -> dict:
+    correlacionar = correlacionar_fn or availability.correlacionar
+    picks = _picks_evento(evento, arribos)
+    if not picks:
+        return {
+            "senal_n": 0,
+            "senal_estaciones": "",
+            "senal_estado": "sin_datos",
+        }
+    intercepto, pendiente = _ajuste(evento, picks)
+    candidatos = _candidatos(
+        evento, detalle, intercepto, pendiente, max_candidatas
+    )
+    if not candidatos:
+        return {
+            "senal_n": 0,
+            "senal_estaciones": "",
+            "senal_estado": "sin_candidatas",
+        }
+    referencias = sorted(
+        (
+            pick
+            for pick in picks
+            if _es_vertical(pick.get("stream") or "")
+            and pick.get("pick_time")
+            and pick.get("distance_km") is not None
+        ),
+        key=lambda item: item["distance_km"],
+    )
+    referencias_usadas = referencias[:3]
+    referencias_fallidas = 0
+    for referencia in referencias_usadas:
+        excluidos = {
+            referencia["stream"],
+        }
+        disponibles = [
+            candidato
+            for candidato in candidatos
+            if candidato["stream"] not in excluidos
+        ]
+        if not disponibles:
+            continue
+        respuestas = []
+        fallos = 0
+        for banda in BANDAS:
+            payload = _payload(referencia, disponibles, banda)
+            try:
+                respuesta = correlacionar(payload)
+            except availability.AvailabilityError:
+                fallos += 1
+                continue
+            respuestas.append((banda, respuesta))
+        if respuestas:
+            return _combinar(respuestas, disponibles)
+        if fallos == len(BANDAS):
+            referencias_fallidas += 1
+    if referencias_usadas and referencias_fallidas == len(referencias_usadas):
+        raise availability.AvailabilityError(
+            "No se pudo consultar el servicio de correlación."
+        )
+    return {
+        "senal_n": 0,
+        "senal_estaciones": "",
+        "senal_estado": "sin_datos",
+    }
+
+
+def _seleccionar(
+    filas: list[dict],
+    event_ids: set[str] | None,
+    max_eventos: int,
+    forzar: bool,
+) -> list[dict]:
+    if max_eventos <= 0:
+        return []
+    seleccionadas = []
+    for fila in filas:
+        if int(fila.get("total_n") or 0) <= 0:
+            continue
+        if event_ids is not None and fila.get("evento") not in event_ids:
+            continue
+        if not forzar and fila.get("senal_estado") in ESTADOS_TERMINALES:
+            continue
+        seleccionadas.append(fila)
+        if len(seleccionadas) >= max_eventos:
+            break
+    return seleccionadas
+
+
+def analizar(
+    workspace: Path,
+    fuente: str,
+    *,
+    event_ids: set[str] | None = None,
+    max_eventos: int = MAX_EVENTOS,
+    max_candidatas: int = MAX_CANDIDATAS,
+    forzar: bool = False,
+    correlacionar_fn=None,
+) -> dict:
+    """Analiza la señal de las candidatas pendientes del reporte."""
+    workspace = Path(workspace)
+    filas = picks_coverage.leer(workspace, fuente)
+    seleccionadas = _seleccionar(
+        filas, event_ids, max_eventos, forzar
+    )
+    if not seleccionadas:
+        return {
+            "eventos": 0,
+            "con_senal": 0,
+            "sin_senal": 0,
+            "sin_datos": 0,
+            "errores": 0,
+        }
+    eventos = {
+        _texto(evento.get("event_id")): evento
+        for evento in canonical.leer_canonico(workspace, fuente)
+    }
+    arribos: dict[str, list[dict]] = defaultdict(list)
+    for arribo in canonical.leer_arribos(workspace, fuente):
+        event_id = _texto(arribo.get("event_id"))
+        if event_id:
+            arribos[event_id].append(arribo)
+    procesados = 0
+    con_senal = 0
+    sin_senal = 0
+    sin_datos = 0
+    errores = 0
+    for fila in seleccionadas:
+        event_id = _texto(fila.get("evento"))
+        evento = eventos.get(event_id)
+        if evento is None:
+            continue
+        try:
+            resultado = analizar_evento(
+                evento,
+                fila.get("detalle") or [],
+                arribos.get(event_id, []),
+                max_candidatas=max_candidatas,
+                correlacionar_fn=correlacionar_fn,
+            )
+        except availability.AvailabilityError:
+            # No se marca el evento: queda pendiente para reintentar.
+            errores += 1
+            continue
+        picks_coverage.actualizar_senal(
+            workspace,
+            fuente,
+            event_id,
+            senal_n=resultado["senal_n"],
+            senal_estaciones=resultado["senal_estaciones"],
+            senal_estado=resultado["senal_estado"],
+        )
+        procesados += 1
+        if resultado["senal_estado"] == "sin_datos":
+            sin_datos += 1
+        elif resultado["senal_n"]:
+            con_senal += 1
+        else:
+            sin_senal += 1
+    return {
+        "eventos": procesados,
+        "con_senal": con_senal,
+        "sin_senal": sin_senal,
+        "sin_datos": sin_datos,
+        "errores": errores,
+        "actualizado": datetime.now(UTC).isoformat(),
+    }
+
+
+__all__ = [
+    "BANDAS",
+    "MAX_CANDIDATAS",
+    "MAX_EVENTOS",
+    "analizar",
+    "analizar_evento",
+]

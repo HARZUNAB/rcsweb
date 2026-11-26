@@ -185,6 +185,30 @@
   {% endif %}
 </div>
 
+{% if alcance == 'picks' and puede_analizar_senal and senal_pendientes %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3"
+     id="senal-picks"
+     data-url="{{ url_for('results.analizar_senal_picks', job_id=job.id) }}"
+     data-estado-url="{{ url_for('results.estado_senal_picks', job_id=job.id, task_id='__TASK__') }}">
+  <form method="post" class="m-0"
+        action="{{ url_for('results.analizar_senal_picks', job_id=job.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="fuente" value="{{ fuente }}">
+    <button type="submit" class="btn btn-sm btn-primary"
+            id="btn-analizar-senal">
+      Analizar señal
+    </button>
+  </form>
+  <span class="small text-secondary" id="senal-picks-estado">
+    Confirma con formas de onda hasta 50 eventos pendientes.
+  </span>
+</div>
+{% elif alcance == 'picks' and puede_analizar_senal %}
+<div class="alert alert-secondary py-2 mb-3" role="status">
+  No hay eventos con señal pendiente en este filtro.
+</div>
+{% endif %}
+
 {% if puede_crear_revision %}
 <form method="get" class="d-flex flex-wrap align-items-end gap-2 mb-3"
       action="{{ url_for('results.indicios_eventos', job_id=job.id) }}">
@@ -404,8 +428,16 @@
               {% endif %}
               {% if fila.picks_senal_estado == 'pendiente' %}
               <div class="small text-secondary">señal pendiente</div>
-              {% elif fila.picks_senal_n %}
-              <div class="small text-success">{{ fila.picks_senal_n }} con señal</div>
+              {% elif fila.picks_senal_estado == 'analizado' %}
+                {% if fila.picks_senal_n %}
+                <div class="small text-success">{{ fila.picks_senal_n }} con señal</div>
+                {% else %}
+                <div class="small text-secondary">sin señal clara</div>
+                {% endif %}
+              {% elif fila.picks_senal_estado == 'sin_datos' %}
+              <div class="small text-secondary">sin datos</div>
+              {% elif fila.picks_senal_estado == 'sin_candidatas' %}
+              <div class="small text-secondary">sin candidatas</div>
               {% endif %}
               {% else %}
               —
@@ -587,6 +619,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/tabla_orden.js') }}"></script>
+<script src="{{ url_for('static', filename='js/senal_picks.js') }}"></script>
 {% if puede_crear_revision %}
 <script src="{{ url_for('static', filename='js/revision_seleccion.js') }}"></script>
 {% endif %}

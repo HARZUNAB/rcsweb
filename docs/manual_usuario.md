@@ -836,8 +836,24 @@ disponible que no contribuyeron a la solución:
 significa **4 sin picar** y **1 picada no usada**. El tooltip lista las
 estaciones y sus distancias. La pestaña **Sin aportar** filtra estos
 eventos. El aviso se genera automáticamente al terminar el trabajo, sin leer
-formas de onda. La etiqueta **señal pendiente** indica que falta confirmar la
-señal; el conteo actual es de inventario. Una estación muy cercana o varias
+formas de onda.
+
+En la pestaña **Sin aportar** aparece el botón **Analizar señal**. Al pulsarlo
+se confirman hasta 50 eventos pendientes con las formas de onda de sus
+estaciones candidatas. Mientras el trabajo está en curso se muestra el avance;
+al terminar, la página se actualiza sola.
+
+La celda **Sin aportar** cambia según el resultado:
+
+- **señal pendiente:** todavía no se analizaron las formas de onda;
+- **N con señal:** hay N estaciones con señal clara en al menos dos bandas;
+- **sin señal clara:** se analizó y ninguna estación superó la regla;
+- **sin datos:** no se pudieron leer las formas de onda;
+- **sin candidatas:** no quedaron estaciones para analizar.
+
+La regla usa las bandas 1–5, 1–10 y 2–15 Hz, exige al menos dos bandas con
+STA/LTA ≥3 y una racha ≥0.7 s en el canal vertical. La correlación se muestra
+como información, no como condición. Una estación muy cercana o varias
 estaciones candidatas suben la prioridad.
 
 La columna **Fases P/S** muestra el resultado de Wadati por evento:

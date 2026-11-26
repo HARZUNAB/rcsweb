@@ -14,6 +14,7 @@ celery = Celery(
         "tasks.jobs",
         "tasks.catalogs",
         "tasks.availability",
+        "tasks.picks_signal",
         "tasks.amplification",
         "tasks.reports",
     ),

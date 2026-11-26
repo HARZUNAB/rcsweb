@@ -439,9 +439,9 @@ TERMINOS = {
     "senal_clara": {
         "titulo": "Señal clara",
         "texto": (
-            "Regla prevista: al menos 2 de las bandas 1–5, 1–10 y 2–15 Hz con "
-            "STA/LTA ≥3 y racha ≥0.7 s en el canal vertical. La correlación es "
-            "informativa. Esta confirmación todavía no está activa."
+            "Al menos 2 de las bandas 1–5, 1–10 y 2–15 Hz con STA/LTA ≥3 y "
+            "racha ≥0.7 s en el canal vertical. La correlación es informativa. "
+            "Se confirma con el botón Analizar señal de la pestaña Sin aportar."
         ),
         "grupo": "picks",
     },

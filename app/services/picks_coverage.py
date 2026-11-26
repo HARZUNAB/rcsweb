@@ -250,7 +250,7 @@ def _evento_fila(
         "detalle": json.dumps(detalle, ensure_ascii=False),
         "senal_n": 0,
         "senal_estaciones": "",
-        "senal_estado": "pendiente" if sin_picar else "sin_candidatas",
+        "senal_estado": "pendiente",
         "senal_actualizado": "",
         "actualizado": datetime.now(UTC).isoformat(),
     }
@@ -418,6 +418,49 @@ def generar(
     }
 
 
+def actualizar_senal(
+    workspace: Path,
+    fuente: str,
+    event_id: str,
+    *,
+    senal_n: int,
+    senal_estaciones: str,
+    senal_estado: str,
+    actualizado: str | None = None,
+) -> bool:
+    """Actualiza el estado de señal de un evento en el reporte."""
+    destino = ruta(workspace, fuente)
+    if not destino.is_file():
+        return False
+    with destino.open(encoding="utf-8", newline="") as archivo:
+        filas = list(csv.DictReader(archivo))
+    encontrado = False
+    for fila in filas:
+        if _texto(fila.get("evento")) != event_id:
+            continue
+        fila["senal_n"] = str(int(senal_n))
+        fila["senal_estaciones"] = senal_estaciones
+        fila["senal_estado"] = senal_estado
+        fila["senal_actualizado"] = (
+            actualizado or datetime.now(UTC).isoformat()
+        )
+        encontrado = True
+    if not encontrado:
+        return False
+    temporal = destino.with_name(destino.name + ".tmp")
+    try:
+        with temporal.open("w", encoding="utf-8", newline="") as archivo:
+            escritor = csv.DictWriter(
+                archivo, fieldnames=CAMPOS, extrasaction="ignore"
+            )
+            escritor.writeheader()
+            escritor.writerows(filas)
+        temporal.replace(destino)
+    finally:
+        temporal.unlink(missing_ok=True)
+    return True
+
+
 def leer(workspace: Path, fuente: str) -> list[dict]:
     destino = ruta(workspace, fuente)
     if not destino.is_file():
@@ -452,6 +495,7 @@ def resumen(workspace: Path, fuente: str) -> dict:
 
 __all__ = [
     "CAMPOS",
+    "actualizar_senal",
     "cerca_km",
     "generar",
     "leer",

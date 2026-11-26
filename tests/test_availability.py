@@ -186,6 +186,47 @@ def test_servicio_http_correlacion(monkeypatch):
         hilo.join(timeout=5)
 
 
+def test_cliente_correlacion_envia_payload_y_token(app, monkeypatch):
+    app.config["RCS_DISPONIBILIDAD_URL"] = "http://sidecar:8010"
+    app.config["RCS_DISPONIBILIDAD_TOKEN"] = "token"
+    app.config["RCS_DISPONIBILIDAD_TIMEOUT"] = 10
+    llamadas = {}
+
+    class Respuesta:
+        status_code = 200
+
+        def json(self):
+            return {"version": 1, "resultados": []}
+
+    def post(url, json, headers, timeout):
+        llamadas.update(
+            {"url": url, "json": json, "headers": headers, "timeout": timeout}
+        )
+        return Respuesta()
+
+    monkeypatch.setattr(availability.requests, "post", post)
+    with app.app_context():
+        datos = availability.correlacionar(
+            {"reference": {"stream": "CX.HMBCX..HHZ"}}
+        )
+
+    assert llamadas["url"] == "http://sidecar:8010/correlacionar"
+    assert llamadas["headers"]["X-RCS-Token"] == "token"
+    assert llamadas["json"]["reference"]["stream"] == "CX.HMBCX..HHZ"
+    assert datos["version"] == 1
+
+
+def test_cliente_correlacion_exige_configuracion(app):
+    app.config["RCS_DISPONIBILIDAD_URL"] = ""
+    with app.app_context():
+        try:
+            availability.correlacionar({})
+        except availability.AvailabilityError as exc:
+            assert "no está configurada" in str(exc)
+        else:
+            raise AssertionError("Se esperaba un error de configuración")
+
+
 def test_cliente_consulta_y_errores(app, monkeypatch):
     app.config["RCS_DISPONIBILIDAD_URL"] = "http://sidecar:8010"
     app.config["RCS_DISPONIBILIDAD_TOKEN"] = "token"

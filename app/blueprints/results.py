@@ -31,6 +31,7 @@ from flask_login import current_user, login_required
 from tasks.amplification import ampliar_sin_arribos
 from tasks.availability import consultar_disponibilidad
 from tasks.celery_app import celery
+from tasks.picks_signal import analizar_senal_picks as analizar_senal_picks_task
 
 from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
@@ -52,6 +53,7 @@ from ..services import (
     indicios,
     panels,
     picks_coverage,
+    picks_signal,
     referencias,
     review,
     review_drafts,
@@ -946,6 +948,13 @@ def indicios_eventos(job_id: str):
             else ""
         )
 
+    senal_pendientes = sum(
+        1
+        for fila in filas
+        if fila.get("picks_total")
+        and fila.get("picks_senal_estado")
+        not in picks_signal.ESTADOS_TERMINALES
+    )
     etiquetas = {codigo: _alias(job, codigo) for codigo in fuentes}
     return render_template(
         "results/indicios.html",
@@ -965,8 +974,119 @@ def indicios_eventos(job_id: str):
         puede_ver_revisiones=tiene_permiso(current_user, "revisiones.ver"),
         max_eventos=max_eventos,
         info_fuente=info_fuente,
+        puede_analizar_senal=tiene_permiso(current_user, "trabajos.crear"),
+        senal_pendientes=senal_pendientes,
         volver=volver,
     )
+
+
+@results_bp.post("/jobs/<job_id>/indicios/senal")
+@login_required
+@permiso_requerido("trabajos.crear")
+def analizar_senal_picks(job_id: str):
+    """Encola el análisis de señal de las candidatas pendientes."""
+    job = _job(job_id)
+    datos = request.get_json(silent=True) or request.form
+    fuente = str(datos.get("fuente") or "").strip()
+    fuentes = _fuentes_job(job)
+    if fuente not in fuentes:
+        return jsonify(
+            {"estado": "error", "mensaje": "La fuente no pertenece al trabajo."}
+        ), 400
+    if not availability.configurada():
+        return jsonify(
+            {
+                "estado": "error",
+                "mensaje": (
+                    "La correlación de formas de onda no está configurada "
+                    "en este entorno."
+                ),
+            }
+        ), 503
+
+    workspace = ruta_workspace(job.id)
+    pendientes = [
+        fila
+        for fila in picks_coverage.leer(workspace, fuente)
+        if int(fila.get("total_n") or 0) > 0
+        and fila.get("senal_estado") not in picks_signal.ESTADOS_TERMINALES
+    ]
+    if not pendientes:
+        return jsonify(
+            {
+                "estado": "error",
+                "mensaje": "No hay eventos con señal pendiente para analizar.",
+            }
+        ), 400
+
+    max_eventos = picks_signal.MAX_EVENTOS
+    try:
+        tarea = analizar_senal_picks_task.delay(
+            job.id, fuente, max_eventos=max_eventos
+        )
+    except Exception:  # noqa: BLE001 - el usuario necesita un mensaje claro
+        return jsonify(
+            {
+                "estado": "error",
+                "mensaje": (
+                    "No se pudo encolar el análisis de señal. "
+                    "Revise el worker y Redis."
+                ),
+            }
+        ), 503
+
+    registrar(
+        "picks.signal",
+        entity=job.id,
+        meta={
+            "fuente": fuente,
+            "pendientes": len(pendientes),
+            "max_eventos": max_eventos,
+        },
+    )
+    return jsonify(
+        {
+            "estado": "encolada",
+            "task_id": tarea.id,
+            "eventos": min(len(pendientes), max_eventos),
+        }
+    ), 202
+
+
+@results_bp.get("/jobs/<job_id>/indicios/senal/<task_id>")
+@login_required
+@permiso_requerido("resultados.ver")
+def estado_senal_picks(job_id: str, task_id: str):
+    """Estado del análisis de señal encolado."""
+    _job(job_id)
+    resultado = celery.AsyncResult(task_id)
+    estado = resultado.state
+    datos = {"estado": estado}
+    if estado == "PROGRESS":
+        datos["fase"] = str((resultado.info or {}).get("fase") or "")
+    elif estado == "SUCCESS":
+        valor = resultado.result or {}
+        if isinstance(valor, dict) and valor.get("estado") == "ok":
+            datos.update({"estado": "ok", "resultado": valor})
+        else:
+            datos.update(
+                {
+                    "estado": "error",
+                    "mensaje": str(
+                        valor.get("mensaje")
+                        if isinstance(valor, dict)
+                        else "El análisis no devolvió un resultado válido."
+                    ),
+                }
+            )
+    elif estado == "FAILURE":
+        datos.update(
+            {
+                "estado": "error",
+                "mensaje": "El análisis de señal falló en el worker.",
+            }
+        )
+    return jsonify(datos)
 
 
 @results_bp.post("/jobs/<job_id>/indicios/revision")
