@@ -1405,7 +1405,7 @@ RCS_PICKS_MAX_CANDIDATAS=60
 El listado de revisión une `indicios_<fuente>.csv` con
 `revision_picks_<fuente>.csv`. Un evento que solo tiene cobertura de picks se
 agrega con `tipos_indicio=picks_faltantes` y aparece en la pestaña
-**Cobertura de picks**. La prioridad final es la mayor entre la prioridad de
+**Sin aportar**. La prioridad final es la mayor entre la prioridad de
 fases/solución y la de picks. La columna **Sin aportar** muestra
 `sin picar + no usadas`.
 

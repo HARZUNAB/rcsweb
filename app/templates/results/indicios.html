@@ -106,7 +106,7 @@
   {{ info_fuente.picks_no_usadas }} picadas no usadas.
   <a class="alert-link"
      href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='picks') }}">
-    Ver cobertura de picks
+    Ver estos eventos
   </a>.
 </div>
 {% endif %}
@@ -144,7 +144,7 @@
     <li class="nav-item">
       <a class="nav-link {% if alcance == 'picks' %}active{% endif %}"
          href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='picks') }}">
-        Cobertura de picks
+        Sin aportar
         {% if info_fuente.picks_eventos %}
         ({{ info_fuente.picks_eventos }})
         {% endif %}

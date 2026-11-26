@@ -457,9 +457,9 @@ TERMINOS = {
         "titulo": "Cobertura de picks",
         "texto": (
             "Indicador de revisión que cuenta estaciones cercanas con registro "
-            "disponible que no aportaron a la solución. Se calcula al terminar "
-            "el trabajo; la confirmación con formas de onda es una segunda "
-            "etapa."
+            "disponible que no aportaron a la solución. En la lista se muestra "
+            "como pestaña Sin aportar. Se calcula al terminar el trabajo; la "
+            "confirmación con formas de onda es una segunda etapa."
         ),
         "grupo": "picks",
     },

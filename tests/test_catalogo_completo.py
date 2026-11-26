@@ -812,7 +812,7 @@ def test_revision_muestra_estaciones_sin_aportar(app, client, login):
     )
     assert respuesta.status_code == 200
     html = respuesta.get_data(as_text=True)
-    assert "Cobertura de picks" in html
+    assert "Ver estos eventos" in html
     assert "Sin aportar" in html
     assert "NEAR" in html
     assert "1 + 0" in html

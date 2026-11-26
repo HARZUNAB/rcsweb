@@ -764,7 +764,7 @@ la página del trabajo abre el listado. Hay cuatro alcances:
 - **Todos:** agrega las soluciones sin cruce Eventquery que tienen fases
   inconsistentes, para revisar la calidad del catálogo. Las soluciones
   sospechosas sin cruce y sin fase quedan en los paneles.
-- **Cobertura de picks:** eventos con estaciones cercanas que no aportaron a la
+- **Sin aportar:** eventos con estaciones cercanas que no aportaron a la
   solución, aunque no tengan una anomalía de fase.
 
 La publicación no viene como un campo de la fuente local: se **estima** cruzando
@@ -830,7 +830,7 @@ disponible que no contribuyeron a la solución:
 ```
 
 significa **4 sin picar** y **1 picada no usada**. El tooltip lista las
-estaciones y sus distancias. La pestaña **Cobertura de picks** filtra estos
+estaciones y sus distancias. La pestaña **Sin aportar** filtra estos
 eventos. El aviso se genera automáticamente al terminar el trabajo, sin leer
 formas de onda. La etiqueta **señal pendiente** indica que falta confirmar la
 señal; el conteo actual es de inventario. Una estación muy cercana o varias
