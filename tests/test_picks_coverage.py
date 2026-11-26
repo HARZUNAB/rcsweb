@@ -91,6 +91,22 @@ def _preparar(tmp_path: Path) -> Path:
             _arribo("seiscomp:000001", "USED1", -30.1, -71.0, usada=True),
             _arribo("seiscomp:000001", "USED2", -30.2, -71.0, usada=True),
             _arribo("seiscomp:000001", "UNUSED", -30.3, -71.0, usada=False),
+            _arribo(
+                "seiscomp:000001",
+                "MIXED",
+                -30.35,
+                -71.0,
+                usada=True,
+                fase="S",
+            ),
+            _arribo(
+                "seiscomp:000001",
+                "MIXED",
+                -30.35,
+                -71.0,
+                usada=False,
+                fase="P",
+            ),
         ],
     )
     canonical.escribir_registros(
@@ -152,6 +168,7 @@ def test_generar_reporte_de_estaciones_sin_aportar(tmp_path):
     assert resumen["eventos"] == 1
     assert resumen["sin_picar"] == 1
     assert resumen["no_usadas"] == 1
+    assert resumen["fases_no_usadas"] == 1
 
     filas = picks_coverage.leer(workspace, "seiscomp")
     assert len(filas) == 1
@@ -159,18 +176,24 @@ def test_generar_reporte_de_estaciones_sin_aportar(tmp_path):
     assert fila["evento"] == "seiscomp:000001"
     assert int(fila["sin_picar_n"]) == 1
     assert int(fila["no_usadas_n"]) == 1
+    assert int(fila["fases_no_usadas_n"]) == 1
     assert int(fila["total_n"]) == 2
     assert fila["prioridad"] == "Alta"
     assert "NEAR" in fila["estaciones"]
     assert "UNUSED" in fila["estaciones"]
+    assert "MIXED" not in fila["estaciones"]
     assert fila["senal_estado"] == "pendiente"
     tipos = {item["tipo"] for item in fila["detalle"]}
     assert tipos == {"sin_picar", "no_usada"}
     assert not any(
         item["station"]
-        in {"FAR", "NOVERT", "NO_EVID", "NO_DATA", "USED1"}
+        in {"FAR", "NOVERT", "NO_EVID", "NO_DATA", "USED1", "MIXED"}
         for item in fila["detalle"]
     )
+    fases = fila["fases_no_usadas"]
+    assert [(item["station"], item["fases"]) for item in fases] == [
+        ("MIXED", ["P"])
+    ]
 
 
 def test_generar_respeta_radio_y_no_incluye_evento_sin_candidatas(tmp_path):

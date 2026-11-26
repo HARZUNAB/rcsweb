@@ -41,11 +41,13 @@ CAMPOS = (
     "n_usadas",
     "sin_picar_n",
     "no_usadas_n",
+    "fases_no_usadas_n",
     "total_n",
     "min_distancia_km",
     "prioridad",
     "estaciones",
     "detalle",
+    "fases_no_usadas",
     "senal_n",
     "senal_estaciones",
     "senal_estado",
@@ -218,6 +220,7 @@ def _evento_fila(
     evento: dict,
     sin_picar: list[dict],
     no_usadas: list[dict],
+    fases_no_usadas: list[dict],
     n_usadas: int,
     cerca: float,
 ) -> dict:
@@ -243,11 +246,15 @@ def _evento_fila(
         "n_usadas": n_usadas,
         "sin_picar_n": len(sin_picar),
         "no_usadas_n": len(no_usadas),
+        "fases_no_usadas_n": len(fases_no_usadas),
         "total_n": len(detalle),
         "min_distancia_km": None if minima is None else round(minima, 1),
         "prioridad": prioridad,
         "estaciones": _resumen_estaciones(detalle),
         "detalle": json.dumps(detalle, ensure_ascii=False),
+        "fases_no_usadas": json.dumps(
+            fases_no_usadas, ensure_ascii=False
+        ),
         "senal_n": 0,
         "senal_estaciones": "",
         "senal_estado": "pendiente",
@@ -317,6 +324,19 @@ def generar(
             if fase:
                 datos["fases"].append(fase)
 
+        # Una estación que ya aportó con alguna fase no es "sin aportar".
+        # Sus fases restantes se informan aparte.
+        fases_no_usadas_por_estacion = {
+            clave: datos
+            for clave, datos in no_usadas_por_estacion.items()
+            if clave in usadas
+        }
+        no_usadas_por_estacion = {
+            clave: datos
+            for clave, datos in no_usadas_por_estacion.items()
+            if clave not in usadas
+        }
+
         sin_picar: list[dict] = []
         for fila in sin_arribos_por_evento.get(event_id, []):
             clave = _clave_estacion(fila)
@@ -357,6 +377,23 @@ def generar(
             no_usadas.append(item)
         no_usadas.sort(key=lambda item: item.get("distance_km") or 0)
 
+        fases_no_usadas: list[dict] = []
+        for datos in fases_no_usadas_por_estacion.values():
+            distancia = datos["distancia"]
+            if distancia is None or distancia > radio_km_valor:
+                continue
+            fases_no_usadas.append(
+                _fila_detalle(
+                    tipo="fase_no_usada",
+                    fila=datos["fila"],
+                    distancia=distancia,
+                    fases=datos["fases"],
+                )
+            )
+        fases_no_usadas.sort(
+            key=lambda item: item.get("distance_km") or 0
+        )
+
         todos = sorted(
             sin_picar + no_usadas,
             key=lambda item: item.get("distance_km") or 0,
@@ -380,6 +417,7 @@ def generar(
                 evento,
                 sin_picar,
                 no_usadas,
+                fases_no_usadas,
                 int(n_usadas or 0),
                 cerca_valor,
             )
@@ -413,6 +451,9 @@ def generar(
         "eventos": len(filas),
         "sin_picar": sum(int(fila["sin_picar_n"]) for fila in filas),
         "no_usadas": sum(int(fila["no_usadas_n"]) for fila in filas),
+        "fases_no_usadas": sum(
+            int(fila["fases_no_usadas_n"]) for fila in filas
+        ),
         "radio_km": radio_km_valor,
         "cerca_km": cerca_valor,
     }
@@ -490,6 +531,19 @@ def actualizar_senal(
     )
 
 
+def _parsear_json(fila: dict) -> dict:
+    for campo in ("detalle", "fases_no_usadas"):
+        valor = fila.get(campo)
+        if valor:
+            try:
+                fila[campo] = json.loads(valor)
+            except ValueError:
+                fila[campo] = []
+        else:
+            fila[campo] = []
+    return fila
+
+
 def leer(workspace: Path, fuente: str) -> list[dict]:
     destino = ruta(workspace, fuente)
     if not destino.is_file():
@@ -500,16 +554,27 @@ def leer(workspace: Path, fuente: str) -> list[dict]:
     except (OSError, csv.Error):
         LOG.warning("No se pudo leer %s", destino, exc_info=True)
         return []
-    for fila in filas:
-        detalle = fila.get("detalle")
-        if detalle:
-            try:
-                fila["detalle"] = json.loads(detalle)
-            except ValueError:
-                fila["detalle"] = []
-        else:
-            fila["detalle"] = []
-    return filas
+    return [_parsear_json(fila) for fila in filas]
+
+
+def fila_evento(
+    workspace: Path, fuente: str, event_id: str
+) -> dict | None:
+    """Fila de cobertura de un evento concreto, o ``None``."""
+    event_id = _texto(event_id)
+    if not event_id:
+        return None
+    destino = ruta(workspace, fuente)
+    if not destino.is_file():
+        return None
+    try:
+        with destino.open(encoding="utf-8", newline="") as archivo:
+            for fila in csv.DictReader(archivo):
+                if _texto(fila.get("evento")) == event_id:
+                    return _parsear_json(fila)
+    except (OSError, csv.Error):
+        LOG.warning("No se pudo leer %s", destino, exc_info=True)
+    return None
 
 
 def resumen(workspace: Path, fuente: str) -> dict:
@@ -518,6 +583,9 @@ def resumen(workspace: Path, fuente: str) -> dict:
         "eventos": len(filas),
         "sin_picar": sum(int(fila.get("sin_picar_n") or 0) for fila in filas),
         "no_usadas": sum(int(fila.get("no_usadas_n") or 0) for fila in filas),
+        "fases_no_usadas": sum(
+            int(fila.get("fases_no_usadas_n") or 0) for fila in filas
+        ),
         "senal": sum(int(fila.get("senal_n") or 0) for fila in filas),
     }
 
@@ -527,6 +595,7 @@ __all__ = [
     "actualizar_senal",
     "actualizar_senales",
     "cerca_km",
+    "fila_evento",
     "generar",
     "leer",
     "max_candidatas",

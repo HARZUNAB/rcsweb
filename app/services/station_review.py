@@ -425,6 +425,13 @@ def _agrupar(filas: list[dict]) -> list[dict]:
         red, estacion = clave
         usadas = sum(1 for fila in integrantes if fila["_usada"] is True)
         no_usadas = sum(1 for fila in integrantes if fila["_usada"] is False)
+        fases_no_usadas = sorted(
+            {
+                fila.get("fase", "")
+                for fila in integrantes
+                if fila["_usada"] is False and fila.get("fase")
+            }
+        )
         salida.append(
             {
                 "red": red,
@@ -433,6 +440,7 @@ def _agrupar(filas: list[dict]) -> list[dict]:
                 "filas": integrantes,
                 "usadas": usadas,
                 "no_usadas": no_usadas,
+                "fases_no_usadas": fases_no_usadas,
                 "total": len(integrantes),
                 "llegada": _hora_corta(primera),
                 "_llegada": primera,
@@ -461,11 +469,39 @@ def _fecha_consulta(valor: str) -> str:
     return instante.strftime("%Y-%m-%d %H:%M")
 
 
+def _fases_no_usadas_por_estacion(arribos: list[dict]) -> list[dict]:
+    """Fases sin usar de estaciones que sí aportaron con otra fase."""
+    grupos: dict[tuple[str, str], dict] = {}
+    for fila in arribos:
+        clave = (fila["red"], fila["estacion"])
+        datos = grupos.setdefault(clave, {"usada": False, "fases": set()})
+        if fila["_usada"] is True:
+            datos["usada"] = True
+        elif fila["_usada"] is False and fila.get("fase"):
+            datos["fases"].add(fila["fase"])
+    salida = []
+    for (red, estacion), datos in grupos.items():
+        if not datos["usada"] or not datos["fases"]:
+            continue
+        fases = sorted(datos["fases"])
+        etiqueta = f"{red}.{estacion}" if red else estacion
+        salida.append(
+            {
+                "etiqueta": etiqueta,
+                "fases": fases,
+                "texto": f"{etiqueta} {'/'.join(fases)}",
+            }
+        )
+    salida.sort(key=lambda item: item["etiqueta"])
+    return salida
+
+
 def _resumen(arribos: list[dict], sin_arribos: list[dict], radio) -> dict:
     estaciones = {(fila["red"], fila["estacion"]) for fila in arribos}
     usadas = sum(1 for fila in arribos if fila["_usada"] is True)
     no_usadas = sum(1 for fila in arribos if fila["_usada"] is False)
     sin_marcar = len(arribos) - usadas - no_usadas
+    fases_no_usadas = _fases_no_usadas_por_estacion(arribos)
     disponibles = sum(
         1 for fila in sin_arribos if fila.get("disponible_no_usada") is True
     )
@@ -503,6 +539,7 @@ def _resumen(arribos: list[dict], sin_arribos: list[dict], radio) -> dict:
         "estaciones": len(estaciones),
         "usadas": usadas,
         "no_usadas": no_usadas,
+        "fases_no_usadas": fases_no_usadas,
         "sin_dato_uso": sin_marcar,
         "sin_arribos": len(sin_arribos),
         "disponibles": disponibles,

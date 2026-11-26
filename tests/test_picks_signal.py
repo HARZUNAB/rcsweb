@@ -231,7 +231,10 @@ def _preparar_reporte(tmp_path: Path) -> Path:
     )
     canonical.escribir_registros(
         canonical.ruta_arribos(workspace, "seiscomp"),
-        _tres_picks(),
+        [
+            *_tres_picks(),
+            _arribo("R3", -30.3, segundos=12, usada=False, fase="S"),
+        ],
     )
     canonical.escribir_registros(
         canonical.ruta_estaciones_sin_arribos(workspace, "seiscomp"),
@@ -487,6 +490,9 @@ def test_anotar_senal_en_el_detalle(app, tmp_path):
     _anotar_senal(workspace, revision)
 
     assert revision["senal"]["n"] == 1
+    assert [item["texto"] for item in revision["senal"]["fases_no_usadas"]] == [
+        "C1.R3 S"
+    ]
     assert revision["sin_arribos"][0]["senal"].startswith("Clara")
     assert revision["sin_arribos"][1]["senal"] == "Sin señal clara"
     assert ("senal", "Señal") in revision["columnas_sin_arribos"]

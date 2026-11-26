@@ -404,8 +404,9 @@ TERMINOS = {
         "titulo": "Estaciones cercanas sin aportar",
         "texto": (
             "Estaciones con registro disponible, dentro del radio de búsqueda, "
-            "que no contribuyeron a la solución: no tienen arribo o tienen un "
-            "pick que no se usó. Se muestran como sin picar + picadas no usadas."
+            "que no contribuyeron a la solución: no tienen arribo o no tienen "
+            "ninguna fase usada. Una estación que aportó con otra fase no se "
+            "cuenta; sus fases sobrantes se muestran como fases no usadas."
         ),
         "grupo": "picks",
     },

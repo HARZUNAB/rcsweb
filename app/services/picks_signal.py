@@ -261,15 +261,7 @@ def resultado_evento(
     event_id = _texto(event_id)
     if not event_id:
         return None
-    filas = picks_coverage.leer(workspace, fuente)
-    fila = next(
-        (
-            item
-            for item in filas
-            if _texto(item.get("evento")) == event_id
-        ),
-        None,
-    )
+    fila = picks_coverage.fila_evento(workspace, fuente, event_id)
     if fila is None:
         return None
     return mapa_resultados(fuente, [fila]).get(

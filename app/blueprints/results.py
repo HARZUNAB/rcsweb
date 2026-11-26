@@ -631,6 +631,9 @@ def _combinar_picks(filas: list[dict], workspace, fuente: str) -> None:
         campos = {
             "picks_sin_picar": sin_picar,
             "picks_no_usadas": no_usadas,
+            "picks_fases_no_usadas": int(
+                pick.get("fases_no_usadas_n") or 0
+            ),
             "picks_total": total,
             "picks_min_distancia": pick.get("min_distancia_km") or "",
             "picks_prioridad": prioridad,
@@ -1067,6 +1070,9 @@ def indicios_eventos(job_id: str):
     )
     info_fuente["picks_no_usadas"] = sum(
         int(fila.get("picks_no_usadas") or 0) for fila in filas
+    )
+    info_fuente["picks_fases_no_usadas"] = sum(
+        int(fila.get("picks_fases_no_usadas") or 0) for fila in filas
     )
 
     orden = request.args.get("orden", "recomendado").strip()
@@ -3475,6 +3481,33 @@ def _etiqueta_estacion_senal(fila: dict) -> str:
     return f"{red}.{estacion}" if red else estacion
 
 
+def _fases_no_usadas_revision(fila: dict | None) -> list[dict]:
+    """Fases no usadas de estaciones que sí aportaron, listas para mostrar."""
+    salida = []
+    for item in (fila or {}).get("fases_no_usadas") or []:
+        if not isinstance(item, dict):
+            continue
+        red = str(item.get("network") or "").strip()
+        estacion = str(item.get("station") or "").strip()
+        etiqueta = f"{red}.{estacion}" if red else estacion
+        fases = [
+            str(fase).strip()
+            for fase in item.get("fases") or []
+            if str(fase).strip()
+        ]
+        if not etiqueta or not fases:
+            continue
+        salida.append(
+            {
+                "etiqueta": etiqueta,
+                "fases": fases,
+                "texto": f"{etiqueta} {'/'.join(fases)}",
+                "distance_km": item.get("distance_km"),
+            }
+        )
+    return salida
+
+
 def _anotar_senal(workspace, revision: dict) -> None:
     """Agrega al detalle el estado de señal y el resultado por estación."""
     fuente = str(revision.get("fuente") or "")
@@ -3516,6 +3549,9 @@ def _anotar_senal(workspace, revision: dict) -> None:
         "estaciones": estaciones,
         "actualizado": actualizado,
         "claras": claras,
+        "fases_no_usadas": _fases_no_usadas_revision(
+            picks_coverage.fila_evento(workspace, fuente, event_id)
+        ),
     }
     columnas = list(revision.get("columnas_sin_arribos") or [])
     if not any(clave == "senal" for clave, _titulo in columnas):

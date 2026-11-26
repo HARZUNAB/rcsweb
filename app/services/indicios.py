@@ -1177,7 +1177,12 @@ def generar_indicios(
             )
         except Exception:  # noqa: BLE001 - no invalida los indicios
             LOG.exception("No se pudo generar cobertura de picks")
-            picks = {"eventos": 0, "sin_picar": 0, "no_usadas": 0}
+            picks = {
+                "eventos": 0,
+                "sin_picar": 0,
+                "no_usadas": 0,
+                "fases_no_usadas": 0,
+            }
         try:
             from . import picks_signal
 
@@ -1219,6 +1224,7 @@ def generar_indicios(
             "picks_eventos": picks["eventos"],
             "picks_sin_picar": picks["sin_picar"],
             "picks_no_usadas": picks["no_usadas"],
+            "picks_fases_no_usadas": picks["fases_no_usadas"],
         }
         resumen["fuentes"][source_id] = info
         for clave in total:

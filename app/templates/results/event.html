@@ -556,6 +556,15 @@
       {% if senal_estaciones.estaciones %}
       <div class="text-secondary">{{ senal_estaciones.estaciones }}</div>
       {% endif %}
+      {% if senal_estaciones.fases_no_usadas %}
+      <div class="border-top mt-2 pt-2">
+        <strong>Fases no usadas en estaciones que sí aportaron:</strong>
+        {{ senal_estaciones.fases_no_usadas|map(attribute='texto')|join('; ') }}
+        <div class="text-secondary">
+          Se informan aparte y no suman a las estaciones sin aportar.
+        </div>
+      </div>
+      {% endif %}
       {% if senal_estaciones.actualizado %}
       <div class="text-secondary">
         Actualizado {{ senal_estaciones.actualizado[:16]|replace('T', ' ') }}
@@ -725,6 +734,7 @@
                     {{ grupo.total }} arribo{{ '' if grupo.total == 1 else 's' }}
                     · {{ grupo.usadas }} usada{{ '' if grupo.usadas == 1 else 's' }}
                     {% if grupo.no_usadas %}· {{ grupo.no_usadas }} sin usar{% endif %}
+                    {% if grupo.usadas and grupo.fases_no_usadas %}· fase{{ '' if grupo.fases_no_usadas|length == 1 else 's' }} sin usar: {{ grupo.fases_no_usadas|join(', ') }}{% endif %}
                     {% if grupo.llegada %}· primera llegada {{ grupo.llegada }}{% endif %}
                   </span>
                 </td>

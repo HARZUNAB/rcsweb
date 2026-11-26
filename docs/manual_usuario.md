@@ -280,11 +280,17 @@ estaciones**, con dos solapas:
 
 - **Con arribos:** muestra los arribos de la solución agrupados por estación. El
   botón **Solo no utilizadas** deja a la vista únicamente los arribos que la
-  solución no usó; **Quitar filtro** vuelve a la lista completa.
+  solución no usó; **Quitar filtro** vuelve a la lista completa. Si una estación
+  aportó con una fase y dejó otra sin usar, el encabezado del grupo indica la
+  fase no usada, por ejemplo `fase sin usar: P`.
 - **Sin arribos:** muestra las estaciones del inventario que quedaron dentro del
   radio de exportación y no tienen arribos en el evento. «Sin arribos» **no**
   significa «no grabó»: significa que la fuente no registra una llegada de esa
   estación para este evento.
+
+Una estación que tiene al menos una fase usada **sí aportó**, aunque otra fase
+haya quedado fuera. Esas fases se muestran aparte y no se cuentan como
+estaciones sin aportar.
 
 Para saber si una estación **estaba grabando y no se usó**, la consulta de formas
 de onda se inicia automáticamente al abrir la solapa **Sin arribos**. La
@@ -297,6 +303,11 @@ bandas que pasaron, **Sin señal clara**, **Sin datos**, **Pendiente** o
 **Fuera del lote** para las estaciones que no entraron en las candidatas
 analizadas. La disponibilidad de la forma de onda y la señal clara son datos
 distintos: una estación puede tener registro y no superar la regla.
+
+Si alguna estación aportó con una fase y dejó otra sin usar, el mismo recuadro
+agrega **Fases no usadas en estaciones que sí aportaron**, por ejemplo
+`CX.PB15 P; CX.PB19 S`. Son informativas: no suman al conteo de estaciones sin
+aportar ni al análisis de señal de esas estaciones.
 
 Mientras corre:
 
@@ -775,7 +786,9 @@ la página del trabajo abre el listado. Hay cuatro alcances:
   inconsistentes, para revisar la calidad del catálogo. Las soluciones
   sospechosas sin cruce y sin fase quedan en los paneles.
 - **Sin aportar:** eventos con estaciones cercanas que no aportaron a la
-  solución, aunque no tengan una anomalía de fase.
+  solución, aunque no tengan una anomalía de fase. Una estación que usó al menos
+  una fase no entra en este grupo; sus fases sobrantes se muestran como
+  **fases no usadas**.
 
 Cada pestaña es un filtro. La página muestra un aviso **Filtro activo** con el
 nombre del alcance, el número de eventos y, cuando corresponde, el botón

@@ -1450,8 +1450,14 @@ final de `generar_indicios` y escribe
 `resultados/revision_picks_<fuente>.csv`. Para cada evento cuenta:
 
 - estaciones cercanas sin arribo (`sin_picar_n`);
-- estaciones con pick no usado (`no_usadas_n`);
+- estaciones sin ninguna fase usada (`no_usadas_n`);
+- fases no usadas de estaciones que sí aportaron con otra fase
+  (`fases_no_usadas_n`), guardadas aparte en `fases_no_usadas`;
 - total, distancia mínima, prioridad y lista compacta de estaciones.
+
+Una estación con una fase usada no se cuenta como «sin aportar» aunque otra de
+sus fases haya quedado fuera. Esas fases se informan en
+`fases_no_usadas` y no suman a `no_usadas_n` ni a `total_n`.
 
 El radio y los umbrales se controlan con:
 
@@ -1481,6 +1487,12 @@ La confirmación de señal es una segunda etapa bajo demanda. El reporte guarda
 `senal_n`, `senal_estaciones`, `senal_estado` y `senal_actualizado`. Los estados
 son `pendiente`, `analizado`, `sin_datos` y `sin_candidatas`.
 
+Las candidatas de señal salen de `detalle`, que ya excluye a las estaciones con
+alguna fase usada. El detalle de la ficha muestra esas fases aparte en
+**Fases no usadas en estaciones que sí aportaron** y no las suma al conteo de
+estaciones sin aportar. `_anotar_senal` lee `fases_no_usadas` del reporte y las
+expone en `revision["senal"]["fases_no_usadas"]`.
+
 La tarjeta **Cola de señal** de la pestaña **Sin aportar** llama a
 `POST /jobs/<job_id>/indicios/senal`. La ruta exige el permiso
 `trabajos.crear`, valida que el servicio de correlación esté configurado y
@@ -1497,11 +1509,13 @@ La tarea informa `procesados`, `total` y `evento` en el estado `PROGRESS`. Al
 terminar guarda un resumen en `resultados/senal_ultimo_<fuente>.json`, que la
 pantalla muestra como **Último análisis**.
 
-La revisión acepta los parámetros `orden` y `senal`. `orden` puede ser
+La revisión acepta los parámetros `orden`, `senal` y `q`. `orden` puede ser
 `recomendado`, `fecha`, `sin_aportar`, `distancia` o `cobertura`; `senal` puede
-ser `pendiente`, `con_senal`, `sin_senal` o `sin_datos`. El orden recomendado
-usa los niveles A–E descritos abajo y, dentro de cada nivel, cobertura fuerte,
-cantidad y proporción de estaciones sin aportar, distancia mínima y fecha.
+ser `pendiente`, `con_senal`, `sin_senal` o `sin_datos`. `q` filtra por evento,
+ID de fuente, fecha/hora, región o analista antes de ordenar y de armar la cola.
+El orden recomendado usa los niveles A–E descritos abajo y, dentro de cada
+nivel, cobertura fuerte, cantidad y proporción de estaciones sin aportar,
+distancia mínima y fecha.
 
 El orden recomendado se aplica también a la cola: los próximos 50 que muestra
 la tarjeta son los mismos que se envían al análisis.

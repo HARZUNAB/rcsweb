@@ -104,6 +104,11 @@
   evento{{ '' if info_fuente.picks_eventos == 1 else 's' }} con
   {{ info_fuente.picks_sin_picar }} sin picar y
   {{ info_fuente.picks_no_usadas }} picadas no usadas.
+  {% if info_fuente.picks_fases_no_usadas %}
+  Además, {{ info_fuente.picks_fases_no_usadas }} fase{{ '' if info_fuente.picks_fases_no_usadas == 1 else 's' }}
+  no usada{{ '' if info_fuente.picks_fases_no_usadas == 1 else 's' }}
+  en estaciones que sí aportaron.
+  {% endif %}
   <a class="alert-link"
      href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='picks', q=q) }}">
     Filtrar por sin aportar
@@ -636,6 +641,12 @@
               </span>
               {% if fila.picks_min_distancia %}
               <div class="small text-secondary">{{ fila.picks_min_distancia }} km</div>
+              {% endif %}
+              {% if fila.picks_fases_no_usadas %}
+              <div class="small text-secondary"
+                   title="Fases no usadas de estaciones que sí aportaron; no suman al indicador.">
+                {{ fila.picks_fases_no_usadas }} fase{{ '' if fila.picks_fases_no_usadas == 1 else 's' }} aparte
+              </div>
               {% endif %}
               {% if fila.picks_senal_estado == 'pendiente' %}
               <div class="small text-secondary">

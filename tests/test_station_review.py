@@ -16,7 +16,10 @@ from app.models import Job, nuevo_uuid
 from app.services import amplification, availability
 from app.services.results import leer_csv
 from app.services.station_review import (
+    _agrupar,
+    _fila_arribo,
     _fila_sin_arribos,
+    _resumen,
     filas_para_csv,
     filas_visibles,
     revisar_evento,
@@ -168,6 +171,41 @@ def test_canonico_enlaza_id_evento_y_escribe_meta(tmp_path):
     assert meta["extensions"]["estaciones_sin_arribos"]["rows"] == 1
     assert meta["extensions"]["tensores"]["present"] is False
     assert meta["station_radius_km"] == 400.0
+
+
+def test_revision_separa_fases_no_usadas_de_estaciones_usadas():
+    def arribo(estacion, fase, usada):
+        return _fila_arribo(
+            {
+                "network": "C1",
+                "station": estacion,
+                "location": "",
+                "channel": "HNZ",
+                "phase": fase,
+                "pick_time": "2026-01-01 00:00:10",
+                "is_used_in_solution": usada,
+            }
+        )
+
+    arribos = [
+        arribo("PB15", "S", True),
+        arribo("PB15", "P", False),
+        arribo("PB19", "P", True),
+        arribo("PB19", "S", False),
+        arribo("SINP", "P", False),
+    ]
+    resumen = _resumen(arribos, [], None)
+    assert resumen["usadas"] == 2
+    assert resumen["no_usadas"] == 3
+    assert [item["texto"] for item in resumen["fases_no_usadas"]] == [
+        "C1.PB15 P",
+        "C1.PB19 S",
+    ]
+
+    grupos = {grupo["etiqueta"]: grupo for grupo in _agrupar(arribos)}
+    assert grupos["C1 PB15"]["fases_no_usadas"] == ["P"]
+    assert grupos["C1 PB19"]["fases_no_usadas"] == ["S"]
+    assert grupos["C1 SINP"]["fases_no_usadas"] == ["P"]
 
 
 def test_revision_agrupa_y_filtra_no_utilizadas(tmp_path):
