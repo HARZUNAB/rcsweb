@@ -10,11 +10,24 @@
   var barra = document.getElementById("senal-picks-barra");
   var estado = document.getElementById("senal-picks-estado");
   var botonSeleccionados = document.getElementById("btn-senal-seleccionados");
+  var botonCorrida = document.getElementById("btn-senal-corrida");
+  var botonPausar = document.getElementById("btn-senal-pausar");
+  var botonReanudar = document.getElementById("btn-senal-reanudar");
+  var botonCancelar = document.getElementById("btn-senal-cancelar");
+  var controles = document.getElementById("senal-run-controles");
+  var runResumen = document.getElementById("senal-run-resumen");
   var seleccionarTodos = document.getElementById("senal-seleccionar-todos");
   var temporizador = null;
+  var runTimer = null;
+  var runActual = "";
   var intentos = 0;
   var enCurso = false;
   var MAX_INTENTOS = 600;
+
+  function csrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute("content") || "" : "";
+  }
 
   function texto(mensaje, clase) {
     if (!estado) {
@@ -24,14 +37,30 @@
     estado.textContent = mensaje;
   }
 
-  function progreso(porcentaje, mensaje) {
+  function progreso(porcentaje, mensaje, clase) {
     if (barra) {
       var valor = Math.max(0, Math.min(100, porcentaje));
       barra.style.width = valor + "%";
       barra.textContent = Math.round(valor) + "%";
     }
     if (mensaje) {
-      texto(mensaje, "text-secondary");
+      texto(mensaje, clase || "text-secondary");
+    }
+  }
+
+  function bloquearBotones(bloqueado) {
+    document
+      .querySelectorAll(".senal-picks-form button")
+      .forEach(function (boton) {
+        boton.disabled = bloqueado;
+      });
+    if (botonCorrida) {
+      botonCorrida.disabled = bloqueado;
+    }
+    if (bloqueado && botonSeleccionados) {
+      botonSeleccionados.disabled = true;
+    } else {
+      actualizarBotonSeleccionados();
     }
   }
 
@@ -40,13 +69,12 @@
       window.clearInterval(temporizador);
       temporizador = null;
     }
+    if (runTimer) {
+      window.clearInterval(runTimer);
+      runTimer = null;
+    }
     enCurso = false;
-    document
-      .querySelectorAll(".senal-picks-form button")
-      .forEach(function (boton) {
-        boton.disabled = false;
-      });
-    actualizarBotonSeleccionados();
+    bloquearBotones(false);
   }
 
   function actualizarBotonSeleccionados() {
@@ -55,6 +83,19 @@
     }
     var marcados = document.querySelectorAll(".senal-seleccion:checked");
     botonSeleccionados.disabled = enCurso || marcados.length === 0;
+  }
+
+  function mostrarActualizar() {
+    if (!estado) {
+      return;
+    }
+    estado.className = "small mt-1 text-success";
+    estado.textContent = estado.textContent.replace(/\s*\[Actualizar lista\]$/, "");
+    var enlace = document.createElement("a");
+    enlace.href = window.location.href;
+    enlace.className = "ms-2";
+    enlace.textContent = "[Actualizar lista]";
+    estado.appendChild(enlace);
   }
 
   function resumen(resultado) {
@@ -75,18 +116,7 @@
     return partes.join(" · ");
   }
 
-  function mostrarActualizar() {
-    if (!estado) {
-      return;
-    }
-    estado.className = "small mt-1 text-success";
-    estado.textContent = estado.textContent.replace(/\s*\[Actualizar lista\]$/, "");
-    var enlace = document.createElement("a");
-    enlace.href = window.location.href;
-    enlace.className = "ms-2";
-    enlace.textContent = "[Actualizar lista]";
-    estado.appendChild(enlace);
-  }
+  /* ---------- Lote corto ---------- */
 
   function consultar(url) {
     fetch(url, { headers: { Accept: "application/json" } })
@@ -96,7 +126,7 @@
       .then(function (datos) {
         if (datos.estado === "ok") {
           var resultado = datos.resultado || {};
-          progreso(100, resumen(resultado));
+          progreso(100, resumen(resultado), "text-success");
           mostrarActualizar();
           terminar();
           return;
@@ -147,11 +177,7 @@
       return;
     }
     enCurso = true;
-    document
-      .querySelectorAll(".senal-picks-form button")
-      .forEach(function (boton) {
-        boton.disabled = true;
-      });
+    bloquearBotones(true);
     texto("Encolando el análisis…", "text-secondary");
     fetch(raiz.dataset.url, {
       method: "POST",
@@ -187,6 +213,222 @@
       });
   }
 
+  /* ---------- Corrida larga ---------- */
+
+  function urlRun(plantilla, runId) {
+    return (plantilla || "").replace("__RUN__", runId);
+  }
+
+  function resumenCorrida(datos) {
+    var partes = [
+      "Corrida: " + (datos.procesados || 0) + " de " + (datos.total || 0),
+      (datos.con_senal || 0) + " con señal",
+      (datos.sin_senal || 0) + " sin señal clara",
+      (datos.sin_datos || 0) + " sin datos",
+    ];
+    if (datos.errores) {
+      partes.push(datos.errores + " con error");
+    }
+    if (datos.pendientes) {
+      partes.push(datos.pendientes + " pendientes");
+    }
+    return partes.join(" · ");
+  }
+
+  function mostrarControles(datos) {
+    if (!controles) {
+      return;
+    }
+    controles.classList.remove("d-none");
+    if (botonPausar) {
+      botonPausar.classList.toggle("d-none", !datos.puede_pausar);
+    }
+    if (botonReanudar) {
+      botonReanudar.classList.toggle("d-none", !datos.puede_reanudar);
+    }
+    if (botonCancelar) {
+      botonCancelar.classList.toggle("d-none", !datos.puede_cancelar);
+    }
+  }
+
+  function ocultarControles() {
+    if (controles) {
+      controles.classList.add("d-none");
+    }
+  }
+
+  function finalizarCorrida(datos) {
+    if (runTimer) {
+      window.clearInterval(runTimer);
+      runTimer = null;
+    }
+    enCurso = false;
+    bloquearBotones(false);
+    ocultarControles();
+    runActual = "";
+    if (runResumen && datos) {
+      runResumen.textContent = resumenCorrida(datos);
+    }
+  }
+
+  function pintarCorrida(datos) {
+    var total = datos.total || 0;
+    var procesados = datos.procesados || 0;
+    if (total > 0) {
+      progreso(
+        (procesados / total) * 100,
+        "Corrida " + procesados + " de " + total +
+          (datos.evento ? ": " + datos.evento : ""),
+        "text-secondary"
+      );
+    }
+    if (runResumen) {
+      runResumen.textContent = resumenCorrida(datos);
+    }
+    mostrarControles(datos);
+  }
+
+  function consultarCorrida(runId) {
+    fetch(urlRun(raiz.dataset.runEstadoUrl, runId), {
+      headers: { Accept: "application/json" },
+    })
+      .then(function (respuesta) {
+        return respuesta.json();
+      })
+      .then(function (datos) {
+        pintarCorrida(datos);
+        if (datos.estado === "done") {
+          texto("Corrida completada.", "text-success");
+          mostrarActualizar();
+          finalizarCorrida(datos);
+          return;
+        }
+        if (datos.estado === "cancelled") {
+          texto("Corrida cancelada.", "text-secondary");
+          finalizarCorrida(datos);
+          return;
+        }
+        if (datos.estado === "error") {
+          texto(datos.mensaje || "La corrida falló.", "text-danger");
+          finalizarCorrida(datos);
+          return;
+        }
+        if (datos.estado === "paused") {
+          texto(datos.mensaje || "Corrida pausada.", "text-warning");
+          if (runTimer) {
+            window.clearInterval(runTimer);
+            runTimer = null;
+          }
+          enCurso = true;
+          bloquearBotones(true);
+          mostrarControles(datos);
+        }
+      })
+      .catch(function () {
+        texto("No se pudo consultar el estado de la corrida.", "text-danger");
+        finalizarCorrida(null);
+      });
+  }
+
+  function iniciarCorrida(runId) {
+    runActual = runId;
+    enCurso = true;
+    bloquearBotones(true);
+    if (runTimer) {
+      window.clearInterval(runTimer);
+    }
+    consultarCorrida(runId);
+    runTimer = window.setInterval(function () {
+      consultarCorrida(runId);
+    }, 2000);
+  }
+
+  function crearCorrida() {
+    if (enCurso) {
+      return;
+    }
+    enCurso = true;
+    bloquearBotones(true);
+    texto("Creando corrida…", "text-secondary");
+    var parametros = new URLSearchParams(window.location.search);
+    var datos = new FormData();
+    datos.append("csrf_token", csrfToken());
+    datos.append("fuente", raiz.dataset.fuente || "");
+    datos.append("orden", parametros.get("orden") || "recomendado");
+    fetch(raiz.dataset.runUrl, {
+      method: "POST",
+      body: datos,
+      headers: { Accept: "application/json" },
+    })
+      .then(function (respuesta) {
+        return respuesta.json().then(function (contenido) {
+          return { ok: respuesta.ok, datos: contenido };
+        });
+      })
+      .then(function (resultado) {
+        var contenido = resultado.datos || {};
+        if (!resultado.ok || contenido.estado === "error") {
+          texto(
+            contenido.mensaje || "No se pudo crear la corrida.",
+            "text-danger"
+          );
+          terminar();
+          return;
+        }
+        if (!contenido.run_id) {
+          texto("La corrida no devolvió identificador.", "text-danger");
+          terminar();
+          return;
+        }
+        iniciarCorrida(contenido.run_id);
+      })
+      .catch(function () {
+        texto("No se pudo crear la corrida.", "text-danger");
+        terminar();
+      });
+  }
+
+  function accionCorrida(accion) {
+    if (!runActual) {
+      return;
+    }
+    var plantillas = {
+      pausar: raiz.dataset.runPausarUrl,
+      reanudar: raiz.dataset.runReanudarUrl,
+      cancelar: raiz.dataset.runCancelarUrl,
+    };
+    var plantilla = plantillas[accion];
+    if (!plantilla) {
+      return;
+    }
+    var datos = new FormData();
+    datos.append("csrf_token", csrfToken());
+    fetch(urlRun(plantilla, runActual), {
+      method: "POST",
+      body: datos,
+      headers: { Accept: "application/json" },
+    })
+      .then(function (respuesta) {
+        return respuesta.json();
+      })
+      .then(function (contenido) {
+        if (contenido.estado === "error") {
+          texto(contenido.mensaje || "No se pudo completar la acción.", "text-danger");
+          return;
+        }
+        if (accion === "reanudar") {
+          iniciarCorrida(runActual);
+        } else {
+          consultarCorrida(runActual);
+        }
+      })
+      .catch(function () {
+        texto("No se pudo completar la acción.", "text-danger");
+      });
+  }
+
+  /* ---------- Eventos de la interfaz ---------- */
+
   document.querySelectorAll(".senal-picks-form").forEach(function (formulario) {
     formulario.addEventListener("submit", function (evento) {
       evento.preventDefault();
@@ -218,12 +460,8 @@
       if (!marcados.length) {
         return;
       }
-      var meta = document.querySelector('meta[name="csrf-token"]');
       var datos = new FormData();
-      datos.append(
-        "csrf_token",
-        meta ? meta.getAttribute("content") || "" : ""
-      );
+      datos.append("csrf_token", csrfToken());
       datos.append("fuente", raiz.dataset.fuente || "");
       marcados.forEach(function (evento) {
         datos.append("eventos", evento);
@@ -232,5 +470,29 @@
     });
   }
 
-  actualizarBotonSeleccionados();
+  if (botonCorrida) {
+    botonCorrida.addEventListener("click", crearCorrida);
+  }
+  if (botonPausar) {
+    botonPausar.addEventListener("click", function () {
+      accionCorrida("pausar");
+    });
+  }
+  if (botonReanudar) {
+    botonReanudar.addEventListener("click", function () {
+      accionCorrida("reanudar");
+    });
+  }
+  if (botonCancelar) {
+    botonCancelar.addEventListener("click", function () {
+      accionCorrida("cancelar");
+    });
+  }
+
+  var corridaInicial = raiz.dataset.runId || "";
+  if (corridaInicial) {
+    iniciarCorrida(corridaInicial);
+  } else {
+    actualizarBotonSeleccionados();
+  }
 })();

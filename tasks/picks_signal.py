@@ -9,6 +9,33 @@ from .celery_app import celery
 log = logging.getLogger(__name__)
 
 
+@celery.task(name="tasks.procesar_corrida_senal")
+def procesar_corrida_senal(run_id: str) -> dict:
+    """Procesa un lote de una corrida persistente de señal."""
+    from app import create_app
+    from app.extensions import db
+    from app.models import PicksSignalRun, utcnow
+    from app.services import picks_signal_runs
+
+    aplicacion = create_app()
+    with aplicacion.app_context():
+        log.info("procesar_corrida_senal run=%s", run_id)
+        try:
+            resultado = picks_signal_runs.procesar_lote(run_id)
+        except Exception as exc:  # noqa: BLE001 - deja la corrida en error
+            log.exception("Error al procesar la corrida de señal %s", run_id)
+            run = db.session.get(PicksSignalRun, run_id)
+            if run is not None:
+                run.status = "error"
+                run.message = f"Error en la corrida: {exc}"
+                run.finished_at = utcnow()
+                db.session.commit()
+            return {"estado": "error", "mensaje": str(exc)}
+        if resultado.get("continuar"):
+            procesar_corrida_senal.apply_async(args=[run_id], countdown=1)
+        return resultado
+
+
 @celery.task(name="tasks.analizar_senal_picks", bind=True)
 def analizar_senal_picks(
     self,

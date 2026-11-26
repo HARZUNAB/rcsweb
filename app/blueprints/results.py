@@ -31,13 +31,16 @@ from flask_login import current_user, login_required
 from tasks.amplification import ampliar_sin_arribos
 from tasks.availability import consultar_disponibilidad
 from tasks.celery_app import celery
-from tasks.picks_signal import analizar_senal_picks as analizar_senal_picks_task
+from tasks.picks_signal import (
+    analizar_senal_picks as analizar_senal_picks_task,
+)
+from tasks.picks_signal import procesar_corrida_senal
 
 from ..domain.catalogs import canonical
 from ..domain.catalogs import manifest as fuentes_manifest
 from ..domain.catalogs.registry import formato as formato_info
 from ..extensions import db
-from ..models import Job, utcnow
+from ..models import Job, PicksSignalRun, utcnow
 from ..security import (
     permiso_requerido,
     puede_ver_trabajo,
@@ -54,6 +57,7 @@ from ..services import (
     panels,
     picks_coverage,
     picks_signal,
+    picks_signal_runs,
     referencias,
     review,
     review_drafts,
@@ -785,6 +789,33 @@ def _clave_orden_recomendado(fila: dict) -> tuple:
     )
 
 
+def _ordenar_revision(filas: list[dict], orden: str) -> None:
+    def clave(fila: dict) -> tuple:
+        if orden == "fecha":
+            return (-fila.get("_fecha_orden", 0),)
+        if orden == "sin_aportar":
+            return (
+                -int(fila.get("picks_total") or 0),
+                -float(fila.get("ratio_sin_aportar") or 0.0),
+                -fila.get("_fecha_orden", 0),
+            )
+        if orden == "distancia":
+            return (
+                _distancia_orden(fila),
+                -int(fila.get("picks_total") or 0),
+                -fila.get("_fecha_orden", 0),
+            )
+        if orden == "cobertura":
+            return (
+                -int(fila.get("cobertura_fuerte") or 0),
+                -int(fila.get("picks_total") or 0),
+                -fila.get("_fecha_orden", 0),
+            )
+        return _clave_orden_recomendado(fila)
+
+    filas.sort(key=clave)
+
+
 def _filas_revision(workspace, fuente, usuario) -> list[dict]:
     """Filas de revisión: fase, solución, prioridad y visibilidad."""
     filas = indicios.leer_indicios(workspace, fuente) if fuente else []
@@ -1034,30 +1065,7 @@ def indicios_eventos(job_id: str):
     elif alcance == "picks":
         filas = [fila for fila in filas if fila.get("picks_total")]
 
-    def _clave_orden(fila: dict) -> tuple:
-        if orden == "fecha":
-            return (-fila.get("_fecha_orden", 0),)
-        if orden == "sin_aportar":
-            return (
-                -int(fila.get("picks_total") or 0),
-                -float(fila.get("ratio_sin_aportar") or 0.0),
-                -fila.get("_fecha_orden", 0),
-            )
-        if orden == "distancia":
-            return (
-                _distancia_orden(fila),
-                -int(fila.get("picks_total") or 0),
-                -fila.get("_fecha_orden", 0),
-            )
-        if orden == "cobertura":
-            return (
-                -int(fila.get("cobertura_fuerte") or 0),
-                -int(fila.get("picks_total") or 0),
-                -fila.get("_fecha_orden", 0),
-            )
-        return _clave_orden_recomendado(fila)
-
-    filas.sort(key=_clave_orden)
+    _ordenar_revision(filas, orden)
     filas_alcance = list(filas)
     senal_pendientes = sum(
         1 for fila in filas_alcance if fila.get("senal_pendiente")
@@ -1073,6 +1081,10 @@ def indicios_eventos(job_id: str):
         ]
     info_fuente["senal_pendientes"] = senal_pendientes
     resumen_senal = picks_signal.leer_resumen(workspace, fuente)
+    corrida = picks_signal_runs.corrida_activa(job.id, fuente)
+    corrida_actual = (
+        picks_signal_runs.estado_corrida(corrida) if corrida else None
+    )
 
     volver = request.full_path.rstrip("?")
     archivo_catalogo = _archivo_tabla("catalogos", fuente, job) if fuente else None
@@ -1126,6 +1138,7 @@ def indicios_eventos(job_id: str):
         ordenes=ORDENES_REVISION,
         filtro_senal=filtro_senal,
         filtros_senal=FILTROS_SENAL,
+        corrida_actual=corrida_actual,
         volver=volver,
     )
 
@@ -1265,6 +1278,152 @@ def estado_senal_picks(job_id: str, task_id: str):
             }
         )
     return jsonify(datos)
+
+
+@results_bp.post("/jobs/<job_id>/indicios/senal/corrida")
+@login_required
+@permiso_requerido("trabajos.crear")
+def crear_corrida_senal(job_id: str):
+    """Crea una corrida persistente para los eventos pendientes."""
+    job = _job(job_id)
+    if request.is_json:
+        datos = request.get_json(silent=True) or {}
+        eventos = datos.get("eventos") or []
+        if isinstance(eventos, str):
+            eventos = [eventos]
+    else:
+        datos = request.form
+        eventos = datos.getlist("eventos")
+    fuente = str(datos.get("fuente") or "").strip()
+    if fuente not in _fuentes_job(job):
+        return jsonify(
+            {"estado": "error", "mensaje": "La fuente no pertenece al trabajo."}
+        ), 400
+    if not availability.configurada():
+        return jsonify(
+            {
+                "estado": "error",
+                "mensaje": (
+                    "La correlación de formas de onda no está configurada "
+                    "en este entorno."
+                ),
+            }
+        ), 503
+
+    orden = str(datos.get("orden") or "recomendado").strip()
+    if orden not in ORDENES_REVISION:
+        orden = "recomendado"
+    event_ids = {
+        str(evento).strip()
+        for evento in eventos
+        if str(evento).strip()
+    }
+    workspace = ruta_workspace(job.id)
+    filas = _filas_revision(workspace, fuente, current_user)
+    _ordenar_revision(filas, orden)
+    run = picks_signal_runs.crear_corrida(
+        job.id,
+        fuente,
+        filas,
+        evento_ids=event_ids or None,
+        alcance="seleccionados" if event_ids else "todos",
+        created_by_id=current_user.id,
+    )
+    if run is None:
+        mensaje = (
+            "Los eventos seleccionados ya no están pendientes."
+            if event_ids
+            else "No hay eventos pendientes de señal."
+        )
+        return jsonify({"estado": "error", "mensaje": mensaje}), 400
+
+    try:
+        procesar_corrida_senal.delay(run.id)
+    except Exception:  # noqa: BLE001 - el usuario necesita un mensaje claro
+        run.status = "error"
+        run.message = "No se pudo encolar la corrida. Revise el worker y Redis."
+        run.finished_at = utcnow()
+        db.session.commit()
+        return jsonify(
+            {"estado": "error", "mensaje": run.message}
+        ), 503
+
+    registrar(
+        "picks.signal.run",
+        entity=job.id,
+        meta={
+            "fuente": fuente,
+            "corrida": run.id,
+            "total": run.total,
+            "alcance": run.scope,
+        },
+    )
+    return jsonify(
+        {
+            "estado": "encolada",
+            "run_id": run.id,
+            "total": run.total,
+        }
+    ), 202
+
+
+def _run_del_job(job: Job, run_id: str) -> PicksSignalRun:
+    run = db.session.get(PicksSignalRun, run_id)
+    if run is None or run.job_id != job.id:
+        abort(404)
+    return run
+
+
+@results_bp.get("/jobs/<job_id>/indicios/senal/corrida/<run_id>")
+@login_required
+@permiso_requerido("resultados.ver")
+def estado_corrida_senal(job_id: str, run_id: str):
+    """Estado de una corrida persistente de señal."""
+    job = _job(job_id)
+    run = _run_del_job(job, run_id)
+    return jsonify(picks_signal_runs.estado_corrida(run))
+
+
+@results_bp.post("/jobs/<job_id>/indicios/senal/corrida/<run_id>/pausar")
+@login_required
+@permiso_requerido("trabajos.crear")
+def pausar_corrida_senal(job_id: str, run_id: str):
+    job = _job(job_id)
+    run = _run_del_job(job, run_id)
+    picks_signal_runs.pausar(run.id)
+    db.session.refresh(run)
+    return jsonify(picks_signal_runs.estado_corrida(run))
+
+
+@results_bp.post("/jobs/<job_id>/indicios/senal/corrida/<run_id>/reanudar")
+@login_required
+@permiso_requerido("trabajos.crear")
+def reanudar_corrida_senal(job_id: str, run_id: str):
+    job = _job(job_id)
+    run = _run_del_job(job, run_id)
+    picks_signal_runs.reanudar(run.id)
+    db.session.refresh(run)
+    try:
+        procesar_corrida_senal.delay(run.id)
+    except Exception:  # noqa: BLE001
+        run.status = "paused"
+        run.message = "No se pudo reanudar. Revise el worker y Redis."
+        db.session.commit()
+        return jsonify(
+            {"estado": "error", "mensaje": run.message}
+        ), 503
+    return jsonify(picks_signal_runs.estado_corrida(run))
+
+
+@results_bp.post("/jobs/<job_id>/indicios/senal/corrida/<run_id>/cancelar")
+@login_required
+@permiso_requerido("trabajos.crear")
+def cancelar_corrida_senal(job_id: str, run_id: str):
+    job = _job(job_id)
+    run = _run_del_job(job, run_id)
+    picks_signal_runs.cancelar(run.id)
+    db.session.refresh(run)
+    return jsonify(picks_signal_runs.estado_corrida(run))
 
 
 @results_bp.post("/jobs/<job_id>/indicios/revision")

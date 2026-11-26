@@ -221,6 +221,12 @@
      id="senal-picks"
      data-url="{{ url_for('results.analizar_senal_picks', job_id=job.id) }}"
      data-estado-url="{{ url_for('results.estado_senal_picks', job_id=job.id, task_id='__TASK__') }}"
+     data-run-url="{{ url_for('results.crear_corrida_senal', job_id=job.id) }}"
+     data-run-estado-url="{{ url_for('results.estado_corrida_senal', job_id=job.id, run_id='__RUN__') }}"
+     data-run-pausar-url="{{ url_for('results.pausar_corrida_senal', job_id=job.id, run_id='__RUN__') }}"
+     data-run-reanudar-url="{{ url_for('results.reanudar_corrida_senal', job_id=job.id, run_id='__RUN__') }}"
+     data-run-cancelar-url="{{ url_for('results.cancelar_corrida_senal', job_id=job.id, run_id='__RUN__') }}"
+     data-run-id="{{ corrida_actual.get('run_id', '') if corrida_actual else '' }}"
      data-fuente="{{ fuente }}">
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
@@ -249,6 +255,11 @@
         </form>
         {% endif %}
         <button type="button" class="btn btn-sm btn-outline-primary"
+                id="btn-senal-corrida"
+                {% if corrida_actual and corrida_actual.get('puede_cancelar') %}disabled{% endif %}>
+          Analizar todos los pendientes
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-primary"
                 id="btn-senal-seleccionados" disabled>
           Analizar seleccionados
         </button>
@@ -276,6 +287,21 @@
       <div class="progress-bar" id="senal-picks-barra" style="width: 0%">0%</div>
     </div>
     <div class="small text-secondary mt-1" id="senal-picks-estado"></div>
+    <div class="small text-secondary mt-1" id="senal-run-resumen"></div>
+    <div class="d-flex flex-wrap gap-2 mt-2 d-none" id="senal-run-controles">
+      <button type="button" class="btn btn-sm btn-outline-warning"
+              id="btn-senal-pausar">
+        Pausar
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-success d-none"
+              id="btn-senal-reanudar">
+        Reanudar
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-danger"
+              id="btn-senal-cancelar">
+        Cancelar
+      </button>
+    </div>
 
     {% if cola_senal %}
     <div class="table-responsive mt-3" style="max-height: 18rem; overflow-y: auto;">

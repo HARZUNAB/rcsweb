@@ -856,6 +856,17 @@ El selector **Orden** permite cambiar el criterio de la lista y de la cola:
 recomendado, fecha, estaciones sin aportar, distancia o cobertura. El selector
 **Señal** filtra por pendientes, con señal, sin señal clara o sin datos.
 
+**Analizar todos los pendientes** crea una corrida en segundo plano para todos
+los eventos que falten. La corrida se procesa por lotes y se puede:
+
+- **Pausar:** termina el evento en curso y se detiene.
+- **Reanudar:** continúa desde el siguiente evento pendiente.
+- **Cancelar:** detiene la corrida; los resultados ya obtenidos se conservan.
+
+El avance queda guardado. Puedes cerrar la página: el worker sigue procesando.
+Al volver, la tarjeta muestra el estado de la corrida. Si el worker se reinicia,
+usa **Pausar** y luego **Reanudar** para retomarla.
+
 La celda **Sin aportar** cambia según el resultado:
 
 - **señal pendiente:** todavía no se analizaron las formas de onda;

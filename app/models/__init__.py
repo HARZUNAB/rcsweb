@@ -16,6 +16,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -405,6 +406,90 @@ class PicksSignalResult(db.Model):
     actualizado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
+
+
+class PicksSignalRun(db.Model):
+    """Corrida persistente del análisis de señal."""
+
+    __tablename__ = "picks_signal_runs"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=nuevo_uuid
+    )
+    job_id: Mapped[str] = mapped_column(
+        ForeignKey("jobs.id", ondelete="CASCADE"), index=True
+    )
+    source_id: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(
+        String(24), default="queued", index=True
+    )
+    scope: Mapped[str] = mapped_column(String(24), default="todos")
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    processed: Mapped[int] = mapped_column(Integer, default=0)
+    con_senal: Mapped[int] = mapped_column(Integer, default=0)
+    sin_senal: Mapped[int] = mapped_column(Integer, default=0)
+    sin_datos: Mapped[int] = mapped_column(Integer, default=0)
+    errores: Mapped[int] = mapped_column(Integer, default=0)
+    batch_size: Mapped[int] = mapped_column(Integer, default=25)
+    current_event: Mapped[str] = mapped_column(String(160), default="")
+    message: Mapped[str | None] = mapped_column(Text)
+    created_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+    items = relationship(
+        "PicksSignalRunItem",
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="PicksSignalRunItem.position",
+    )
+
+
+class PicksSignalRunItem(db.Model):
+    """Evento incluido en una corrida de señal."""
+
+    __tablename__ = "picks_signal_run_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id",
+            "event_id",
+            name="uq_picks_signal_run_items_run_event",
+        ),
+        Index(
+            "ix_picks_signal_run_items_run_status_pos",
+            "run_id",
+            "status",
+            "position",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("picks_signal_runs.id", ondelete="CASCADE"), index=True
+    )
+    event_id: Mapped[str] = mapped_column(String(160), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(
+        String(24), default="pending", index=True
+    )
+    error: Mapped[str | None] = mapped_column(Text)
+    analyzed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+    run = relationship("PicksSignalRun", back_populates="items")
 
 
 class JobStep(db.Model):

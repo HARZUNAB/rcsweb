@@ -125,6 +125,74 @@ def test_post_analizar_senal_seleccionados(app, client, login, monkeypatch):
     assert llamadas[0][1]["event_ids"] == ["seiscomp:000001"]
 
 
+def test_crear_corrida_encola_y_guarda_items(app, client, login, monkeypatch):
+    from app.models import PicksSignalRun
+
+    job = _job()
+    _reporte(job)
+    app.config["RCS_DISPONIBILIDAD_URL"] = "http://sidecar:8010"
+    llamadas = []
+    monkeypatch.setattr(
+        "app.blueprints.results.procesar_corrida_senal.delay",
+        lambda run_id: llamadas.append(run_id),
+    )
+    login()
+    respuesta = client.post(
+        f"/jobs/{job.id}/indicios/senal/corrida",
+        data={"fuente": "seiscomp"},
+    )
+    assert respuesta.status_code == 202
+    datos = respuesta.get_json()
+    assert datos["total"] == 1
+    run = db.session.get(PicksSignalRun, datos["run_id"])
+    assert run is not None
+    assert run.status == "queued"
+    assert [item.event_id for item in run.items] == ["seiscomp:000001"]
+    assert llamadas == [run.id]
+
+
+def test_estado_pausa_reanudar_y_cancelar_corrida(
+    app, client, login, monkeypatch
+):
+    from app.models import PicksSignalRun
+    from app.services import picks_signal_runs
+
+    job = _job()
+    _reporte(job)
+    run = picks_signal_runs.crear_corrida(
+        job.id,
+        "seiscomp",
+        [{"evento": "seiscomp:000001", "senal_pendiente": True}],
+    )
+    monkeypatch.setattr(
+        "app.blueprints.results.procesar_corrida_senal.delay",
+        lambda _run_id: None,
+    )
+    login()
+
+    estado = client.get(
+        f"/jobs/{job.id}/indicios/senal/corrida/{run.id}"
+    )
+    assert estado.status_code == 200
+    assert estado.get_json()["estado"] == "queued"
+
+    pausada = client.post(
+        f"/jobs/{job.id}/indicios/senal/corrida/{run.id}/pausar"
+    )
+    assert pausada.get_json()["estado"] == "paused"
+
+    reanudada = client.post(
+        f"/jobs/{job.id}/indicios/senal/corrida/{run.id}/reanudar"
+    )
+    assert reanudada.get_json()["estado"] == "queued"
+
+    cancelada = client.post(
+        f"/jobs/{job.id}/indicios/senal/corrida/{run.id}/cancelar"
+    )
+    assert cancelada.get_json()["estado"] == "cancelled"
+    assert db.session.get(PicksSignalRun, run.id).status == "cancelled"
+
+
 def test_post_analizar_senal_sin_configuracion(app, client, login):
     job = _job()
     _reporte(job)

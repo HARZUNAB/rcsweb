@@ -158,7 +158,7 @@ Los diagramas se regeneran con:
 | Trabajos | `jobs`, `job_files`, `job_sources`, `job_steps`, `job_artifacts` | Ejecución, insumos, fuentes, pasos y descargas |
 | Revisión | `event_review_requests`, `review_requests`, `review_request_events` | Solicitudes de revisión: histórico por evento y flujo vigente con varios eventos y PDF |
 | Catálogo canónico reservado | `catalog_events`, `stations`, `arrivals`, `waveform_availability` | Esquema futuro; en esta versión los eventos, arribos y estaciones se guardan en archivos JSONL del workspace |
-| Señal de picks | `picks_signal_results` | Resultados persistentes del análisis de señal por evento y huella |
+| Señal de picks | `picks_signal_results`, `picks_signal_runs`, `picks_signal_run_items` | Resultados persistentes y corridas del análisis de señal |
 | Migraciones | `alembic_version` | Revisión aplicada por Alembic |
 
 La relación de propiedad es `jobs.created_by_id → users.id`. Los trabajos
@@ -556,6 +556,42 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `analizado_en` | DateTime(tz) | Sí | — | Fecha del análisis |
 | `actualizado_en` | DateTime(tz) | No | — | Última actualización |
 
+##### `picks_signal_runs`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | String(36) | No | PK | Identificador |
+| `job_id` | String(36) | No | FK → `jobs.id`, IDX | Trabajo asociado |
+| `source_id` | String(64) | No | IDX | Fuente lógica |
+| `status` | String(24) | No | IDX | `queued`, `running`, `paused`, `done`, `cancelled` o `error` |
+| `scope` | String(24) | No | — | `todos` o `seleccionados` |
+| `total` | Integer | No | — | Eventos de la corrida |
+| `processed` | Integer | No | — | Eventos terminados o con error |
+| `con_senal` | Integer | No | — | Eventos con señal clara |
+| `sin_senal` | Integer | No | — | Eventos sin señal clara |
+| `sin_datos` | Integer | No | — | Eventos sin datos |
+| `errores` | Integer | No | — | Eventos con error |
+| `batch_size` | Integer | No | — | Eventos por lote |
+| `current_event` | String(160) | No | — | Evento en curso |
+| `message` | Text | Sí | — | Mensaje de estado |
+| `created_by_id` | Integer | Sí | FK → `users.id` | Usuario que inició |
+| `created_at` | DateTime(tz) | No | IDX | Creación |
+| `started_at` | DateTime(tz) | Sí | — | Inicio |
+| `updated_at` | DateTime(tz) | No | — | Última actualización |
+| `finished_at` | DateTime(tz) | Sí | — | Término o cancelación |
+
+##### `picks_signal_run_items`
+
+| Columna | Tipo | Nulo | Clave / índice | Descripción |
+|---|---|:---:|---|---|
+| `id` | Integer | No | PK | Identificador |
+| `run_id` | String(36) | No | FK → `picks_signal_runs.id`, IDX | Corrida |
+| `event_id` | String(160) | No | IDX | Evento lógico |
+| `position` | Integer | No | — | Orden dentro de la corrida |
+| `status` | String(24) | No | IDX | `pending`, `running`, `done` o `error` |
+| `error` | Text | Sí | — | Error del evento |
+| `analyzed_at` | DateTime(tz) | Sí | — | Fecha de análisis |
+
 #### Estados usados
 
 | Campo | Valores |
@@ -589,6 +625,8 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `arrivals` | `IDX (job_id, source_id, event_id)` |
 | `waveform_availability` | `IDX (job_id, source_id, event_id)` |
 | `picks_signal_results` | `UNIQUE (source_id, event_id, fingerprint, rule_version)`, `IDX (source_id)`, `IDX (event_id)`, `IDX (fingerprint)`, `IDX (rule_version)`, `IDX (estado)` |
+| `picks_signal_runs` | `IDX (job_id)`, `IDX (source_id)`, `IDX (status)`, `IDX (created_at)` |
+| `picks_signal_run_items` | `UNIQUE (run_id, event_id)`, `IDX (run_id)`, `IDX (event_id)`, `IDX (status)`, `IDX (run_id, status, position)` |
 
 #### Migraciones
 
@@ -609,6 +647,7 @@ Restricción: `UNIQUE (job_id, source_id, event_id)`.
 | `a4d2f7c9b1e0` | Revisiones con varios eventos, PDF y estados |
 | `d9f3a2c7b8e1` | Multirrol de usuarios |
 | `a7c4e9b1d2f6` | Resultados persistentes de señal de cobertura de picks |
+| `b8e1f3c5d7a9` | Corridas persistentes de señal de cobertura de picks |
 
 Para consultar o aplicar migraciones:
 
@@ -1474,6 +1513,27 @@ Los niveles del orden recomendado son:
 - **C:** `sin_cruce` + `sospechoso` + prioridad base Alta/Media.
 - **D:** fase fuerte sin cruce.
 - **E:** solo cobertura de picks.
+
+Las corridas largas se guardan en `picks_signal_runs` y
+`picks_signal_run_items`. `POST /jobs/<job_id>/indicios/senal/corrida` crea la
+corrida con los eventos pendientes en el orden activo y encola
+`tasks.procesar_corrida_senal`. La tarea procesa un lote de 25 eventos, actualiza
+contadores y se reencola mientras queden pendientes.
+
+Estados de la corrida: `queued`, `running`, `paused`, `done`, `cancelled` y
+`error`. Los endpoints de estado, pausa, reanudación y cancelación son:
+
+```text
+GET  /jobs/<job_id>/indicios/senal/corrida/<run_id>
+POST /jobs/<job_id>/indicios/senal/corrida/<run_id>/pausar
+POST /jobs/<job_id>/indicios/senal/corrida/<run_id>/reanudar
+POST /jobs/<job_id>/indicios/senal/corrida/<run_id>/cancelar
+```
+
+Cada evento de la cola pasa por `pending`, `running`, `done` o `error`. Si el
+servicio de correlación no responde, la corrida queda `paused`, el evento vuelve
+a `pending` y se puede reanudar. Los resultados ya calculados se guardan en
+`picks_signal_results`, así que cancelar o pausar no los pierde.
 
 `picks_signal.analizar_evento` calcula el tiempo esperado de P con un ajuste
 lineal sobre la distancia hipocentral; si hay menos de tres picks usa
