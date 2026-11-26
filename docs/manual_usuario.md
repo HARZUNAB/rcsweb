@@ -868,6 +868,10 @@ El resultado del análisis de señal se conserva aunque se vuelva a generar el
 reporte de cobertura. Solo se repite si cambian el evento, sus estaciones
 candidatas o la regla de análisis, o si se solicita manualmente.
 
+Al eliminar un trabajo, los resultados de señal que solo estaban en el CSV se
+guardan en la base antes de borrar los archivos. Si no se pueden guardar, la
+eliminación no se completa y el trabajo se conserva.
+
 La columna **Fases P/S** muestra el resultado de Wadati por evento:
 
 ```text

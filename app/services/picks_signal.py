@@ -37,6 +37,10 @@ MAX_CANDIDATAS = 20
 ESTADOS_SENAL = {"podria_picarse", "senal_detectada"}
 ESTADOS_TERMINALES = {"analizado", "sin_datos", "sin_candidatas"}
 
+
+class SignalBackupError(RuntimeError):
+    """No se pudo respaldar el análisis de señal antes de borrar un trabajo."""
+
 PARAMETROS = {
     "fs": 100.0,
     "template_before_s": 1.0,
@@ -260,9 +264,22 @@ def campos_desde_resultado(resultado) -> dict:
     }
 
 
-def importar_reporte(workspace: Path, fuente: str) -> int:
-    """Lleva a la base los resultados que solo están en el CSV."""
+def importar_reporte(
+    workspace: Path,
+    fuente: str,
+    *,
+    estricto: bool = False,
+) -> int:
+    """Lleva a la base los resultados que solo están en el CSV.
+
+    ``estricto`` se usa antes de borrar un trabajo: si no se puede guardar,
+    se levanta ``SignalBackupError`` para no perder el resultado.
+    """
     if not has_app_context():
+        if estricto:
+            raise SignalBackupError(
+                "No hay contexto de aplicación para respaldar la señal."
+            )
         return 0
     filas = picks_coverage.leer(workspace, fuente)
     if not filas:
@@ -281,12 +298,17 @@ def importar_reporte(workspace: Path, fuente: str) -> int:
             "senal_estado": _texto(fila.get("senal_estado")),
             "detalle": {},
         }
-        if guardar_resultado(
+        guardado = guardar_resultado(
             fuente,
             fila,
             resultado,
             analizado_en=_instante(fila.get("senal_actualizado")),
-        ):
+        )
+        if not guardado and estricto:
+            raise SignalBackupError(
+                f"No se pudo respaldar la señal de {event_id} ({fuente})."
+            )
+        if guardado:
             importados += 1
     return importados
 
@@ -741,6 +763,7 @@ __all__ = [
     "BANDAS",
     "MAX_CANDIDATAS",
     "MAX_EVENTOS",
+    "SignalBackupError",
     "analizar",
     "analizar_evento",
     "campos_desde_resultado",

@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import csv
+import json
 from datetime import UTC, datetime
 
 from app.extensions import db
-from app.models import AuditLog, CatalogRequest, Job, JobFile, User, nuevo_uuid
+from app.models import (
+    AuditLog,
+    CatalogRequest,
+    Job,
+    JobFile,
+    PicksSignalResult,
+    User,
+    nuevo_uuid,
+)
+from app.services import picks_coverage
 from app.services.jobs import JobNoEliminable, eliminar_trabajo
 from app.services.workspace import crear_workspace
 
@@ -58,6 +69,87 @@ def test_eliminar_trabajo_borra_db_archivos_y_audita(client, login):
     ).scalar_one()
     assert auditoria.meta["origen"] == "web"
     assert auditoria.meta["estado"] == "done"
+
+
+def _reporte_senal(workspace) -> None:
+    destino = picks_coverage.ruta(workspace, "seiscomp")
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    with destino.open("w", encoding="utf-8", newline="") as archivo:
+        escritor = csv.DictWriter(
+            archivo, fieldnames=picks_coverage.CAMPOS
+        )
+        escritor.writeheader()
+        escritor.writerow(
+            {
+                "fuente": "seiscomp",
+                "evento": "seiscomp:000001",
+                "fecha_hora": "2026-10-01 00:00:00",
+                "latitud": -30.0,
+                "longitud": -71.0,
+                "profundidad_km": 30.0,
+                "magnitud": 4.0,
+                "n_usadas": 3,
+                "sin_picar_n": 1,
+                "no_usadas_n": 0,
+                "total_n": 1,
+                "prioridad": "Alta",
+                "detalle": json.dumps(
+                    [
+                        {
+                            "tipo": "sin_picar",
+                            "network": "C1",
+                            "station": "CAND",
+                            "location": "",
+                            "channel": "HNZ",
+                            "distance_km": 44.5,
+                            "streams": ["C1.CAND..HNZ"],
+                        }
+                    ]
+                ),
+                "senal_n": 2,
+                "senal_estaciones": "C1.CAND (1-5,1-10)",
+                "senal_estado": "analizado",
+                "senal_actualizado": "2026-11-26T12:00:00+00:00",
+            }
+        )
+
+
+def test_eliminar_trabajo_respalda_senal_en_la_base(app):
+    job, workspace = _job()
+    _reporte_senal(workspace)
+
+    eliminar_trabajo(job)
+
+    assert db.session.get(Job, job.id) is None
+    assert not workspace.exists()
+    guardado = db.session.execute(
+        db.select(PicksSignalResult).filter_by(
+            event_id="seiscomp:000001"
+        )
+    ).scalar_one()
+    assert guardado.estado == "analizado"
+    assert guardado.senal_n == 2
+
+
+def test_eliminar_trabajo_no_borra_si_falla_el_respaldo(app, monkeypatch):
+    job, workspace = _job()
+    _reporte_senal(workspace)
+
+    def falla(*_args, **_kwargs):
+        raise RuntimeError("sin base")
+
+    monkeypatch.setattr(
+        "app.services.picks_signal.importar_reporte", falla
+    )
+    try:
+        eliminar_trabajo(job)
+    except JobNoEliminable as exc:
+        assert "respaldar" in str(exc)
+    else:  # pragma: no cover - el test debe fallar si no lanza
+        raise AssertionError("debía rechazar la eliminación sin respaldo")
+
+    assert db.session.get(Job, job.id) is not None
+    assert workspace.exists()
 
 
 def _solicitud(status="done"):

@@ -1471,6 +1471,13 @@ análisis.
 la cobertura. La base es la fuente de verdad; el CSV queda como reporte y caché
 de lectura.
 
+Antes de eliminar un trabajo, `eliminar_trabajo` llama a
+`picks_signal.importar_reporte` para guardar en la base los resultados que solo
+están en el CSV. Si el respaldo falla, la eliminación se cancela con
+`JobNoEliminable` y el workspace se conserva. Así, borrar el trabajo no pierde
+el análisis de señal; queda disponible por fuente, evento y huella para un
+trabajo futuro.
+
 El esquema 7 agregó el resultado de Wadati por evento, calculado en
 `evaluar_evento` con los arribos que ya están en memoria: `wadati_n`,
 `wadati_vp_vs`, `wadati_r2`, `wadati_dispersion` y `wadati_calidad`
