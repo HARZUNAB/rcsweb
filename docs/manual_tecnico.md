@@ -1554,6 +1554,17 @@ bandas con `sta_lta_racha_s >= 0.7` y clasificación `podria_picarse` o
 `senal_detectada`. La correlación no es obligatoria: se guarda como contexto.
 La regla se aplica por estación y solo en el canal vertical.
 
+`_streams_verticales` ordena los canales verticales de la estación por utilidad
+para 1–15 Hz: HHZ/HNZ/EHZ/SHZ, luego BHZ y al final LHZ/VHZ. Incluye hasta tres
+verticales por estación y `_combinar` agrupa por estación, de modo que si un
+vertical no tiene datos pero otro sí, la estación puede confirmarse. El detalle
+guardado incluye `candidatas_labels` para marcar en la ficha qué estaciones
+entraron en el lote analizado.
+
+La ficha del evento anota el resumen de señal y una columna **Señal** en
+**Sin arribos**; `picks_signal.resultado_evento` busca el resultado vigente por
+evento y huella.
+
 Los resultados se guardan en la tabla `picks_signal_results`, separada del CSV
 de cobertura. Cada fila tiene una huella calculada con los datos del evento,
 las candidatas y una huella de los parámetros de la regla. Al leer la revisión

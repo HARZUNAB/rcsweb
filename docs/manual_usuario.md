@@ -290,6 +290,14 @@ Para saber si una estación **estaba grabando y no se usó**, la consulta de for
 de onda se inicia automáticamente al abrir la solapa **Sin arribos**. La
 consulta revisa el archivo SDS y, si no encuentra datos, el tiempo real.
 
+Cuando el evento ya tiene análisis de señal, arriba de las solapas aparece
+**Señal de estaciones sin aportar** con el número de estaciones claras y sus
+bandas. La tabla **Sin arribos** agrega la columna **Señal**: **Clara** con las
+bandas que pasaron, **Sin señal clara**, **Sin datos**, **Pendiente** o
+**Fuera del lote** para las estaciones que no entraron en las candidatas
+analizadas. La disponibilidad de la forma de onda y la señal clara son datos
+distintos: una estación puede tener registro y no superar la regla.
+
 Mientras corre:
 
 - la tabla sin verificar se muestra de inmediato;
@@ -772,6 +780,10 @@ la página del trabajo abre el listado. Hay cuatro alcances:
 Cada pestaña es un filtro. La página muestra un aviso **Filtro activo** con el
 nombre del alcance, el número de eventos y, cuando corresponde, el botón
 **Quitar filtro**.
+
+El campo **Buscar** filtra por identificador de evento, fecha y hora, región o
+analista. La lista y la **Cola de señal** se recalculan con ese filtro, así se
+puede encontrar un evento que no esté entre los próximos 50.
 
 La publicación no viene como un campo de la fuente local: se **estima** cruzando
 cada fuente local con **Eventquery**, que es la referencia publicada. Central no

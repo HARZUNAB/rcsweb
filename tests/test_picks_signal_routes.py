@@ -46,6 +46,8 @@ def _reporte(job: Job, *, estado: str = "pendiente") -> None:
             {
                 "fuente": "seiscomp",
                 "evento": "seiscomp:000001",
+                "id_evento_fuente": "src-000001",
+                "fecha_hora": "2026-01-01 00:00:00",
                 "total_n": 1,
                 "sin_picar_n": 1,
                 "no_usadas_n": 0,
@@ -422,6 +424,33 @@ def test_evento_con_fase_y_picks_sigue_en_revision_prioritaria(app):
     assert filas[0]["motivo"] == "ambas"
     assert filas[0]["solo_picks"] is False
     assert filas[0]["revision_prioritaria"] == "Sí"
+
+
+def test_busqueda_por_fecha_filtra_lista_y_cola(app, client, login):
+    job = _job()
+    _reporte(job)
+    login()
+    encontrado = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={
+            "fuente": "seiscomp",
+            "alcance": "picks",
+            "q": "2026-01-01 00:00",
+        },
+    ).get_data(as_text=True)
+    assert "seiscomp:000001" in encontrado
+    assert "Analizar estos 1" in encontrado
+
+    sin_resultados = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={
+            "fuente": "seiscomp",
+            "alcance": "picks",
+            "q": "2099-12-31",
+        },
+    ).get_data(as_text=True)
+    assert "seiscomp:000001" not in sin_resultados
+    assert "No hay eventos pendientes de señal en este filtro." in sin_resultados
 
 
 def test_revision_muestra_vista_compacta(app, client, login):

@@ -252,6 +252,31 @@ def mapa_resultados(
     }
 
 
+def resultado_evento(
+    workspace: Path,
+    fuente: str,
+    event_id: str,
+):
+    """Resultado vigente de un evento concreto, o ``None``."""
+    event_id = _texto(event_id)
+    if not event_id:
+        return None
+    filas = picks_coverage.leer(workspace, fuente)
+    fila = next(
+        (
+            item
+            for item in filas
+            if _texto(item.get("evento")) == event_id
+        ),
+        None,
+    )
+    if fila is None:
+        return None
+    return mapa_resultados(fuente, [fila]).get(
+        (event_id, huella_fila(fila))
+    )
+
+
 def campos_desde_resultado(resultado) -> dict:
     actualizado = ""
     if resultado.analizado_en is not None:
@@ -381,17 +406,50 @@ def _es_vertical(stream: str) -> bool:
     return bool(stream) and stream.split(".")[-1].endswith("Z")
 
 
-def _stream_vertical(item: dict) -> str:
+MAX_STREAMS_ESTACION = 3
+
+
+def _prioridad_canal(stream: str) -> int:
+    """Prefiere canales verticales de mayor frecuencia para 1–15 Hz."""
+    canal = _texto(stream).split(".")[-1].upper()
+    if not canal.endswith("Z"):
+        return 99
+    prefijo = canal[:2]
+    if prefijo in ("HH", "HN", "EH", "SH"):
+        return 0
+    if prefijo == "BH":
+        return 1
+    if prefijo in ("LH", "VH"):
+        return 3
+    return 2
+
+
+def _streams_verticales(item: dict) -> list[str]:
+    """Verticales de la estación, del más apto al menos apto."""
+    stream_ids = []
     for stream in item.get("streams") or []:
-        if _es_vertical(str(stream)):
-            return str(stream)
-    network = _texto(item.get("network"))
-    station = _texto(item.get("station"))
-    location = _texto(item.get("location"))
-    channel = _texto(item.get("channel"))
-    if network and station and channel:
-        return f"{network}.{station}.{location}.{channel[:-1]}Z"
-    return ""
+        limpio = _texto(stream)
+        if limpio and _es_vertical(limpio) and limpio not in stream_ids:
+            stream_ids.append(limpio)
+    if not stream_ids:
+        network = _texto(item.get("network"))
+        station = _texto(item.get("station"))
+        location = _texto(item.get("location"))
+        channel = _texto(item.get("channel"))
+        if network and station and channel:
+            stream_ids.append(
+                f"{network}.{station}.{location}.{channel[:-1]}Z"
+            )
+    ordenados = sorted(
+        enumerate(stream_ids),
+        key=lambda par: (_prioridad_canal(par[1]), par[0]),
+    )
+    return [stream for _posicion, stream in ordenados][:MAX_STREAMS_ESTACION]
+
+
+def _stream_vertical(item: dict) -> str:
+    streams = _streams_verticales(item)
+    return streams[0] if streams else ""
 
 
 def _etiqueta(network: str, station: str) -> str:
@@ -481,30 +539,47 @@ def _candidatos(
         return []
     salida = []
     for item in detalle:
-        stream = _stream_vertical(item)
+        streams = _streams_verticales(item)
         distancia = _numero(item.get("distance_km"))
-        if not stream or distancia is None:
+        if not streams or distancia is None:
             continue
         hipo = math.hypot(distancia, profundidad)
         esperado = instante + timedelta(
             seconds=intercepto + pendiente * hipo
         )
-        network = _texto(item.get("network"))
-        station = _texto(item.get("station"))
-        location = _texto(item.get("location"))
-        channel = stream.split(".")[-1]
-        salida.append(
-            {
-                "stream": stream,
-                "station": (
-                    f"AVAIL {network}.{station}.{location}.{channel}"
-                ),
-                "distance_km": round(distancia, 1),
-                "expected_time": esperado.isoformat(),
-                "etiqueta": _etiqueta(network, station),
-            }
+        network_base = _texto(item.get("network"))
+        station_base = _texto(item.get("station"))
+        location_base = _texto(item.get("location"))
+        for stream in streams:
+            partes = stream.split(".")
+            if len(partes) == 4:
+                network, station, location, canal = partes
+            else:
+                network = network_base
+                station = station_base
+                location = location_base
+                canal = stream.split(".")[-1]
+            salida.append(
+                {
+                    "stream": stream,
+                    "station": (
+                        f"AVAIL {network}.{station}.{location}.{canal}"
+                    ),
+                    "distance_km": round(distancia, 1),
+                    "expected_time": esperado.isoformat(),
+                    "etiqueta": _etiqueta(network, station),
+                    "_prioridad_canal": _prioridad_canal(stream),
+                }
+            )
+    salida.sort(
+        key=lambda item: (
+            item["distance_km"],
+            item["_prioridad_canal"],
+            item["stream"],
         )
-    salida.sort(key=lambda item: item["distance_km"])
+    )
+    for candidato in salida:
+        candidato.pop("_prioridad_canal", None)
     return salida[:max_candidatas]
 
 
@@ -590,6 +665,9 @@ def _combinar(
         ),
         "detalle": {
             "candidatas": len(candidatos),
+            "candidatas_labels": sorted(
+                {candidato["etiqueta"] for candidato in candidatos}
+            ),
             "claras": {
                 etiqueta: valores
                 for etiqueta, valores in sorted(claras.items())
@@ -814,5 +892,6 @@ __all__ = [
     "importar_reporte",
     "leer_resumen",
     "mapa_resultados",
+    "resultado_evento",
     "ruta_resumen",
 ]

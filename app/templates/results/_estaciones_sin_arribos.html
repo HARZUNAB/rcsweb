@@ -213,6 +213,12 @@
             </button>
             {% endif %}
           </td>
+          {% elif clave == 'senal' %}
+          <td>
+            <span class="badge {{ item.get('_senal_clase', 'text-bg-light text-dark') }}">
+              {{ item.get('senal', '—') }}
+            </span>
+          </td>
           {% else %}
           <td>{{ item.get(clave, '') or '—' }}</td>
           {% endif %}

@@ -116,6 +116,72 @@ def test_analizar_evento_exige_dos_bandas():
     assert "C1.CAND" in respuesta["senal_estaciones"]
 
 
+def test_candidatos_prioriza_verticales_de_mayor_frecuencia():
+    evento = _evento()
+    detalle = [
+        {
+            "tipo": "sin_picar",
+            "network": "C",
+            "station": "GO02",
+            "location": "",
+            "channel": "LHZ",
+            "distance_km": 22.2,
+            "streams": ["C.GO02..LHZ", "C.GO02..BHZ"],
+        }
+    ]
+    picks = picks_signal._picks_evento(evento, _tres_picks())
+    intercepto, pendiente = picks_signal._ajuste(evento, picks)
+    candidatos = picks_signal._candidatos(
+        evento, detalle, intercepto, pendiente, 10
+    )
+    assert [item["stream"] for item in candidatos] == [
+        "C.GO02..BHZ",
+        "C.GO02..LHZ",
+    ]
+
+
+def test_analizar_evento_usa_el_vertical_con_datos():
+    evento = _evento()
+    detalle = [
+        {
+            "tipo": "sin_picar",
+            "network": "C",
+            "station": "GO02",
+            "location": "",
+            "channel": "LHZ",
+            "distance_km": 22.2,
+            "streams": ["C.GO02..LHZ", "C.GO02..BHZ"],
+        }
+    ]
+
+    def falso(payload):
+        resultados = []
+        for candidato in payload["candidates"]:
+            con_datos = candidato["stream"].endswith("BHZ")
+            resultados.append(
+                {
+                    "stream": candidato["stream"],
+                    "station": candidato["station"],
+                    "status": "CON_DATOS" if con_datos else "SIN_DATOS",
+                    "clasificacion": (
+                        "senal_detectada" if con_datos else "sin_datos"
+                    ),
+                    "sta_lta_racha_s": 1.0 if con_datos else 0.0,
+                }
+            )
+        return {"resultados": resultados}
+
+    resultado = picks_signal.analizar_evento(
+        evento,
+        detalle,
+        _tres_picks(),
+        correlacionar_fn=falso,
+    )
+    assert resultado["senal_estado"] == "analizado"
+    assert resultado["senal_n"] == 1
+    assert "C.GO02" in resultado["senal_estaciones"]
+
+
 def test_analizar_evento_una_banda_no_confirma():
     respuesta = picks_signal.analizar_evento(
         _evento(),
@@ -388,6 +454,42 @@ def test_guardar_resultado_actualiza_el_mismo_registro(app, tmp_path):
     ).all()
     assert len(resultados) == 1
     assert resultados[0].senal_n == 3
+
+
+def test_anotar_senal_en_el_detalle(app, tmp_path):
+    from app.blueprints.results import _anotar_senal
+
+    workspace = _preparar_reporte(tmp_path)
+    fila = picks_coverage.leer(workspace, "seiscomp")[0]
+    picks_signal.guardar_resultado(
+        "seiscomp",
+        fila,
+        {
+            "senal_n": 1,
+            "senal_estaciones": "C1.CAND (1-5,1-10)",
+            "senal_estado": "analizado",
+            "detalle": {
+                "candidatas": 2,
+                "candidatas_labels": ["C1.CAND", "C1.OTHER"],
+                "claras": {"C1.CAND": ["1-5", "1-10"]},
+            },
+        },
+    )
+    revision = {
+        "fuente": "seiscomp",
+        "evento": {"event_id": "seiscomp:000001"},
+        "sin_arribos": [
+            {"red": "C1", "estacion": "CAND"},
+            {"red": "C1", "estacion": "OTHER"},
+        ],
+        "columnas_sin_arribos": [("formas_onda", "Formas de onda")],
+    }
+    _anotar_senal(workspace, revision)
+
+    assert revision["senal"]["n"] == 1
+    assert revision["sin_arribos"][0]["senal"].startswith("Clara")
+    assert revision["sin_arribos"][1]["senal"] == "Sin señal clara"
+    assert ("senal", "Señal") in revision["columnas_sin_arribos"]
 
 
 def test_analizar_guarda_el_resultado_en_la_base(app, tmp_path):

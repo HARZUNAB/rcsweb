@@ -735,6 +735,27 @@ FILTROS_SENAL = {
 }
 
 
+def _texto_busqueda(valor) -> str:
+    return " ".join(str(valor or "").lower().split())
+
+
+def _coincide_busqueda(fila: dict, consulta: str) -> bool:
+    if not consulta:
+        return True
+    texto = " ".join(
+        str(fila.get(clave) or "")
+        for clave in (
+            "evento",
+            "id_evento_fuente",
+            "fecha_hora",
+            "region",
+            "analista",
+            "magnitud",
+        )
+    )
+    return _texto_busqueda(consulta) in _texto_busqueda(texto)
+
+
 def _coincide_senal(fila: dict, filtro: str) -> bool:
     estado = fila.get("picks_senal_estado") or "pendiente"
     if filtro == "pendiente":
@@ -935,6 +956,7 @@ def indicios_eventos(job_id: str):
         "picks",
     ):
         alcance = "prioritarios"
+    q = request.args.get("q", "").strip()
 
     puede_crear_revision = tiene_permiso(current_user, "revisiones.crear")
     analistas = review.usuarios_analistas() if puede_crear_revision else []
@@ -992,6 +1014,8 @@ def indicios_eventos(job_id: str):
             for fila in filas
             if fila.get("analista_usuario_id") == analista_id
         ]
+    if q:
+        filas = [fila for fila in filas if _coincide_busqueda(fila, q)]
 
     solicitudes_evento = (
         review.mapa_solicitudes(job.id, fuente) if fuente else {}
@@ -1153,6 +1177,7 @@ def indicios_eventos(job_id: str):
         resumen_senal=resumen_senal,
         orden=orden,
         ordenes=ORDENES_REVISION,
+        q=q,
         filtro_senal=filtro_senal,
         filtros_senal=FILTROS_SENAL,
         corrida_actual=corrida_actual,
@@ -3108,6 +3133,8 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         solo_cercanas=request.args.get("solo_cercanas") == "1",
         ampliado=request.args.get("ampliado") or None,
     )
+    if revision_estaciones and revision_estaciones.get("estado") == "ok":
+        _anotar_senal(ruta_workspace(job.id), revision_estaciones)
     if revision_estaciones and revision_estaciones.get("puede_consultar"):
         event_id = str(
             (revision_estaciones.get("evento") or {}).get("event_id") or ""
@@ -3426,6 +3453,108 @@ def _contexto_fila(job: Job, tabla: str, opcion: str, fila: int) -> dict:
     return contexto
 
 
+def _claras_por_estacion(texto: str) -> dict[str, list[str]]:
+    claras: dict[str, list[str]] = {}
+    for bloque in str(texto or "").split(";"):
+        bloque = bloque.strip()
+        if not bloque or not bloque.endswith(")") or "(" not in bloque:
+            continue
+        etiqueta, bandas = bloque[:-1].rsplit("(", 1)
+        etiqueta = etiqueta.strip()
+        if not etiqueta:
+            continue
+        claras[etiqueta] = [
+            banda.strip() for banda in bandas.split(",") if banda.strip()
+        ]
+    return claras
+
+
+def _etiqueta_estacion_senal(fila: dict) -> str:
+    red = str(fila.get("red") or "").strip()
+    estacion = str(fila.get("estacion") or "").strip()
+    return f"{red}.{estacion}" if red else estacion
+
+
+def _anotar_senal(workspace, revision: dict) -> None:
+    """Agrega al detalle el estado de señal y el resultado por estación."""
+    fuente = str(revision.get("fuente") or "")
+    evento = revision.get("evento") or {}
+    event_id = str(evento.get("event_id") or "")
+    if not fuente or not event_id:
+        return
+    resultado = picks_signal.resultado_evento(workspace, fuente, event_id)
+    estado = (getattr(resultado, "estado", "") or "pendiente")
+    senal_n = int(getattr(resultado, "senal_n", 0) or 0)
+    estaciones = getattr(resultado, "senal_estaciones", "") or ""
+    actualizado = ""
+    if resultado is not None and resultado.analizado_en is not None:
+        actualizado = resultado.analizado_en.isoformat()
+    claras = _claras_por_estacion(estaciones)
+    detalle = getattr(resultado, "detalle", None) or {}
+    if not isinstance(detalle, dict):
+        detalle = {}
+    labels = detalle.get("candidatas_labels")
+    candidatas = (
+        {str(label) for label in labels}
+        if isinstance(labels, list) and labels
+        else None
+    )
+    limite = int(detalle.get("candidatas") or 0)
+    primeras: set[str] = set()
+    vistas: set[str] = set()
+    for fila in revision.get("sin_arribos") or []:
+        etiqueta = _etiqueta_estacion_senal(fila)
+        if not etiqueta or etiqueta in vistas:
+            continue
+        vistas.add(etiqueta)
+        if not limite or len(primeras) < limite:
+            primeras.add(etiqueta)
+
+    revision["senal"] = {
+        "estado": estado,
+        "n": senal_n,
+        "estaciones": estaciones,
+        "actualizado": actualizado,
+        "claras": claras,
+    }
+    columnas = list(revision.get("columnas_sin_arribos") or [])
+    if not any(clave == "senal" for clave, _titulo in columnas):
+        posicion = next(
+            (
+                indice
+                for indice, (clave, _titulo) in enumerate(columnas)
+                if clave == "formas_onda"
+            ),
+            len(columnas),
+        )
+        columnas.insert(posicion + 1, ("senal", "Señal"))
+        revision["columnas_sin_arribos"] = columnas
+
+    for fila in revision.get("sin_arribos") or []:
+        etiqueta = _etiqueta_estacion_senal(fila)
+        if etiqueta in claras:
+            fila["senal"] = "Clara: " + ", ".join(claras[etiqueta])
+            fila["_senal_clase"] = "text-bg-success"
+        elif candidatas is not None and etiqueta not in candidatas:
+            fila["senal"] = "Fuera del lote"
+            fila["_senal_clase"] = "text-bg-light text-dark"
+        elif candidatas is None and limite and etiqueta not in primeras:
+            fila["senal"] = "Fuera del lote"
+            fila["_senal_clase"] = "text-bg-light text-dark"
+        elif estado == "analizado":
+            fila["senal"] = "Sin señal clara"
+            fila["_senal_clase"] = "text-bg-secondary"
+        elif estado == "sin_datos":
+            fila["senal"] = "Sin datos"
+            fila["_senal_clase"] = "text-bg-warning text-dark"
+        elif estado == "sin_candidatas":
+            fila["senal"] = "Sin candidatas"
+            fila["_senal_clase"] = "text-bg-light text-dark"
+        else:
+            fila["senal"] = "Pendiente"
+            fila["_senal_clase"] = "text-bg-light text-dark"
+
+
 def _revision_de_fila(
     job: Job,
     tabla: str,
@@ -3440,8 +3569,9 @@ def _revision_de_fila(
     ampliado: str | None = None,
 ) -> dict | None:
     contexto = _contexto_fila(job, tabla, opcion, fila)
-    return revisar_fila(
-        ruta_workspace(job.id),
+    workspace = ruta_workspace(job.id)
+    revision = revisar_fila(
+        workspace,
         tabla,
         opcion,
         contexto["fila"],
@@ -3452,6 +3582,9 @@ def _revision_de_fila(
         solo_cercanas=solo_cercanas,
         ampliado=ampliado,
     )
+    if revision and revision.get("estado") == "ok":
+        _anotar_senal(workspace, revision)
+    return revision
 
 
 @results_bp.get(

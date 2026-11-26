@@ -105,7 +105,7 @@
   {{ info_fuente.picks_sin_picar }} sin picar y
   {{ info_fuente.picks_no_usadas }} picadas no usadas.
   <a class="alert-link"
-     href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='picks') }}">
+     href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='picks', q=q) }}">
     Filtrar por sin aportar
   </a>.
 </div>
@@ -125,25 +125,25 @@
   <ul class="nav nav-pills flex-wrap gap-2">
     <li class="nav-item">
       <a class="nav-link {% if alcance == 'prioritarios' %}active{% endif %}"
-         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='prioritarios') }}">
+         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='prioritarios', q=q) }}">
         Revisión prioritaria
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link {% if alcance == 'cruce_eventquery' %}active{% endif %}"
-         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='cruce_eventquery') }}">
+         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='cruce_eventquery', q=q) }}">
         Con cruce Eventquery
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link {% if alcance == 'todos' %}active{% endif %}"
-         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='todos') }}">
+         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='todos', q=q) }}">
         Todos los indicios
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link {% if alcance == 'picks' %}active{% endif %}"
-         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='picks') }}">
+         href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='picks', q=q) }}">
         Sin aportar
         {% if info_fuente.picks_eventos %}
         ({{ info_fuente.picks_eventos }})
@@ -179,7 +179,7 @@
   </div>
   {% if alcance != 'todos' %}
   <a class="btn btn-sm btn-outline-secondary"
-     href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='todos') }}">
+     href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance='todos', q=q) }}">
     Quitar filtro
   </a>
   {% endif %}
@@ -194,6 +194,12 @@
     {% if analista_valor %}
     <input type="hidden" name="analista" value="{{ analista_valor }}">
     {% endif %}
+    <div>
+      <label class="form-label small text-secondary mb-1" for="buscar-revision">Buscar</label>
+      <input class="form-control form-control-sm" type="search"
+             id="buscar-revision" name="q" value="{{ q }}"
+             placeholder="Evento, fecha u hora">
+    </div>
     <div>
       <label class="form-label small text-secondary mb-1" for="orden-revision">Orden</label>
       <select class="form-select form-select-sm" id="orden-revision" name="orden">
@@ -214,6 +220,12 @@
     {% endif %}
     <button class="btn btn-sm btn-outline-primary" type="submit">Aplicar</button>
   </form>
+  {% if q %}
+  <a class="btn btn-sm btn-outline-secondary"
+     href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance=alcance, orden=orden, senal=filtro_senal, analista=analista_valor) }}">
+    Limpiar búsqueda
+  </a>
+  {% endif %}
 </div>
 
 {% if alcance == 'picks' and puede_analizar_senal %}
@@ -285,7 +297,7 @@
           Analizar seleccionados
         </button>
         <a class="btn btn-sm btn-outline-secondary"
-           href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance=alcance, orden=orden, senal=filtro_senal, analista=analista_valor) }}">
+           href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=fuente, alcance=alcance, orden=orden, senal=filtro_senal, analista=analista_valor, q=q) }}">
           Actualizar lista
         </a>
       </div>
@@ -379,6 +391,13 @@
       action="{{ url_for('results.indicios_eventos', job_id=job.id) }}">
   <input type="hidden" name="fuente" value="{{ fuente }}">
   <input type="hidden" name="alcance" value="{{ alcance }}">
+  <input type="hidden" name="orden" value="{{ orden }}">
+  {% if alcance == 'picks' %}
+  <input type="hidden" name="senal" value="{{ filtro_senal }}">
+  {% endif %}
+  {% if q %}
+  <input type="hidden" name="q" value="{{ q }}">
+  {% endif %}
   <div>
     <label class="form-label small text-secondary mb-1"
            for="filtro-analista-revision">Analista</label>

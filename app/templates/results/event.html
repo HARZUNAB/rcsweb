@@ -538,6 +538,38 @@
       </div>
     </div>
 
+    {% set senal_estaciones = revision_estaciones.senal %}
+    {% if senal_estaciones %}
+    <div class="alert alert-light border small py-2 mb-3" role="status">
+      <strong>Señal de estaciones sin aportar:</strong>
+      {% if senal_estaciones.estado == 'pendiente' %}
+        pendiente de análisis.
+      {% elif senal_estaciones.n %}
+        {{ senal_estaciones.n }} con señal.
+      {% elif senal_estaciones.estado == 'sin_datos' %}
+        sin datos.
+      {% elif senal_estaciones.estado == 'sin_candidatas' %}
+        sin candidatas.
+      {% else %}
+        sin señal clara.
+      {% endif %}
+      {% if senal_estaciones.estaciones %}
+      <div class="text-secondary">{{ senal_estaciones.estaciones }}</div>
+      {% endif %}
+      {% if senal_estaciones.actualizado %}
+      <div class="text-secondary">
+        Actualizado {{ senal_estaciones.actualizado[:16]|replace('T', ' ') }}
+      </div>
+      {% endif %}
+      <div class="mt-2">
+        {% set evento_senal = revision_estaciones.evento or {} %}
+        <a href="{{ url_for('results.indicios_eventos', job_id=job.id, fuente=revision_estaciones.fuente, alcance='picks', q=(evento_senal.get('source_event_id') or evento_senal.get('event_id') or '')) }}">
+          Abrir en Sin aportar
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
     {% if revision_estaciones.estado == 'no_evaluable' %}
     <div class="alert alert-light border mb-0" role="status">
       <strong>No evaluable:</strong> {{ revision_estaciones.motivo }}
