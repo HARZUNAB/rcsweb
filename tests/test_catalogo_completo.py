@@ -812,10 +812,20 @@ def test_revision_muestra_estaciones_sin_aportar(app, client, login):
     )
     assert respuesta.status_code == 200
     html = respuesta.get_data(as_text=True)
-    assert "Ver estos eventos" in html
+    assert "Filtro activo: Sin aportar" in html
+    assert "Quitar filtro" in html
     assert "Sin aportar" in html
     assert "NEAR" in html
     assert "1 + 0" in html
+
+    por_defecto = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp"},
+    )
+    assert por_defecto.status_code == 200
+    html_defecto = por_defecto.get_data(as_text=True)
+    assert "Filtro activo: Revisión prioritaria" in html_defecto
+    assert "Filtrar por sin aportar" in html_defecto
 
 
 def test_vista_eventos_arribos_permisos_y_flag(

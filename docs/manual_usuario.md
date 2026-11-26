@@ -767,6 +767,10 @@ la página del trabajo abre el listado. Hay cuatro alcances:
 - **Sin aportar:** eventos con estaciones cercanas que no aportaron a la
   solución, aunque no tengan una anomalía de fase.
 
+Cada pestaña es un filtro. La página muestra un aviso **Filtro activo** con el
+nombre del alcance, el número de eventos y, cuando corresponde, el botón
+**Quitar filtro**.
+
 La publicación no viene como un campo de la fuente local: se **estima** cruzando
 cada fuente local con **Eventquery**, que es la referencia publicada. Central no
 se usa como referencia porque es una base derivada y puede estar desactualizada.

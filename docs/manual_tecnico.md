@@ -1524,6 +1524,9 @@ visible pero no asignable. El filtro de analista incluye los nombres de la fuent
 sin usuario con el prefijo `fuente:`; en ese caso las casillas de selección se
 deshabilitan.
 
+El listado muestra un aviso **Filtro activo** con el alcance seleccionado y el
+conteo de eventos. El botón **Quitar filtro** vuelve a **Todos los indicios**.
+
 La columna **Señales de fase** detalla los indicios de fases. Para eventos que
 solo tienen solución sospechosa se muestra **Sin señal de fase**. La vista no
 tiene una columna **Motivo** separada: la combinación se deduce de **Solución** y
