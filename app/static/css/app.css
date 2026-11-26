@@ -544,6 +544,24 @@ footer {
   width: 100%;
 }
 
+/* Listados y tablas: aprovechar mejor las pantallas anchas sin tocar las
+   fichas de detalle, que siguen ocupando el 100 %. */
+@media (min-width: 1200px) {
+  .container-app {
+    max-width: min(1500px, calc(100vw - 2rem));
+  }
+}
+
+@media (min-width: 1600px) {
+  .container-app {
+    max-width: min(1800px, calc(100vw - 2rem));
+  }
+}
+
+.container-app.container-detalle {
+  max-width: 100%;
+}
+
 /* Detalle de mapas: los dos mapas quedan a la izquierda y el evento a la
    derecha, para que la ficha no tape la planta ni el perfil. */
 .detalle-evento-panel {
