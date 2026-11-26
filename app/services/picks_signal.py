@@ -135,7 +135,14 @@ def _ajuste(evento: dict, picks: list[dict]) -> tuple[float, float]:
         return 0.0, 1.0 / 6.0
     xs = np.array([punto[0] for punto in puntos])
     ys = np.array([punto[1] for punto in puntos])
-    pendiente, intercepto = np.polyfit(xs, ys, 1)
+    try:
+        pendiente, intercepto = np.polyfit(xs, ys, 1)
+    except (np.linalg.LinAlgError, ValueError):
+        return 0.0, 1.0 / 6.0
+    if not np.isfinite(pendiente) or not np.isfinite(intercepto):
+        return 0.0, 1.0 / 6.0
+    if pendiente <= 0 or intercepto < 0:
+        return 0.0, 1.0 / 6.0
     return float(intercepto), float(pendiente)
 
 
