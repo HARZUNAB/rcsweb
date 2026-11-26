@@ -76,6 +76,23 @@ def test_construir_resultados_normaliza_y_cuenta(app, tmp_path):
     assert "prof, mag" in no_act
 
 
+def test_construir_resultados_conserva_cobertura_de_picks(app, tmp_path):
+    workspace = _preparar_workspace(tmp_path)
+    picks = _escribir(
+        workspace,
+        "resultados/revision_picks_seiscomp.csv",
+        "evento,sin_picar_n,no_usadas_n\nseiscomp:1,2,0\n",
+    )
+    viejo = _escribir(workspace, "resultados/viejo.csv", "columna\nvalor\n")
+
+    with app.app_context():
+        construir_resultados(workspace)
+
+    assert picks.is_file()
+    assert "seiscomp:1" in picks.read_text(encoding="utf-8")
+    assert not viejo.exists()
+
+
 def test_leer_tabla_busca_ordena_y_pagina(app, tmp_path):
     workspace = _preparar_workspace(tmp_path)
     with app.app_context():

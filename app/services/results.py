@@ -462,6 +462,10 @@ def construir_resultados(workspace: Path, fuentes: list[str] | None = None) -> d
     resultados = workspace / "resultados"
     resultados.mkdir(parents=True, exist_ok=True)
     for viejo in resultados.glob("*.csv"):
+        # La cobertura de picks la genera ``picks_coverage`` después de los
+        # pasos del pipeline. No es un resultado normalizado aquí.
+        if viejo.name.startswith("revision_picks_"):
+            continue
         viejo.unlink(missing_ok=True)
 
     indice = {

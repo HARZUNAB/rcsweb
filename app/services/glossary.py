@@ -167,7 +167,7 @@ TERMINOS = {
         ),
     },
     "senales_fase": {
-        "titulo": "Señales de fase",
+        "titulo": "Inconsistencias de fase",
         "texto": (
             "Detalle de las anomalías encontradas en las fases: residual alto, "
             "fuera de orden, pick antes del origen o patrón sistemático."

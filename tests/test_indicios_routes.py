@@ -156,7 +156,8 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert listado.status_code == 200
     html = listado.get_data(as_text=True)
     assert "Revisión de eventos" in html
-    assert "Señales de fase" in html
+    assert "Inconsistencias de fase" in html
+    assert "Sin señal de fase" not in html
     assert "Cobertura" in html
     assert "Fases P/S" in html
     assert "no cambia la prioridad" in html

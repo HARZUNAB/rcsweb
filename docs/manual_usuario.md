@@ -847,11 +847,11 @@ estimación basada en la referencia.
 Cada evento combina dos lecturas:
 
 - **Solución:** indica si la localización es sospechosa, normal o no evaluable.
-- **Señales de fase:** detalla los indicios de fases. Si el evento solo tiene
-  solución sospechosa, muestra **Sin señal de fase**.
+- **Inconsistencias de fase:** detalla los indicios de fases. Si el evento solo
+  tiene solución sospechosa, muestra **Sin inconsistencia de fases**.
 
 La vista ya no tiene una columna **Motivo** separada: esa información se deduce
-de **Solución** y **Señales de fase**.
+de **Solución** y **Inconsistencias de fase**.
 
 La opción **Vista compacta** oculta columnas secundarias para reducir el
 desplazamiento horizontal; la preferencia se conserva en el navegador. La

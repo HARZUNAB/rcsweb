@@ -1711,10 +1711,10 @@ deshabilitan.
 El listado muestra un aviso **Filtro activo** con el alcance seleccionado y el
 conteo de eventos. El botón **Quitar filtro** vuelve a **Todos los indicios**.
 
-La columna **Señales de fase** detalla los indicios de fases. Para eventos que
-solo tienen solución sospechosa se muestra **Sin señal de fase**. La vista no
-tiene una columna **Motivo** separada: la combinación se deduce de **Solución** y
-**Señales de fase**.
+La columna **Inconsistencias de fase** detalla los indicios de fases. Para
+eventos que solo tienen solución sospechosa se muestra **Sin inconsistencia de
+fases**. La vista no tiene una columna **Motivo** separada: la combinación se
+deduce de **Solución** y **Inconsistencias de fase**.
 
 La celda **Solución** muestra el residuo al slab en la misma línea como
 `slab X km`. Es la diferencia vertical entre la profundidad del evento y el slab
