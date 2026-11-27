@@ -1108,11 +1108,13 @@ Administradores y supervisores ven todos. La revisión se solicita desde
 2. Marque los eventos con las casillas y pulse **Agregar a la bandeja**. Los
    eventos se acumulan; se pueden sumar más desde Paneles. El máximo por
    solicitud se configura con `RCS_INFORME_MAX_EVENTOS` (50 por defecto).
-3. Abra **Ver bandeja**, revise los eventos, elija el formato y escriba una nota
-   opcional. Al pulsar **Enviar bandeja** se crea **una solicitud y un PDF por
-   responsable**, con todos sus eventos. La app también pregunta si desea
-   enviar el correo de notificación. Por ahora **No** aparece seleccionado por
-   defecto: la solicitud y el PDF se crean igual, pero el correo se omite.
+3. Abra **Ver bandeja**, revise los eventos y escriba una nota por evento.
+   Al pulsar **Enviar bandeja** se crea **una solicitud y un PDF por
+   responsable**, con todos sus eventos. La nota de cada evento se incluye
+   solo en la solicitud que contiene ese evento, identificada con su ID. La app
+   también pregunta si desea enviar el correo de notificación. Por ahora
+   **No** aparece seleccionado por defecto: la solicitud y el PDF se crean
+   igual, pero el correo se omite.
 4. La app genera un informe A4 horizontal con un bloque por evento:
    identificadores, fecha y hora, coordenadas, profundidad, magnitud y tipo,
    analista, cruce Eventquery, solución (sospechosa o normal), prioridad,
@@ -1301,6 +1303,8 @@ enviar de inmediato. La bandeja:
 - los agrupa por responsable;
 - al pulsar **Enviar bandeja**, crea **una solicitud y un PDF por responsable**,
   con todos sus eventos;
+- conserva una nota por evento. La nota se incluye solo en la solicitud del
+  evento correspondiente y se muestra con su ID;
 - pregunta si desea enviar los correos de notificación. Por ahora **No** está
   seleccionado por defecto; las solicitudes se crean igual y solo se omiten los
   correos;

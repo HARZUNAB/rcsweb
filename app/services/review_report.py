@@ -348,8 +348,14 @@ def generar_pdf(datos: dict, ruta: Path) -> None:
     def _tabla_datos(pares):
         filas = [
             [
-                Paragraph(escape(str(clave)), estilos["RevisionCell"]),
-                Paragraph(escape(str(valor)), estilos["RevisionCell"]),
+                Paragraph(
+                    escape(str(clave)).replace("\n", "<br/>"),
+                    estilos["RevisionCell"],
+                ),
+                Paragraph(
+                    escape(str(valor)).replace("\n", "<br/>"),
+                    estilos["RevisionCell"],
+                ),
             ]
             for clave, valor in pares
         ]

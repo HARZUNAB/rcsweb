@@ -71,6 +71,7 @@
               <th>Evento</th>
               <th>Fecha y hora</th>
               <th>Analista</th>
+              <th>Nota</th>
               <th class="text-end"></th>
             </tr>
           </thead>
@@ -91,6 +92,13 @@
               <td class="text-nowrap">{{ fila.get('evento') or '—' }}</td>
               <td class="text-nowrap">{{ fila.get('fecha_hora') or '—' }}</td>
               <td>{{ fila.get('analista') or '—' }}</td>
+              <td style="min-width: 16rem;">
+                <input class="form-control form-control-sm"
+                       name="nota__{{ (fila.get('fuente') or '') ~ '|' ~ (fila.get('evento') or '') }}"
+                       form="bandeja-enviar"
+                       value="{{ item.get('nota') or '' }}"
+                       placeholder="Nota para este evento">
+              </td>
               <td class="text-end">
                 {% if item.estado == 'enviando' %}
                 <span class="badge text-bg-info">En proceso</span>
@@ -119,7 +127,7 @@
     </div>
     {% endfor %}
 
-    <form method="post"
+    <form method="post" id="bandeja-enviar"
           action="{{ url_for('panels.bandeja_enviar', job_id=job.id) }}"
           class="border-top pt-3">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -160,14 +168,7 @@
             <option value="docx">DOCX</option>
           </select>
         </div>
-        <div class="col-12 col-lg-7">
-          <label class="form-label small" for="bandeja-nota">
-            Nota (opcional)
-          </label>
-          <input class="form-control" id="bandeja-nota" name="nota" type="text"
-                 placeholder="Se incluye en todas las solicitudes enviadas.">
-        </div>
-        <div class="col-12 col-lg-2">
+        <div class="col-12 col-lg-3">
           <button class="btn btn-primary w-100" type="submit"
                   {% if not pendientes %}disabled{% endif %}>
             Enviar bandeja
@@ -176,7 +177,8 @@
       </div>
       <div class="text-secondary small mt-2">
         Se creará una solicitud y un PDF por responsable. Los eventos de un
-        mismo responsable van juntos.
+        mismo responsable van juntos y cada nota se incluye solo en la
+        solicitud de su evento.
       </div>
     </form>
   </div>

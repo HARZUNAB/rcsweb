@@ -2900,9 +2900,21 @@ local.
 snapshot:
 
 ```text
-fila (dict del informe), assigned_to_id, kind, agregado_en,
+fila (dict del informe), nota, assigned_to_id, kind, agregado_en,
 estado (pendiente | enviando), report_id, enviado_en
 ```
+
+La nota se guarda por evento. En la bandeja se edita en una columna propia y
+viaja en el formulario `bandeja/enviar` con el nombre
+`nota__<fuente>|<evento>`. Al agrupar por responsable, `review_reports` recibe
+una nota compuesta solo con las notas de los eventos de ese grupo:
+
+```text
+Evento <ID>: <nota>
+Evento <ID>: <nota>
+```
+
+Así una nota no se copia a solicitudes de otros responsables.
 
 `listar()` renueva el TTL con `EXPIRE` en cada lectura. Un envío marcado como
 `enviando` que supere `MAX_ENVIO_SEG` (2 h) vuelve a `pendiente` como red de

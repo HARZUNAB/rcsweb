@@ -1633,6 +1633,7 @@ def solicitar_revision(job_id: str):
                     current_user.id,
                     {
                         "fila": fila_bandeja,
+                        "nota": nota,
                         "assigned_to_id": asignado,
                         "kind": "solucion",
                     },

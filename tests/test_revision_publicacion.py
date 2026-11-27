@@ -387,6 +387,9 @@ def test_bandeja_agrupa_por_responsable_y_envia(
     assert "No enviar correos; crear las solicitudes igualmente" in html
     assert 'id="bandeja-notificar-no"' in html
     assert 'id="bandeja-notificar-si"' in html
+    assert 'id="bandeja-enviar"' in html
+    assert 'name="nota__seiscomp|seiscomp:000001"' in html
+    assert 'name="nota__eventquery|eventquery:000001"' in html
 
     estados = {}
     monkeypatch.setattr(
@@ -400,7 +403,12 @@ def test_bandeja_agrupa_por_responsable_y_envia(
     )
     respuesta = client.post(
         f"/jobs/{job.id}/paneles/bandeja/enviar",
-        data={"formato": "pdf", "nota": "Revisar"},
+        data={
+            "formato": "pdf",
+            "nota__seiscomp|seiscomp:000001": "Revisar solución uno",
+            "nota__eventquery|eventquery:000001": "Revisar publicación",
+            "nota__seiscomp|seiscomp:000002": "Revisar solución dos",
+        },
     )
     assert respuesta.status_code == 302
     assert len(estados) == 2
@@ -408,8 +416,18 @@ def test_bandeja_agrupa_por_responsable_y_envia(
     assert all(estado["notificar"] is False for estado in estados.values())
     assert len(por_asignado[primero.id]["filas"]) == 2
     assert por_asignado[primero.id]["kind"] == "mixta"
+    assert "Evento seiscomp:000001: Revisar solución uno" in (
+        por_asignado[primero.id]["nota"]
+    )
+    assert "Evento eventquery:000001: Revisar publicación" in (
+        por_asignado[primero.id]["nota"]
+    )
+    assert "Evento seiscomp:000002" not in por_asignado[primero.id]["nota"]
     assert len(por_asignado[segundo.id]["filas"]) == 1
     assert por_asignado[segundo.id]["kind"] == "solucion"
+    assert por_asignado[segundo.id]["nota"] == (
+        "Evento seiscomp:000002: Revisar solución dos"
+    )
     with app.app_context():
         items = review_drafts.listar(job.id, admin.id)
         assert len(items) == 3

@@ -650,12 +650,15 @@ def revision_publicacion(job_id: str, fila: int):
         request.form.get("notificar"),
         current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
     )
-    copias, adjuntar_pdf, error_notificacion = _leer_notificacion(
-        request.form, notificar
-    )
-    if error_notificacion:
-        flash(error_notificacion, "danger")
-        return _render(400)
+    if request.form.get("accion") == "bandeja":
+        copias, adjuntar_pdf = [], False
+    else:
+        copias, adjuntar_pdf, error_notificacion = _leer_notificacion(
+            request.form, notificar
+        )
+        if error_notificacion:
+            flash(error_notificacion, "danger")
+            return _render(400)
     cruce = {
         "candidato": candidato,
         "diferencias": (grupo or {}).get("diferencias") or {},
@@ -694,6 +697,7 @@ def revision_publicacion(job_id: str, fila: int):
                 current_user.id,
                 {
                     "fila": fila_informe,
+                    "nota": nota,
                     "assigned_to_id": asignado.id,
                     "kind": "publicacion",
                 },
@@ -848,12 +852,15 @@ def revision_local(job_id: str):
         request.form.get("notificar"),
         current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
     )
-    copias, adjuntar_pdf, error_notificacion = _leer_notificacion(
-        request.form, notificar
-    )
-    if error_notificacion:
-        flash(error_notificacion, "danger")
-        return _render(400)
+    if request.form.get("accion") == "bandeja":
+        copias, adjuntar_pdf = [], False
+    else:
+        copias, adjuntar_pdf, error_notificacion = _leer_notificacion(
+            request.form, notificar
+        )
+        if error_notificacion:
+            flash(error_notificacion, "danger")
+            return _render(400)
     if indice:
         fila_informe = dict(indice)
     else:
@@ -897,6 +904,7 @@ def revision_local(job_id: str):
                 current_user.id,
                 {
                     "fila": fila_informe,
+                    "nota": nota,
                     "assigned_to_id": sugerido.id,
                     "kind": "solucion",
                 },
@@ -1073,7 +1081,14 @@ def bandeja_enviar(job_id: str):
     formato = request.form.get("formato", "pdf").strip().lower()
     if formato not in ("pdf", "docx"):
         formato = "pdf"
-    nota = request.form.get("nota", "").strip()
+    for item in items:
+        fila = item.get("fila") or {}
+        clave = (
+            f"{fila.get('fuente') or ''}|{fila.get('evento') or ''}"
+        )
+        valor = request.form.get(f"nota__{clave}")
+        if valor is not None:
+            item["nota"] = valor.strip()
     notificar = review.notificar_desde_formulario(
         request.form.get("notificar"),
         current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
@@ -1136,6 +1151,19 @@ def bandeja_enviar(job_id: str):
             kinds.add(str(item.get("kind") or "solucion"))
         if not filas:
             continue
+        notas = []
+        for item in validos:
+            fila = item.get("fila") or {}
+            nota_evento = str(item.get("nota") or "").strip()
+            if not nota_evento:
+                continue
+            etiqueta = (
+                fila.get("id_evento_fuente")
+                or fila.get("evento")
+                or "evento"
+            )
+            notas.append(f"Evento {etiqueta}: {nota_evento}")
+        nota_solicitud = "\n".join(notas)
         kind = next(iter(kinds)) if len(kinds) == 1 else "mixta"
         report_id = uuid4().hex
         estado = {
@@ -1144,7 +1172,7 @@ def bandeja_enviar(job_id: str):
             "assigned_to_id": asignado_id,
             "fuente": filas[0].get("fuente", ""),
             "formato": formato,
-            "nota": nota,
+            "nota": nota_solicitud,
             "kind": kind,
             "bandeja": True,
             "notified_at": utcnow().isoformat(),
