@@ -459,6 +459,13 @@
           id="btn-solicitar-revision" disabled>
     Agregar a la bandeja
   </button>
+  {% if alcance == 'picks' and puede_analizar_senal %}
+  <button type="button" class="btn btn-sm btn-outline-primary"
+          id="btn-senal-revision-seleccionados" disabled
+          title="Analiza la señal de los eventos seleccionados que estén pendientes. No modifica la selección para la bandeja.">
+    Analizar señal
+  </button>
+  {% endif %}
   <a class="btn btn-sm btn-outline-secondary"
      href="{{ url_for('panels.bandeja', job_id=job.id, volver=volver_bandeja, volver_etiqueta='Volver a revisión') }}">
     Ver bandeja
@@ -558,6 +565,7 @@
                      data-evento="{{ fila.evento }}"
                      data-analista="{{ fila.analista_usuario_id or '' }}"
                      data-cerrada="{% if fila.solicitud_info and fila.solicitud_info.estado == 'cerrada' %}1{% else %}0{% endif %}"
+                     {% if fila.picks_total and fila.picks_senal_estado == 'pendiente' %}data-senal-pendiente="1"{% endif %}
                      aria-label="Seleccionar {{ fila.id_evento_fuente or fila.evento }}"
                      {% if not analista_id or analista_id == 'sin' or not fila.analista_usuario_id or (fila.solicitud_info and fila.solicitud_info.activa) %}disabled{% endif %}>
             </td>

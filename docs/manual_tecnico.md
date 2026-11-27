@@ -1503,7 +1503,13 @@ en `GET /jobs/<job_id>/indicios/senal/<task_id>`.
 El POST acepta `fuente` y una lista de `eventos`. Si `eventos` viene vacío,
 toma los pendientes en el orden del reporte; si viene con IDs, procesa
 exactamente esos eventos. El mismo endpoint sirve para **Analizar estos N**,
-**Analizar seleccionados** y el enlace **Analizar** de una fila.
+**Analizar seleccionados** de la cola, el botón **Analizar señal** de la tabla
+de revisión y el enlace **Analizar** de una fila.
+
+En la tabla de revisión, `senal_picks.js` reutiliza las casillas
+`.seleccion-revision` que tienen `data-senal-pendiente="1"` y envía sus
+`data-evento`. Solo incluye eventos con cobertura y señal pendiente, y no
+modifica la selección ni el flujo de **Agregar a la bandeja**.
 
 La tarea informa `procesados`, `total` y `evento` en el estado `PROGRESS`. Al
 terminar guarda un resumen en `resultados/senal_ultimo_<fuente>.json`, que la

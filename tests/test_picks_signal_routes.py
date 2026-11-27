@@ -481,6 +481,52 @@ def test_revision_muestra_boton_y_estado_pendiente(app, client, login):
     assert "Filtro activo: Sin aportar" in html
 
 
+def test_revision_permite_analizar_seleccionados_en_grupo(
+    app, client, login
+):
+    job = _job()
+    _reporte(job)
+    login()
+    html = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp", "alcance": "picks"},
+    ).get_data(as_text=True)
+
+    assert 'id="btn-senal-revision-seleccionados"' in html
+    assert 'data-senal-pendiente="1"' in html
+    assert "Analizar señal" in html
+    assert "Agregar a la bandeja" in html
+
+    otros = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp", "alcance": "todos"},
+    ).get_data(as_text=True)
+    assert 'id="btn-senal-revision-seleccionados"' not in otros
+
+
+def test_revision_no_marca_grupo_si_ya_esta_analizado(
+    app, client, login
+):
+    job = _job()
+    _reporte(job)
+    picks_coverage.actualizar_senal(
+        ruta_workspace(job.id),
+        "seiscomp",
+        "seiscomp:000001",
+        senal_n=2,
+        senal_estaciones="C1.A; C1.B",
+        senal_estado="analizado",
+    )
+    login()
+    html = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp", "alcance": "picks"},
+    ).get_data(as_text=True)
+
+    assert 'id="btn-senal-revision-seleccionados"' in html
+    assert 'data-senal-pendiente="1"' not in html
+
+
 def test_revision_muestra_conteo_de_senal(app, client, login):
     job = _job()
     _reporte(job)

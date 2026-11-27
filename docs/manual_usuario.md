@@ -878,6 +878,14 @@ cuántos eventos quedan pendientes, el orden de análisis y los próximos 50.
 - **Actualizar lista:** recarga la revisión después del análisis.
 - Cada fila pendiente tiene un enlace **Analizar** para ejecutar un solo evento.
 
+En la tabla **Revisión de eventos**, las mismas casillas de selección de la
+bandeja permiten analizar en grupo la señal de los eventos pendientes. Con el
+alcance **Sin aportar** aparece el botón **Analizar señal (N)**, que envía solo
+los seleccionados con señal pendiente. No cambia la selección ni el flujo de
+**Agregar a la bandeja**. Como se reutilizan esas casillas, se mantienen las
+reglas actuales: filtrar por un analista, eventos del mismo analista y máximo
+50 por lote.
+
 Mientras el trabajo está en curso se muestra una barra con
 `procesados de total` y el evento actual. Al terminar queda el resumen del
 último análisis y el número de eventos que siguen pendientes.

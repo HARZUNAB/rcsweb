@@ -10,6 +10,9 @@
   var barra = document.getElementById("senal-picks-barra");
   var estado = document.getElementById("senal-picks-estado");
   var botonSeleccionados = document.getElementById("btn-senal-seleccionados");
+  var botonRevision = document.getElementById(
+    "btn-senal-revision-seleccionados"
+  );
   var botonCorrida = document.getElementById("btn-senal-corrida");
   var botonReanalizarSinDatos = document.getElementById(
     "btn-senal-reanalizar-sin-datos"
@@ -67,11 +70,7 @@
         }
       }
     );
-    if (bloqueado && botonSeleccionados) {
-      botonSeleccionados.disabled = true;
-    } else {
-      actualizarBotonSeleccionados();
-    }
+    actualizarBotonSeleccionados();
   }
 
   function terminar() {
@@ -87,12 +86,32 @@
     bloquearBotones(false);
   }
 
-  function actualizarBotonSeleccionados() {
-    if (!botonSeleccionados) {
+  function seleccionRevisionPendiente() {
+    return Array.prototype.filter.call(
+      document.querySelectorAll(".seleccion-revision:checked"),
+      function (casilla) {
+        return casilla.dataset.senalPendiente === "1" && casilla.dataset.evento;
+      }
+    );
+  }
+
+  function actualizarBotonRevision() {
+    if (!botonRevision) {
       return;
     }
-    var marcados = document.querySelectorAll(".senal-seleccion:checked");
-    botonSeleccionados.disabled = enCurso || marcados.length === 0;
+    var total = seleccionRevisionPendiente().length;
+    botonRevision.disabled = enCurso || total === 0;
+    botonRevision.textContent = total
+      ? "Analizar señal (" + total + ")"
+      : "Analizar señal";
+  }
+
+  function actualizarBotonSeleccionados() {
+    if (botonSeleccionados) {
+      var marcados = document.querySelectorAll(".senal-seleccion:checked");
+      botonSeleccionados.disabled = enCurso || marcados.length === 0;
+    }
+    actualizarBotonRevision();
   }
 
   function mostrarActualizar() {
@@ -460,6 +479,35 @@
     casilla.addEventListener("change", actualizarBotonSeleccionados);
   });
 
+  document.addEventListener("change", function (evento) {
+    var casilla = evento.target;
+    if (!casilla || !casilla.classList) {
+      return;
+    }
+    if (
+      casilla.classList.contains("seleccion-revision") ||
+      casilla.id === "seleccionar-todos-revision"
+    ) {
+      actualizarBotonRevision();
+    }
+  });
+
+  if (botonRevision) {
+    botonRevision.addEventListener("click", function () {
+      var marcados = seleccionRevisionPendiente();
+      if (!marcados.length) {
+        return;
+      }
+      var datos = new FormData();
+      datos.append("csrf_token", csrfToken());
+      datos.append("fuente", raiz.dataset.fuente || "");
+      marcados.forEach(function (casilla) {
+        datos.append("eventos", casilla.dataset.evento);
+      });
+      enviar(datos);
+    });
+  }
+
   if (botonSeleccionados) {
     botonSeleccionados.addEventListener("click", function () {
       var marcados = Array.prototype.map.call(
@@ -516,6 +564,10 @@
       accionCorrida("cancelar");
     });
   }
+
+  actualizarBotonRevision();
+  // La selección de la bandeja se restaura al ejecutarse su propio script.
+  window.setTimeout(actualizarBotonRevision, 0);
 
   var corridaInicial = raiz.dataset.runId || "";
   if (corridaInicial) {
