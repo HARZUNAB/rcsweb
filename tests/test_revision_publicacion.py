@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
+from werkzeug.datastructures import MultiDict
+
+from app.blueprints.panels import _leer_notificacion
 from app.domain.catalogs import canonical
 from app.extensions import db
 from app.models import Job, User, nuevo_uuid
@@ -17,6 +20,68 @@ def test_notificar_desde_formulario_usa_valor_o_defecto():
     assert review.notificar_desde_formulario("", False) is False
     assert review.notificar_desde_formulario("1", False) is True
     assert review.notificar_desde_formulario("0", True) is False
+
+
+def test_copias_unicas_excluye_destinatario_y_duplicados():
+    assert review.copias_unicas(
+        [
+            "Copia1@CSN.cl",
+            "analista@csn.cl",
+            "copia1@csn.cl",
+            "copia2@csn.cl",
+        ],
+        excluir="ANALISTA@CSN.CL",
+    ) == ["Copia1@CSN.cl", "copia2@csn.cl"]
+
+
+def test_leer_notificacion_valida_copias_y_adjunto(app):
+    primero = User(
+        username="sup1",
+        role="supervisor",
+        email="sup1@csn.uchile.cl",
+    )
+    segundo = User(
+        username="sup2",
+        role="supervisor",
+        email="sup2@csn.uchile.cl",
+    )
+    primero.set_password("secret")
+    segundo.set_password("secret")
+    db.session.add_all([primero, segundo])
+    db.session.commit()
+
+    form = MultiDict(
+        {
+            "adjuntar_pdf": "1",
+            "cc_1": str(primero.id),
+            "cc_2": str(segundo.id),
+        }
+    )
+    copias, adjuntar, error = _leer_notificacion(form, True)
+    assert error is None
+    assert adjuntar is True
+    assert copias == ["sup1@csn.uchile.cl", "sup2@csn.uchile.cl"]
+
+    sin_adjunto = MultiDict(
+        {
+            "cc_1": str(primero.id),
+            "cc_2": str(segundo.id),
+        }
+    )
+    _copias, _adjuntar, error = _leer_notificacion(sin_adjunto, True)
+    assert "adjuntar el PDF" in error
+
+    repetidas = MultiDict(
+        {
+            "adjuntar_pdf": "1",
+            "cc_1": str(primero.id),
+            "cc_2": str(primero.id),
+        }
+    )
+    _copias, _adjuntar, error = _leer_notificacion(repetidas, True)
+    assert "distintas" in error
+
+    assert _leer_notificacion(MultiDict(), False) == ([], False, None)
 
 
 def _job() -> Job:

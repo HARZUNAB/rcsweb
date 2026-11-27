@@ -113,6 +113,12 @@
         {% else %}
         <span class="text-secondary">Pendiente.</span>
         {% endif %}
+        {% if solicitud.email_cc %}
+        <div>Copias: {{ solicitud.email_cc }}</div>
+        {% endif %}
+        {% if solicitud.email_attach_report %}
+        <div>Informe adjunto: Sí</div>
+        {% endif %}
       </dd>
       {% if solicitud.note %}
       <dt class="col-sm-3 fw-normal text-secondary">Nota del creador</dt>

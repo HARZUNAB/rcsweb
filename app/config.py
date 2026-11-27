@@ -89,6 +89,12 @@ class Config:
     RCS_NOTIFICAR_REVISION_DEFAULT = _bool(
         "RCS_NOTIFICAR_REVISION_DEFAULT", False
     )
+    # correo: aviso autónomo con el detalle en el informe adjunto.
+    # plataforma: formato anterior con enlace a la solicitud.
+    RCS_NOTIFICACION_MODO = (
+        os.environ.get("RCS_NOTIFICACION_MODO", "correo").strip().lower()
+        or "correo"
+    )
     RCS_PUBLIC_URL = os.environ.get("RCS_PUBLIC_URL", "").strip()
 
     # Correo saliente para notificar solicitudes de revisión

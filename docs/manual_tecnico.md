@@ -63,6 +63,7 @@ core sísmico está incorporado en `core/` y sus datos grandes en `core_data/`.
 | `CARTOPY_DATA_DIR` | Datos de Cartopy | `/data/cartopy` |
 | `MAPS_MODE` | `auto`, `online` u `offline` | `auto` |
 | `RCS_NOTIFICAR_REVISION_DEFAULT` | Preselección del correo en solicitudes de revisión (`0` = No) | `0` |
+| `RCS_NOTIFICACION_MODO` | `correo` = aviso con informe adjunto; `plataforma` = enlace a la solicitud | `correo` |
 | `ADMIN_USERNAME` | Administrador inicial | `admin` |
 | `ADMIN_PASSWORD` | Clave inicial del administrador | `admin` |
 
@@ -1825,13 +1826,24 @@ la solicitud y sus eventos igualmente, marca `email_skipped=True`, omite
 - Si el SMTP falla, guarda `email_error` y registra `revision.email` en la
   auditoría; la solicitud sigue visible.
 - No se reenvía si `email_sent_at` ya está definido.
-- El enlace usa el `base_url` de la tarea o, si falta, `RCS_PUBLIC_URL`.
-- El correo no adjunta el informe: invita a entrar a la plataforma.
+- `RCS_NOTIFICACION_MODO=correo` (actual) envía un aviso autónomo con la nota
+  de la solicitud y una referencia al informe adjunto. No incluye enlace a la
+  plataforma. En este modo la notificación exige adjuntar el PDF; si el
+  informe cae a DOCX se adjunta ese formato y el texto lo indica.
+- `RCS_NOTIFICACION_MODO=plataforma` conserva el formato anterior con enlace a
+  `/revisiones/<id>`. El enlace usa el `base_url` de la tarea o, si falta,
+  `RCS_PUBLIC_URL`.
+- Las copias se eligen en los formularios entre usuarios activos con rol
+  supervisor y correo. `email_cc` guarda la lista efectiva ya deduplicada
+  contra el destinatario principal.
+- `email_attach_report` indica si el informe fue adjuntado. El archivo se lee
+  desde `report_path` del workspace y se adjunta con su nombre real.
 
 Variables: `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USE_SSL`, `MAIL_USE_TLS`,
 `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_DEFAULT_SENDER`, `MAIL_FROM_NAME`,
-`MAIL_SIGNATURE` (líneas separadas por `|`), `MAIL_TIMEOUT` y
-`MAIL_SUPPRESS_SEND`.
+`MAIL_SIGNATURE` (líneas separadas por `|`), `MAIL_TIMEOUT`,
+`MAIL_SUPPRESS_SEND`, `RCS_NOTIFICAR_REVISION_DEFAULT` y
+`RCS_NOTIFICACION_MODO`.
 
 #### Evidencia y URL por evento
 

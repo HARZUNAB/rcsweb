@@ -18,7 +18,7 @@ La columna **Módulo** muestra el archivo y la línea actual donde se define el 
 
 > Las páginas se resuelven al actualizar el índice en el DOCX. En Markdown no existe paginación.
 
-Resumen: 65 variables de entorno, 96 constantes y 17 parámetros de scripts.
+Resumen: 66 variables de entorno, 96 constantes y 17 parámetros de scripts.
 
 ### D.1 Variables de entorno
 
@@ -85,8 +85,8 @@ Se leen al arrancar la aplicación o el servicio. Cambiarlas requiere reiniciar 
 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
 |---|---|---|---|---|
-| `CELERY_BROKER_URL` | `app/config.py:113` | `redis://redis:6379/0` | despliegue | Broker de Celery. |
-| `CELERY_RESULT_BACKEND` | `app/config.py:114` | `redis://redis:6379/1` | despliegue | Backend de resultados de Celery. |
+| `CELERY_BROKER_URL` | `app/config.py:119` | `redis://redis:6379/0` | despliegue | Broker de Celery. |
+| `CELERY_RESULT_BACKEND` | `app/config.py:120` | `redis://redis:6379/1` | despliegue | Backend de resultados de Celery. |
 | `PIPELINE_STEP_TIMEOUT` | `app/services/pipeline.py:56` | `1800` | despliegue | Timeout por paso del pipeline, en segundos. |
 | `RCS_ENRIQUECER_RESIDUALES` | `app/services/pipeline.py:452` | `1` | despliegue | Enriquece residuales con fuentes locales (1 = sí). |
 
@@ -94,41 +94,42 @@ Se leen al arrancar la aplicación o el servicio. Cambiarlas requiere reiniciar 
 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
 |---|---|---|---|---|
-| `RCS_PICKS_CERCA_KM` | `app/config.py:137` | `100` | regla | Distancia para prioridad alta de una estación cercana. |
-| `RCS_PICKS_MAX_CANDIDATAS` | `app/config.py:140` | `60` | regla | Máximo de estaciones candidatas por evento. |
-| `RCS_PICKS_RADIO_KM` | `app/config.py:134` | `250` | regla | Radio de búsqueda de estaciones cercanas, en kilómetros. |
+| `RCS_PICKS_CERCA_KM` | `app/config.py:143` | `100` | regla | Distancia para prioridad alta de una estación cercana. |
+| `RCS_PICKS_MAX_CANDIDATAS` | `app/config.py:146` | `60` | regla | Máximo de estaciones candidatas por evento. |
+| `RCS_PICKS_RADIO_KM` | `app/config.py:140` | `250` | regla | Radio de búsqueda de estaciones cercanas, en kilómetros. |
 
 **Disponibilidad de ondas**
 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
 |---|---|---|---|---|
 | `RCS_DISPONIBILIDAD_HOST` | `app/services/availability_service.py:241` | `0.0.0.0` | despliegue | Interfaz donde escucha el sidecar. |
-| `RCS_DISPONIBILIDAD_MAX_ESTACIONES` | `app/config.py:126` | `150` | despliegue | Máximo de estaciones por consulta. |
-| `RCS_DISPONIBILIDAD_MAX_STREAMS` | `app/config.py:129` | `5000` | despliegue | Máximo duro de streams por consulta. |
+| `RCS_DISPONIBILIDAD_MAX_ESTACIONES` | `app/config.py:132` | `150` | despliegue | Máximo de estaciones por consulta. |
+| `RCS_DISPONIBILIDAD_MAX_STREAMS` | `app/config.py:135` | `5000` | despliegue | Máximo duro de streams por consulta. |
 | `RCS_DISPONIBILIDAD_PORT` | `app/services/availability_service.py:242` | `8010` | despliegue | Puerto del sidecar. |
-| `RCS_DISPONIBILIDAD_TIMEOUT` | `app/config.py:123` | `240` | despliegue | Timeout de la consulta de disponibilidad, en segundos. |
-| `RCS_DISPONIBILIDAD_TOKEN` | `app/config.py:120` | `—` | despliegue | Token compartido con el sidecar. |
-| `RCS_DISPONIBILIDAD_URL` | `app/config.py:117` | `—` | despliegue | URL del sidecar de disponibilidad. |
+| `RCS_DISPONIBILIDAD_TIMEOUT` | `app/config.py:129` | `240` | despliegue | Timeout de la consulta de disponibilidad, en segundos. |
+| `RCS_DISPONIBILIDAD_TOKEN` | `app/config.py:126` | `—` | despliegue | Token compartido con el sidecar. |
+| `RCS_DISPONIBILIDAD_URL` | `app/config.py:123` | `—` | despliegue | URL del sidecar de disponibilidad. |
 
 **Informes y correo**
 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
 |---|---|---|---|---|
-| `MAIL_DEFAULT_SENDER` | `app/config.py:101` | `rcsweb@localhost` | despliegue | Remitente por defecto. |
-| `MAIL_FROM_NAME` | `app/config.py:104` | `RCS Web` | despliegue | Nombre visible del remitente. |
-| `MAIL_PASSWORD` | `app/config.py:100` | `—` | despliegue | Clave SMTP. |
-| `MAIL_PORT` | `app/config.py:96` | `25` | despliegue | Puerto SMTP. |
-| `MAIL_SERVER` | `app/config.py:95` | `—` | despliegue | Servidor SMTP. |
-| `MAIL_SIGNATURE` | `app/config.py:105` | `RCS Web\|Centro Sismológico Nacional\|Universidad de Chile` | despliegue | Firma al pie de los correos. |
-| `MAIL_SUPPRESS_SEND` | `app/config.py:110` | `0` | despliegue | No envía correos; solo los registra (1 = sí). |
-| `MAIL_TIMEOUT` | `app/config.py:109` | `10` | despliegue | Timeout SMTP, en segundos. |
-| `MAIL_USERNAME` | `app/config.py:99` | `—` | despliegue | Usuario SMTP. |
-| `MAIL_USE_SSL` | `app/config.py:97` | `0` | despliegue | Usa SSL para el correo (1 = sí). |
-| `MAIL_USE_TLS` | `app/config.py:98` | `0` | despliegue | Usa TLS para el correo (1 = sí). |
+| `MAIL_DEFAULT_SENDER` | `app/config.py:107` | `rcsweb@localhost` | despliegue | Remitente por defecto. |
+| `MAIL_FROM_NAME` | `app/config.py:110` | `RCS Web` | despliegue | Nombre visible del remitente. |
+| `MAIL_PASSWORD` | `app/config.py:106` | `—` | despliegue | Clave SMTP. |
+| `MAIL_PORT` | `app/config.py:102` | `25` | despliegue | Puerto SMTP. |
+| `MAIL_SERVER` | `app/config.py:101` | `—` | despliegue | Servidor SMTP. |
+| `MAIL_SIGNATURE` | `app/config.py:111` | `RCS Web\|Centro Sismológico Nacional\|Universidad de Chile` | despliegue | Firma al pie de los correos. |
+| `MAIL_SUPPRESS_SEND` | `app/config.py:116` | `0` | despliegue | No envía correos; solo los registra (1 = sí). |
+| `MAIL_TIMEOUT` | `app/config.py:115` | `10` | despliegue | Timeout SMTP, en segundos. |
+| `MAIL_USERNAME` | `app/config.py:105` | `—` | despliegue | Usuario SMTP. |
+| `MAIL_USE_SSL` | `app/config.py:103` | `0` | despliegue | Usa SSL para el correo (1 = sí). |
+| `MAIL_USE_TLS` | `app/config.py:104` | `0` | despliegue | Usa TLS para el correo (1 = sí). |
 | `RCS_EVIDENCIA_MAX_MB` | `app/config.py:80` | `20` | despliegue | Tamaño máximo de la evidencia de cierre, en MB. |
 | `RCS_INFORME_MAX_EVENTOS` | `app/config.py:77` | `50` | despliegue | Máximo de eventos por solicitud de revisión. |
+| `RCS_NOTIFICACION_MODO` | `app/config.py:94` | `correo` | despliegue | Modo del aviso: correo (sin enlace) o plataforma (con enlace). |
 | `RCS_NOTIFICAR_REVISION_DEFAULT` | `app/config.py:89` | `0` | despliegue | Preselecciona la notificación por correo (1 = sí). |
-| `RCS_PUBLIC_URL` | `app/config.py:92` | `—` | despliegue | URL pública usada en los enlaces de los correos. |
+| `RCS_PUBLIC_URL` | `app/config.py:98` | `—` | despliegue | URL pública usada en los enlaces de los correos. |
 
 ### D.2 Constantes de módulos
 
@@ -208,10 +209,10 @@ Son valores de código. Cambiarlos exige modificar el módulo, revisar las prueb
 
 | Constante | Módulo | Valor | Ámbito | Efecto |
 |---|---|---|---|---|
-| `CRUCE_AMPLIO_GRADOS` | `app/services/indicios.py:1317` | `2.0` | regla | Tolerancia geográfica del cruce amplio, en grados. |
-| `CRUCE_AMPLIO_SEG` | `app/services/indicios.py:1316` | `6.0` | regla | Tolerancia temporal del cruce amplio, en segundos. |
-| `CRUCE_ESTRICTO_GRADOS` | `app/services/indicios.py:1315` | `1.0` | regla | Tolerancia geográfica del cruce estricto, en grados. |
-| `CRUCE_ESTRICTO_SEG` | `app/services/indicios.py:1314` | `3.0` | regla | Tolerancia temporal del cruce estricto, en segundos. |
+| `CRUCE_AMPLIO_GRADOS` | `app/services/indicios.py:1335` | `2.0` | regla | Tolerancia geográfica del cruce amplio, en grados. |
+| `CRUCE_AMPLIO_SEG` | `app/services/indicios.py:1334` | `6.0` | regla | Tolerancia temporal del cruce amplio, en segundos. |
+| `CRUCE_ESTRICTO_GRADOS` | `app/services/indicios.py:1333` | `1.0` | regla | Tolerancia geográfica del cruce estricto, en grados. |
+| `CRUCE_ESTRICTO_SEG` | `app/services/indicios.py:1332` | `3.0` | regla | Tolerancia temporal del cruce estricto, en segundos. |
 | `ESQUEMA_INDICIOS` | `app/services/indicios.py:47` | `8` | regla | Versión del esquema de indicios. |
 | `FACTOR_RESIDUAL_EXTREMO` | `app/services/indicios.py:39` | `10.0` | regla | Factor para clasificar residual extremo. |
 | `MAX_PARES_DETALLE` | `app/services/indicios.py:46` | `40` | regla | Máximo de pares guardados en el detalle. |
@@ -230,12 +231,12 @@ Son valores de código. Cambiarlos exige modificar el módulo, revisar las prueb
 | `UMBRAL_SISTEMATICO_MEDIANA` | `app/services/indicios.py:42` | `2.0` | regla | Residual mediano para un sesgo sistemático. |
 | `UMBRAL_SISTEMATICO_PROPORCION` | `app/services/indicios.py:41` | `0.7` | regla | Proporción mínima para un sesgo sistemático. |
 | `UMBRAL_TIEMPO_FUERA_DE_ORDEN_S` | `app/services/indicios.py:34` | `2.0` | regla | Diferencia temporal fuera de orden, en segundos. |
-| `VENTANA_CANDIDATO_KM` | `app/services/indicios.py:1310` | `50.0` | regla | Ventana geográfica para buscar candidato, en km. |
-| `VENTANA_CANDIDATO_SEG` | `app/services/indicios.py:1309` | `120.0` | regla | Ventana temporal para buscar candidato, en segundos. |
-| `VENTANA_COMPATIBLE_MAG` | `app/services/indicios.py:1313` | `0.5` | regla | Diferencia de magnitud compatible. |
-| `VENTANA_COMPATIBLE_PROF_KM` | `app/services/indicios.py:1312` | `20.0` | regla | Diferencia de profundidad compatible, en km. |
-| `VENTANA_COMPATIBLE_SEG` | `app/services/indicios.py:1311` | `6.0` | regla | Diferencia temporal para considerar compatible, en segundos. |
-| `VERSION_CRUCE` | `app/services/indicios.py:1308` | `4` | regla | Versión del cruce con Eventquery. |
+| `VENTANA_CANDIDATO_KM` | `app/services/indicios.py:1328` | `50.0` | regla | Ventana geográfica para buscar candidato, en km. |
+| `VENTANA_CANDIDATO_SEG` | `app/services/indicios.py:1327` | `120.0` | regla | Ventana temporal para buscar candidato, en segundos. |
+| `VENTANA_COMPATIBLE_MAG` | `app/services/indicios.py:1331` | `0.5` | regla | Diferencia de magnitud compatible. |
+| `VENTANA_COMPATIBLE_PROF_KM` | `app/services/indicios.py:1330` | `20.0` | regla | Diferencia de profundidad compatible, en km. |
+| `VENTANA_COMPATIBLE_SEG` | `app/services/indicios.py:1329` | `6.0` | regla | Diferencia temporal para considerar compatible, en segundos. |
+| `VERSION_CRUCE` | `app/services/indicios.py:1326` | `4` | regla | Versión del cruce con Eventquery. |
 
 **Interfaz**
 

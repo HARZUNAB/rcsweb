@@ -8,6 +8,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from ..extensions import db
 from ..models import ReviewRequest, ReviewRequestEvent, User
+from ..security import tiene_rol
 from .analysts import usuarios_analistas_activos
 
 ESTADOS_ACTIVOS = ("notificada", "en_proceso")
@@ -15,6 +16,36 @@ ESTADOS_ACTIVOS = ("notificada", "en_proceso")
 
 def usuarios_analistas() -> list[User]:
     return usuarios_analistas_activos()
+
+
+def supervisores_con_correo() -> list[User]:
+    """Usuarios activos con rol supervisor y correo, para copias del aviso."""
+    usuarios = db.session.execute(
+        db.select(User).order_by(User.email, User.username)
+    ).scalars()
+    return [
+        usuario
+        for usuario in usuarios
+        if usuario.active
+        and str(usuario.email or "").strip()
+        and tiene_rol(usuario, "supervisor")
+    ]
+
+
+def copias_unicas(correos, excluir: str = "") -> list[str]:
+    """Normaliza y deduplica correos; omite el destinatario principal."""
+    vistos = {
+        str(excluir or "").strip().casefold()
+    } - {""}
+    salida: list[str] = []
+    for correo in correos or []:
+        limpio = str(correo or "").strip()
+        clave = limpio.casefold()
+        if not limpio or clave in vistos:
+            continue
+        vistos.add(clave)
+        salida.append(limpio)
+    return salida
 
 
 def _resumen(solicitud: ReviewRequest) -> dict:
@@ -134,6 +165,8 @@ def crear_solicitud(
     report_format: str,
     kind: str = "solucion",
     notificar: bool = True,
+    email_cc: str = "",
+    email_attach_report: bool = False,
 ) -> ReviewRequest:
     """Crea la solicitud y sus eventos; el llamador controla la transacción."""
     solicitud = ReviewRequest(
@@ -149,6 +182,8 @@ def crear_solicitud(
         report_format=report_format,
         notified_at=notified_at,
         email_skipped=not notificar,
+        email_cc=email_cc or None,
+        email_attach_report=bool(email_attach_report),
     )
     db.session.add(solicitud)
     db.session.flush()

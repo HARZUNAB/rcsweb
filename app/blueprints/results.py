@@ -1662,6 +1662,8 @@ def solicitar_revision(job_id: str):
         "nota": nota,
         "notified_at": utcnow().isoformat(),
         "notificar": notificar,
+        "cc": [],
+        "adjuntar_pdf": notificar,
         "base_url": request.host_url.rstrip("/"),
         "filas": [
             {

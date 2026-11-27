@@ -1,0 +1,56 @@
+{% set pref = prefijo|default('notificacion') %}
+<div class="mt-3"
+     data-notificacion-envio
+     data-modo="{{ config.RCS_NOTIFICACION_MODO|lower }}">
+  {% if supervisores_copia %}
+  <div class="row g-2">
+    <div class="col-12 col-lg-6">
+      <label class="form-label small" for="{{ pref }}-cc-1">Copia 1</label>
+      <select class="form-select form-select-sm"
+              id="{{ pref }}-cc-1" name="cc_1" data-cc-select>
+        <option value="">Sin copia</option>
+        {% for usuario in supervisores_copia %}
+        <option value="{{ usuario.id }}"
+                data-email="{{ usuario.email }}"
+                {% if request.form.get('cc_1')|string == usuario.id|string %}selected{% endif %}>{{ usuario.email }} — {{ usuario.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-lg-6">
+      <label class="form-label small" for="{{ pref }}-cc-2">Copia 2</label>
+      <select class="form-select form-select-sm"
+              id="{{ pref }}-cc-2" name="cc_2" data-cc-select>
+        <option value="">Sin copia</option>
+        {% for usuario in supervisores_copia %}
+        <option value="{{ usuario.id }}"
+                data-email="{{ usuario.email }}"
+                {% if request.form.get('cc_2')|string == usuario.id|string %}selected{% endif %}>{{ usuario.email }} — {{ usuario.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="form-text" data-cc-resumen>
+    No hay copias seleccionadas.
+  </div>
+  <div class="form-text">
+    Si una copia coincide con el analista asignado, no se repite como
+    destinatario.
+  </div>
+  {% else %}
+  <div class="alert alert-warning small py-2 mb-2" role="status">
+    No hay direcciones de copia configuradas.
+  </div>
+  {% endif %}
+  <div class="form-check mt-2">
+    <input class="form-check-input" type="checkbox"
+           name="adjuntar_pdf" value="1"
+           id="{{ pref }}-adjuntar-pdf"
+           {% if request.form.get('adjuntar_pdf') %}checked{% endif %}>
+    <label class="form-check-label" for="{{ pref }}-adjuntar-pdf">
+      Adjuntar informe (PDF/DOCX)
+    </label>
+    <div class="form-text">
+      Obligatorio para enviar la notificación.
+    </div>
+  </div>
+</div>

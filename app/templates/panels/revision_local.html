@@ -183,6 +183,8 @@
       <div class="form-text">
         La solicitud se crea igual; la elección solo cambia el envío del correo.
       </div>
+      {% set prefijo = 'revision-local' %}
+      {% include "panels/_notificacion_envio.html" %}
     </fieldset>
     <div class="d-flex flex-wrap gap-2 mt-3">
       <button class="btn btn-primary" type="submit"
@@ -202,4 +204,8 @@
     </div>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/notificacion_envio.js') }}"></script>
 {% endblock %}

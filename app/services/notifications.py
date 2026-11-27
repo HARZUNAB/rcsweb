@@ -8,6 +8,7 @@ import smtplib
 import ssl
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, make_msgid
+from pathlib import Path
 
 from flask import current_app
 
@@ -35,6 +36,48 @@ def _base_url(base_url: str = "") -> str:
     return base.rstrip("/")
 
 
+def _modo(config) -> str:
+    modo = _texto(config.get("RCS_NOTIFICACION_MODO")).lower()
+    return modo if modo in {"correo", "plataforma"} else "correo"
+
+
+def _nota(solicitud: ReviewRequest) -> str:
+    return _texto(solicitud.note) or "Sin comentarios adicionales."
+
+
+def _texto_informe(solicitud: ReviewRequest) -> str:
+    if not solicitud.email_attach_report:
+        return ""
+    if (solicitud.report_format or "").lower() == "docx":
+        return (
+            "Los antecedentes de cada revisión están en el informe "
+            "adjunto (DOCX)."
+        )
+    return "Los antecedentes de cada revisión están en el PDF adjunto."
+
+
+def _ruta_informe(solicitud: ReviewRequest):
+    if not solicitud.report_path:
+        return None
+    ruta = Path(str(solicitud.report_path))
+    if not ruta.is_absolute():
+        ruta = ruta_workspace(solicitud.job_id) / ruta
+    return ruta
+
+
+def _correos_copia(solicitud: ReviewRequest, destinatario: str) -> list[str]:
+    vistos = {_texto(destinatario).casefold()} - {""}
+    correos = []
+    for parte in _texto(solicitud.email_cc).replace(";", ",").split(","):
+        correo = parte.strip()
+        clave = correo.casefold()
+        if not correo or clave in vistos:
+            continue
+        vistos.add(clave)
+        correos.append(correo)
+    return correos
+
+
 def enlace_solicitud(solicitud: ReviewRequest, base_url: str = "") -> str:
     ruta = f"/revisiones/{solicitud.id}"
     base = _base_url(base_url)
@@ -55,54 +98,96 @@ def construir_mensaje(
     cantidad = len(solicitud.events or [])
     saludo = _texto(getattr(analista, "username", "")) or "analista"
     firma = _firma(config)
+    modo = _modo(config)
+    nota = _nota(solicitud)
+    informe = _texto_informe(solicitud)
 
     asunto = f"[RCS Web] Nueva solicitud de revisión #{solicitud.id}"
-    cuerpo = "\n".join(
-        [
-            f"Hola {saludo},",
-            "",
-            (
-                f"Se le asignó la solicitud de revisión #{solicitud.id} "
-                f"con {cantidad} evento"
-                f"{'' if cantidad == 1 else 's'} del trabajo "
-                f"{solicitud.job_id} ({solicitud.source_id})."
-            ),
-            "",
-            (
-                "Ingrese a la plataforma para informarse de la solicitud "
-                "y aceptarla:"
-            ),
-            enlace,
-            "",
-            (
-                "Al aceptarla, la solicitud quedará En proceso. Cuando "
-                "termine, use «Cerrar solicitud», describa lo realizado y, "
-                "si corresponde, adjunte la evidencia y la URL actualizada "
-                "de cada evento que haya cambiado sus parámetros."
-            ),
-            "",
-            *firma,
-        ]
-    )
-
-    firma_html = "<br>".join(html.escape(linea) for linea in firma)
-    cuerpo_html = (
-        f"<p>Hola {html.escape(saludo)},</p>"
-        f"<p>Se le asignó la solicitud de revisión "
-        f"<strong>#{solicitud.id}</strong> con "
-        f"<strong>{cantidad}</strong> evento"
-        f"{'' if cantidad == 1 else 's'} del trabajo "
-        f"<code>{html.escape(solicitud.job_id)}</code> "
-        f"({html.escape(solicitud.source_id)}).</p>"
-        f"<p>Ingrese a la plataforma para informarse de la solicitud y "
-        f"aceptarla:</p>"
-        f"<p><a href=\"{html.escape(enlace)}\">{html.escape(enlace)}</a></p>"
-        f"<p>Al aceptarla, la solicitud quedará <strong>En proceso</strong>. "
-        f"Cuando termine, use «Cerrar solicitud», describa lo realizado y, "
-        f"si corresponde, adjunte la evidencia y la URL actualizada de cada "
-        f"evento que haya cambiado sus parámetros.</p>"
-        f"<p>{firma_html}</p>"
-    )
+    if modo == "plataforma":
+        cuerpo = "\n".join(
+            [
+                f"Hola {saludo},",
+                "",
+                (
+                    f"Se le asignó la solicitud de revisión #{solicitud.id} "
+                    f"con {cantidad} evento"
+                    f"{'' if cantidad == 1 else 's'} del trabajo "
+                    f"{solicitud.job_id} ({solicitud.source_id})."
+                ),
+                "",
+                (
+                    "Ingrese a la plataforma para informarse de la solicitud "
+                    "y aceptarla:"
+                ),
+                enlace,
+                "",
+                (
+                    "Al aceptarla, la solicitud quedará En proceso. Cuando "
+                    "termine, use «Cerrar solicitud», describa lo realizado y, "
+                    "si corresponde, adjunte la evidencia y la URL actualizada "
+                    "de cada evento que haya cambiado sus parámetros."
+                ),
+                "",
+                *firma,
+            ]
+        )
+        firma_html = "<br>".join(html.escape(linea) for linea in firma)
+        cuerpo_html = (
+            f"<p>Hola {html.escape(saludo)},</p>"
+            f"<p>Se le asignó la solicitud de revisión "
+            f"<strong>#{solicitud.id}</strong> con "
+            f"<strong>{cantidad}</strong> evento"
+            f"{'' if cantidad == 1 else 's'} del trabajo "
+            f"<code>{html.escape(solicitud.job_id)}</code> "
+            f"({html.escape(solicitud.source_id)}).</p>"
+            f"<p>Ingrese a la plataforma para informarse de la solicitud y "
+            f"aceptarla:</p>"
+            f"<p><a href=\"{html.escape(enlace)}\">{html.escape(enlace)}</a></p>"
+            f"<p>Al aceptarla, la solicitud quedará <strong>En proceso</strong>. "
+            f"Cuando termine, use «Cerrar solicitud», describa lo realizado y, "
+            f"si corresponde, adjunte la evidencia y la URL actualizada de cada "
+            f"evento que haya cambiado sus parámetros.</p>"
+            f"<p>{firma_html}</p>"
+        )
+    else:
+        cuerpo = "\n".join(
+            [
+                f"Hola {saludo},",
+                "",
+                (
+                    f"Le solicito revisar la solicitud de revisión "
+                    f"#{solicitud.id} del trabajo {solicitud.job_id} "
+                    f"({solicitud.source_id}). Incluye {cantidad} evento"
+                    f"{'' if cantidad == 1 else 's'}."
+                ),
+                "",
+                "Comentarios de la solicitud:",
+                nota,
+                "",
+                *([informe, ""] if informe else []),
+                "Quedo atento a sus comentarios. Muchas gracias.",
+                "",
+                *firma,
+            ]
+        )
+        firma_html = "<br>".join(html.escape(linea) for linea in firma)
+        nota_html = html.escape(nota).replace("\n", "<br>")
+        informe_html = (
+            f"<p>{html.escape(informe)}</p>" if informe else ""
+        )
+        cuerpo_html = (
+            f"<p>Hola {html.escape(saludo)},</p>"
+            f"<p>Le solicito revisar la solicitud de revisión "
+            f"<strong>#{solicitud.id}</strong> del trabajo "
+            f"<code>{html.escape(solicitud.job_id)}</code> "
+            f"({html.escape(solicitud.source_id)}). Incluye "
+            f"<strong>{cantidad}</strong> evento"
+            f"{'' if cantidad == 1 else 's'}.</p>"
+            f"<p>Comentarios de la solicitud:<br>{nota_html}</p>"
+            f"{informe_html}"
+            f"<p>Quedo atento a sus comentarios. Muchas gracias.</p>"
+            f"<p>{firma_html}</p>"
+        )
 
     mensaje = EmailMessage()
     mensaje["Subject"] = asunto
@@ -110,11 +195,35 @@ def construir_mensaje(
         formataddr((nombre, remitente)) if nombre else remitente
     )
     mensaje["To"] = destinatario
+    copias = _correos_copia(solicitud, destinatario)
+    if copias:
+        mensaje["Cc"] = ", ".join(copias)
     mensaje["Date"] = formatdate(localtime=True)
     dominio = remitente.split("@")[-1] if "@" in remitente else None
     mensaje["Message-ID"] = make_msgid(domain=dominio)
     mensaje.set_content(cuerpo)
     mensaje.add_alternative(cuerpo_html, subtype="html")
+
+    if solicitud.email_attach_report:
+        ruta = _ruta_informe(solicitud)
+        if ruta is None or not ruta.is_file():
+            raise FileNotFoundError(
+                "No se encontró el informe de la solicitud para adjuntar."
+            )
+        formato = (solicitud.report_format or ruta.suffix.lstrip(".")).lower()
+        subtipo = (
+            "pdf"
+            if formato == "pdf"
+            else "vnd.openxmlformats-officedocument.wordprocessingml.document"
+            if formato == "docx"
+            else "octet-stream"
+        )
+        mensaje.add_attachment(
+            ruta.read_bytes(),
+            maintype="application",
+            subtype=subtipo,
+            filename=solicitud.report_name or ruta.name,
+        )
     return mensaje
 
 
@@ -175,6 +284,21 @@ def enviar_solicitud(
         db.session.commit()
         return False
 
+    config = current_app.config
+    modo = _modo(config)
+    if modo == "correo" and not solicitud.email_attach_report:
+        solicitud.email_error = "Para notificar debe adjuntar el PDF."
+        db.session.commit()
+        return False
+    if solicitud.email_attach_report:
+        ruta_informe = _ruta_informe(solicitud)
+        if ruta_informe is None or not ruta_informe.is_file():
+            solicitud.email_error = (
+                "No se encontró el informe de la solicitud para adjuntar."
+            )
+            db.session.commit()
+            return False
+
     try:
         mensaje = construir_mensaje(solicitud, base_url)
     except Exception as exc:  # noqa: BLE001 - se informa en el detalle
@@ -185,7 +309,6 @@ def enviar_solicitud(
         log.exception("No se pudo preparar el correo %s", solicitud.id)
         return False
 
-    config = current_app.config
     if config.get("MAIL_SUPPRESS_SEND"):
         try:
             ruta = _guardar_eml(solicitud, mensaje)

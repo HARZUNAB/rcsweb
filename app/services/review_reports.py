@@ -333,6 +333,18 @@ def ejecutar(report_id: str) -> dict:
                 "Los eventos ya están en revisión: " + detalle
             )
 
+        cc_estado = estado.get("cc") or []
+        if isinstance(cc_estado, str):
+            cc_estado = [cc_estado]
+        cc_efectivo = (
+            review.copias_unicas(
+                cc_estado,
+                excluir=_texto(getattr(assigned, "email", "")),
+            )
+            if notificar
+            else []
+        )
+        adjuntar_pdf = bool(estado.get("adjuntar_pdf")) and notificar
         solicitud = review.crear_solicitud(
             job_id=job_id,
             source_id=fuente,
@@ -346,6 +358,8 @@ def ejecutar(report_id: str) -> dict:
             report_format=extension,
             kind=kind,
             notificar=notificar,
+            email_cc=", ".join(cc_efectivo),
+            email_attach_report=adjuntar_pdf,
         )
         db.session.commit()
         actualizar_estado(
@@ -368,6 +382,8 @@ def ejecutar(report_id: str) -> dict:
                 "formato": extension,
                 "asignado": assigned_to_id,
                 "notificar": notificar,
+                "cc": cc_efectivo,
+                "adjunto": adjuntar_pdf,
             },
             user_id=estado.get("user_id"),
         )
@@ -389,6 +405,8 @@ def ejecutar(report_id: str) -> dict:
                 "ok": enviado,
                 "omitido": not notificar,
                 "destinatario": solicitud.email_to or "",
+                "cc": solicitud.email_cc or "",
+                "adjunto": bool(solicitud.email_attach_report),
                 "error": solicitud.email_error or "",
             },
             user_id=estado.get("user_id"),

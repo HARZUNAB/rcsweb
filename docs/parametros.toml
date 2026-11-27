@@ -537,6 +537,17 @@ descripcion = "Preselecciona la notificación por correo (1 = sí)."
 seccion = "D.1"
 
 [[parametros]]
+nombre = "RCS_NOTIFICACION_MODO"
+tipo = "entorno"
+modulo = "app/config.py"
+simbolo = "RCS_NOTIFICACION_MODO"
+defecto = "correo"
+ambito = "despliegue"
+grupo = "Informes y correo"
+descripcion = "Modo del aviso: correo (sin enlace) o plataforma (con enlace)."
+seccion = "D.1"
+
+[[parametros]]
 nombre = "RCS_PUBLIC_URL"
 tipo = "entorno"
 modulo = "app/config.py"

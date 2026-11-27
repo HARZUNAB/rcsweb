@@ -149,6 +149,8 @@
           Las solicitudes se crean igual; la elección solo cambia el envío de
           los correos.
         </div>
+        {% set prefijo = 'bandeja' %}
+        {% include "panels/_notificacion_envio.html" %}
       </fieldset>
       <div class="row g-3 align-items-end mt-1">
         <div class="col-12 col-lg-3">
@@ -180,4 +182,8 @@
   </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/notificacion_envio.js') }}"></script>
 {% endblock %}

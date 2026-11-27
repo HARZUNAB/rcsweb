@@ -616,6 +616,10 @@ class ReviewRequest(db.Model):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closing_note: Mapped[str | None] = mapped_column(Text)
     email_to: Mapped[str | None] = mapped_column(String(255))
+    email_cc: Mapped[str | None] = mapped_column(Text)
+    email_attach_report: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
     email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     email_skipped: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False

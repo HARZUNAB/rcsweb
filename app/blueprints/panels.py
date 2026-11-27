@@ -467,6 +467,60 @@ def _supervisores_activos() -> list[User]:
     ]
 
 
+def _leer_notificacion(form, notificar: bool):
+    """Copias y adjunto elegidos para el correo."""
+    if not notificar:
+        return [], False, None
+    modo = str(
+        current_app.config.get("RCS_NOTIFICACION_MODO", "correo")
+    ).strip().lower()
+    adjuntar = str(form.get("adjuntar_pdf") or "").strip().lower() in {
+        "1",
+        "true",
+        "on",
+        "si",
+        "sí",
+    }
+    if modo == "correo" and not adjuntar:
+        return [], adjuntar, "Para notificar debe adjuntar el PDF."
+
+    disponibles = review.supervisores_con_correo()
+    requeridas = min(2, len(disponibles))
+    elegidos = []
+    vistos = set()
+    for clave in ("cc_1", "cc_2"):
+        valor = str(form.get(clave) or "").strip()
+        if not valor:
+            continue
+        try:
+            usuario = db.session.get(User, int(valor))
+        except (TypeError, ValueError):
+            usuario = None
+        if (
+            usuario is None
+            or not usuario.active
+            or not str(usuario.email or "").strip()
+            or not tiene_rol(usuario, "supervisor")
+        ):
+            return [], adjuntar, "Seleccione direcciones de copia válidas."
+        if usuario.id in vistos:
+            return [], adjuntar, "Las direcciones de copia deben ser distintas."
+        vistos.add(usuario.id)
+        elegidos.append(usuario)
+    if len(elegidos) < requeridas:
+        mensaje = (
+            "Seleccione dos direcciones de copia."
+            if requeridas >= 2
+            else "Seleccione una dirección de copia."
+        )
+        return [], adjuntar, mensaje
+    return (
+        [str(usuario.email).strip() for usuario in elegidos],
+        adjuntar,
+        None,
+    )
+
+
 def _contexto_publicacion(job: Job, fila: int):
     workspace = ruta_workspace(job.id)
     referencia = fuentes_manifest.referencia()
@@ -498,6 +552,7 @@ def _contexto_publicacion(job: Job, fila: int):
         "candidato": candidato,
         "sugerido": sugerido,
         "supervisores": _supervisores_activos(),
+        "supervisores_copia": review.supervisores_con_correo(),
     }
 
 
@@ -532,6 +587,7 @@ def revision_publicacion(job_id: str, fila: int):
                 candidato=candidato,
                 sugerido=contexto["sugerido"],
                 supervisores=contexto["supervisores"],
+                supervisores_copia=contexto["supervisores_copia"],
                 volver=volver,
                 dataset=request.values.get("dataset", ""),
                 grupo_panel=request.values.get("grupo", ""),
@@ -579,6 +635,12 @@ def revision_publicacion(job_id: str, fila: int):
         request.form.get("notificar"),
         current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
     )
+    copias, adjuntar_pdf, error_notificacion = _leer_notificacion(
+        request.form, notificar
+    )
+    if error_notificacion:
+        flash(error_notificacion, "danger")
+        return _render(400)
     cruce = {
         "candidato": candidato,
         "diferencias": (grupo or {}).get("diferencias") or {},
@@ -638,6 +700,8 @@ def revision_publicacion(job_id: str, fila: int):
         "kind": "publicacion",
         "notified_at": utcnow().isoformat(),
         "notificar": notificar,
+        "cc": copias,
+        "adjuntar_pdf": adjuntar_pdf,
         "base_url": request.host_url.rstrip("/"),
         "filas": [fila_informe],
         "estado": "en_cola",
@@ -737,6 +801,7 @@ def revision_local(job_id: str):
                 grupo=grupo,
                 candidato=(grupo or {}).get("candidato"),
                 sugerido=sugerido,
+                supervisores_copia=review.supervisores_con_correo(),
                 volver=volver,
                 dataset=request.values.get("dataset", ""),
                 grupo_panel=request.values.get("grupo", ""),
@@ -768,6 +833,12 @@ def revision_local(job_id: str):
         request.form.get("notificar"),
         current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
     )
+    copias, adjuntar_pdf, error_notificacion = _leer_notificacion(
+        request.form, notificar
+    )
+    if error_notificacion:
+        flash(error_notificacion, "danger")
+        return _render(400)
     if indice:
         fila_informe = dict(indice)
     else:
@@ -832,6 +903,8 @@ def revision_local(job_id: str):
         "kind": "solucion",
         "notified_at": utcnow().isoformat(),
         "notificar": notificar,
+        "cc": copias,
+        "adjuntar_pdf": adjuntar_pdf,
         "base_url": request.host_url.rstrip("/"),
         "filas": [fila_informe],
         "estado": "en_cola",
@@ -922,6 +995,7 @@ def bandeja(job_id: str):
         items=items,
         grupos=grupos,
         usuarios=usuarios,
+        supervisores_copia=review.supervisores_con_correo(),
         pendientes=sum(
             1 for item in items if item.get("estado") != "enviando"
         ),
@@ -989,6 +1063,12 @@ def bandeja_enviar(job_id: str):
         request.form.get("notificar"),
         current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
     )
+    copias, adjuntar_pdf, error_notificacion = _leer_notificacion(
+        request.form, notificar
+    )
+    if error_notificacion:
+        flash(error_notificacion, "danger")
+        return redirect(_url_bandeja(job, volver, volver_etiqueta))
     maximo = int(
         current_app.config.get("RCS_INFORME_MAX_EVENTOS", 50) or 50
     )
@@ -1054,6 +1134,8 @@ def bandeja_enviar(job_id: str):
             "bandeja": True,
             "notified_at": utcnow().isoformat(),
             "notificar": notificar,
+            "cc": copias,
+            "adjuntar_pdf": adjuntar_pdf,
             "base_url": request.host_url.rstrip("/"),
             "filas": filas,
             "estado": "en_cola",
