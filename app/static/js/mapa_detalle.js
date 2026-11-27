@@ -1214,15 +1214,11 @@
       return { x: x, y: y };
     }
 
-    // El frente de la planta es un radio epicentral. En el perfil el círculo
-    // está centrado en el hipocentro, así que su radio debe ser la distancia
-    // hipocentral equivalente para que la intersección con la superficie
-    // coincida con el radio epicentral de la planta.
-    function radioHipocentralPerfil(radioEpicentral, centroY) {
-      return Math.hypot(
-        Math.max(0, Number(radioEpicentral) || 0),
-        Math.abs(Number(centroY) || 0)
-      );
+    // La planta y el perfil comparten el mismo radio de avance para que la
+    // reproducción parta en 0 y se mantenga sincronizada. No se suma la
+    // profundidad: hacerlo arrancaba el perfil con un frente ya avanzado.
+    function radioFrentePerfil(radioEpicentral) {
+      return Math.max(0, Number(radioEpicentral) || 0);
     }
 
     function eventoPerfilReferencia() {
@@ -1564,26 +1560,19 @@
       const frenteS = frentes.s || {};
       const radioP = Math.max(0, Number(frenteP.radio_km) || 0);
       const radioS = Math.max(0, Number(frenteS.radio_km) || 0);
-      const profundidad = Math.abs(Number(centroY) || 0);
       const factores = [1, 0.97, 0.94, 0.91];
       const circulosP = factores.map(function (factor) {
         return circuloPerfil(
           centroX,
           centroY,
-          Math.max(
-            0.01,
-            radioHipocentralPerfil(radioP * factor, profundidad)
-          )
+          Math.max(0.01, radioFrentePerfil(radioP * factor))
         );
       });
       const circulosS = factores.map(function (factor) {
         return circuloPerfil(
           centroX,
           centroY,
-          Math.max(
-            0.01,
-            radioHipocentralPerfil(radioS * factor, profundidad)
-          )
+          Math.max(0.01, radioFrentePerfil(radioS * factor))
         );
       });
       const opacidadesBase = [0.85, 0.3, 0.24, 0.18];
@@ -1802,7 +1791,6 @@
       const frenteS = frentes.s || {};
       const radioP = Math.max(0, Number(frenteP.radio_km) || 0);
       const radioS = Math.max(0, Number(frenteS.radio_km) || 0);
-      const profundidad = Math.abs(Number(centroY) || 0);
       if (perfilPropagacionLista) {
         actualizarPropagacionPerfil(
           datosPropagacion,
@@ -1829,10 +1817,7 @@
         const circulo = circuloPerfil(
           centroX,
           centroY,
-          Math.max(
-            0.01,
-            radioHipocentralPerfil(radioP * factor, profundidad)
-          )
+          Math.max(0.01, radioFrentePerfil(radioP * factor))
         );
         trazas.push({
           type: "scatter",
@@ -1857,10 +1842,7 @@
         const circulo = circuloPerfil(
           centroX,
           centroY,
-          Math.max(
-            0.01,
-            radioHipocentralPerfil(radioS * factor, profundidad)
-          )
+          Math.max(0.01, radioFrentePerfil(radioS * factor))
         );
         trazas.push({
           type: "scatter",
