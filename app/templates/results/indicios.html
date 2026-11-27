@@ -602,7 +602,9 @@
               <span class="badge text-bg-light text-dark">Sin evaluar</span>
               {% endif %}
             </td>
-            <td class="text-nowrap" data-sort-value="{% if fila.sospechoso == 'Sí' %}2{% elif fila.sospechoso == 'No' %}1{% else %}0{% endif %}">
+            <td class="text-nowrap"
+                data-sort-value="{% if fila.sospechoso == 'Sí' %}2{% elif fila.sospechoso == 'No' %}1{% else %}0{% endif %}"
+                {% if fila.sospechoso_residuo_km %}title="Diferencia vertical con el slab de subducción: slab {{ "%.1f"|format(fila.sospechoso_residuo_km|float) }} km. No es un residual de tiempos de fase."{% endif %}>
               {% if fila.solo_picks %}
               <span class="badge text-bg-light text-dark"
                     title="Evento agregado por cobertura de picks. No se evaluó la solución.">
@@ -614,12 +616,6 @@
               <span class="badge text-bg-success">Normal</span>
               {% else %}
               <span class="badge text-bg-light text-dark">No evaluable</span>
-              {% endif %}
-              {% if fila.sospechoso_residuo_km %}
-              <span class="small text-secondary ms-1"
-                    title="Diferencia vertical entre la profundidad del evento y el slab de subducción. No es un residual de tiempos de fase.">
-                · slab {{ "%.1f"|format(fila.sospechoso_residuo_km|float) }} km
-              </span>
               {% endif %}
             </td>
             <td class="text-nowrap" data-sort-value="{{ fila.prioridad_orden }}">
@@ -633,32 +629,34 @@
               <span class="badge text-bg-light text-dark">{{ fila.prioridad }}</span>
               {% endif %}
               {% if fila.motivo_prioridad %}
-              <div class="small text-secondary"
-                   {% if fila.solo_picks %}title="El evento entró a la revisión solo por estaciones cercanas sin aportar; no se evaluaron cruce ni solución."{% endif %}>
-                {{ fila.motivo_prioridad }}
-              </div>
+              <span class="small text-secondary ms-1"
+                    title="{{ fila.motivo_prioridad }}{% if fila.solo_picks %} · El evento entró a la revisión solo por estaciones cercanas sin aportar; no se evaluaron cruce ni solución.{% endif %}">
+                {{ fila.motivo_prioridad|replace('Localización', 'Loc.') }}
+              </span>
               {% endif %}
             </td>
             <td class="text-end text-nowrap col-secundaria" data-sort-value="{{ fila.n_disponibles or '' }}">{{ fila.n_disponibles if fila.n_disponibles not in (none, '') else '—' }}</td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.n_usadas }}">{{ fila.n_usadas if fila.n_usadas not in (none, '') else '—' }}</td>
             <td class="text-end text-nowrap" data-sort-value="{{ fila.picks_total or 0 }}">
               {% if fila.picks_total %}
-              <span class="badge {% if fila.picks_prioridad == 'Alta' %}text-bg-danger{% elif fila.picks_prioridad == 'Media' %}text-bg-warning text-dark{% else %}text-bg-secondary{% endif %}"
-                    title="{{ fila.picks_estaciones }}">
-                {{ fila.picks_sin_picar }} + {{ fila.picks_no_usadas }}
-              </span>
-              {% if fila.picks_min_distancia %}
-              <div class="small text-secondary">{{ fila.picks_min_distancia }} km</div>
-              {% endif %}
-              {% if fila.picks_fases_no_usadas %}
-              <div class="small text-secondary"
-                   title="Fases no usadas de estaciones que sí aportaron; no suman al indicador.">
-                {{ fila.picks_fases_no_usadas }} fase{{ '' if fila.picks_fases_no_usadas == 1 else 's' }} aparte
+              <div class="text-nowrap">
+                <span class="badge {% if fila.picks_prioridad == 'Alta' %}text-bg-danger{% elif fila.picks_prioridad == 'Media' %}text-bg-warning text-dark{% else %}text-bg-secondary{% endif %}"
+                      title="{{ fila.picks_estaciones }}">
+                  {{ fila.picks_sin_picar }} + {{ fila.picks_no_usadas }}
+                </span>
+                {% if fila.picks_min_distancia %}
+                <span class="small text-secondary ms-1">{{ fila.picks_min_distancia }} km</span>
+                {% endif %}
+                {% if fila.picks_fases_no_usadas %}
+                <span class="small text-secondary ms-1"
+                      title="Fases no usadas de estaciones que sí aportaron; no suman al indicador.">
+                  +{{ fila.picks_fases_no_usadas }} fase
+                </span>
+                {% endif %}
               </div>
-              {% endif %}
-              {% if fila.picks_senal_estado == 'pendiente' %}
-              <div class="small text-secondary">
-                señal pendiente
+              <div class="small">
+                {% if fila.picks_senal_estado == 'pendiente' %}
+                <span class="text-secondary">señal pendiente</span>
                 {% if alcance == 'picks' and puede_analizar_senal %}
                 <form class="senal-picks-form d-inline m-0" method="post"
                       action="{{ url_for('results.analizar_senal_picks', job_id=job.id) }}">
@@ -670,45 +668,47 @@
                   </button>
                 </form>
                 {% endif %}
-              </div>
-              {% elif fila.picks_senal_estado == 'analizado' %}
-                {% if fila.picks_senal_n %}
-                <div class="small text-success">{{ fila.picks_senal_n }} con señal</div>
-                {% else %}
-                <div class="small text-secondary">sin señal clara</div>
+                {% elif fila.picks_senal_estado == 'analizado' %}
+                  {% if fila.picks_senal_n %}
+                  <span class="text-success">{{ fila.picks_senal_n }} con señal</span>
+                  {% else %}
+                  <span class="text-secondary">sin señal clara</span>
+                  {% endif %}
+                {% elif fila.picks_senal_estado == 'sin_datos' %}
+                <span class="text-secondary">sin datos</span>
+                {% elif fila.picks_senal_estado == 'sin_candidatas' %}
+                <span class="text-secondary">sin candidatas</span>
                 {% endif %}
-              {% elif fila.picks_senal_estado == 'sin_datos' %}
-              <div class="small text-secondary">sin datos</div>
-              {% elif fila.picks_senal_estado == 'sin_candidatas' %}
-              <div class="small text-secondary">sin candidatas</div>
-              {% endif %}
-              {% if alcance == 'picks' and puede_analizar_senal and fila.picks_senal_estado in ('analizado', 'sin_datos') %}
-              <form class="senal-picks-form d-inline m-0" method="post"
-                    action="{{ url_for('results.analizar_senal_picks', job_id=job.id) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="fuente" value="{{ fuente }}">
-                <input type="hidden" name="eventos" value="{{ fila.evento }}">
-                <input type="hidden" name="forzar" value="1">
-                <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">
-                  Reanalizar
-                </button>
-              </form>
-              {% endif %}
+                {% if alcance == 'picks' and puede_analizar_senal and fila.picks_senal_estado in ('analizado', 'sin_datos') %}
+                <form class="senal-picks-form d-inline m-0" method="post"
+                      action="{{ url_for('results.analizar_senal_picks', job_id=job.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="fuente" value="{{ fuente }}">
+                  <input type="hidden" name="eventos" value="{{ fila.evento }}">
+                  <input type="hidden" name="forzar" value="1">
+                  <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">
+                    Reanalizar
+                  </button>
+                </form>
+                {% endif %}
+              </div>
               {% else %}
               —
               {% endif %}
             </td>
             <td class="text-end text-nowrap col-secundaria" data-sort-value="{{ fila.max_residual_usado or '' }}">{{ fila.max_residual_usado or '—' }}</td>
             <td class="col-secundaria" data-sort-value="{{ fila.patron }}">
-              <span class="badge text-bg-light text-dark"
-                    title="{{ fila.patron|patron_descripcion }}">{{ fila.patron|patron_corto }}</span>
-              {% if fila.fuerza == 'débil' %}
-              <span class="badge text-bg-secondary">indicio débil</span>
-              {% endif %}
-              {% if fila.extremo == 'Sí' %}
-              <span class="badge text-bg-danger"
-                    title="Residual extremo: supera 60 s o 10 veces la mediana del evento.">extremo</span>
-              {% endif %}
+              <span class="celda-recortada"
+                    title="{{ fila.patron|patron_descripcion }}{% if fila.fuerza == 'débil' %} · Indicio débil{% endif %}{% if fila.extremo == 'Sí' %} · Residual extremo: supera 60 s o 10 veces la mediana del evento{% endif %}">
+                <span class="badge text-bg-light text-dark">{{ fila.patron|patron_corto }}</span>
+                {% if fila.fuerza == 'débil' %}
+                <span class="badge text-bg-secondary">indicio débil</span>
+                {% endif %}
+                {% if fila.extremo == 'Sí' %}
+                <span class="badge text-bg-danger"
+                      title="Residual extremo: supera 60 s o 10 veces la mediana del evento.">extremo</span>
+                {% endif %}
+              </span>
             </td>
             <td class="text-nowrap col-secundaria" data-sort-value="{% if fila.contexto == 'fuerte' %}1{% else %}0{% endif %}">
               {% if fila.contexto %}
@@ -781,9 +781,13 @@
             {% endif %}
             <td class="small" data-sort-value="{% if fila.motivo == 'sospechosa' or fila.tipos_indicio == 'solución_sospechosa' %}sin inconsistencia de fases{% else %}{{ fila.tipos_indicio }}{% endif %}">
               {% if fila.motivo == 'sospechosa' or fila.tipos_indicio == 'solución_sospechosa' %}
-              <span class="text-secondary">Sin inconsistencia de fases</span>
+              <span class="celda-recortada text-secondary"
+                    title="Sin inconsistencia de fases">—</span>
               {% elif fila.tipos_indicio %}
-              {{ fila.tipos_indicio|tipos_indicio_texto }}
+              <span class="celda-recortada"
+                    title="{{ fila.tipos_indicio|tipos_indicio_texto }}">
+                {{ fila.tipos_indicio|tipos_indicio_texto }}
+              </span>
               {% else %}
               <span class="text-secondary">—</span>
               {% endif %}

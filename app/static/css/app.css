@@ -92,8 +92,37 @@ footer {
 }
 
 /* Listado de revisión: celdas compactas y alturas estables. */
+.tabla-revision th,
 .tabla-revision td {
-  line-height: 1.25;
+  padding: 0.18rem 0.3rem;
+}
+
+.tabla-revision td {
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+
+.tabla-revision .badge {
+  font-size: 0.68rem;
+  padding: 0.2em 0.4em;
+}
+
+.tabla-revision .small {
+  font-size: 0.68rem;
+}
+
+.tabla-revision .btn-miniaturas {
+  display: inline;
+  margin-left: 0.2rem;
+  font-size: 0.65rem;
+}
+
+.tabla-revision .celda-recortada {
+  display: block;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Solo la casilla de selección queda fija al desplazar en horizontal. */
