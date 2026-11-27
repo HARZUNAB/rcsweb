@@ -2600,7 +2600,8 @@
       );
     }
 
-    window.RCSMapaDetalle = {
+    const apiMapa = window.RCSMapaDetalle || {};
+    Object.assign(apiMapa, {
       tipo: "plotly",
       mostrarEstaciones: function (puntos) {
         if (!window.Plotly || !puntos || !puntos.length) {
@@ -3013,7 +3014,8 @@
           window.Plotly.deleteTraces(contenedor, indices);
         }
       },
-    };
+    });
+    window.RCSMapaDetalle = apiMapa;
     if (estacionesIniciales.length) {
       window.RCSMapaDetalle.mostrarEstaciones(estacionesIniciales);
     }
@@ -3192,7 +3194,8 @@
       polygon.setAttribute("stroke-width", String(grosor));
     }
 
-    window.RCSMapaDetalle = {
+    const apiMapa = window.RCSMapaDetalle || {};
+    Object.assign(apiMapa, {
       tipo: "leaflet",
       mostrarEstaciones: function (puntos) {
         if (capaEstaciones) {
@@ -3443,7 +3446,8 @@
         circulosFrenteP = [];
         circulosFrenteS = [];
       },
-    };
+    });
+    window.RCSMapaDetalle = apiMapa;
     if (estacionesIniciales.length) {
       window.RCSMapaDetalle.mostrarEstaciones(estacionesIniciales);
     }
