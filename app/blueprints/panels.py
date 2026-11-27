@@ -484,8 +484,23 @@ def _leer_notificacion(form, notificar: bool):
     if modo == "correo" and not adjuntar:
         return [], adjuntar, "Para notificar debe adjuntar el PDF."
 
+    obligatorias = bool(
+        current_app.config.get(
+            "RCS_NOTIFICACION_COPIAS_OBLIGATORIAS", False
+        )
+    )
+    agregar = str(form.get("agregar_copias") or "").strip().lower() in {
+        "1",
+        "true",
+        "on",
+        "si",
+        "sí",
+    }
+    if not agregar and not obligatorias:
+        return [], adjuntar, None
+
     disponibles = review.supervisores_con_correo()
-    requeridas = min(2, len(disponibles))
+    requeridas = min(2, len(disponibles)) if obligatorias else 0
     elegidos = []
     vistos = set()
     for clave in ("cc_1", "cc_2"):

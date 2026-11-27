@@ -95,6 +95,9 @@ class Config:
         os.environ.get("RCS_NOTIFICACION_MODO", "correo").strip().lower()
         or "correo"
     )
+    RCS_NOTIFICACION_COPIAS_OBLIGATORIAS = _bool(
+        "RCS_NOTIFICACION_COPIAS_OBLIGATORIAS", False
+    )
     RCS_PUBLIC_URL = os.environ.get("RCS_PUBLIC_URL", "").strip()
 
     # Correo saliente para notificar solicitudes de revisión

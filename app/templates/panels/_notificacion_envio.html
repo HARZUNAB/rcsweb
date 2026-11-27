@@ -1,9 +1,23 @@
 {% set pref = prefijo|default('notificacion') %}
+{% set copias_obligatorias = config.RCS_NOTIFICACION_COPIAS_OBLIGATORIAS %}
+{% set agregar_marcado = copias_obligatorias or request.form.get('agregar_copias') %}
 <div class="mt-3"
      data-notificacion-envio
-     data-modo="{{ config.RCS_NOTIFICACION_MODO|lower }}">
+     data-modo="{{ config.RCS_NOTIFICACION_MODO|lower }}"
+     data-copias-obligatorias="{{ '1' if copias_obligatorias else '0' }}">
   {% if supervisores_copia %}
-  <div class="row g-2">
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox"
+           name="agregar_copias" value="1"
+           id="{{ pref }}-agregar-copias"
+           data-toggle-copias
+           {% if agregar_marcado %}checked{% endif %}>
+    <label class="form-check-label" for="{{ pref }}-agregar-copias">
+      Agregar destinatarios en copia
+    </label>
+  </div>
+  <div class="row g-2 mt-1{% if not agregar_marcado %} d-none{% endif %}"
+       data-cc-campos>
     <div class="col-12 col-lg-6">
       <label class="form-label small" for="{{ pref }}-cc-1">Copia 1</label>
       <select class="form-select form-select-sm"
@@ -28,13 +42,15 @@
         {% endfor %}
       </select>
     </div>
-  </div>
-  <div class="form-text" data-cc-resumen>
-    No hay copias seleccionadas.
-  </div>
-  <div class="form-text">
-    Si una copia coincide con el analista asignado, no se repite como
-    destinatario.
+    <div class="col-12">
+      <div class="form-text" data-cc-resumen>
+        El correo irá solo al analista asignado.
+      </div>
+      <div class="form-text">
+        Si una copia coincide con el analista asignado, no se repite como
+        destinatario.
+      </div>
+    </div>
   </div>
   {% else %}
   <div class="alert alert-warning small py-2 mb-2" role="status">

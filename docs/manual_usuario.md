@@ -1152,10 +1152,12 @@ eliminar solicitudes.
 Al crear la solicitud se envía un correo al analista asignado, si tiene un
 correo configurado en **Usuarios**. En el modo actual el correo solicita la
 revisión, incluye los comentarios escritos al enviar y remite al informe
-adjunto; no pide entrar a la plataforma. Quien envía la solicitud puede elegir
-dos direcciones de copia entre los usuarios con correo y marcar **Adjuntar
-informe**. Sin ese adjunto no se envía la notificación. Si el analista
-asignado coincide con una copia, no se repite como destinatario. El detalle
+adjunto; no pide entrar a la plataforma. Quien envía la solicitud puede marcar
+**Agregar destinatarios en copia** y elegir hasta dos direcciones entre los
+usuarios con correo. Las copias son optativas; sin ellas el correo va solo al
+analista asignado. También debe marcar **Adjuntar informe**; sin ese adjunto
+no se envía la notificación. Si el analista asignado coincide con una copia,
+no se repite como destinatario. El detalle
 muestra el destinatario, las copias, si se adjuntó el informe y, si falló, el
 motivo.
 

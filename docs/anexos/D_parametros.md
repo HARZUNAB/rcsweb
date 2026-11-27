@@ -18,7 +18,7 @@ La columna **Módulo** muestra el archivo y la línea actual donde se define el 
 
 > Las páginas se resuelven al actualizar el índice en el DOCX. En Markdown no existe paginación.
 
-Resumen: 66 variables de entorno, 96 constantes y 17 parámetros de scripts.
+Resumen: 67 variables de entorno, 96 constantes y 17 parámetros de scripts.
 
 ### D.1 Variables de entorno
 
@@ -85,8 +85,8 @@ Se leen al arrancar la aplicación o el servicio. Cambiarlas requiere reiniciar 
 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
 |---|---|---|---|---|
-| `CELERY_BROKER_URL` | `app/config.py:119` | `redis://redis:6379/0` | despliegue | Broker de Celery. |
-| `CELERY_RESULT_BACKEND` | `app/config.py:120` | `redis://redis:6379/1` | despliegue | Backend de resultados de Celery. |
+| `CELERY_BROKER_URL` | `app/config.py:122` | `redis://redis:6379/0` | despliegue | Broker de Celery. |
+| `CELERY_RESULT_BACKEND` | `app/config.py:123` | `redis://redis:6379/1` | despliegue | Backend de resultados de Celery. |
 | `PIPELINE_STEP_TIMEOUT` | `app/services/pipeline.py:56` | `1800` | despliegue | Timeout por paso del pipeline, en segundos. |
 | `RCS_ENRIQUECER_RESIDUALES` | `app/services/pipeline.py:452` | `1` | despliegue | Enriquece residuales con fuentes locales (1 = sí). |
 
@@ -94,42 +94,43 @@ Se leen al arrancar la aplicación o el servicio. Cambiarlas requiere reiniciar 
 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
 |---|---|---|---|---|
-| `RCS_PICKS_CERCA_KM` | `app/config.py:143` | `100` | regla | Distancia para prioridad alta de una estación cercana. |
-| `RCS_PICKS_MAX_CANDIDATAS` | `app/config.py:146` | `60` | regla | Máximo de estaciones candidatas por evento. |
-| `RCS_PICKS_RADIO_KM` | `app/config.py:140` | `250` | regla | Radio de búsqueda de estaciones cercanas, en kilómetros. |
+| `RCS_PICKS_CERCA_KM` | `app/config.py:146` | `100` | regla | Distancia para prioridad alta de una estación cercana. |
+| `RCS_PICKS_MAX_CANDIDATAS` | `app/config.py:149` | `60` | regla | Máximo de estaciones candidatas por evento. |
+| `RCS_PICKS_RADIO_KM` | `app/config.py:143` | `250` | regla | Radio de búsqueda de estaciones cercanas, en kilómetros. |
 
 **Disponibilidad de ondas**
 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
 |---|---|---|---|---|
 | `RCS_DISPONIBILIDAD_HOST` | `app/services/availability_service.py:241` | `0.0.0.0` | despliegue | Interfaz donde escucha el sidecar. |
-| `RCS_DISPONIBILIDAD_MAX_ESTACIONES` | `app/config.py:132` | `150` | despliegue | Máximo de estaciones por consulta. |
-| `RCS_DISPONIBILIDAD_MAX_STREAMS` | `app/config.py:135` | `5000` | despliegue | Máximo duro de streams por consulta. |
+| `RCS_DISPONIBILIDAD_MAX_ESTACIONES` | `app/config.py:135` | `150` | despliegue | Máximo de estaciones por consulta. |
+| `RCS_DISPONIBILIDAD_MAX_STREAMS` | `app/config.py:138` | `5000` | despliegue | Máximo duro de streams por consulta. |
 | `RCS_DISPONIBILIDAD_PORT` | `app/services/availability_service.py:242` | `8010` | despliegue | Puerto del sidecar. |
-| `RCS_DISPONIBILIDAD_TIMEOUT` | `app/config.py:129` | `240` | despliegue | Timeout de la consulta de disponibilidad, en segundos. |
-| `RCS_DISPONIBILIDAD_TOKEN` | `app/config.py:126` | `—` | despliegue | Token compartido con el sidecar. |
-| `RCS_DISPONIBILIDAD_URL` | `app/config.py:123` | `—` | despliegue | URL del sidecar de disponibilidad. |
+| `RCS_DISPONIBILIDAD_TIMEOUT` | `app/config.py:132` | `240` | despliegue | Timeout de la consulta de disponibilidad, en segundos. |
+| `RCS_DISPONIBILIDAD_TOKEN` | `app/config.py:129` | `—` | despliegue | Token compartido con el sidecar. |
+| `RCS_DISPONIBILIDAD_URL` | `app/config.py:126` | `—` | despliegue | URL del sidecar de disponibilidad. |
 
 **Informes y correo**
 
 | Variable | Módulo | Defecto | Ámbito | Efecto |
 |---|---|---|---|---|
-| `MAIL_DEFAULT_SENDER` | `app/config.py:107` | `rcsweb@localhost` | despliegue | Remitente por defecto. |
-| `MAIL_FROM_NAME` | `app/config.py:110` | `RCS Web` | despliegue | Nombre visible del remitente. |
-| `MAIL_PASSWORD` | `app/config.py:106` | `—` | despliegue | Clave SMTP. |
-| `MAIL_PORT` | `app/config.py:102` | `25` | despliegue | Puerto SMTP. |
-| `MAIL_SERVER` | `app/config.py:101` | `—` | despliegue | Servidor SMTP. |
-| `MAIL_SIGNATURE` | `app/config.py:111` | `RCS Web\|Centro Sismológico Nacional\|Universidad de Chile` | despliegue | Firma al pie de los correos. |
-| `MAIL_SUPPRESS_SEND` | `app/config.py:116` | `0` | despliegue | No envía correos; solo los registra (1 = sí). |
-| `MAIL_TIMEOUT` | `app/config.py:115` | `10` | despliegue | Timeout SMTP, en segundos. |
-| `MAIL_USERNAME` | `app/config.py:105` | `—` | despliegue | Usuario SMTP. |
-| `MAIL_USE_SSL` | `app/config.py:103` | `0` | despliegue | Usa SSL para el correo (1 = sí). |
-| `MAIL_USE_TLS` | `app/config.py:104` | `0` | despliegue | Usa TLS para el correo (1 = sí). |
+| `MAIL_DEFAULT_SENDER` | `app/config.py:110` | `rcsweb@localhost` | despliegue | Remitente por defecto. |
+| `MAIL_FROM_NAME` | `app/config.py:113` | `RCS Web` | despliegue | Nombre visible del remitente. |
+| `MAIL_PASSWORD` | `app/config.py:109` | `—` | despliegue | Clave SMTP. |
+| `MAIL_PORT` | `app/config.py:105` | `25` | despliegue | Puerto SMTP. |
+| `MAIL_SERVER` | `app/config.py:104` | `—` | despliegue | Servidor SMTP. |
+| `MAIL_SIGNATURE` | `app/config.py:114` | `RCS Web\|Centro Sismológico Nacional\|Universidad de Chile` | despliegue | Firma al pie de los correos. |
+| `MAIL_SUPPRESS_SEND` | `app/config.py:119` | `0` | despliegue | No envía correos; solo los registra (1 = sí). |
+| `MAIL_TIMEOUT` | `app/config.py:118` | `10` | despliegue | Timeout SMTP, en segundos. |
+| `MAIL_USERNAME` | `app/config.py:108` | `—` | despliegue | Usuario SMTP. |
+| `MAIL_USE_SSL` | `app/config.py:106` | `0` | despliegue | Usa SSL para el correo (1 = sí). |
+| `MAIL_USE_TLS` | `app/config.py:107` | `0` | despliegue | Usa TLS para el correo (1 = sí). |
 | `RCS_EVIDENCIA_MAX_MB` | `app/config.py:80` | `20` | despliegue | Tamaño máximo de la evidencia de cierre, en MB. |
 | `RCS_INFORME_MAX_EVENTOS` | `app/config.py:77` | `50` | despliegue | Máximo de eventos por solicitud de revisión. |
+| `RCS_NOTIFICACION_COPIAS_OBLIGATORIAS` | `app/config.py:98` | `0` | despliegue | Exige las copias disponibles al notificar (1 = sí). |
 | `RCS_NOTIFICACION_MODO` | `app/config.py:94` | `correo` | despliegue | Modo del aviso: correo (sin enlace) o plataforma (con enlace). |
 | `RCS_NOTIFICAR_REVISION_DEFAULT` | `app/config.py:89` | `0` | despliegue | Preselecciona la notificación por correo (1 = sí). |
-| `RCS_PUBLIC_URL` | `app/config.py:98` | `—` | despliegue | URL pública usada en los enlaces de los correos. |
+| `RCS_PUBLIC_URL` | `app/config.py:101` | `—` | despliegue | URL pública usada en los enlaces de los correos. |
 
 ### D.2 Constantes de módulos
 

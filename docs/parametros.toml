@@ -548,6 +548,17 @@ descripcion = "Modo del aviso: correo (sin enlace) o plataforma (con enlace)."
 seccion = "D.1"
 
 [[parametros]]
+nombre = "RCS_NOTIFICACION_COPIAS_OBLIGATORIAS"
+tipo = "entorno"
+modulo = "app/config.py"
+simbolo = "RCS_NOTIFICACION_COPIAS_OBLIGATORIAS"
+defecto = "0"
+ambito = "despliegue"
+grupo = "Informes y correo"
+descripcion = "Exige las copias disponibles al notificar (1 = sí)."
+seccion = "D.1"
+
+[[parametros]]
 nombre = "RCS_PUBLIC_URL"
 tipo = "entorno"
 modulo = "app/config.py"

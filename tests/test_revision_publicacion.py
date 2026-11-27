@@ -53,6 +53,7 @@ def test_leer_notificacion_valida_copias_y_adjunto(app):
     form = MultiDict(
         {
             "adjuntar_pdf": "1",
+            "agregar_copias": "1",
             "cc_1": str(primero.id),
             "cc_2": str(segundo.id),
         }
@@ -62,8 +63,12 @@ def test_leer_notificacion_valida_copias_y_adjunto(app):
     assert adjuntar is True
     assert copias == ["sup1@csn.uchile.cl", "sup2@csn.uchile.cl"]
 
+    sin_copias = MultiDict({"adjuntar_pdf": "1"})
+    assert _leer_notificacion(sin_copias, True) == ([], True, None)
+
     sin_adjunto = MultiDict(
         {
+            "agregar_copias": "1",
             "cc_1": str(primero.id),
             "cc_2": str(segundo.id),
         }
@@ -74,12 +79,17 @@ def test_leer_notificacion_valida_copias_y_adjunto(app):
     repetidas = MultiDict(
         {
             "adjuntar_pdf": "1",
+            "agregar_copias": "1",
             "cc_1": str(primero.id),
             "cc_2": str(primero.id),
         }
     )
     _copias, _adjuntar, error = _leer_notificacion(repetidas, True)
     assert "distintas" in error
+
+    app.config["RCS_NOTIFICACION_COPIAS_OBLIGATORIAS"] = True
+    _copias, _adjuntar, error = _leer_notificacion(sin_copias, True)
+    assert "direcciones de copia" in error
 
     assert _leer_notificacion(MultiDict(), False) == ([], False, None)
 

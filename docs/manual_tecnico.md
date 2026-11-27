@@ -64,6 +64,7 @@ core sísmico está incorporado en `core/` y sus datos grandes en `core_data/`.
 | `MAPS_MODE` | `auto`, `online` u `offline` | `auto` |
 | `RCS_NOTIFICAR_REVISION_DEFAULT` | Preselección del correo en solicitudes de revisión (`0` = No) | `0` |
 | `RCS_NOTIFICACION_MODO` | `correo` = aviso con informe adjunto; `plataforma` = enlace a la solicitud | `correo` |
+| `RCS_NOTIFICACION_COPIAS_OBLIGATORIAS` | Exige las copias disponibles al notificar (`0` = optativas) | `0` |
 | `ADMIN_USERNAME` | Administrador inicial | `admin` |
 | `ADMIN_PASSWORD` | Clave inicial del administrador | `admin` |
 
@@ -1833,9 +1834,12 @@ la solicitud y sus eventos igualmente, marca `email_skipped=True`, omite
 - `RCS_NOTIFICACION_MODO=plataforma` conserva el formato anterior con enlace a
   `/revisiones/<id>`. El enlace usa el `base_url` de la tarea o, si falta,
   `RCS_PUBLIC_URL`.
-- Las copias se eligen en los formularios entre usuarios activos con rol
+- Las copias son optativas por defecto. El formulario pregunta si se agregan
+  destinatarios en copia; al marcarlo se eligen usuarios activos con rol
   supervisor y correo. `email_cc` guarda la lista efectiva ya deduplicada
   contra el destinatario principal.
+- `RCS_NOTIFICACION_COPIAS_OBLIGATORIAS=0` permite notificar sin copias;
+  `1` vuelve a exigir las copias disponibles.
 - `email_attach_report` indica si el informe fue adjuntado. El archivo se lee
   desde `report_path` del workspace y se adjunta con su nombre real.
 
