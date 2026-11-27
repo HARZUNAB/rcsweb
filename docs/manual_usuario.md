@@ -943,18 +943,25 @@ Al eliminar un trabajo, los resultados de señal que solo estaban en el CSV se
 guardan en la base antes de borrar los archivos. Si no se pueden guardar, la
 eliminación no se completa y el trabajo se conserva.
 
-La columna **Fases P/S** muestra el resultado de Wadati por evento:
+La columna **Wadati** muestra el resultado por evento con un badge de color:
+
+- **Consistente:** verde.
+- **Preliminar:** azul.
+- **Dudoso:** amarillo.
+- **Vp/Vs inválido:** rojo, cuando el ajuste es dudoso y `Vp/Vs ≤ 1`.
+- **Insuficiente:** gris, cuando hay menos de 3 pares P/S.
+
+Debajo del badge se muestra la línea compacta:
 
 ```text
-Consistente | Preliminar | Dudoso | —
 N 5 · Vp/Vs 0.95
 ```
 
 El detalle completo, con `R²`, dispersión y estación más desviada, aparece en
 el tooltip y en el modal **Wadati** del detalle del evento. Es un dato
 **informativo**: describe la coherencia interna de los tiempos P y S y no
-cambia la prioridad, la revisión prioritaria ni los informes. Cuando hay menos
-de 3 estaciones con P y S, muestra **—**.
+cambia la prioridad, la revisión prioritaria ni los informes. La columna
+permanece visible en **Vista compacta**.
 
 Cada evento muestra también el **patrón** de las fases y la **cobertura**:
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import io
 import json
 import re
@@ -147,6 +148,48 @@ def _preparar(app, admin: User):
     return job
 
 
+def test_listado_marca_wadati_invalido(app, client, login):
+    admin = User.query.filter_by(username="tester").first()
+    job = _preparar(app, admin)
+    ruta = (
+        ruta_workspace(job.id)
+        / "resultados"
+        / "indicios"
+        / "indicios_seiscomp.csv"
+    )
+    with ruta.open(encoding="utf-8", newline="") as archivo:
+        lector = csv.DictReader(archivo)
+        campos = lector.fieldnames or []
+        filas = list(lector)
+    for fila in filas:
+        if fila.get("evento") == "seiscomp:000001":
+            fila.update(
+                {
+                    "wadati_n": "7",
+                    "wadati_vp_vs": "0.66",
+                    "wadati_r2": "0.00",
+                    "wadati_dispersion": "0.55",
+                    "wadati_calidad": "dudoso",
+                }
+            )
+    with ruta.open("w", encoding="utf-8", newline="") as archivo:
+        escritor = csv.DictWriter(archivo, fieldnames=campos)
+        escritor.writeheader()
+        escritor.writerows(filas)
+
+    login()
+    html = client.get(
+        f"/jobs/{job.id}/indicios",
+        query_string={"fuente": "seiscomp", "alcance": "todos"},
+    ).get_data(as_text=True)
+
+    assert re.search(
+        r'<span class="badge text-bg-danger"\s+title="Wadati: N 7',
+        html,
+    )
+    assert "Vp/Vs inválido" in html
+
+
 def test_lista_y_detalle_de_indicios(app, client, login):
     admin = User.query.filter_by(username="tester").first()
     job = _preparar(app, admin)
@@ -159,7 +202,8 @@ def test_lista_y_detalle_de_indicios(app, client, login):
     assert "Inconsistencias de fase" in html
     assert "Sin señal de fase" not in html
     assert "Cobertura" in html
-    assert "Fases P/S" in html
+    assert "Wadati" in html
+    assert "Calidad Wadati" in html
     assert "no cambia la prioridad" in html
     assert "csn_sc62026vdkls" in html
     assert "Revisión prioritaria" in html

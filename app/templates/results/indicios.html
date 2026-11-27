@@ -38,7 +38,8 @@
   "cobertura", "cobertura_fuerte", "cobertura_debil", "indicio_debil",
   "fase_fuerte", "residual", "residual_extremo",
   "senales_fase", "estaciones_disponibles", "estaciones_usadas",
-  "azimutal_gap", "picks_faltantes", "sin_picar", "picada_no_usada",
+  "azimutal_gap", "wadati", "vp_vs", "r2_wadati", "wadati_calidad",
+  "picks_faltantes", "sin_picar", "picada_no_usada",
   "senal_pendiente", "senal_clara", "sin_senal_clara",
   "cobertura_picks", "prioridad_picks", "radio_picks",
   "revision_notificada", "revision_en_proceso",
@@ -540,9 +541,8 @@
               Cobertura
             </th>
             <th data-sort-key="wadati" data-sort-type="order"
-                class="col-secundaria"
                 title="Relación Vp/Vs y coherencia de los tiempos P/S. Es informativo: no cambia la prioridad ni la revisión prioritaria.">
-              Fases P/S
+              Wadati
             </th>
             {% if puede_crear_revision %}
             <th data-sort-key="analista" data-sort-type="text"
@@ -720,18 +720,26 @@
               —
               {% endif %}
             </td>
-            <td class="text-nowrap col-secundaria" data-sort-value="{{ fila.wadati_orden }}">
-              {% if fila.wadati_calidad and fila.wadati_calidad != 'insuficiente' %}
-              <span class="small"
+            <td class="text-nowrap" data-sort-value="{{ fila.wadati_orden }}">
+              {% set wadati_calidad = (fila.wadati_calidad or '')|lower %}
+              {% set wadati_vp_vs = fila.wadati_vp_vs %}
+              {% set wadati_invalido = wadati_calidad == 'dudoso' and wadati_vp_vs not in (none, '') and (wadati_vp_vs|float(99)) <= 1 %}
+              {% if wadati_calidad and wadati_calidad != 'insuficiente' %}
+              <span class="badge {% if wadati_invalido %}text-bg-danger{% elif wadati_calidad == 'consistente' %}text-bg-success{% elif wadati_calidad == 'preliminar' %}text-bg-info text-dark{% else %}text-bg-warning text-dark{% endif %}"
                     title="Wadati: N {{ fila.wadati_n }} · Vp/Vs {{ fila.wadati_vp_vs }} · R² {{ fila.wadati_r2 }} · dispersión {{ fila.wadati_dispersion }} s">
-                {{ fila.wadati_calidad|capitalize }}
+                {% if wadati_invalido %}Vp/Vs inválido{% else %}{{ wadati_calidad|capitalize }}{% endif %}
               </span>
               <div class="small text-secondary">
                 N {{ fila.wadati_n }} · Vp/Vs {{ fila.wadati_vp_vs }}
               </div>
+              {% elif wadati_calidad == 'insuficiente' %}
+              <span class="badge text-bg-secondary"
+                    title="Wadati insuficiente: se necesitan al menos 3 estaciones con P y S.">
+                Insuficiente
+              </span>
               {% else %}
               <span class="text-secondary"
-                    title="Wadati insuficiente: se necesitan al menos 3 estaciones con P y S.">—</span>
+                    title="Wadati no disponible para este evento.">—</span>
               {% endif %}
             </td>
             {% if puede_crear_revision %}

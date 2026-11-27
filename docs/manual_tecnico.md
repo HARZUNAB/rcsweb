@@ -1617,9 +1617,11 @@ El esquema 7 agregó el resultado de Wadati por evento, calculado en
 `wadati_vp_vs`, `wadati_r2`, `wadati_dispersion` y `wadati_calidad`
 (`consistente`, `preliminar`, `dudoso`, `insuficiente`). Es un dato descriptivo:
 no interviene en `prioridad`, `revision_prioritaria`, el orden por defecto ni
-los informes. El listado muestra la calidad y `N`, y el detalle completo queda
-en el tooltip. La columna `wadati_orden` se calcula al leer el listado para
-permitir ordenar; no se guarda.
+los informes. El listado muestra la columna **Wadati** con un badge de color
+según `wadati_calidad`; si la calidad es `dudoso` y `wadati_vp_vs ≤ 1`, el badge
+es **Vp/Vs inválido** en rojo. Debajo se muestran `N` y `Vp/Vs`, y el detalle
+completo queda en el tooltip. La columna `wadati_orden` se calcula al leer el
+listado para permitir ordenar; no se guarda.
 
 El listado agrega, además, las soluciones con cruce Eventquery y solución
 sospechosa que no tienen anomalía de fases. Esas filas se construyen desde la

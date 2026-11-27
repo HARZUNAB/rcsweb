@@ -596,7 +596,9 @@ TERMINOS = {
         "texto": (
             "Consistente: 4 o más pares, R² ≥ 0,90, Vp/Vs entre 1,5 y 2,0 y "
             "dispersión ≤ 0,5 s. Preliminar: solo 3 pares. Dudoso: falla "
-            "algún criterio. Insuficiente: menos de 3 pares P/S."
+            "algún criterio. Insuficiente: menos de 3 pares P/S. Si el ajuste "
+            "dudoso produce Vp/Vs ≤ 1, el listado lo marca como "
+            "«Vp/Vs inválido»."
         ),
     },
 }
