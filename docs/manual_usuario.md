@@ -1109,13 +1109,16 @@ Administradores y supervisores ven todos. La revisión se solicita desde
    eventos se acumulan; se pueden sumar más desde Paneles. El máximo por
    solicitud se configura con `RCS_INFORME_MAX_EVENTOS` (50 por defecto).
 3. Abra **Ver bandeja**, revise los eventos y escriba una nota por evento.
-   Al pulsar **Enviar bandeja** se crea **una solicitud y un PDF por
+   Al pulsar **Generar borradores** se crea **un borrador con PDF por
    responsable**, con todos sus eventos. La nota de cada evento se incluye
-   solo en la solicitud que contiene ese evento, identificada con su ID. La app
-   también pregunta si desea enviar el correo de notificación. Por ahora
-   **No** aparece seleccionado por defecto: la solicitud y el PDF se crean
-   igual, pero el correo se omite.
-4. La app genera un informe A4 horizontal con un bloque por evento:
+   solo en la solicitud que contiene ese evento, identificada con su ID. El
+   correo, las copias y el adjunto se eligen después, al enviar cada borrador.
+4. Abra cada borrador en **Revisiones**, revise el PDF y marque
+   **He revisado el PDF**. Elija si desea notificar por correo, las copias y
+   el adjunto, y pulse **Enviar solicitud**. La app pide confirmación y avisa
+   cuando el envío terminó. El analista asignado no ve el borrador hasta que
+   se envía.
+5. La app genera un informe A4 horizontal con un bloque por evento:
    identificadores, fecha y hora, coordenadas, profundidad, magnitud y tipo,
    analista, cruce Eventquery, solución (sospechosa o normal), prioridad,
    motivo de prioridad, una línea **Wadati** cuando hay al menos 3 pares P/S,
@@ -1126,13 +1129,14 @@ Administradores y supervisores ven todos. La revisión se solicita desde
    no se usaron, y queda fijada en la solicitud aunque después se vuelva a
    consultar. La evidencia de fases y el enlace al detalle quedan disponibles
    solo en la app.
-5. Mientras se construye, la solicitud queda como **En proceso** en la bandeja.
+6. Mientras se construye, el evento queda como **En proceso** en la bandeja.
    El PDF es el formato principal; si falla, se genera un DOCX de respaldo.
 
-La solicitud se crea cuando el informe está listo y usa la hora del envío como
-fecha de notificación. La columna **Revisión** muestra el estado de la última
-solicitud: **Notificada**, **En proceso** o **Cerrada**. Mientras la solicitud
-está activa, el evento no se puede volver a seleccionar. Si está cerrada, se
+El borrador se crea cuando el informe está listo y usa la hora de elaboración
+en el PDF. La columna **Revisión** muestra el estado de la última solicitud:
+**Borrador**, **Notificada**, **En proceso** o **Cerrada**. Mientras la
+solicitud está activa, el evento no se puede volver a seleccionar. Si está
+cerrada, se
 puede volver a incluir en una solicitud nueva.
 
 Si eligió **No** notificar, la solicitud se crea igual y el detalle muestra
@@ -1301,13 +1305,12 @@ enviar de inmediato. La bandeja:
 
 - acumula eventos de Paneles;
 - los agrupa por responsable;
-- al pulsar **Enviar bandeja**, crea **una solicitud y un PDF por responsable**,
-  con todos sus eventos;
+- al pulsar **Generar borradores**, crea **un borrador con PDF por
+  responsable**, con todos sus eventos;
 - conserva una nota por evento. La nota se incluye solo en la solicitud del
   evento correspondiente y se muestra con su ID;
-- pregunta si desea enviar los correos de notificación. Por ahora **No** está
-  seleccionado por defecto; las solicitudes se crean igual y solo se omiten los
-  correos;
+- deja cada borrador en **Revisiones** para revisar el PDF y enviarlo. El
+  correo, las copias y el adjunto se eligen en ese paso final;
 - permite quitar eventos o vaciarla;
 - dura 12 horas y luego se descarta sola.
 
@@ -1322,8 +1325,8 @@ solicitud y el PDF los distingue.
 La bandeja no depende de la sesión del navegador: si cierra sesión o el
 navegador, sigue asociada a su usuario y trabajo. Al volver, la encuentra igual.
 El tiempo de vida se renueva cada vez que abre la bandeja; se muestra como
-**vence en X h Y min**. Tras **Enviar bandeja**, los eventos quedan como
-**En proceso** hasta que la solicitud se crea. Si la generación falla, vuelven
+**vence en X h Y min**. Tras **Generar borradores**, los eventos quedan como
+**En proceso** hasta que el borrador se crea. Si la generación falla, vuelven
 a **pendientes** para reintentar.
 
 ## Catálogos

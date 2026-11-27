@@ -19,6 +19,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import joinedload, selectinload
 from werkzeug.utils import secure_filename
 
@@ -30,7 +31,7 @@ from ..security import (
     puede_ver_trabajo,
     tiene_permiso,
 )
-from ..services import formatting
+from ..services import formatting, notifications, review
 from ..services.analysts import usuarios_analistas_activos
 from ..services.audit import registrar
 from ..services.workspace import guardar_archivo_limitado, ruta_workspace
@@ -53,15 +54,19 @@ EVIDENCIA_EXTENSIONES = {
 }
 
 ESTADOS_ETIQUETA = {
+    "borrador": "Borrador",
     "notificada": "Notificada",
     "en_proceso": "En proceso",
     "cerrada": "Cerrada",
 }
 ESTADOS_BADGE = {
+    "borrador": "text-bg-info text-dark",
     "notificada": "text-bg-warning text-dark",
     "en_proceso": "text-bg-primary",
     "cerrada": "text-bg-success",
 }
+
+MARCAS_REVISION = {"1", "true", "on", "si", "sí"}
 
 
 def _puede_ver(solicitud: ReviewRequest, usuario) -> bool:
@@ -69,7 +74,26 @@ def _puede_ver(solicitud: ReviewRequest, usuario) -> bool:
         return False
     if alcance_total(usuario):
         return True
+    if solicitud.status == "borrador":
+        return solicitud.created_by_id == getattr(usuario, "id", None)
     return solicitud.assigned_to_id == getattr(usuario, "id", None)
+
+
+def _puede_gestionar_borrador(solicitud: ReviewRequest) -> bool:
+    if solicitud.status != "borrador":
+        return False
+    if alcance_total(current_user):
+        return True
+    return solicitud.created_by_id == getattr(current_user, "id", None)
+
+
+def _puede_descartar_borrador(solicitud: ReviewRequest) -> bool:
+    if not _puede_gestionar_borrador(solicitud):
+        return False
+    return (
+        solicitud.created_by_id == getattr(current_user, "id", None)
+        or tiene_permiso(current_user, "revisiones.eliminar")
+    )
 
 
 def _solicitud(request_id: int) -> ReviewRequest:
@@ -158,7 +182,13 @@ def index():
     ver_todas = alcance_total(current_user)
     if not ver_todas:
         consulta = consulta.where(
-            ReviewRequest.assigned_to_id == current_user.id
+            or_(
+                ReviewRequest.created_by_id == current_user.id,
+                and_(
+                    ReviewRequest.status != "borrador",
+                    ReviewRequest.assigned_to_id == current_user.id,
+                ),
+            )
         )
     if estado:
         consulta = consulta.where(ReviewRequest.status == estado)
@@ -187,6 +217,7 @@ def index():
 def detalle(request_id: int):
     solicitud = _solicitud(request_id)
     puede_responder = tiene_permiso(current_user, "revisiones.responder")
+    gestion_borrador = _puede_gestionar_borrador(solicitud)
     return render_template(
         "revisiones/detail.html",
         solicitud=solicitud,
@@ -195,6 +226,14 @@ def detalle(request_id: int):
         ),
         badge_estado=ESTADOS_BADGE.get(
             solicitud.status, "text-bg-light text-dark"
+        ),
+        puede_enviar=(
+            gestion_borrador
+            and tiene_permiso(current_user, "revisiones.crear")
+        ),
+        puede_descartar=_puede_descartar_borrador(solicitud),
+        supervisores_copia=(
+            review.supervisores_con_correo() if gestion_borrador else []
         ),
         puede_aceptar=(
             puede_responder
@@ -218,24 +257,14 @@ def detalle(request_id: int):
     )
 
 
-@revisiones_bp.post("/<int:request_id>/eliminar")
-@login_required
-@permiso_requerido("revisiones.eliminar")
-def eliminar(request_id: int):
-    """Elimina una solicitud, sus eventos y sus archivos asociados."""
-    solicitud = _solicitud(request_id)
-    job_id = solicitud.job_id
-    source_id = solicitud.source_id
-    eventos = [evento.event_id for evento in solicitud.events]
-    report_path = solicitud.report_path
-    workspace = ruta_workspace(job_id)
-
-    if report_path:
+def _borrar_archivos(solicitud: ReviewRequest, request_id: int) -> None:
+    workspace = ruta_workspace(solicitud.job_id)
+    if solicitud.report_path:
         try:
-            (workspace / report_path).unlink(missing_ok=True)
+            (workspace / solicitud.report_path).unlink(missing_ok=True)
         except OSError:
             current_app.logger.warning(
-                "No se pudo borrar el informe %s", report_path
+                "No se pudo borrar el informe %s", solicitud.report_path
             )
     try:
         shutil.rmtree(
@@ -247,6 +276,142 @@ def eliminar(request_id: int):
             "No se pudo borrar la evidencia de la solicitud %s", request_id
         )
 
+
+@revisiones_bp.post("/<int:request_id>/enviar")
+@login_required
+@permiso_requerido("revisiones.ver")
+def enviar(request_id: int):
+    """Envía un borrador revisado y, si corresponde, notifica por correo."""
+    solicitud = _solicitud(request_id)
+    if not _puede_gestionar_borrador(solicitud):
+        abort(403)
+    if not tiene_permiso(current_user, "revisiones.crear"):
+        abort(403)
+    if not solicitud.report_path:
+        flash(
+            "El borrador no tiene informe. No se puede enviar.",
+            "danger",
+        )
+        return redirect(_volver(solicitud))
+    if request.form.get("revisado") not in MARCAS_REVISION:
+        flash(
+            "Marque «He revisado el PDF» antes de enviar la solicitud.",
+            "danger",
+        )
+        return redirect(_volver(solicitud))
+
+    notificar = review.notificar_desde_formulario(
+        request.form.get("notificar"),
+        current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
+    )
+    copias, adjuntar_pdf, error_notificacion = review.leer_notificacion(
+        request.form, notificar
+    )
+    if error_notificacion:
+        flash(error_notificacion, "danger")
+        return redirect(_volver(solicitud))
+
+    if notificar:
+        solicitud.email_cc = ", ".join(copias) or None
+        solicitud.email_attach_report = bool(adjuntar_pdf)
+        solicitud.email_skipped = False
+        solicitud.email_error = None
+        enviado = notifications.enviar_solicitud(
+            solicitud, base_url=request.host_url.rstrip("/")
+        )
+        if not enviado:
+            registrar(
+                "revision.enviar",
+                f"review:{solicitud.id}",
+                {
+                    "ok": False,
+                    "destinatario": solicitud.email_to or "",
+                    "cc": solicitud.email_cc or "",
+                    "adjunto": bool(solicitud.email_attach_report),
+                    "error": solicitud.email_error or "",
+                },
+                user_id=current_user.id,
+            )
+            flash(
+                "No se pudo enviar el correo: "
+                f"{solicitud.email_error or 'error desconocido'}. "
+                "El borrador sigue disponible para reintentar.",
+                "danger",
+            )
+            return redirect(_volver(solicitud))
+        mensaje = (
+            "Solicitud enviada y correo notificado a "
+            f"{solicitud.email_to or 'el analista'}."
+        )
+    else:
+        solicitud.email_to = None
+        solicitud.email_cc = None
+        solicitud.email_attach_report = False
+        solicitud.email_skipped = True
+        solicitud.email_error = None
+        mensaje = "Solicitud enviada sin notificación por correo."
+
+    solicitud.status = "notificada"
+    solicitud.notified_at = utcnow()
+    db.session.commit()
+    registrar(
+        "revision.enviar",
+        f"review:{solicitud.id}",
+        {
+            "ok": True,
+            "notificado": notificar,
+            "destinatario": solicitud.email_to or "",
+            "cc": solicitud.email_cc or "",
+            "adjunto": bool(solicitud.email_attach_report),
+            "estado": solicitud.status,
+        },
+        user_id=current_user.id,
+    )
+    flash(mensaje, "success")
+    return redirect(_volver(solicitud))
+
+
+@revisiones_bp.post("/<int:request_id>/descartar")
+@login_required
+@permiso_requerido("revisiones.ver")
+def descartar(request_id: int):
+    """Descarta un borrador y libera sus eventos."""
+    solicitud = _solicitud(request_id)
+    if not _puede_descartar_borrador(solicitud):
+        abort(403)
+    job_id = solicitud.job_id
+    source_id = solicitud.source_id
+    eventos = [evento.event_id for evento in solicitud.events]
+    _borrar_archivos(solicitud, request_id)
+    db.session.delete(solicitud)
+    db.session.commit()
+    registrar(
+        "revision.descartar",
+        f"review:{request_id}",
+        {
+            "job": job_id,
+            "fuente": source_id,
+            "eventos": eventos,
+        },
+        user_id=current_user.id,
+    )
+    flash(
+        "Borrador descartado. Los eventos quedaron disponibles.",
+        "success",
+    )
+    return redirect(url_for("revisiones.index"))
+
+
+@revisiones_bp.post("/<int:request_id>/eliminar")
+@login_required
+@permiso_requerido("revisiones.eliminar")
+def eliminar(request_id: int):
+    """Elimina una solicitud, sus eventos y sus archivos asociados."""
+    solicitud = _solicitud(request_id)
+    job_id = solicitud.job_id
+    source_id = solicitud.source_id
+    eventos = [evento.event_id for evento in solicitud.events]
+    _borrar_archivos(solicitud, request_id)
     db.session.delete(solicitud)
     db.session.commit()
     registrar(
@@ -276,7 +441,7 @@ def pdf(request_id: int):
         abort(404)
     return send_file(
         ruta,
-        as_attachment=True,
+        as_attachment=not bool(request.args.get("inline")),
         download_name=solicitud.report_name or Path(ruta).name,
         max_age=0,
     )

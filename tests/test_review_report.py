@@ -70,7 +70,7 @@ def test_docx_no_imprime_evidencia_ni_enlace(tmp_path):
         "source": "seiscomp",
         "creado_por": "admin",
         "asignado": "maca",
-        "notified_at": "2026-11-18 10:00",
+        "elaborado": "2026-11-18 10:00",
         "eventos": [_evento()],
         "nota": "",
     }

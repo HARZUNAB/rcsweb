@@ -1023,6 +1023,15 @@ def indicios_eventos(job_id: str):
     solicitudes_evento = (
         review.mapa_solicitudes(job.id, fuente) if fuente else {}
     )
+    if solicitudes_evento and not tiene_permiso(
+        current_user, "trabajos.todos"
+    ):
+        solicitudes_evento = {
+            evento: info
+            for evento, info in solicitudes_evento.items()
+            if info.get("estado") != "borrador"
+            or info.get("creada_por_id") == current_user.id
+        }
     puede_miniaturas = tiene_permiso(current_user, "catalogos.ver")
     for fila in filas:
         fila["solicitud_info"] = solicitudes_evento.get(fila.get("evento"))
@@ -1521,10 +1530,6 @@ def solicitar_revision(job_id: str):
     fuente = request.form.get("fuente", "").strip()
     formato = request.form.get("formato", "pdf").strip().lower()
     nota = request.form.get("nota", "").strip()
-    notificar = review.notificar_desde_formulario(
-        request.form.get("notificar"),
-        current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
-    )
     if fuente not in _fuentes_job(job) or formato not in ("pdf", "docx"):
         return jsonify({"error": "Datos de la solicitud inválidos."}), 400
 
@@ -1662,9 +1667,6 @@ def solicitar_revision(job_id: str):
         "formato": formato,
         "nota": nota,
         "notified_at": utcnow().isoformat(),
-        "notificar": notificar,
-        "cc": [],
-        "adjuntar_pdf": notificar,
         "base_url": request.host_url.rstrip("/"),
         "filas": [
             {
@@ -1722,7 +1724,7 @@ def solicitar_revision(job_id: str):
             "formato": formato,
             "asignado": asignado,
             "report_id": report_id,
-            "notificar": notificar,
+            "estado": "borrador",
         },
     )
     return jsonify({"report_id": report_id})
@@ -3307,6 +3309,13 @@ def detalle(job_id: str, tabla: str, opcion: str, fila: int):
         opcion=opcion,
         fila=fila,
     )
+    if (
+        revision_solicitud
+        and revision_solicitud.get("estado") == "borrador"
+        and not tiene_permiso(current_user, "trabajos.todos")
+        and revision_solicitud.get("creada_por_id") != current_user.id
+    ):
+        revision_solicitud = None
     revision_visible = bool(
         revision_solicitud
         and tiene_permiso(current_user, "revisiones.ver")

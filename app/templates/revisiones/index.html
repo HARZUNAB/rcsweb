@@ -15,8 +15,8 @@
 </div>
 
 {{ ayuda_panel("¿Qué significan estos estados?", [
-  "revision_notificada", "revision_en_proceso", "revision_cerrada",
-  "sin_usuario", "rol_multiple"
+  "revision_borrador", "revision_notificada", "revision_en_proceso",
+  "revision_cerrada", "sin_usuario", "rol_multiple"
 ]) }}
 
 {% if alcance_total %}
@@ -70,7 +70,7 @@
       <table class="table table-sm table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th>Notificada</th>
+            <th>Fecha</th>
             <th>Trabajo</th>
             <th class="text-end">Eventos</th>
             <th>Creador</th>

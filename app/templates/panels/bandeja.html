@@ -7,7 +7,7 @@
     <div class="text-secondary small text-uppercase mb-1">Paneles</div>
     <h1 class="h4 mb-1">Bandeja de revisión</h1>
     <div class="text-secondary small">
-      Eventos acumulados para enviar en una sola solicitud por responsable.
+      Eventos acumulados para generar un borrador por responsable.
     </div>
   </div>
   <div class="d-flex flex-wrap gap-2">
@@ -133,33 +133,6 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="volver" value="{{ volver }}">
       <input type="hidden" name="volver_etiqueta" value="{{ volver_etiqueta }}">
-      <fieldset class="mt-3">
-        <legend class="form-label small text-secondary">
-          Notificación por correo
-        </legend>
-        <div class="form-check">
-          <input class="form-check-input" type="radio" name="notificar"
-                 id="bandeja-notificar-no" value="0"
-                 {% if not config.RCS_NOTIFICAR_REVISION_DEFAULT %}checked{% endif %}>
-          <label class="form-check-label" for="bandeja-notificar-no">
-            No enviar correos; crear las solicitudes igualmente
-          </label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="radio" name="notificar"
-                 id="bandeja-notificar-si" value="1"
-                 {% if config.RCS_NOTIFICAR_REVISION_DEFAULT %}checked{% endif %}>
-          <label class="form-check-label" for="bandeja-notificar-si">
-            Sí, enviar correo a cada responsable
-          </label>
-        </div>
-        <div class="form-text">
-          Las solicitudes se crean igual; la elección solo cambia el envío de
-          los correos.
-        </div>
-        {% set prefijo = 'bandeja' %}
-        {% include "panels/_notificacion_envio.html" %}
-      </fieldset>
       <div class="row g-3 align-items-end mt-1">
         <div class="col-12 col-lg-3">
           <label class="form-label small" for="bandeja-formato">Formato</label>
@@ -171,14 +144,15 @@
         <div class="col-12 col-lg-3">
           <button class="btn btn-primary w-100" type="submit"
                   {% if not pendientes %}disabled{% endif %}>
-            Enviar bandeja
+            Generar borradores
           </button>
         </div>
       </div>
       <div class="text-secondary small mt-2">
-        Se creará una solicitud y un PDF por responsable. Los eventos de un
-        mismo responsable van juntos y cada nota se incluye solo en la
-        solicitud de su evento.
+        Se creará un borrador con PDF por responsable. Los eventos de un mismo
+        responsable van juntos y cada nota se incluye solo en la solicitud de
+        su evento. Cada borrador se revisa y se envía por separado desde
+        Revisiones.
       </div>
     </form>
   </div>
@@ -187,5 +161,4 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/notificacion_envio.js') }}"></script>
 {% endblock %}

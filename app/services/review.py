@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from flask import current_app
 from sqlalchemy.orm import joinedload, selectinload
 
 from ..extensions import db
@@ -11,7 +12,7 @@ from ..models import ReviewRequest, ReviewRequestEvent, User
 from ..security import tiene_rol
 from .analysts import usuarios_analistas_activos
 
-ESTADOS_ACTIVOS = ("notificada", "en_proceso")
+ESTADOS_ACTIVOS = ("borrador", "notificada", "en_proceso")
 
 
 def usuarios_analistas() -> list[User]:
@@ -59,6 +60,7 @@ def _resumen(solicitud: ReviewRequest) -> dict:
             else ""
         ),
         "asignada_id": solicitud.assigned_to_id,
+        "creada_por_id": solicitud.created_by_id,
         "notificada": solicitud.notified_at,
         "cerrada": solicitud.closed_at,
     }
@@ -151,6 +153,75 @@ def notificar_desde_formulario(valor, defecto: bool = False) -> bool:
     return str(valor).strip().lower() in {"1", "true", "on", "si", "sí"}
 
 
+def leer_notificacion(form, notificar: bool):
+    """Copias y adjunto elegidos para el correo de la solicitud."""
+    if not notificar:
+        return [], False, None
+    modo = str(
+        current_app.config.get("RCS_NOTIFICACION_MODO", "correo")
+    ).strip().lower()
+    adjuntar = str(form.get("adjuntar_pdf") or "").strip().lower() in {
+        "1",
+        "true",
+        "on",
+        "si",
+        "sí",
+    }
+    if modo == "correo" and not adjuntar:
+        return [], adjuntar, "Para notificar debe adjuntar el PDF."
+
+    obligatorias = bool(
+        current_app.config.get(
+            "RCS_NOTIFICACION_COPIAS_OBLIGATORIAS", False
+        )
+    )
+    agregar = str(form.get("agregar_copias") or "").strip().lower() in {
+        "1",
+        "true",
+        "on",
+        "si",
+        "sí",
+    }
+    if not agregar and not obligatorias:
+        return [], adjuntar, None
+
+    disponibles = supervisores_con_correo()
+    requeridas = min(2, len(disponibles)) if obligatorias else 0
+    elegidos = []
+    vistos = set()
+    for clave in ("cc_1", "cc_2"):
+        valor = str(form.get(clave) or "").strip()
+        if not valor:
+            continue
+        try:
+            usuario = db.session.get(User, int(valor))
+        except (TypeError, ValueError):
+            usuario = None
+        if (
+            usuario is None
+            or not usuario.active
+            or not str(usuario.email or "").strip()
+            or not tiene_rol(usuario, "supervisor")
+        ):
+            return [], adjuntar, "Seleccione direcciones de copia válidas."
+        if usuario.id in vistos:
+            return [], adjuntar, "Las direcciones de copia deben ser distintas."
+        vistos.add(usuario.id)
+        elegidos.append(usuario)
+    if len(elegidos) < requeridas:
+        mensaje = (
+            "Seleccione dos direcciones de copia."
+            if requeridas >= 2
+            else "Seleccione una dirección de copia."
+        )
+        return [], adjuntar, mensaje
+    return (
+        [str(usuario.email).strip() for usuario in elegidos],
+        adjuntar,
+        None,
+    )
+
+
 def crear_solicitud(
     *,
     job_id: str,
@@ -167,6 +238,8 @@ def crear_solicitud(
     notificar: bool = True,
     email_cc: str = "",
     email_attach_report: bool = False,
+    status: str = "notificada",
+    email_skipped: bool | None = None,
 ) -> ReviewRequest:
     """Crea la solicitud y sus eventos; el llamador controla la transacción."""
     solicitud = ReviewRequest(
@@ -174,14 +247,16 @@ def crear_solicitud(
         source_id=source_id,
         created_by_id=created_by_id,
         assigned_to_id=assigned_to_id,
-        status="notificada",
+        status=status,
         kind=kind,
         note=note or None,
         report_path=report_path,
         report_name=report_name,
         report_format=report_format,
         notified_at=notified_at,
-        email_skipped=not notificar,
+        email_skipped=(
+            not notificar if email_skipped is None else bool(email_skipped)
+        ),
         email_cc=email_cc or None,
         email_attach_report=bool(email_attach_report),
     )

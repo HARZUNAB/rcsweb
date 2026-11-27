@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 
 from werkzeug.datastructures import MultiDict
 
-from app.blueprints.panels import _leer_notificacion
 from app.domain.catalogs import canonical
 from app.extensions import db
 from app.models import Job, User, nuevo_uuid
@@ -58,13 +57,13 @@ def test_leer_notificacion_valida_copias_y_adjunto(app):
             "cc_2": str(segundo.id),
         }
     )
-    copias, adjuntar, error = _leer_notificacion(form, True)
+    copias, adjuntar, error = review.leer_notificacion(form, True)
     assert error is None
     assert adjuntar is True
     assert copias == ["sup1@csn.uchile.cl", "sup2@csn.uchile.cl"]
 
     sin_copias = MultiDict({"adjuntar_pdf": "1"})
-    assert _leer_notificacion(sin_copias, True) == ([], True, None)
+    assert review.leer_notificacion(sin_copias, True) == ([], True, None)
 
     sin_adjunto = MultiDict(
         {
@@ -73,7 +72,7 @@ def test_leer_notificacion_valida_copias_y_adjunto(app):
             "cc_2": str(segundo.id),
         }
     )
-    _copias, _adjuntar, error = _leer_notificacion(sin_adjunto, True)
+    _copias, _adjuntar, error = review.leer_notificacion(sin_adjunto, True)
     assert "adjuntar el PDF" in error
 
     repetidas = MultiDict(
@@ -84,14 +83,14 @@ def test_leer_notificacion_valida_copias_y_adjunto(app):
             "cc_2": str(primero.id),
         }
     )
-    _copias, _adjuntar, error = _leer_notificacion(repetidas, True)
+    _copias, _adjuntar, error = review.leer_notificacion(repetidas, True)
     assert "distintas" in error
 
     app.config["RCS_NOTIFICACION_COPIAS_OBLIGATORIAS"] = True
-    _copias, _adjuntar, error = _leer_notificacion(sin_copias, True)
+    _copias, _adjuntar, error = review.leer_notificacion(sin_copias, True)
     assert "direcciones de copia" in error
 
-    assert _leer_notificacion(MultiDict(), False) == ([], False, None)
+    assert review.leer_notificacion(MultiDict(), False) == ([], False, None)
 
 
 def _job() -> Job:
@@ -203,11 +202,10 @@ def test_publicacion_muestra_formulario_y_encola(app, client, login, monkeypatch
     html = respuesta.get_data(as_text=True)
     assert "Revisión de publicación" in html
     assert "seiscomp:000280" in html
-    assert "Solicitar revisión" in html
+    assert "Preparar solicitud" in html
     assert "Agregar a la bandeja" in html
-    assert "No enviar correo; crear la solicitud igualmente" in html
-    assert 'id="publicacion-notificar-no"' in html
-    assert 'id="publicacion-notificar-si"' in html
+    assert "Se generará un <strong>borrador</strong>" in html
+    assert 'name="notificar"' not in html
 
     estados = {}
     monkeypatch.setattr(
@@ -233,7 +231,7 @@ def test_publicacion_muestra_formulario_y_encola(app, client, login, monkeypatch
     assert estado["kind"] == "publicacion"
     assert estado["assigned_to_id"] == analista.id
     assert estado["fuente"] == "eventquery"
-    assert estado["notificar"] is False
+    assert "notificar" not in estado
     fila = estado["filas"][0]
     assert fila["evento"] == "eventquery:000127"
     assert fila["kind"] == "publicacion"
@@ -281,9 +279,9 @@ def test_revision_local_muestra_formulario_y_encola(
     assert "seiscomp:000280" in html
     assert "tana2" in html
     assert "Agregar a la bandeja" in html
-    assert "No enviar correo; crear la solicitud igualmente" in html
-    assert 'id="revision-local-notificar-no"' in html
-    assert 'id="revision-local-notificar-si"' in html
+    assert "Preparar solicitud" in html
+    assert "Se generará un <strong>borrador</strong>" in html
+    assert 'name="notificar"' not in html
 
     estados = {}
     monkeypatch.setattr(
@@ -309,7 +307,7 @@ def test_revision_local_muestra_formulario_y_encola(
     estado = next(iter(estados.values()))
     assert estado["kind"] == "solucion"
     assert estado["assigned_to_id"] == analista.id
-    assert estado["notificar"] is False
+    assert "notificar" not in estado
     assert estado["filas"][0]["evento"] == "seiscomp:000280"
     assert estado["filas"][0]["kind"] == "solucion"
 
@@ -384,10 +382,9 @@ def test_bandeja_agrupa_por_responsable_y_envia(
     assert html.count('<form method="post"') == html.count(
         'name="csrf_token"'
     )
-    assert "No enviar correos; crear las solicitudes igualmente" in html
-    assert 'id="bandeja-notificar-no"' in html
-    assert 'id="bandeja-notificar-si"' in html
+    assert "Generar borradores" in html
     assert 'id="bandeja-enviar"' in html
+    assert 'name="notificar"' not in html
     assert 'name="nota__seiscomp|seiscomp:000001"' in html
     assert 'name="nota__eventquery|eventquery:000001"' in html
 
@@ -413,7 +410,7 @@ def test_bandeja_agrupa_por_responsable_y_envia(
     assert respuesta.status_code == 302
     assert len(estados) == 2
     por_asignado = {estado["assigned_to_id"]: estado for estado in estados.values()}
-    assert all(estado["notificar"] is False for estado in estados.values())
+    assert all("notificar" not in estado for estado in estados.values())
     assert len(por_asignado[primero.id]["filas"]) == 2
     assert por_asignado[primero.id]["kind"] == "mixta"
     assert "Evento seiscomp:000001: Revisar solución uno" in (

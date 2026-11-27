@@ -235,7 +235,7 @@ def _encabezado(datos: dict) -> list[tuple[str, str]]:
         ("Fuente", _texto(datos.get("source"))),
         ("Creador", _texto(datos.get("creado_por"))),
         ("Analista asignado", _texto(datos.get("asignado"))),
-        ("Notificación", _texto(datos.get("notified_at"))),
+        ("Elaboración", _texto(datos.get("elaborado"))),
         ("Eventos", str(len(datos.get("eventos") or []))),
         ("Nota", _texto(datos.get("nota"))),
     ]

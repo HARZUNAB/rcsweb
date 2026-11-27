@@ -988,7 +988,7 @@ def test_ejecutar_informe_crea_solicitud_con_pdf(
     assert resultado["estado"] == "listo"
 
     solicitud = ReviewRequest.query.filter_by(job_id=job.id).one()
-    assert solicitud.status == "notificada"
+    assert solicitud.status == "borrador"
     assert solicitud.assigned_to_id == analista.id
     assert solicitud.created_by_id == admin.id
     assert solicitud.report_format == "pdf"
@@ -1000,23 +1000,44 @@ def test_ejecutar_informe_crea_solicitud_con_pdf(
     ruta = crear_workspace(job.id) / solicitud.report_path
     assert ruta.is_file()
     assert ruta.read_bytes().startswith(b"%PDF")
-    assert solicitud.email_sent_at is not None
-    assert solicitud.email_to == "mdur@csn.uchile.cl"
+    assert solicitud.email_sent_at is None
+    assert solicitud.email_skipped is False
     correo = (
         crear_workspace(job.id)
         / "revisiones"
         / f"correo_{solicitud.id}.eml"
     )
+    assert not correo.exists()
+
+    detalle = client.get(f"/revisiones/{solicitud.id}")
+    assert detalle.status_code == 200
+    html = detalle.get_data(as_text=True)
+    assert "Borrador pendiente de envío" in html
+    assert "He revisado el PDF" in html
+    assert f'href="/revisiones/{solicitud.id}/pdf"' in html
+
+    respuesta = client.post(
+        f"/revisiones/{solicitud.id}/enviar",
+        data={
+            "revisado": "1",
+            "notificar": "1",
+            "adjuntar_pdf": "1",
+        },
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
+    assert solicitud.status == "notificada"
+    assert solicitud.email_sent_at is not None
+    assert solicitud.email_to == "mdur@csn.uchile.cl"
     assert correo.is_file()
 
     detalle = client.get(f"/revisiones/{solicitud.id}")
     assert detalle.status_code == 200
     html = detalle.get_data(as_text=True)
     assert "Solicitud #" in html
-    assert f'href="/revisiones/{solicitud.id}/pdf"' in html
-    assert "download" in html
     assert "Correo de notificación" in html
     assert "mdur@csn.uchile.cl" in html
+    assert "Borrador pendiente de envío" not in html
 
 
 def test_ejecutar_informe_sin_notificar_crea_solicitud_sin_correo(
@@ -1064,6 +1085,16 @@ def test_ejecutar_informe_sin_notificar_crea_solicitud_sin_correo(
     assert resultado["estado"] == "listo"
 
     solicitud = ReviewRequest.query.filter_by(job_id=job.id).one()
+    assert solicitud.status == "borrador"
+    assert solicitud.email_sent_at is None
+    assert solicitud.email_error is None
+
+    respuesta = client.post(
+        f"/revisiones/{solicitud.id}/enviar",
+        data={"revisado": "1", "notificar": "0"},
+    )
+    assert respuesta.status_code == 302
+    db.session.refresh(solicitud)
     assert solicitud.status == "notificada"
     assert solicitud.email_sent_at is None
     assert solicitud.email_error is None

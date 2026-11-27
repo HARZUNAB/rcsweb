@@ -340,9 +340,17 @@ TERMINOS = {
             "fuentes."
         ),
     },
+    "revision_borrador": {
+        "titulo": "Borrador",
+        "texto": (
+            "El PDF ya se generó y espera revisión. Solo el creador y los "
+            "supervisores pueden verlo y enviarlo; el analista asignado lo "
+            "verá cuando se envíe la solicitud."
+        ),
+    },
     "revision_notificada": {
         "titulo": "Notificada",
-        "texto": "La solicitud fue creada y está pendiente de aceptación.",
+        "texto": "La solicitud fue enviada y está pendiente de aceptación.",
     },
     "revision_en_proceso": {
         "titulo": "En proceso",

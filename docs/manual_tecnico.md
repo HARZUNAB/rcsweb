@@ -389,12 +389,12 @@ informe generado.
 | `source_id` | String(64) | No | IDX | Fuente local de los eventos |
 | `created_by_id` | Integer | Sí | FK → `users.id`, IDX | Usuario que solicitó la revisión |
 | `assigned_to_id` | Integer | Sí | FK → `users.id`, IDX | Analista asignado |
-| `status` | String(20) | No | IDX | `notificada`, `en_proceso` o `cerrada` |
+| `status` | String(20) | No | IDX | `borrador`, `notificada`, `en_proceso` o `cerrada` |
 | `note` | Text | Sí | — | Nota del creador |
 | `report_path` | String(255) | Sí | — | Ruta del informe relativa al workspace |
 | `report_name` | String(255) | Sí | — | Nombre de descarga del informe |
 | `report_format` | String(8) | No | — | `pdf` o `docx` |
-| `notified_at` | DateTime(tz) | No | IDX | Fecha de notificación al analista |
+| `notified_at` | DateTime(tz) | No | IDX | Elaboración del borrador; se actualiza al enviar |
 | `accepted_at` | DateTime(tz) | Sí | — | Fecha de aceptación |
 | `closed_at` | DateTime(tz) | Sí | — | Fecha de cierre |
 | `closing_note` | Text | Sí | — | Antecedentes escritos al cerrar |
@@ -1766,9 +1766,10 @@ al valor nuevo. Los eventos con fase y solución normal se muestran en **Con
 cruce Eventquery** y **Todos**. Los analistas ven solo sus propios eventos;
 administradores y supervisores ven todo. La revisión se
 solicita desde el listado: se filtra por analista, se seleccionan varios eventos
-del mismo analista y se genera un informe en segundo plano. La solicitud se
-guarda en `review_requests` y sus eventos en `review_request_events`; la tabla
-`event_review_requests` se conserva como histórico del flujo anterior.
+del mismo analista y se genera un informe en segundo plano. La generación crea
+un **borrador** con el PDF en `review_requests` y sus eventos en
+`review_request_events`; no envía correo. La tabla `event_review_requests` se
+conserva como histórico del flujo anterior.
 
 En el detalle del evento, el aviso de revisión distingue si se abrió desde
 **Ver revisión** (`desde_indicios`) o desde otra tabla. En el primer caso enlaza
@@ -1807,25 +1808,67 @@ borra el informe (`report_path`), la carpeta
 `review_request_events` se eliminan por cascada. Después registra
 `revision.eliminar` con el trabajo, la fuente y los eventos eliminados.
 
+#### Flujo de borrador y envío
+
+Los formularios de Paneles (`revision_publicacion`, `revision_local`), la
+bandeja y el endpoint `results.solicitar_revision` solo generan borradores.
+`review_reports.ejecutar()` construye el PDF/DOCX, crea la solicitud con
+`status="borrador"` y no envía correo. El estado `borrador` está en
+`ESTADOS_ACTIVOS`, por lo que reserva los eventos y aparece en los conflictos.
+
+Visibilidad y permisos:
+
+- `revisiones._puede_ver()` deja ver un borrador solo a su creador o a quien
+  tenga alcance total; el analista asignado recibe 403 hasta el envío.
+- El listado sin alcance total muestra los borradores propios y las solicitudes
+  asignadas que ya no son borrador.
+- `puede_enviar` exige `revisiones.crear` y que el usuario sea creador o tenga
+  alcance total. `puede_descartar` permite al creador liberar su borrador;
+  además, `revisiones.eliminar` puede descartar cualquier borrador.
+- El detalle muestra el PDF con **Ver/Revisar** (descarga en línea) y el
+  formulario final con notificación, copias, adjunto y la casilla obligatoria
+  `revisado`.
+
+Rutas:
+
+```text
+POST /revisiones/<id>/enviar      # revisado, notificar, cc_1, cc_2, adjuntar_pdf
+POST /revisiones/<id>/descartar  # borra el PDF y libera los eventos
+GET  /revisiones/<id>/pdf?inline=1
+```
+
+`enviar` valida `revisado`, interpreta `notificar` y llama a
+`review.leer_notificacion()` para copias y adjunto. Si notifica, asigna
+`email_cc` y `email_attach_report`, limpia `email_error` y ejecuta
+`notifications.enviar_solicitud()` de forma síncrona. Si el correo falla, el
+borrador permanece para reintentar y se registra `revision.enviar` con
+`ok=False`. Si tiene éxito, o si se elige no notificar, el estado pasa a
+`notificada`, se actualiza `notified_at` con la hora del envío y se registra el
+resultado. Sin correo se marca `email_skipped=True`.
+
+`notified_at` conserva la fecha de elaboración mientras la solicitud es
+borrador y se actualiza al enviar. El PDF usa esa fecha bajo la etiqueta
+**Elaboración**. `descartar` elimina el informe, la evidencia y la solicitud;
+los eventos quedan disponibles de inmediato.
+
 #### Notificación por correo
 
-`app/services/notifications.py` envía el aviso al analista asignado cuando la
-tarea del informe crea la solicitud. Usa `smtplib` de la biblioteca estándar,
+`app/services/notifications.py` envía el aviso al analista asignado cuando se
+envía el borrador desde su detalle. Usa `smtplib` de la biblioteca estándar,
 sin dependencias nuevas.
 
-La elección se toma al solicitar la revisión y viaja como `notificar` en el
-estado del informe. Los formularios envían `1` o `0`; si falta, se usa
-`RCS_NOTIFICAR_REVISION_DEFAULT` (`0` por defecto). Si es falso, la tarea crea
-la solicitud y sus eventos igualmente, marca `email_skipped=True`, omite
-`notifications.enviar_solicitud()` y registra `revision.email` con
-`omitido=True`. El detalle distingue ese caso de un error SMTP.
+La elección se toma en el paso final y viaja en el formulario `enviar`. Se usa
+`RCS_NOTIFICAR_REVISION_DEFAULT` (`0` por defecto) solo si `notificar` falta.
+Si es falso, la solicitud pasa a `notificada` con `email_skipped=True` y se
+omite `notifications.enviar_solicitud()`. El detalle distingue ese caso de un
+error SMTP.
 
 - Si `MAIL_SUPPRESS_SEND=1`, guarda el correo en
   `workspace/<job>/revisiones/correo_<id>.eml` en vez de enviarlo.
 - Si `MAIL_SERVER` está vacío, deja el motivo en `review_requests.email_error`
-  y no falla la creación de la solicitud.
-- Si el SMTP falla, guarda `email_error` y registra `revision.email` en la
-  auditoría; la solicitud sigue visible.
+  y el borrador sigue disponible.
+- Si el SMTP falla, guarda `email_error` y registra `revision.enviar` en la
+  auditoría; la solicitud sigue visible como borrador.
 - No se reenvía si `email_sent_at` ya está definido.
 - `RCS_NOTIFICACION_MODO=correo` (actual) envía un aviso autónomo con la nota
   de la solicitud y una referencia al informe adjunto. No incluye enlace a la
@@ -2926,7 +2969,8 @@ Revisión también: `results.solicitar_revision` acepta `accion=bandeja`, valida
 la selección como siempre y agrega cada fila de indicios a la bandeja con
 `assigned_to_id` y `kind="solucion"`, devolviendo `{"estado": "bandeja"}`.
 `revision_seleccion.js` envía esa acción, limpia la selección local y redirige
-a `panels.bandeja`. Sin `accion` el endpoint conserva el envío inmediato.
+a `panels.bandeja`. Sin `accion`, el endpoint también crea un borrador; ya no
+envía correo ni elige notificación en este paso.
 
 Rutas de la bandeja:
 
@@ -2944,16 +2988,18 @@ bandeja conservan ambos campos en formularios ocultos y redirigen con
 `_url_bandeja()`. **Ver bandeja** en Revisión envía `volver=request.full_path` y
 **Volver a revisión**; desde Paneles se envía **Volver al listado**.
 
-El envío agrupa por `assigned_to_id`, valida que el responsable esté activo y
-tenga rol, revisa conflictos por evento, aplica `RCS_INFORME_MAX_EVENTOS` y
-encola un estado por grupo. Si un grupo mezcla `solucion` y `publicacion`, el
-`kind` de la solicitud es `mixta`; `review_reports` permite analista o
-supervisor para `publicacion` y `mixta`. El PDF incluye todos los eventos del
-grupo, cada uno con sus antecedentes. Los eventos con conflicto o los grupos
-excedidos permanecen en la bandeja con un aviso. Los grupos enviados se marcan
-`enviando` con su `report_id`; `review_reports.ejecutar()` los elimina al crear
-la solicitud y los restaura si la generación falla. El estado `bandeja: true`
-viaja en el estado de Redis para ese cierre.
+El botón **Generar borradores** agrupa por `assigned_to_id`, valida que el
+responsable esté activo y tenga rol, revisa conflictos por evento, aplica
+`RCS_INFORME_MAX_EVENTOS` y encola un estado por grupo. Si un grupo mezcla
+`solucion` y `publicacion`, el `kind` de la solicitud es `mixta`;
+`review_reports` permite analista o supervisor para `publicacion` y `mixta`.
+El PDF incluye todos los eventos del grupo, cada uno con sus antecedentes. Los
+eventos con conflicto o los grupos excedidos permanecen en la bandeja con un
+aviso. Los grupos enviados se marcan `enviando` con su `report_id`;
+`review_reports.ejecutar()` los elimina al crear el borrador y los restaura si
+la generación falla. El estado `bandeja: true` viaja en el estado de Redis para
+ese cierre. La notificación, las copias y el adjunto se eligen después en el
+detalle de cada borrador; la bandeja solo genera el PDF y la solicitud.
 
 En la vista general, el detalle del evento seleccionado se dibuja en
 `#panel-evento-detalle`, debajo de los mini mapas. La vista de detalle mantiene

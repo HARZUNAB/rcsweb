@@ -14,7 +14,7 @@ from ..domain.catalogs import canonical
 from ..extensions import db
 from ..models import Job, User
 from ..security import tiene_rol
-from . import indicios, notifications, plots, review, review_drafts
+from . import indicios, plots, review, review_drafts
 from .audit import registrar
 from .detail import leer_filas
 from .results import cargar_indice
@@ -158,10 +158,6 @@ def ejecutar(report_id: str) -> dict:
     bandeja = bool(estado.get("bandeja"))
     bandeja_job = estado.get("job_id")
     bandeja_user = estado.get("user_id")
-    notificar = review.notificar_desde_formulario(
-        estado.get("notificar"),
-        current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
-    )
     ruta: Path | None = None
     try:
         job_id = estado["job_id"]
@@ -237,10 +233,10 @@ def ejecutar(report_id: str) -> dict:
         extension = "pdf" if formato == "pdf" else "docx"
         ruta = carpeta / f"{report_id}.{extension}"
         aviso = ""
-        notificado = _texto(estado.get("notified_at"))
-        if notificado:
+        elaborado = _texto(estado.get("notified_at"))
+        if elaborado:
             try:
-                notificado = datetime.fromisoformat(notificado).strftime(
+                elaborado = datetime.fromisoformat(elaborado).strftime(
                     "%Y-%m-%d %H:%M"
                 )
             except ValueError:
@@ -255,7 +251,7 @@ def ejecutar(report_id: str) -> dict:
             ),
             "asignado": assigned.username,
             "nota": estado.get("nota", ""),
-            "notified_at": notificado,
+            "elaborado": elaborado,
             "eventos": eventos,
         }
         actualizar_estado(
@@ -333,18 +329,6 @@ def ejecutar(report_id: str) -> dict:
                 "Los eventos ya están en revisión: " + detalle
             )
 
-        cc_estado = estado.get("cc") or []
-        if isinstance(cc_estado, str):
-            cc_estado = [cc_estado]
-        cc_efectivo = (
-            review.copias_unicas(
-                cc_estado,
-                excluir=_texto(getattr(assigned, "email", "")),
-            )
-            if notificar
-            else []
-        )
-        adjuntar_pdf = bool(estado.get("adjuntar_pdf")) and notificar
         solicitud = review.crear_solicitud(
             job_id=job_id,
             source_id=fuente,
@@ -357,16 +341,15 @@ def ejecutar(report_id: str) -> dict:
             report_name=ruta.name,
             report_format=extension,
             kind=kind,
-            notificar=notificar,
-            email_cc=", ".join(cc_efectivo),
-            email_attach_report=adjuntar_pdf,
+            status="borrador",
+            email_skipped=False,
         )
         db.session.commit()
         actualizar_estado(
             report_id,
             estado="listo",
             progreso=100,
-            paso="Solicitud creada",
+            paso="Borrador creado",
             formato=extension,
             aviso=aviso,
             request_id=solicitud.id,
@@ -381,33 +364,7 @@ def ejecutar(report_id: str) -> dict:
                 "eventos": len(eventos_solicitud),
                 "formato": extension,
                 "asignado": assigned_to_id,
-                "notificar": notificar,
-                "cc": cc_efectivo,
-                "adjunto": adjuntar_pdf,
-            },
-            user_id=estado.get("user_id"),
-        )
-        enviado = False
-        if notificar:
-            try:
-                enviado = notifications.enviar_solicitud(
-                    solicitud, base_url=base_url
-                )
-            except Exception:  # noqa: BLE001 - el correo no rompe la solicitud
-                log.exception(
-                    "Error inesperado al notificar la solicitud %s",
-                    solicitud.id,
-                )
-        registrar(
-            "revision.email",
-            f"review:{solicitud.id}",
-            {
-                "ok": enviado,
-                "omitido": not notificar,
-                "destinatario": solicitud.email_to or "",
-                "cc": solicitud.email_cc or "",
-                "adjunto": bool(solicitud.email_attach_report),
-                "error": solicitud.email_error or "",
+                "estado": "borrador",
             },
             user_id=estado.get("user_id"),
         )

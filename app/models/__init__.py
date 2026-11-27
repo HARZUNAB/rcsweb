@@ -580,7 +580,7 @@ class EventReviewRequest(db.Model):
     requested_by = relationship("User")
 
 
-ESTADOS_REVISION = ("notificada", "en_proceso", "cerrada")
+ESTADOS_REVISION = ("borrador", "notificada", "en_proceso", "cerrada")
 
 
 class ReviewRequest(db.Model):

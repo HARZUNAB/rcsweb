@@ -467,75 +467,6 @@ def _supervisores_activos() -> list[User]:
     ]
 
 
-def _leer_notificacion(form, notificar: bool):
-    """Copias y adjunto elegidos para el correo."""
-    if not notificar:
-        return [], False, None
-    modo = str(
-        current_app.config.get("RCS_NOTIFICACION_MODO", "correo")
-    ).strip().lower()
-    adjuntar = str(form.get("adjuntar_pdf") or "").strip().lower() in {
-        "1",
-        "true",
-        "on",
-        "si",
-        "sí",
-    }
-    if modo == "correo" and not adjuntar:
-        return [], adjuntar, "Para notificar debe adjuntar el PDF."
-
-    obligatorias = bool(
-        current_app.config.get(
-            "RCS_NOTIFICACION_COPIAS_OBLIGATORIAS", False
-        )
-    )
-    agregar = str(form.get("agregar_copias") or "").strip().lower() in {
-        "1",
-        "true",
-        "on",
-        "si",
-        "sí",
-    }
-    if not agregar and not obligatorias:
-        return [], adjuntar, None
-
-    disponibles = review.supervisores_con_correo()
-    requeridas = min(2, len(disponibles)) if obligatorias else 0
-    elegidos = []
-    vistos = set()
-    for clave in ("cc_1", "cc_2"):
-        valor = str(form.get(clave) or "").strip()
-        if not valor:
-            continue
-        try:
-            usuario = db.session.get(User, int(valor))
-        except (TypeError, ValueError):
-            usuario = None
-        if (
-            usuario is None
-            or not usuario.active
-            or not str(usuario.email or "").strip()
-            or not tiene_rol(usuario, "supervisor")
-        ):
-            return [], adjuntar, "Seleccione direcciones de copia válidas."
-        if usuario.id in vistos:
-            return [], adjuntar, "Las direcciones de copia deben ser distintas."
-        vistos.add(usuario.id)
-        elegidos.append(usuario)
-    if len(elegidos) < requeridas:
-        mensaje = (
-            "Seleccione dos direcciones de copia."
-            if requeridas >= 2
-            else "Seleccione una dirección de copia."
-        )
-        return [], adjuntar, mensaje
-    return (
-        [str(usuario.email).strip() for usuario in elegidos],
-        adjuntar,
-        None,
-    )
-
-
 def _contexto_publicacion(job: Job, fila: int):
     workspace = ruta_workspace(job.id)
     referencia = fuentes_manifest.referencia()
@@ -646,19 +577,6 @@ def revision_publicacion(job_id: str, fila: int):
     if formato not in ("pdf", "docx"):
         formato = "pdf"
     nota = request.form.get("nota", "").strip()
-    notificar = review.notificar_desde_formulario(
-        request.form.get("notificar"),
-        current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
-    )
-    if request.form.get("accion") == "bandeja":
-        copias, adjuntar_pdf = [], False
-    else:
-        copias, adjuntar_pdf, error_notificacion = _leer_notificacion(
-            request.form, notificar
-        )
-        if error_notificacion:
-            flash(error_notificacion, "danger")
-            return _render(400)
     cruce = {
         "candidato": candidato,
         "diferencias": (grupo or {}).get("diferencias") or {},
@@ -718,9 +636,6 @@ def revision_publicacion(job_id: str, fila: int):
         "nota": nota,
         "kind": "publicacion",
         "notified_at": utcnow().isoformat(),
-        "notificar": notificar,
-        "cc": copias,
-        "adjuntar_pdf": adjuntar_pdf,
         "base_url": request.host_url.rstrip("/"),
         "filas": [fila_informe],
         "estado": "en_cola",
@@ -746,12 +661,12 @@ def revision_publicacion(job_id: str, fila: int):
             "formato": formato,
             "asignado": asignado.id,
             "kind": "publicacion",
-            "notificar": notificar,
+            "estado": "borrador",
         },
     )
     flash(
-        "Solicitud de publicación encolada. Aparecerá en Revisiones al "
-        "terminar la generación.",
+        "Borrador de publicación en preparación. Aparecerá en Revisiones "
+        "para revisar el PDF antes de enviarlo.",
         "success",
     )
     return redirect(volver)
@@ -848,19 +763,6 @@ def revision_local(job_id: str):
     if formato not in ("pdf", "docx"):
         formato = "pdf"
     nota = request.form.get("nota", "").strip()
-    notificar = review.notificar_desde_formulario(
-        request.form.get("notificar"),
-        current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
-    )
-    if request.form.get("accion") == "bandeja":
-        copias, adjuntar_pdf = [], False
-    else:
-        copias, adjuntar_pdf, error_notificacion = _leer_notificacion(
-            request.form, notificar
-        )
-        if error_notificacion:
-            flash(error_notificacion, "danger")
-            return _render(400)
     if indice:
         fila_informe = dict(indice)
     else:
@@ -925,9 +827,6 @@ def revision_local(job_id: str):
         "nota": nota,
         "kind": "solucion",
         "notified_at": utcnow().isoformat(),
-        "notificar": notificar,
-        "cc": copias,
-        "adjuntar_pdf": adjuntar_pdf,
         "base_url": request.host_url.rstrip("/"),
         "filas": [fila_informe],
         "estado": "en_cola",
@@ -953,12 +852,12 @@ def revision_local(job_id: str):
             "formato": formato,
             "asignado": sugerido.id,
             "kind": "solucion",
-            "notificar": notificar,
+            "estado": "borrador",
         },
     )
     flash(
-        "Solicitud de revisión encolada. Aparecerá en Revisiones al terminar "
-        "la generación.",
+        "Borrador de revisión en preparación. Aparecerá en Revisiones para "
+        "revisar el PDF antes de enviarlo.",
         "success",
     )
     return redirect(volver)
@@ -1089,16 +988,6 @@ def bandeja_enviar(job_id: str):
         valor = request.form.get(f"nota__{clave}")
         if valor is not None:
             item["nota"] = valor.strip()
-    notificar = review.notificar_desde_formulario(
-        request.form.get("notificar"),
-        current_app.config.get("RCS_NOTIFICAR_REVISION_DEFAULT", False),
-    )
-    copias, adjuntar_pdf, error_notificacion = _leer_notificacion(
-        request.form, notificar
-    )
-    if error_notificacion:
-        flash(error_notificacion, "danger")
-        return redirect(_url_bandeja(job, volver, volver_etiqueta))
     maximo = int(
         current_app.config.get("RCS_INFORME_MAX_EVENTOS", 50) or 50
     )
@@ -1176,9 +1065,6 @@ def bandeja_enviar(job_id: str):
             "kind": kind,
             "bandeja": True,
             "notified_at": utcnow().isoformat(),
-            "notificar": notificar,
-            "cc": copias,
-            "adjuntar_pdf": adjuntar_pdf,
             "base_url": request.host_url.rstrip("/"),
             "filas": filas,
             "estado": "en_cola",
@@ -1218,13 +1104,13 @@ def bandeja_enviar(job_id: str):
                 "formato": formato,
                 "asignado": asignado_id,
                 "kind": kind,
-                "notificar": notificar,
+                "estado": "borrador",
             },
         )
     if enviados:
         flash(
-            f"{enviados} evento(s) enviados en {solicitudes} solicitud(es). "
-            "Quedan como En proceso hasta que se cree la solicitud.",
+            f"{enviados} evento(s) en {solicitudes} borrador(es). "
+            "Revise cada PDF en Revisiones y envíe la solicitud.",
             "success",
         )
     else:
