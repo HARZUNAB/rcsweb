@@ -2977,8 +2977,15 @@
     if (Number.isFinite(Number(datos.vp_vs))) {
       partes.push("Vp/Vs " + Number(datos.vp_vs).toFixed(2));
     }
-    if (Number.isFinite(Number(datos.t0))) {
+    if (
+      datos.t0 !== null &&
+      datos.t0 !== undefined &&
+      datos.t0 !== "" &&
+      Number.isFinite(Number(datos.t0))
+    ) {
       partes.push("T0 " + Number(datos.t0).toFixed(2) + " s");
+    } else if (datos.disponible) {
+      partes.push("T0 no calculable");
     }
     if (Number.isFinite(Number(datos.r2))) {
       partes.push("R² " + Number(datos.r2).toFixed(2));
