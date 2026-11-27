@@ -1511,6 +1511,12 @@ En la tabla de revisión, `senal_picks.js` reutiliza las casillas
 `data-evento`. Solo incluye eventos con cobertura y señal pendiente, y no
 modifica la selección ni el flujo de **Agregar a la bandeja**.
 
+Al terminar un lote o una corrida, `senal_picks.js` muestra un aviso fijo con
+`position-fixed` y recarga la misma URL después de 2,5 s para reflejar el nuevo
+estado en la tabla. Antes de recargar guarda `window.scrollY` en
+`sessionStorage` bajo `rcs:senal-scroll`; al cargar vuelve a esa posición. Los
+errores, pausas y cancelaciones muestran el aviso, pero no recargan.
+
 La tarea informa `procesados`, `total` y `evento` en el estado `PROGRESS`. Al
 terminar guarda un resumen en `resultados/senal_ultimo_<fuente>.json`, que la
 pantalla muestra como **Último análisis**.

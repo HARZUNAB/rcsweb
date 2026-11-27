@@ -886,6 +886,12 @@ los seleccionados con señal pendiente. No cambia la selección ni el flujo de
 reglas actuales: filtrar por un analista, eventos del mismo analista y máximo
 50 por lote.
 
+Al terminar un análisis, la lista se recarga automáticamente para mostrar el
+nuevo estado de las filas. Mientras corre y al finalizar aparece un aviso
+flotante en la esquina inferior derecha, de modo que el resultado se vea aunque
+la barra de progreso quede arriba. La recarga conserva los filtros activos y la
+posición de desplazamiento.
+
 Mientras el trabajo está en curso se muestra una barra con
 `procesados de total` y el evento actual. Al terminar queda el resumen del
 último análisis y el número de eventos que siguen pendientes.

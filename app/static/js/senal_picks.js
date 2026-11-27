@@ -32,6 +32,9 @@
   var intentos = 0;
   var enCurso = false;
   var MAX_INTENTOS = 600;
+  var SCROLL_KEY = "rcs:senal-scroll";
+  var avisoFlotante = null;
+  var recargaTimer = null;
 
   function csrfToken() {
     var meta = document.querySelector('meta[name="csrf-token"]');
@@ -46,6 +49,94 @@
     estado.textContent = mensaje;
   }
 
+  function claseAviso(clase) {
+    if (clase === "text-danger") {
+      return "alert-danger";
+    }
+    if (clase === "text-warning") {
+      return "alert-warning";
+    }
+    if (clase === "text-success") {
+      return "alert-success";
+    }
+    return "alert-info";
+  }
+
+  function mostrarAviso(mensaje, clase) {
+    if (!mensaje) {
+      return;
+    }
+    if (!avisoFlotante) {
+      avisoFlotante = document.createElement("div");
+      avisoFlotante.id = "senal-aviso-flotante";
+      avisoFlotante.setAttribute("role", "status");
+      avisoFlotante.setAttribute("aria-live", "polite");
+      avisoFlotante.className =
+        "alert shadow position-fixed bottom-0 end-0 m-3 py-2 px-3";
+      avisoFlotante.style.zIndex = "1080";
+      avisoFlotante.style.maxWidth = "min(32rem, calc(100vw - 2rem))";
+      document.body.appendChild(avisoFlotante);
+    }
+    avisoFlotante.className =
+      "alert shadow position-fixed bottom-0 end-0 m-3 py-2 px-3 " +
+      (clase || "alert-info");
+    avisoFlotante.textContent = mensaje;
+  }
+
+  function programarRecarga() {
+    if (recargaTimer) {
+      window.clearTimeout(recargaTimer);
+    }
+    recargaTimer = window.setTimeout(function () {
+      var guardado = false;
+      try {
+        window.sessionStorage.setItem(
+          SCROLL_KEY,
+          String(window.scrollY || 0)
+        );
+        guardado = true;
+      } catch (error) {
+        // Sin almacenamiento: se recarga sin conservar la posición.
+      }
+      if (guardado && "scrollRestoration" in window.history) {
+        // Evita que la restauración nativa pise la posición guardada.
+        window.history.scrollRestoration = "manual";
+      }
+      window.location.reload();
+    }, 2500);
+  }
+
+  function restaurarScroll() {
+    var guardado = null;
+    try {
+      guardado = window.sessionStorage.getItem(SCROLL_KEY);
+    } catch (error) {
+      return;
+    }
+    if (guardado === null) {
+      return;
+    }
+    try {
+      window.sessionStorage.removeItem(SCROLL_KEY);
+    } catch (error) {
+      // La clave se ignora si no se puede borrar.
+    }
+    var posicion = parseInt(guardado, 10);
+    if (isNaN(posicion)) {
+      return;
+    }
+    var aplicar = function () {
+      try {
+        window.scrollTo({ top: posicion, left: 0, behavior: "instant" });
+      } catch (error) {
+        window.scrollTo(0, posicion);
+      }
+    };
+    aplicar();
+    window.setTimeout(aplicar, 0);
+    window.addEventListener("load", aplicar, { once: true });
+  }
+
   function progreso(porcentaje, mensaje, clase) {
     if (barra) {
       var valor = Math.max(0, Math.min(100, porcentaje));
@@ -54,6 +145,9 @@
     }
     if (mensaje) {
       texto(mensaje, clase || "text-secondary");
+      if (enCurso) {
+        mostrarAviso(mensaje, claseAviso(clase));
+      }
     }
   }
 
@@ -155,22 +249,39 @@
       .then(function (datos) {
         if (datos.estado === "ok") {
           var resultado = datos.resultado || {};
-          progreso(100, resumen(resultado), "text-success");
+          var resumenTexto = resumen(resultado);
+          progreso(100, resumenTexto, "text-success");
           mostrarActualizar();
           terminar();
+          if (Number(resultado.eventos || 0) > 0) {
+            mostrarAviso(
+              resumenTexto + " · Actualizando la lista…",
+              Number(resultado.errores || 0)
+                ? "alert-warning"
+                : "alert-success"
+            );
+            programarRecarga();
+          } else {
+            mostrarAviso(
+              "Análisis terminado: no había eventos pendientes.",
+              "alert-info"
+            );
+          }
           return;
         }
         if (datos.estado === "error") {
-          texto(datos.mensaje || "No se pudo analizar la señal.", "text-danger");
+          var error = datos.mensaje || "No se pudo analizar la señal.";
+          texto(error, "text-danger");
+          mostrarAviso(error, "alert-danger");
           terminar();
           return;
         }
         intentos += 1;
         if (intentos > MAX_INTENTOS) {
-          texto(
-            "El análisis sigue en curso. Recargue la página más tarde.",
-            "text-warning"
-          );
+          var aviso =
+            "El análisis sigue en curso. Recargue la página más tarde.";
+          texto(aviso, "text-warning");
+          mostrarAviso(aviso, "alert-warning");
           terminar();
           return;
         }
@@ -183,11 +294,15 @@
               (datos.evento ? ": " + datos.evento : "")
           );
         } else {
-          texto(datos.fase || "Analizando señal…", "text-secondary");
+          var fase = datos.fase || "Analizando señal…";
+          texto(fase, "text-secondary");
+          mostrarAviso(fase, "alert-info");
         }
       })
       .catch(function () {
-        texto("No se pudo consultar el estado del análisis.", "text-danger");
+        var error = "No se pudo consultar el estado del análisis.";
+        texto(error, "text-danger");
+        mostrarAviso(error, "alert-danger");
         terminar();
       });
   }
@@ -208,6 +323,7 @@
     enCurso = true;
     bloquearBotones(true);
     texto("Encolando el análisis…", "text-secondary");
+    mostrarAviso("Encolando el análisis…", "alert-info");
     fetch(raiz.dataset.url, {
       method: "POST",
       body: datos,
@@ -221,15 +337,17 @@
       .then(function (resultado) {
         var contenido = resultado.datos || {};
         if (!resultado.ok || contenido.estado === "error") {
-          texto(
-            contenido.mensaje || "No se pudo encolar el análisis.",
-            "text-danger"
-          );
+          var error =
+            contenido.mensaje || "No se pudo encolar el análisis.";
+          texto(error, "text-danger");
+          mostrarAviso(error, "alert-danger");
           terminar();
           return;
         }
         if (!contenido.task_id) {
-          texto("El análisis no devolvió una tarea.", "text-danger");
+          var sinTarea = "El análisis no devolvió una tarea.";
+          texto(sinTarea, "text-danger");
+          mostrarAviso(sinTarea, "alert-danger");
           terminar();
           return;
         }
@@ -237,7 +355,9 @@
         iniciar(plantilla.replace("__TASK__", contenido.task_id));
       })
       .catch(function () {
-        texto("No se pudo encolar el análisis.", "text-danger");
+        var error = "No se pudo encolar el análisis.";
+        texto(error, "text-danger");
+        mostrarAviso(error, "alert-danger");
         terminar();
       });
   }
@@ -330,20 +450,33 @@
           texto("Corrida completada.", "text-success");
           mostrarActualizar();
           finalizarCorrida(datos);
+          mostrarAviso(
+            resumenCorrida(datos) + " · Actualizando la lista…",
+            Number(datos.errores || 0) ? "alert-warning" : "alert-success"
+          );
+          programarRecarga();
           return;
         }
         if (datos.estado === "cancelled") {
           texto("Corrida cancelada.", "text-secondary");
+          mostrarAviso(
+            "Corrida cancelada. Los resultados parciales se conservan.",
+            "alert-warning"
+          );
           finalizarCorrida(datos);
           return;
         }
         if (datos.estado === "error") {
-          texto(datos.mensaje || "La corrida falló.", "text-danger");
+          var error = datos.mensaje || "La corrida falló.";
+          texto(error, "text-danger");
+          mostrarAviso(error, "alert-danger");
           finalizarCorrida(datos);
           return;
         }
         if (datos.estado === "paused") {
-          texto(datos.mensaje || "Corrida pausada.", "text-warning");
+          var pausa = datos.mensaje || "Corrida pausada.";
+          texto(pausa, "text-warning");
+          mostrarAviso(pausa, "alert-warning");
           if (runTimer) {
             window.clearInterval(runTimer);
             runTimer = null;
@@ -354,7 +487,9 @@
         }
       })
       .catch(function () {
-        texto("No se pudo consultar el estado de la corrida.", "text-danger");
+        var error = "No se pudo consultar el estado de la corrida.";
+        texto(error, "text-danger");
+        mostrarAviso(error, "alert-danger");
         finalizarCorrida(null);
       });
   }
@@ -379,6 +514,7 @@
     enCurso = true;
     bloquearBotones(true);
     texto("Creando corrida…", "text-secondary");
+    mostrarAviso("Creando corrida…", "alert-info");
     var parametros = new URLSearchParams(window.location.search);
     var datos = new FormData();
     datos.append("csrf_token", csrfToken());
@@ -398,22 +534,25 @@
       .then(function (resultado) {
         var contenido = resultado.datos || {};
         if (!resultado.ok || contenido.estado === "error") {
-          texto(
-            contenido.mensaje || "No se pudo crear la corrida.",
-            "text-danger"
-          );
+          var error = contenido.mensaje || "No se pudo crear la corrida.";
+          texto(error, "text-danger");
+          mostrarAviso(error, "alert-danger");
           terminar();
           return;
         }
         if (!contenido.run_id) {
-          texto("La corrida no devolvió identificador.", "text-danger");
+          var sinCorrida = "La corrida no devolvió identificador.";
+          texto(sinCorrida, "text-danger");
+          mostrarAviso(sinCorrida, "alert-danger");
           terminar();
           return;
         }
         iniciarCorrida(contenido.run_id);
       })
       .catch(function () {
-        texto("No se pudo crear la corrida.", "text-danger");
+        var error = "No se pudo crear la corrida.";
+        texto(error, "text-danger");
+        mostrarAviso(error, "alert-danger");
         terminar();
       });
   }
@@ -443,7 +582,10 @@
       })
       .then(function (contenido) {
         if (contenido.estado === "error") {
-          texto(contenido.mensaje || "No se pudo completar la acción.", "text-danger");
+          var error =
+            contenido.mensaje || "No se pudo completar la acción.";
+          texto(error, "text-danger");
+          mostrarAviso(error, "alert-danger");
           return;
         }
         if (accion === "reanudar") {
@@ -453,7 +595,9 @@
         }
       })
       .catch(function () {
-        texto("No se pudo completar la acción.", "text-danger");
+        var error = "No se pudo completar la acción.";
+        texto(error, "text-danger");
+        mostrarAviso(error, "alert-danger");
       });
   }
 
@@ -565,6 +709,7 @@
     });
   }
 
+  restaurarScroll();
   actualizarBotonRevision();
   // La selección de la bandeja se restaura al ejecutarse su propio script.
   window.setTimeout(actualizarBotonRevision, 0);
